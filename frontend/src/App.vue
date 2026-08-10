@@ -1,7 +1,18 @@
 <script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
+import { ref, onMounted } from 'vue'
+
+const message = ref('Loading...')
+
+onMounted(async () => {
+  try {
+    const res = await fetch('http://localhost:3000/')
+    message.value = await res.text()
+  } catch {
+    message.value = 'Backend not reachable'
+  }
+})
 </script>
 
 <template>
-  <HelloWorld />
+  <h1>{{ message }}</h1>
 </template>
