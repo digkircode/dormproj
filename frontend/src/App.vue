@@ -5,7 +5,8 @@ const message = ref('Loading...')
 
 onMounted(async () => {
   try {
-    const res = await fetch('http://localhost:3000/')
+    const backendUrl = `${window.location.protocol}//${window.location.hostname}:3000/`
+    const res = await fetch(backendUrl)
     message.value = await res.text()
   } catch {
     message.value = 'Backend not reachable'
