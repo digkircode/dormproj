@@ -5,9 +5,6 @@ import {
   Repeat,
   BarChart3,
   Users,
-  FileText,
-  Database,
-  Sparkles,
   RefreshCw,
 } from 'lucide-vue-next'
 import NavMain from '@/components/NavMain.vue'
@@ -78,9 +75,6 @@ const data = {
     },
   ],
   projects: [
-    { name: 'Data Library', url: '#', icon: Database },
-    { name: 'Reports', url: '#', icon: FileText },
-    { name: 'Word Assistant', url: '#', icon: Sparkles },
     { name: 'Синхронизация', url: '/sync', icon: RefreshCw },
   ],
 }
