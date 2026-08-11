@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { SidebarProps } from '@/components/ui/sidebar'
 import {
-  Building2,
   LayoutDashboard,
   Repeat,
   BarChart3,
@@ -36,7 +35,6 @@ const data = {
   teams: [
     {
       name: 'RosNOU',
-      logo: Building2,
       plan: 'Общежитие',
     },
   ],
@@ -45,7 +43,6 @@ const data = {
       title: 'Dashboard',
       url: '#',
       icon: LayoutDashboard,
-      isActive: true,
       items: [
         { title: 'Обзор', url: '#' },
         { title: 'Отчёты', url: '#' },

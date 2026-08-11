@@ -1,90 +1,35 @@
 <script setup lang="ts">
-import type { Component } from "vue"
-
-import { ChevronsUpDown, Plus } from "lucide-vue-next"
-import { ref } from "vue"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  useSidebar,
-} from "@/components/ui/sidebar"
+} from '@/components/ui/sidebar'
 
-const props = defineProps<{
+defineProps<{
   teams: {
     name: string
-    logo: Component
     plan: string
   }[]
 }>()
-
-const { isMobile } = useSidebar()
-const activeTeam = ref(props.teams[0]!)
 </script>
 
 <template>
   <SidebarMenu>
     <SidebarMenuItem>
-      <DropdownMenu>
-        <DropdownMenuTrigger as-child>
-          <SidebarMenuButton
-            size="lg"
-            class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-          >
-            <div class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-              <component :is="activeTeam.logo" class="size-4" />
-            </div>
-            <div class="grid flex-1 text-left text-sm leading-tight">
-              <span class="truncate font-medium">
-                {{ activeTeam.name }}
-              </span>
-              <span class="truncate text-xs">{{ activeTeam.plan }}</span>
-            </div>
-            <ChevronsUpDown class="ml-auto" />
-          </SidebarMenuButton>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          class="w-(--reka-dropdown-menu-trigger-width) min-w-56 rounded-lg"
-          align="start"
-          :side="isMobile ? 'bottom' : 'right'"
-          :side-offset="4"
-        >
-          <DropdownMenuLabel class="text-xs text-muted-foreground">
-            Teams
-          </DropdownMenuLabel>
-          <DropdownMenuItem
-            v-for="(team, index) in teams"
-            :key="team.name"
-            class="gap-2 p-2"
-            @click="activeTeam = team"
-          >
-            <div class="flex size-6 items-center justify-center rounded-sm border">
-              <component :is="team.logo" class="size-3.5 shrink-0" />
-            </div>
-            {{ team.name }}
-            <DropdownMenuShortcut>⌘{{ index + 1 }}</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem class="gap-2 p-2">
-            <div class="flex size-6 items-center justify-center rounded-md border bg-transparent">
-              <Plus class="size-4" />
-            </div>
-            <div class="font-medium text-muted-foreground">
-              Add team
-            </div>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <SidebarMenuButton as="div" size="lg" class="cursor-default hover:bg-transparent active:bg-transparent">
+        <div class="flex aspect-square size-8 shrink-0 items-center justify-center">
+          <svg width="26" height="26" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M11.4862 28.1964H16.2772H24.4827C25.8043 28.1964 27.082 28.0088 28.2935 27.6668C34.4503 25.9349 38.911 20.0993 38.5365 13.3149C38.129 5.80254 31.7629 0 24.2514 0H1.44141V8.06398V8.97959L8.09385 17.5951H20.5176L13.8652 8.97959H24.3835C26.9388 8.97959 29.1746 10.8108 29.5491 13.337C30.0007 16.492 27.5666 19.2168 24.4937 19.2168H21.7732H9.34944H1.44141V22.9233V28.1964V40H11.4862V28.1964Z" fill="#2699D4" />
+            <path d="M37.8206 40L29.9566 29.818H17.5328L25.3968 40H37.8206Z" fill="#2699D4" />
+          </svg>
+        </div>
+        <div class="grid flex-1 text-left text-sm leading-tight">
+          <span class="truncate font-medium">
+            {{ teams[0]?.name }}
+          </span>
+          <span class="truncate text-xs">{{ teams[0]?.plan }}</span>
+        </div>
+      </SidebarMenuButton>
     </SidebarMenuItem>
   </SidebarMenu>
 </template>
