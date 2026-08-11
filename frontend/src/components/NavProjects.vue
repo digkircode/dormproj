@@ -41,7 +41,11 @@ const { isMobile } = useSidebar()
     <SidebarMenu>
       <SidebarMenuItem v-for="item in projects" :key="item.name">
         <SidebarMenuButton as-child>
-          <a :href="item.url">
+          <RouterLink v-if="item.url.startsWith('/')" :to="item.url">
+            <component :is="item.icon" />
+            <span>{{ item.name }}</span>
+          </RouterLink>
+          <a v-else :href="item.url">
             <component :is="item.icon" />
             <span>{{ item.name }}</span>
           </a>
