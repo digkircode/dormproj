@@ -2,6 +2,8 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { ColumnVisibilityState, PaginationState, SortingState } from '@tanstack/vue-table'
 import {
+  columnResizingFeature,
+  columnSizingFeature,
   columnVisibilityFeature,
   createColumnHelper,
   createPaginatedRowModel,
@@ -21,8 +23,10 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  ListFilter,
   Search,
   Settings2,
+  X,
 } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -32,11 +36,13 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
-import { fetchStudents, type Student } from '@/lib/students-api'
+import { fetchFacetValues, fetchStudents, type FacetOption, type Student } from '@/lib/students-api'
 
 const SEARCH_DEBOUNCE_MS = 350
 
@@ -54,26 +60,20 @@ const columnLabels: Record<string, string> = {
   dot: 'ДОТ',
   uchebYear: 'Учебный год',
 }
+const filterableFields = Object.keys(columnLabels)
 
-// table-layout: fixed берёт ширины из этой шапки — без них таблицу на каждой
-// странице растягивало/сужало под длину конкретного текста в ячейках.
-const columnWidths: Record<string, string> = {
-  fullName: 'w-56',
-  zachetnayaKniga: 'w-36',
-  group: 'w-40',
-  kurs: 'w-24',
-  facultet: 'w-64',
-  speciality: 'w-56',
-  formObuch: 'w-32',
-  osnovaObuch: 'w-40',
-  urovenPodgotov: 'w-36',
-  profilSpec: 'w-56',
-  dot: 'w-16',
-  uchebYear: 'w-28',
+// Текст ячейки для title-подсказки при наведении — должен совпадать с тем, что
+// реально отрисовано, а не с сырым значением (у profilSpec/dot свой рендер).
+function cellTitle(columnId: string, value: unknown): string {
+  if (columnId === 'profilSpec') return (value as string | null) || '—'
+  if (columnId === 'dot') return value ? 'Да' : 'Нет'
+  return String(value ?? '')
 }
 
 const features = tableFeatures({
   columnVisibilityFeature,
+  columnSizingFeature,
+  columnResizingFeature,
   rowPaginationFeature,
   rowSortingFeature,
   paginatedRowModel: createPaginatedRowModel(),
@@ -83,24 +83,28 @@ const features = tableFeatures({
 const columnHelper = createColumnHelper<typeof features, Student>()
 
 const columns = columnHelper.columns([
-  columnHelper.accessor('fullName', { header: columnLabels.fullName, enableHiding: false }),
-  columnHelper.accessor('zachetnayaKniga', { header: columnLabels.zachetnayaKniga }),
-  columnHelper.accessor('group', { header: columnLabels.group }),
-  columnHelper.accessor('kurs', { header: columnLabels.kurs }),
-  columnHelper.accessor('facultet', { header: columnLabels.facultet }),
-  columnHelper.accessor('speciality', { header: columnLabels.speciality }),
-  columnHelper.accessor('formObuch', { header: columnLabels.formObuch }),
-  columnHelper.accessor('osnovaObuch', { header: columnLabels.osnovaObuch }),
-  columnHelper.accessor('urovenPodgotov', { header: columnLabels.urovenPodgotov }),
+  columnHelper.accessor('fullName', { header: columnLabels.fullName, enableHiding: false, size: 224, minSize: 140 }),
+  columnHelper.accessor('zachetnayaKniga', { header: columnLabels.zachetnayaKniga, size: 144, minSize: 90 }),
+  columnHelper.accessor('group', { header: columnLabels.group, size: 160, minSize: 90 }),
+  columnHelper.accessor('kurs', { header: columnLabels.kurs, size: 96, minSize: 70 }),
+  columnHelper.accessor('facultet', { header: columnLabels.facultet, size: 256, minSize: 140 }),
+  columnHelper.accessor('speciality', { header: columnLabels.speciality, size: 224, minSize: 140 }),
+  columnHelper.accessor('formObuch', { header: columnLabels.formObuch, size: 128, minSize: 90 }),
+  columnHelper.accessor('osnovaObuch', { header: columnLabels.osnovaObuch, size: 160, minSize: 100 }),
+  columnHelper.accessor('urovenPodgotov', { header: columnLabels.urovenPodgotov, size: 144, minSize: 100 }),
   columnHelper.accessor('profilSpec', {
     header: columnLabels.profilSpec,
+    size: 224,
+    minSize: 120,
     cell: ({ row }) => row.getValue('profilSpec') || '—',
   }),
   columnHelper.accessor('dot', {
     header: columnLabels.dot,
+    size: 64,
+    minSize: 56,
     cell: ({ row }) => (row.getValue('dot') ? 'Да' : 'Нет'),
   }),
-  columnHelper.accessor('uchebYear', { header: columnLabels.uchebYear }),
+  columnHelper.accessor('uchebYear', { header: columnLabels.uchebYear, size: 112, minSize: 80 }),
 ])
 
 // Пусто = видны все колонки (в TanStack отсутствие записи значит "видима", не "скрыта").
@@ -109,6 +113,9 @@ const pagination = ref<PaginationState>({ pageIndex: 0, pageSize: 20 })
 const sorting = ref<SortingState>([{ id: 'fullName', desc: false }])
 const searchInput = ref('')
 const search = ref('')
+const activeFilterFields = ref<string[]>([])
+const filterValues = ref<Record<string, string[]>>({})
+const facetOptions = ref<Record<string, FacetOption[]>>({})
 
 const state = computed(() => ({
   pagination: pagination.value,
@@ -130,6 +137,7 @@ const table = useTable({
   manualSorting: true,
   enableSortingRemoval: false,
   enableMultiSort: false,
+  columnResizeMode: 'onChange',
   rowCount: total,
   onPaginationChange: (updater) => {
     pagination.value = typeof updater === 'function' ? updater(pagination.value) : updater
@@ -143,6 +151,16 @@ const table = useTable({
   },
 })
 
+// CSS-переменные на ширины колонок вместо чтения column.getSize() в каждой ячейке —
+// при live-перетаскивании (columnResizeMode: onChange) это заметно дешевле.
+const columnSizeVars = computed(() => {
+  const vars: Record<string, string> = {}
+  for (const header of table.getFlatHeaders()) {
+    vars[`--col-${header.column.id}-size`] = `${header.getSize()}px`
+  }
+  return vars
+})
+
 async function loadPage() {
   isLoading.value = true
   errorText.value = ''
@@ -154,6 +172,7 @@ async function loadPage() {
       search: search.value,
       sortBy: sort?.id ?? 'fullName',
       sortDir: sort?.desc ? 'desc' : 'asc',
+      filters: filterValues.value,
     })
     rows.value = page.data
     total.value = page.total
@@ -162,6 +181,37 @@ async function loadPage() {
   } finally {
     isLoading.value = false
   }
+}
+
+async function addFilterField(field: string) {
+  if (activeFilterFields.value.includes(field)) return
+  activeFilterFields.value = [...activeFilterFields.value, field]
+  if (!filterValues.value[field]) {
+    filterValues.value = { ...filterValues.value, [field]: [] }
+  }
+  if (!facetOptions.value[field]) {
+    try {
+      const options = await fetchFacetValues(field)
+      facetOptions.value = { ...facetOptions.value, [field]: options }
+    } catch (error) {
+      errorText.value = error instanceof Error ? error.message : String(error)
+    }
+  }
+}
+
+function removeFilterField(field: string) {
+  activeFilterFields.value = activeFilterFields.value.filter((f) => f !== field)
+  const rest = { ...filterValues.value }
+  delete rest[field]
+  filterValues.value = rest
+  pagination.value = { ...pagination.value, pageIndex: 0 }
+}
+
+function toggleFilterValue(field: string, value: string, checked: boolean) {
+  const current = filterValues.value[field] ?? []
+  const next = checked ? [...current, value] : current.filter((v) => v !== value)
+  filterValues.value = { ...filterValues.value, [field]: next }
+  pagination.value = { ...pagination.value, pageIndex: 0 }
 }
 
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
@@ -177,20 +227,73 @@ onBeforeUnmount(() => {
 })
 
 // Один watcher на все источники — если развести по отдельным watch(), правки,
-// которые меняют несколько ref'ов разом (например смена сортировки сбрасывает
-// ещё и pageIndex), бьют дублирующимися запросами вместо одного.
-watch([pagination, sorting, search], loadPage, { deep: true })
+// которые меняют несколько ref'ов разом (например смена фильтра сбрасывает ещё
+// и pageIndex), бьют дублирующимися запросами вместо одного.
+watch([pagination, sorting, search, filterValues], loadPage, { deep: true })
 onMounted(loadPage)
 </script>
 
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
     <p v-if="errorText" class="text-sm text-red-500">{{ errorText }}</p>
-    <div class="flex items-center justify-between gap-2">
-      <div class="relative w-full max-w-xs">
-        <Search class="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input v-model="searchInput" placeholder="Поиск по всей таблице…" class="pl-8" />
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="relative w-full max-w-xs">
+          <Search class="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input v-model="searchInput" placeholder="Поиск по всей таблице…" class="pl-8" />
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button variant="outline" size="sm">
+              <ListFilter />
+              <span>Добавить фильтр</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" class="w-56">
+            <template v-if="filterableFields.filter((f) => !activeFilterFields.includes(f)).length">
+              <DropdownMenuItem
+                v-for="field in filterableFields.filter((f) => !activeFilterFields.includes(f))"
+                :key="field"
+                @click="addFilterField(field)"
+              >
+                {{ columnLabels[field] }}
+              </DropdownMenuItem>
+            </template>
+            <div v-else class="px-2 py-1.5 text-sm text-muted-foreground">Все поля уже добавлены</div>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu v-for="field in activeFilterFields" :key="field">
+          <DropdownMenuTrigger as-child>
+            <Button variant="outline" size="sm" class="gap-1.5">
+              {{ columnLabels[field] }}
+              <span v-if="(filterValues[field]?.length ?? 0) > 0" class="rounded-sm bg-muted px-1.5 text-xs font-medium">
+                {{ filterValues[field].length }}
+              </span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" class="max-h-72 w-56 overflow-y-auto">
+            <template v-if="facetOptions[field]?.length">
+              <DropdownMenuCheckboxItem
+                v-for="option in facetOptions[field]"
+                :key="option.value"
+                :model-value="(filterValues[field] ?? []).includes(option.value)"
+                @update:model-value="(checked) => toggleFilterValue(field, option.value, !!checked)"
+              >
+                {{ option.label }}
+              </DropdownMenuCheckboxItem>
+            </template>
+            <div v-else class="px-2 py-1.5 text-sm text-muted-foreground">Загрузка…</div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem class="text-red-500 focus:text-red-500" @click="removeFilterField(field)">
+              <X class="size-3.5" />
+              Убрать фильтр
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
+
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
           <Button variant="outline" size="sm">
@@ -212,22 +315,23 @@ onMounted(loadPage)
       </DropdownMenu>
     </div>
 
-    <Card class="gap-0 py-0 min-w-0">
+    <Card class="min-w-0 gap-0 py-0">
       <div class="overflow-hidden rounded-lg border">
         <div class="overflow-x-auto transition-opacity" :class="{ 'opacity-60': isLoading }">
-          <Table class="table-fixed">
+          <Table class="table-fixed" :style="columnSizeVars">
             <TableHeader class="bg-muted sticky top-0 z-10">
               <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
                 <TableHead
                   v-for="header in headerGroup.headers"
                   :key="header.id"
                   :colspan="header.colSpan"
-                  :class="columnWidths[header.column.id]"
+                  class="relative select-none"
+                  :style="{ width: `var(--col-${header.column.id}-size)` }"
                 >
                   <button
                     v-if="!header.isPlaceholder"
                     type="button"
-                    class="flex items-center gap-1.5 hover:text-foreground/80"
+                    class="flex items-center gap-1.5 truncate hover:text-foreground/80"
                     @click="header.column.toggleSorting(header.column.getIsSorted() === 'asc')"
                   >
                     <FlexRender :header="header" />
@@ -235,6 +339,13 @@ onMounted(loadPage)
                     <ArrowDown v-else-if="header.column.getIsSorted() === 'desc'" class="size-3.5 shrink-0" />
                     <ArrowUpDown v-else class="size-3.5 shrink-0 text-muted-foreground/50" />
                   </button>
+                  <div
+                    v-if="header.column.getCanResize()"
+                    class="absolute right-0 top-0 h-full w-1.5 cursor-col-resize touch-none select-none hover:bg-primary/40"
+                    :class="{ 'bg-primary': header.column.getIsResizing() }"
+                    @mousedown="header.getResizeHandler()($event)"
+                    @touchstart="header.getResizeHandler()($event)"
+                  />
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -245,7 +356,8 @@ onMounted(loadPage)
                     v-for="cell in row.getVisibleCells()"
                     :key="cell.id"
                     class="truncate"
-                    :class="columnWidths[cell.column.id]"
+                    :style="{ width: `var(--col-${cell.column.id}-size)` }"
+                    :title="cellTitle(cell.column.id, cell.getValue())"
                   >
                     <FlexRender :cell="cell" />
                   </TableCell>
