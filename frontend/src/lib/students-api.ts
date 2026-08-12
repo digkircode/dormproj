@@ -32,10 +32,23 @@ export interface StudentsPage {
   pageSize: number
 }
 
-export async function fetchStudents(page: number, pageSize: number, search: string): Promise<StudentsPage> {
-  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
-  if (search) {
-    params.set('search', search)
+export interface FetchStudentsOptions {
+  page: number
+  pageSize: number
+  search: string
+  sortBy: string
+  sortDir: 'asc' | 'desc'
+}
+
+export async function fetchStudents(options: FetchStudentsOptions): Promise<StudentsPage> {
+  const params = new URLSearchParams({
+    page: String(options.page),
+    pageSize: String(options.pageSize),
+    sortBy: options.sortBy,
+    sortDir: options.sortDir,
+  })
+  if (options.search) {
+    params.set('search', options.search)
   }
   const response = await fetch(apiUrl(`/students?${params}`))
   if (!response.ok) {

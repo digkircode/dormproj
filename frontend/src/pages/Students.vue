@@ -1,16 +1,29 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { ColumnVisibilityState, PaginationState } from '@tanstack/vue-table'
+import type { ColumnVisibilityState, PaginationState, SortingState } from '@tanstack/vue-table'
 import {
   columnVisibilityFeature,
   createColumnHelper,
   createPaginatedRowModel,
+  createSortedRowModel,
   FlexRender,
   rowPaginationFeature,
+  rowSortingFeature,
   tableFeatures,
   useTable,
 } from '@tanstack/vue-table'
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, Settings2 } from 'lucide-vue-next'
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Search,
+  Settings2,
+} from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -62,7 +75,9 @@ const columnWidths: Record<string, string> = {
 const features = tableFeatures({
   columnVisibilityFeature,
   rowPaginationFeature,
+  rowSortingFeature,
   paginatedRowModel: createPaginatedRowModel(),
+  sortedRowModel: createSortedRowModel(),
 })
 
 const columnHelper = createColumnHelper<typeof features, Student>()
@@ -88,21 +103,17 @@ const columns = columnHelper.columns([
   columnHelper.accessor('uchebYear', { header: columnLabels.uchebYear }),
 ])
 
-const columnVisibility = ref<ColumnVisibilityState>({
-  osnovaObuch: false,
-  urovenPodgotov: false,
-  profilSpec: false,
-  dot: false,
-  uchebYear: false,
-})
-
+// Пусто = видны все колонки (в TanStack отсутствие записи значит "видима", не "скрыта").
+const columnVisibility = ref<ColumnVisibilityState>({})
 const pagination = ref<PaginationState>({ pageIndex: 0, pageSize: 20 })
+const sorting = ref<SortingState>([{ id: 'fullName', desc: false }])
 const searchInput = ref('')
 const search = ref('')
 
 const state = computed(() => ({
   pagination: pagination.value,
   columnVisibility: columnVisibility.value,
+  sorting: sorting.value,
 }))
 
 const rows = ref<Student[]>([])
@@ -116,6 +127,9 @@ const table = useTable({
   data: rows,
   state,
   manualPagination: true,
+  manualSorting: true,
+  enableSortingRemoval: false,
+  enableMultiSort: false,
   rowCount: total,
   onPaginationChange: (updater) => {
     pagination.value = typeof updater === 'function' ? updater(pagination.value) : updater
@@ -123,13 +137,24 @@ const table = useTable({
   onColumnVisibilityChange: (updater) => {
     columnVisibility.value = typeof updater === 'function' ? updater(columnVisibility.value) : updater
   },
+  onSortingChange: (updater) => {
+    sorting.value = typeof updater === 'function' ? updater(sorting.value) : updater
+    pagination.value = { ...pagination.value, pageIndex: 0 }
+  },
 })
 
 async function loadPage() {
   isLoading.value = true
   errorText.value = ''
   try {
-    const page = await fetchStudents(pagination.value.pageIndex + 1, pagination.value.pageSize, search.value)
+    const sort = sorting.value[0]
+    const page = await fetchStudents({
+      page: pagination.value.pageIndex + 1,
+      pageSize: pagination.value.pageSize,
+      search: search.value,
+      sortBy: sort?.id ?? 'fullName',
+      sortDir: sort?.desc ? 'desc' : 'asc',
+    })
     rows.value = page.data
     total.value = page.total
   } catch (error) {
@@ -151,9 +176,10 @@ onBeforeUnmount(() => {
   if (debounceTimer) clearTimeout(debounceTimer)
 })
 
-// Один watcher на оба источника — раньше pagination и search меняли отдельные
-// watch(), и правка поиска (сбрасывает ещё и pageIndex) била двумя запросами разом.
-watch([pagination, search], loadPage, { deep: true })
+// Один watcher на все источники — если развести по отдельным watch(), правки,
+// которые меняют несколько ref'ов разом (например смена сортировки сбрасывает
+// ещё и pageIndex), бьют дублирующимися запросами вместо одного.
+watch([pagination, sorting, search], loadPage, { deep: true })
 onMounted(loadPage)
 </script>
 
@@ -163,7 +189,7 @@ onMounted(loadPage)
     <div class="flex items-center justify-between gap-2">
       <div class="relative w-full max-w-xs">
         <Search class="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input v-model="searchInput" placeholder="Поиск по ФИО, группе, зачётке…" class="pl-8" />
+        <Input v-model="searchInput" placeholder="Поиск по всей таблице…" class="pl-8" />
       </div>
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
@@ -186,7 +212,7 @@ onMounted(loadPage)
       </DropdownMenu>
     </div>
 
-    <Card class="gap-0 py-0">
+    <Card class="gap-0 py-0 min-w-0">
       <div class="overflow-hidden rounded-lg border">
         <div class="overflow-x-auto transition-opacity" :class="{ 'opacity-60': isLoading }">
           <Table class="table-fixed">
@@ -198,7 +224,17 @@ onMounted(loadPage)
                   :colspan="header.colSpan"
                   :class="columnWidths[header.column.id]"
                 >
-                  <FlexRender v-if="!header.isPlaceholder" :header="header" />
+                  <button
+                    v-if="!header.isPlaceholder"
+                    type="button"
+                    class="flex items-center gap-1.5 hover:text-foreground/80"
+                    @click="header.column.toggleSorting(header.column.getIsSorted() === 'asc')"
+                  >
+                    <FlexRender :header="header" />
+                    <ArrowUp v-if="header.column.getIsSorted() === 'asc'" class="size-3.5 shrink-0" />
+                    <ArrowDown v-else-if="header.column.getIsSorted() === 'desc'" class="size-3.5 shrink-0" />
+                    <ArrowUpDown v-else class="size-3.5 shrink-0 text-muted-foreground/50" />
+                  </button>
                 </TableHead>
               </TableRow>
             </TableHeader>
