@@ -51,6 +51,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import TruncatedCell from '@/components/TruncatedCell.vue'
 import { fetchFacetValues, fetchStudents, type FacetOption, type Student } from '@/lib/students-api'
 
 const SEARCH_DEBOUNCE_MS = 350
@@ -69,11 +70,13 @@ const columnLabels: Record<string, string> = {
   dot: 'ДОТ',
   uchebYear: 'Учебный год',
 }
-const filterableFields = Object.keys(columnLabels)
+// ФИО/зачётка/группа — почти уникальны на строку, для мультивыбора не годятся.
+const NON_FILTERABLE_FIELDS = new Set(['fullName', 'zachetnayaKniga', 'group'])
+const filterableFields = Object.keys(columnLabels).filter((f) => !NON_FILTERABLE_FIELDS.has(f))
 
-// Текст ячейки для title-подсказки при наведении — должен совпадать с тем, что
-// реально отрисовано, а не с сырым значением (у profilSpec/dot свой рендер).
-function cellTitle(columnId: string, value: unknown): string {
+// Текст ячейки — должен совпадать с тем, что реально отрисовано, а не с сырым
+// значением (у profilSpec/dot свой формат), используется и в теле, и в тултипе.
+function cellText(columnId: string, value: unknown): string {
   if (columnId === 'profilSpec') return (value as string | null) || '—'
   if (columnId === 'dot') return value ? 'Да' : 'Нет'
   return String(value ?? '')
@@ -101,18 +104,8 @@ const columns = columnHelper.columns([
   columnHelper.accessor('formObuch', { header: columnLabels.formObuch, size: 128, minSize: 90 }),
   columnHelper.accessor('osnovaObuch', { header: columnLabels.osnovaObuch, size: 160, minSize: 100 }),
   columnHelper.accessor('urovenPodgotov', { header: columnLabels.urovenPodgotov, size: 144, minSize: 100 }),
-  columnHelper.accessor('profilSpec', {
-    header: columnLabels.profilSpec,
-    size: 224,
-    minSize: 120,
-    cell: ({ row }) => row.getValue('profilSpec') || '—',
-  }),
-  columnHelper.accessor('dot', {
-    header: columnLabels.dot,
-    size: 64,
-    minSize: 56,
-    cell: ({ row }) => (row.getValue('dot') ? 'Да' : 'Нет'),
-  }),
+  columnHelper.accessor('profilSpec', { header: columnLabels.profilSpec, size: 224, minSize: 120 }),
+  columnHelper.accessor('dot', { header: columnLabels.dot, size: 64, minSize: 56 }),
   columnHelper.accessor('uchebYear', { header: columnLabels.uchebYear, size: 112, minSize: 80 }),
 ])
 
@@ -125,7 +118,12 @@ const search = ref('')
 const activeFilterFields = ref<string[]>([])
 const filterValues = ref<Record<string, string[]>>({})
 const facetOptions = ref<Record<string, FacetOption[]>>({})
+
+// Модалка работает с черновиком: пока не нажали "Готово", ничего не применяется
+// и фильтр не появляется в списке — иначе просто открыв и закрыв модалку,
+// получали бы висящий фильтр "любое значение".
 const filterModalField = ref<string | null>(null)
+const filterModalDraft = ref<string[]>([])
 const filterModalSearch = ref('')
 
 const state = computed(() => ({
@@ -195,14 +193,10 @@ async function loadPage() {
 }
 
 // Клик по полю в "Добавить фильтр" (новое поле) или по уже существующему чипу
-// (донастроить) — в обоих случаях открывает модалку с поиском по значениям.
+// (донастроить) — в обоих случаях открывает модалку с черновиком выбора,
+// ничего не меняя в применённых фильтрах, пока не подтвердят.
 async function openFilterField(field: string) {
-  if (!activeFilterFields.value.includes(field)) {
-    activeFilterFields.value = [...activeFilterFields.value, field]
-  }
-  if (!filterValues.value[field]) {
-    filterValues.value = { ...filterValues.value, [field]: [] }
-  }
+  filterModalDraft.value = [...(filterValues.value[field] ?? [])]
   if (!facetOptions.value[field]) {
     try {
       const options = await fetchFacetValues(field)
@@ -213,6 +207,27 @@ async function openFilterField(field: string) {
   }
   filterModalSearch.value = ''
   filterModalField.value = field
+}
+
+// Закрытие крестиком/кликом вне/Escape — черновик просто отбрасывается.
+function cancelFilterModal() {
+  filterModalField.value = null
+}
+
+// Только "Готово" реально применяет фильтр — даже пустой выбор ("любое значение").
+function confirmFilterModal() {
+  const field = filterModalField.value
+  if (!field) return
+  if (!activeFilterFields.value.includes(field)) {
+    activeFilterFields.value = [...activeFilterFields.value, field]
+  }
+  filterValues.value = { ...filterValues.value, [field]: filterModalDraft.value }
+  pagination.value = { ...pagination.value, pageIndex: 0 }
+  filterModalField.value = null
+}
+
+function toggleDraftValue(value: string, checked: boolean) {
+  filterModalDraft.value = checked ? [...filterModalDraft.value, value] : filterModalDraft.value.filter((v) => v !== value)
 }
 
 function removeFilterField(field: string) {
@@ -226,13 +241,6 @@ function removeFilterField(field: string) {
 function clearAllFilters() {
   activeFilterFields.value = []
   filterValues.value = {}
-  pagination.value = { ...pagination.value, pageIndex: 0 }
-}
-
-function toggleFilterValue(field: string, value: string, checked: boolean) {
-  const current = filterValues.value[field] ?? []
-  const next = checked ? [...current, value] : current.filter((v) => v !== value)
-  filterValues.value = { ...filterValues.value, [field]: next }
   pagination.value = { ...pagination.value, pageIndex: 0 }
 }
 
@@ -322,10 +330,6 @@ onMounted(loadPage)
     </div>
 
     <div v-if="activeFilterFields.length" class="flex flex-wrap items-center gap-2">
-      <Button variant="ghost" size="sm" class="text-muted-foreground" @click="clearAllFilters">
-        <X class="size-3.5" />
-        Очистить
-      </Button>
       <div
         v-for="field in activeFilterFields"
         :key="field"
@@ -346,9 +350,13 @@ onMounted(loadPage)
           <span class="sr-only">Убрать фильтр «{{ columnLabels[field] }}»</span>
         </button>
       </div>
+      <Button variant="ghost" size="sm" class="ml-auto text-muted-foreground" @click="clearAllFilters">
+        <X class="size-3.5" />
+        Очистить
+      </Button>
     </div>
 
-    <Dialog :open="filterModalField !== null" @update:open="(open) => { if (!open) filterModalField = null }">
+    <Dialog :open="filterModalField !== null" @update:open="(open) => { if (!open) cancelFilterModal() }">
       <DialogContent class="flex max-h-[85vh] flex-col">
         <DialogHeader>
           <DialogTitle>{{ columnLabels[filterModalField ?? ''] }}</DialogTitle>
@@ -365,8 +373,8 @@ onMounted(loadPage)
             class="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
           >
             <Checkbox
-              :model-value="(filterValues[filterModalField ?? '']?.includes(option.value)) ?? false"
-              @update:model-value="(checked) => toggleFilterValue(filterModalField ?? '', option.value, !!checked)"
+              :model-value="filterModalDraft.includes(option.value)"
+              @update:model-value="(checked) => toggleDraftValue(option.value, !!checked)"
             />
             <span class="truncate">{{ option.label }}</span>
           </label>
@@ -376,7 +384,7 @@ onMounted(loadPage)
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" @click="filterModalField = null">Готово</Button>
+          <Button variant="outline" @click="confirmFilterModal">Готово</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -391,7 +399,7 @@ onMounted(loadPage)
                   v-for="header in headerGroup.headers"
                   :key="header.id"
                   :colspan="header.colSpan"
-                  class="relative select-none border-r border-border/70 last:border-r-0"
+                  class="relative select-none border-r border-border last:border-r-0"
                   :style="{ width: `var(--col-${header.column.id}-size)` }"
                 >
                   <button
@@ -425,11 +433,10 @@ onMounted(loadPage)
                   <TableCell
                     v-for="cell in row.getVisibleCells()"
                     :key="cell.id"
-                    class="truncate border-r border-border/70 last:border-r-0"
+                    class="border-r border-border last:border-r-0"
                     :style="{ width: `var(--col-${cell.column.id}-size)` }"
-                    :title="cellTitle(cell.column.id, cell.getValue())"
                   >
-                    <FlexRender :cell="cell" />
+                    <TruncatedCell :text="cellText(cell.column.id, cell.getValue())" />
                   </TableCell>
                 </TableRow>
               </template>
