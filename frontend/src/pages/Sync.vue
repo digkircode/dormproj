@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { FileText, CircleCheck, CircleX, Loader, Play } from 'lucide-vue-next'
@@ -11,14 +12,50 @@ import {
   TableHead,
   TableCell,
 } from '@/components/ui/table'
+import { fetchStudentSyncLogs, triggerStudentSync, type SyncLogEntry } from '@/lib/sync-api'
 
-const rows = [
-  { name: 'Контингент студентов', status: 'Успешно', time: '12.08.2026 03:00', duration: '0м 47с' },
+const staticRows = [
   { name: 'Синхронизация оплат', status: 'Успешно', time: '12.08.2026 09:14', duration: '1м 42с' },
   { name: 'Импорт заселения', status: 'Успешно', time: '12.08.2026 06:00', duration: '3м 05с' },
   { name: 'Синхронизация оплат', status: 'Ошибка', time: '11.08.2026 09:14', duration: '0м 18с' },
   { name: 'Обновление договоров', status: 'В процессе', time: '11.08.2026 22:47', duration: '—' },
 ]
+
+const statusLabel = {
+  RUNNING: 'В процессе',
+  SUCCESS: 'Успешно',
+  FAILED: 'Ошибка',
+} as const
+
+function formatDateTime(iso: string): string {
+  const date = new Date(iso)
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function formatDuration(startedAt: string, finishedAt: string | null): string {
+  if (!finishedAt) return '—'
+  const seconds = Math.round((new Date(finishedAt).getTime() - new Date(startedAt).getTime()) / 1000)
+  const minutes = Math.floor(seconds / 60)
+  return minutes > 0 ? `${minutes}м ${seconds % 60}с` : `${seconds}с`
+}
+
+const latestStudentSync = ref<SyncLogEntry | null>(null)
+const isRunning = ref(false)
+const errorText = ref('')
+
+const studentSyncRow = computed(() => {
+  const log = latestStudentSync.value
+  return {
+    name: 'Контингент студентов',
+    status: isRunning.value ? 'В процессе' : log ? statusLabel[log.status] : '—',
+    time: log ? formatDateTime(log.startedAt) : '—',
+    duration: log ? formatDuration(log.startedAt, log.finishedAt) : '—',
+    isReal: true,
+  }
+})
+
+const rows = computed(() => [studentSyncRow.value, ...staticRows.map((r) => ({ ...r, isReal: false }))])
 
 const statusIcon = {
   'Успешно': CircleCheck,
@@ -31,10 +68,34 @@ const statusIconClass: Record<string, string> = {
   'Ошибка': 'fill-red-500 text-white',
   'В процессе': 'animate-spin text-muted-foreground',
 }
+
+async function loadLatestLog() {
+  try {
+    const logs = await fetchStudentSyncLogs()
+    latestStudentSync.value = logs[0] ?? null
+  } catch (error) {
+    errorText.value = error instanceof Error ? error.message : String(error)
+  }
+}
+
+async function runStudentSync() {
+  if (isRunning.value) return
+  isRunning.value = true
+  errorText.value = ''
+  const result = await triggerStudentSync()
+  if (!result.ok) {
+    errorText.value = result.message
+  }
+  await loadLatestLog()
+  isRunning.value = false
+}
+
+onMounted(loadLatestLog)
 </script>
 
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
+    <p v-if="errorText" class="text-sm text-red-500">{{ errorText }}</p>
     <Card class="gap-0 py-0">
       <Table>
         <TableHeader>
@@ -72,8 +133,15 @@ const statusIconClass: Record<string, string> = {
             <TableCell>
               <Tooltip>
                 <TooltipTrigger as-child>
-                  <Button variant="ghost" size="icon" class="size-7">
-                    <Play />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    class="size-7"
+                    :disabled="row.isReal && isRunning"
+                    @click="row.isReal ? runStudentSync() : undefined"
+                  >
+                    <Loader v-if="row.isReal && isRunning" class="animate-spin" />
+                    <Play v-else />
                     <span class="sr-only">Запустить</span>
                   </Button>
                 </TooltipTrigger>

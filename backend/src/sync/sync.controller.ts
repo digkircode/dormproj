@@ -1,4 +1,10 @@
-import { ConflictException, Controller, HttpCode, Post } from '@nestjs/common';
+import {
+  ConflictException,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+} from '@nestjs/common';
 import { SyncService, type SyncResult } from './sync.service';
 import { SyncAlreadyRunningError } from './sync.errors';
 
@@ -22,5 +28,10 @@ export class SyncController {
       }
       throw error;
     }
+  }
+
+  @Get('logs')
+  async logs() {
+    return this.syncService.getRecentLogs();
   }
 }

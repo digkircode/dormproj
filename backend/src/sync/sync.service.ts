@@ -206,4 +206,12 @@ export class SyncService {
       where: { type: SYNC_TYPE_STUDENTS },
     });
   }
+
+  async getRecentLogs(limit = 20) {
+    return this.prisma.syncLog.findMany({
+      where: { type: SYNC_TYPE_STUDENTS },
+      orderBy: { startedAt: 'desc' },
+      take: limit,
+    });
+  }
 }
