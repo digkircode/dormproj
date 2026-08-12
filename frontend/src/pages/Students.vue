@@ -25,19 +25,28 @@ import {
   ChevronsRight,
   ListFilter,
   Search,
+  SearchX,
   Settings2,
   X,
 } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -116,6 +125,8 @@ const search = ref('')
 const activeFilterFields = ref<string[]>([])
 const filterValues = ref<Record<string, string[]>>({})
 const facetOptions = ref<Record<string, FacetOption[]>>({})
+const filterModalField = ref<string | null>(null)
+const filterModalSearch = ref('')
 
 const state = computed(() => ({
   pagination: pagination.value,
@@ -183,9 +194,12 @@ async function loadPage() {
   }
 }
 
-async function addFilterField(field: string) {
-  if (activeFilterFields.value.includes(field)) return
-  activeFilterFields.value = [...activeFilterFields.value, field]
+// Клик по полю в "Добавить фильтр" (новое поле) или по уже существующему чипу
+// (донастроить) — в обоих случаях открывает модалку с поиском по значениям.
+async function openFilterField(field: string) {
+  if (!activeFilterFields.value.includes(field)) {
+    activeFilterFields.value = [...activeFilterFields.value, field]
+  }
   if (!filterValues.value[field]) {
     filterValues.value = { ...filterValues.value, [field]: [] }
   }
@@ -197,6 +211,8 @@ async function addFilterField(field: string) {
       errorText.value = error instanceof Error ? error.message : String(error)
     }
   }
+  filterModalSearch.value = ''
+  filterModalField.value = field
 }
 
 function removeFilterField(field: string) {
@@ -207,12 +223,30 @@ function removeFilterField(field: string) {
   pagination.value = { ...pagination.value, pageIndex: 0 }
 }
 
+function clearAllFilters() {
+  activeFilterFields.value = []
+  filterValues.value = {}
+  pagination.value = { ...pagination.value, pageIndex: 0 }
+}
+
 function toggleFilterValue(field: string, value: string, checked: boolean) {
   const current = filterValues.value[field] ?? []
   const next = checked ? [...current, value] : current.filter((v) => v !== value)
   filterValues.value = { ...filterValues.value, [field]: next }
   pagination.value = { ...pagination.value, pageIndex: 0 }
 }
+
+function facetLabel(field: string, value: string): string {
+  return facetOptions.value[field]?.find((o) => o.value === value)?.label ?? value
+}
+
+const filteredModalOptions = computed(() => {
+  if (!filterModalField.value) return []
+  const options = facetOptions.value[filterModalField.value] ?? []
+  const query = filterModalSearch.value.trim().toLowerCase()
+  if (!query) return options
+  return options.filter((o) => o.label.toLowerCase().includes(query))
+})
 
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
 watch(searchInput, (value) => {
@@ -236,13 +270,14 @@ onMounted(loadPage)
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
     <p v-if="errorText" class="text-sm text-red-500">{{ errorText }}</p>
-    <div class="flex flex-wrap items-center justify-between gap-2">
-      <div class="flex flex-wrap items-center gap-2">
-        <div class="relative w-full max-w-xs">
-          <Search class="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input v-model="searchInput" placeholder="Поиск по всей таблице…" class="pl-8" />
-        </div>
 
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div class="relative w-full max-w-xs">
+        <Search class="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input v-model="searchInput" placeholder="Поиск по всей таблице…" class="pl-8" />
+      </div>
+
+      <div class="flex items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
             <Button variant="outline" size="sm">
@@ -250,12 +285,12 @@ onMounted(loadPage)
               <span>Добавить фильтр</span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" class="w-56">
+          <DropdownMenuContent align="end" class="w-56">
             <template v-if="filterableFields.filter((f) => !activeFilterFields.includes(f)).length">
               <DropdownMenuItem
                 v-for="field in filterableFields.filter((f) => !activeFilterFields.includes(f))"
                 :key="field"
-                @click="addFilterField(field)"
+                @click="openFilterField(field)"
               >
                 {{ columnLabels[field] }}
               </DropdownMenuItem>
@@ -264,56 +299,87 @@ onMounted(loadPage)
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <DropdownMenu v-for="field in activeFilterFields" :key="field">
+        <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button variant="outline" size="sm" class="gap-1.5">
-              {{ columnLabels[field] }}
-              <span v-if="(filterValues[field]?.length ?? 0) > 0" class="rounded-sm bg-muted px-1.5 text-xs font-medium">
-                {{ filterValues[field].length }}
-              </span>
+            <Button variant="outline" size="sm">
+              <Settings2 />
+              <span>Настройка таблицы</span>
+              <ChevronDown />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" class="max-h-72 w-56 overflow-y-auto">
-            <template v-if="facetOptions[field]?.length">
-              <DropdownMenuCheckboxItem
-                v-for="option in facetOptions[field]"
-                :key="option.value"
-                :model-value="(filterValues[field] ?? []).includes(option.value)"
-                @update:model-value="(checked) => toggleFilterValue(field, option.value, !!checked)"
-              >
-                {{ option.label }}
-              </DropdownMenuCheckboxItem>
-            </template>
-            <div v-else class="px-2 py-1.5 text-sm text-muted-foreground">Загрузка…</div>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem class="text-red-500 focus:text-red-500" @click="removeFilterField(field)">
-              <X class="size-3.5" />
-              Убрать фильтр
-            </DropdownMenuItem>
+          <DropdownMenuContent align="end" class="w-56">
+            <DropdownMenuCheckboxItem
+              v-for="column in table.getAllColumns().filter((c) => c.getCanHide())"
+              :key="column.id"
+              :model-value="column.getIsVisible()"
+              @update:model-value="(value) => column.toggleVisibility(!!value)"
+            >
+              {{ columnLabels[column.id] ?? column.id }}
+            </DropdownMenuCheckboxItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger as-child>
-          <Button variant="outline" size="sm">
-            <Settings2 />
-            <span>Настройка таблицы</span>
-            <ChevronDown />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" class="w-56">
-          <DropdownMenuCheckboxItem
-            v-for="column in table.getAllColumns().filter((c) => c.getCanHide())"
-            :key="column.id"
-            :model-value="column.getIsVisible()"
-            @update:model-value="(value) => column.toggleVisibility(!!value)"
-          >
-            {{ columnLabels[column.id] ?? column.id }}
-          </DropdownMenuCheckboxItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
     </div>
+
+    <div v-if="activeFilterFields.length" class="flex flex-wrap items-center gap-2">
+      <Button variant="ghost" size="sm" class="text-muted-foreground" @click="clearAllFilters">
+        <X class="size-3.5" />
+        Очистить
+      </Button>
+      <div
+        v-for="field in activeFilterFields"
+        :key="field"
+        class="flex items-center gap-1 rounded-md border bg-background py-1 pl-2.5 pr-1 text-sm"
+      >
+        <button type="button" class="flex min-w-0 items-center gap-1.5 hover:text-foreground/70" @click="openFilterField(field)">
+          <span class="font-medium">{{ columnLabels[field] }}:</span>
+          <span class="max-w-56 truncate text-muted-foreground">
+            {{
+              (filterValues[field]?.length ?? 0) > 0
+                ? filterValues[field].map((v) => facetLabel(field, v)).join(', ')
+                : 'любое значение'
+            }}
+          </span>
+        </button>
+        <button type="button" class="shrink-0 rounded-sm p-0.5 hover:bg-muted" @click="removeFilterField(field)">
+          <X class="size-3.5" />
+          <span class="sr-only">Убрать фильтр «{{ columnLabels[field] }}»</span>
+        </button>
+      </div>
+    </div>
+
+    <Dialog :open="filterModalField !== null" @update:open="(open) => { if (!open) filterModalField = null }">
+      <DialogContent class="flex max-h-[85vh] flex-col">
+        <DialogHeader>
+          <DialogTitle>{{ columnLabels[filterModalField ?? ''] }}</DialogTitle>
+          <DialogDescription>Выберите одно или несколько значений</DialogDescription>
+        </DialogHeader>
+        <div class="relative">
+          <Search class="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input v-model="filterModalSearch" placeholder="Поиск значения…" class="pl-8" />
+        </div>
+        <div class="-mx-1 flex-1 space-y-0.5 overflow-y-auto px-1" style="max-height: 50vh">
+          <label
+            v-for="option in filteredModalOptions"
+            :key="option.value"
+            class="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+          >
+            <Checkbox
+              :model-value="(filterValues[filterModalField ?? '']?.includes(option.value)) ?? false"
+              @update:model-value="(checked) => toggleFilterValue(filterModalField ?? '', option.value, !!checked)"
+            />
+            <span class="truncate">{{ option.label }}</span>
+          </label>
+          <div v-if="!filteredModalOptions.length" class="flex flex-col items-center gap-2 py-8 text-muted-foreground">
+            <SearchX class="size-6" />
+            <span class="text-sm">Ничего не найдено</span>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="filterModalField = null">Готово</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <Card class="min-w-0 gap-0 py-0">
       <div class="overflow-hidden rounded-lg border">
@@ -325,27 +391,31 @@ onMounted(loadPage)
                   v-for="header in headerGroup.headers"
                   :key="header.id"
                   :colspan="header.colSpan"
-                  class="relative select-none"
+                  class="relative select-none border-r border-border/70 last:border-r-0"
                   :style="{ width: `var(--col-${header.column.id}-size)` }"
                 >
                   <button
                     v-if="!header.isPlaceholder"
                     type="button"
-                    class="flex items-center gap-1.5 truncate hover:text-foreground/80"
+                    class="flex w-full min-w-0 items-center gap-1.5 hover:text-foreground/80"
                     @click="header.column.toggleSorting(header.column.getIsSorted() === 'asc')"
                   >
-                    <FlexRender :header="header" />
+                    <span class="truncate"><FlexRender :header="header" /></span>
                     <ArrowUp v-if="header.column.getIsSorted() === 'asc'" class="size-3.5 shrink-0" />
                     <ArrowDown v-else-if="header.column.getIsSorted() === 'desc'" class="size-3.5 shrink-0" />
                     <ArrowUpDown v-else class="size-3.5 shrink-0 text-muted-foreground/50" />
                   </button>
                   <div
                     v-if="header.column.getCanResize()"
-                    class="absolute right-0 top-0 h-full w-1.5 cursor-col-resize touch-none select-none hover:bg-primary/40"
-                    :class="{ 'bg-primary': header.column.getIsResizing() }"
+                    class="absolute -right-1.5 top-0 z-10 h-full w-3 cursor-col-resize touch-none select-none"
                     @mousedown="header.getResizeHandler()($event)"
                     @touchstart="header.getResizeHandler()($event)"
-                  />
+                  >
+                    <div
+                      class="mx-auto h-full w-0.5 bg-transparent transition-colors hover:bg-primary"
+                      :class="{ 'bg-primary': header.column.getIsResizing() }"
+                    />
+                  </div>
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -355,7 +425,7 @@ onMounted(loadPage)
                   <TableCell
                     v-for="cell in row.getVisibleCells()"
                     :key="cell.id"
-                    class="truncate"
+                    class="truncate border-r border-border/70 last:border-r-0"
                     :style="{ width: `var(--col-${cell.column.id}-size)` }"
                     :title="cellTitle(cell.column.id, cell.getValue())"
                   >
