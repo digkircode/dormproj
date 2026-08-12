@@ -140,6 +140,19 @@ export class StudentsController {
       ];
     }
 
+    if (field === 'kurs') {
+      // "Курс" — текст ("Первый"/"Второй"...), список значений нужен в естественном
+      // порядке (по kursNumber), а не в алфавитном ("Второй" раньше "Первого").
+      const rows = await this.prisma.student.findMany({
+        where: { kurs: { notIn: [''] } },
+        select: { kurs: true, kursNumber: true },
+        distinct: ['kursNumber', 'kurs'],
+        orderBy: [{ kursNumber: 'asc' }, { kurs: 'asc' }],
+        take: 500,
+      });
+      return rows.map((row) => ({ value: row.kurs, label: row.kurs }));
+    }
+
     const rows = await this.prisma.student.findMany({
       where: { [field]: { notIn: [''] } },
       select: { [field]: true },

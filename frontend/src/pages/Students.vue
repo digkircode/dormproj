@@ -36,10 +36,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogScrollContent,
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
@@ -357,7 +357,9 @@ onMounted(loadPage)
     </div>
 
     <Dialog :open="filterModalField !== null" @update:open="(open) => { if (!open) cancelFilterModal() }">
-      <DialogContent class="flex max-h-[85vh] flex-col">
+      <DialogScrollContent
+        class="flex max-h-[85vh] flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+      >
         <DialogHeader>
           <DialogTitle>{{ columnLabels[filterModalField ?? ''] }}</DialogTitle>
           <DialogDescription>Выберите одно или несколько значений</DialogDescription>
@@ -386,7 +388,7 @@ onMounted(loadPage)
         <DialogFooter>
           <Button variant="outline" @click="confirmFilterModal">Готово</Button>
         </DialogFooter>
-      </DialogContent>
+      </DialogScrollContent>
     </Dialog>
 
     <Card class="min-w-0 gap-0 py-0">
