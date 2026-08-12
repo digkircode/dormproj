@@ -6,6 +6,7 @@ import { AppService } from './app.service';
 import { validateEnv } from './config/env.schema';
 import { PrismaModule } from './prisma/prisma.module';
 import { SyncModule } from './sync/sync.module';
+import { StudentsModule } from './students/students.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { SyncModule } from './sync/sync.module';
     ScheduleModule.forRoot(),
     PrismaModule,
     SyncModule,
+    StudentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

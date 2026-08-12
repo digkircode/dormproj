@@ -1,3 +1,5 @@
+import { apiUrl } from './api-base'
+
 export interface SyncLogEntry {
   id: number
   type: string
@@ -11,12 +13,6 @@ export interface SyncLogEntry {
   removed: number | null
   errorMessage: string | null
   errorStack: string | null
-}
-
-// Бэкенд всегда на порту 3000 того же хоста, что и фронт (см. docker-compose) —
-// поэтому проще вычислить адрес во время выполнения, чем городить build-time env var.
-function apiUrl(path: string): string {
-  return `${window.location.protocol}//${window.location.hostname}:3000${path}`
 }
 
 export async function fetchStudentSyncLogs(): Promise<SyncLogEntry[]> {

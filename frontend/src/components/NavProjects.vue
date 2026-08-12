@@ -18,11 +18,11 @@ defineProps<{
 </script>
 
 <template>
-  <SidebarGroup class="group-data-[collapsible=icon]:hidden">
+  <SidebarGroup>
     <SidebarGroupLabel>Администратор</SidebarGroupLabel>
     <SidebarMenu>
       <SidebarMenuItem v-for="item in projects" :key="item.name">
-        <SidebarMenuButton as-child>
+        <SidebarMenuButton as-child :tooltip="item.name">
           <RouterLink v-if="item.url.startsWith('/')" :to="item.url">
             <component :is="item.icon" />
             <span>{{ item.name }}</span>

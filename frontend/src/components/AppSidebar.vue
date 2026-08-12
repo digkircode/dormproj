@@ -6,6 +6,7 @@ import {
   BarChart3,
   Users,
   RefreshCw,
+  User,
 } from 'lucide-vue-next'
 import NavMain from '@/components/NavMain.vue'
 import NavProjects from '@/components/NavProjects.vue'
@@ -75,6 +76,7 @@ const data = {
     },
   ],
   projects: [
+    { name: 'Контингент', url: '/students', icon: User },
     { name: 'Синхронизация', url: '/sync', icon: RefreshCw },
   ],
 }

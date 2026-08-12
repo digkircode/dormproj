@@ -78,15 +78,34 @@ async function loadLatestLog() {
   }
 }
 
+const POLL_INTERVAL_MS = 3000
+const MAX_POLL_MS = 3 * 60 * 1000
+
+// Если синхронизацию уже запустили с другого устройства, наш POST сразу вернёт 409 —
+// но сам запуск где-то там всё ещё идёт. Раньше статус тут просто замирал на моменте
+// конфликта; теперь опрашиваем логи, пока чужой запуск не завершится.
+async function pollUntilIdle() {
+  const deadline = Date.now() + MAX_POLL_MS
+  while (Date.now() < deadline) {
+    await loadLatestLog()
+    if (latestStudentSync.value?.status !== 'RUNNING') return
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+  }
+}
+
 async function runStudentSync() {
   if (isRunning.value) return
   isRunning.value = true
   errorText.value = ''
   const result = await triggerStudentSync()
-  if (!result.ok) {
+  if (result.ok) {
+    await loadLatestLog()
+  } else if (result.conflict) {
+    await pollUntilIdle()
+  } else {
     errorText.value = result.message
+    await loadLatestLog()
   }
-  await loadLatestLog()
   isRunning.value = false
 }
 
@@ -98,7 +117,7 @@ onMounted(loadLatestLog)
     <p v-if="errorText" class="text-sm text-red-500">{{ errorText }}</p>
     <Card class="gap-0 py-0">
       <Table>
-        <TableHeader>
+        <TableHeader class="bg-muted sticky top-0 z-10">
           <TableRow>
             <TableHead>Название</TableHead>
             <TableHead>Статус</TableHead>
