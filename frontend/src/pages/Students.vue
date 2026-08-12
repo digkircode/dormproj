@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { ColumnVisibilityState, PaginationState } from '@tanstack/vue-table'
 import {
   columnVisibilityFeature,
@@ -10,9 +10,10 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/vue-table'
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Settings2 } from 'lucide-vue-next'
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, Settings2 } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   DropdownMenu,
@@ -24,6 +25,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { fetchStudents, type Student } from '@/lib/students-api'
 
+const SEARCH_DEBOUNCE_MS = 350
+
 const columnLabels: Record<string, string> = {
   fullName: 'ФИО',
   zachetnayaKniga: 'Зачётная книжка',
@@ -32,12 +35,28 @@ const columnLabels: Record<string, string> = {
   facultet: 'Факультет',
   speciality: 'Специальность',
   formObuch: 'Форма обучения',
-  uchebStatus: 'Статус',
   osnovaObuch: 'Основание обучения',
   urovenPodgotov: 'Уровень подготовки',
   profilSpec: 'Профиль',
-  uchebYear: 'Учебный год',
   dot: 'ДОТ',
+  uchebYear: 'Учебный год',
+}
+
+// table-layout: fixed берёт ширины из этой шапки — без них таблицу на каждой
+// странице растягивало/сужало под длину конкретного текста в ячейках.
+const columnWidths: Record<string, string> = {
+  fullName: 'w-56',
+  zachetnayaKniga: 'w-36',
+  group: 'w-40',
+  kurs: 'w-24',
+  facultet: 'w-64',
+  speciality: 'w-56',
+  formObuch: 'w-32',
+  osnovaObuch: 'w-40',
+  urovenPodgotov: 'w-36',
+  profilSpec: 'w-56',
+  dot: 'w-16',
+  uchebYear: 'w-28',
 }
 
 const features = tableFeatures({
@@ -56,29 +75,30 @@ const columns = columnHelper.columns([
   columnHelper.accessor('facultet', { header: columnLabels.facultet }),
   columnHelper.accessor('speciality', { header: columnLabels.speciality }),
   columnHelper.accessor('formObuch', { header: columnLabels.formObuch }),
-  columnHelper.accessor('uchebStatus', { header: columnLabels.uchebStatus }),
   columnHelper.accessor('osnovaObuch', { header: columnLabels.osnovaObuch }),
   columnHelper.accessor('urovenPodgotov', { header: columnLabels.urovenPodgotov }),
   columnHelper.accessor('profilSpec', {
     header: columnLabels.profilSpec,
     cell: ({ row }) => row.getValue('profilSpec') || '—',
   }),
-  columnHelper.accessor('uchebYear', { header: columnLabels.uchebYear }),
   columnHelper.accessor('dot', {
     header: columnLabels.dot,
     cell: ({ row }) => (row.getValue('dot') ? 'Да' : 'Нет'),
   }),
+  columnHelper.accessor('uchebYear', { header: columnLabels.uchebYear }),
 ])
 
 const columnVisibility = ref<ColumnVisibilityState>({
   osnovaObuch: false,
   urovenPodgotov: false,
   profilSpec: false,
-  uchebYear: false,
   dot: false,
+  uchebYear: false,
 })
 
 const pagination = ref<PaginationState>({ pageIndex: 0, pageSize: 20 })
+const searchInput = ref('')
+const search = ref('')
 
 const state = computed(() => ({
   pagination: pagination.value,
@@ -109,7 +129,7 @@ async function loadPage() {
   isLoading.value = true
   errorText.value = ''
   try {
-    const page = await fetchStudents(pagination.value.pageIndex + 1, pagination.value.pageSize)
+    const page = await fetchStudents(pagination.value.pageIndex + 1, pagination.value.pageSize, search.value)
     rows.value = page.data
     total.value = page.total
   } catch (error) {
@@ -119,14 +139,32 @@ async function loadPage() {
   }
 }
 
-watch(pagination, loadPage, { deep: true })
+let debounceTimer: ReturnType<typeof setTimeout> | undefined
+watch(searchInput, (value) => {
+  if (debounceTimer) clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(() => {
+    search.value = value.trim()
+    pagination.value = { ...pagination.value, pageIndex: 0 }
+  }, SEARCH_DEBOUNCE_MS)
+})
+onBeforeUnmount(() => {
+  if (debounceTimer) clearTimeout(debounceTimer)
+})
+
+// Один watcher на оба источника — раньше pagination и search меняли отдельные
+// watch(), и правка поиска (сбрасывает ещё и pageIndex) била двумя запросами разом.
+watch([pagination, search], loadPage, { deep: true })
 onMounted(loadPage)
 </script>
 
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
     <p v-if="errorText" class="text-sm text-red-500">{{ errorText }}</p>
-    <div class="flex items-center justify-end">
+    <div class="flex items-center justify-between gap-2">
+      <div class="relative w-full max-w-xs">
+        <Search class="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input v-model="searchInput" placeholder="Поиск по ФИО, группе, зачётке…" class="pl-8" />
+      </div>
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
           <Button variant="outline" size="sm">
@@ -150,29 +188,41 @@ onMounted(loadPage)
 
     <Card class="gap-0 py-0">
       <div class="overflow-hidden rounded-lg border">
-        <Table>
-          <TableHeader class="bg-muted sticky top-0 z-10">
-            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-              <TableHead v-for="header in headerGroup.headers" :key="header.id" :colspan="header.colSpan">
-                <FlexRender v-if="!header.isPlaceholder" :header="header" />
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <template v-if="table.getRowModel().rows.length">
-              <TableRow v-for="row in table.getRowModel().rows" :key="row.id">
-                <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
-                  <FlexRender :cell="cell" />
+        <div class="overflow-x-auto transition-opacity" :class="{ 'opacity-60': isLoading }">
+          <Table class="table-fixed">
+            <TableHeader class="bg-muted sticky top-0 z-10">
+              <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+                <TableHead
+                  v-for="header in headerGroup.headers"
+                  :key="header.id"
+                  :colspan="header.colSpan"
+                  :class="columnWidths[header.column.id]"
+                >
+                  <FlexRender v-if="!header.isPlaceholder" :header="header" />
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <template v-if="table.getRowModel().rows.length">
+                <TableRow v-for="row in table.getRowModel().rows" :key="row.id">
+                  <TableCell
+                    v-for="cell in row.getVisibleCells()"
+                    :key="cell.id"
+                    class="truncate"
+                    :class="columnWidths[cell.column.id]"
+                  >
+                    <FlexRender :cell="cell" />
+                  </TableCell>
+                </TableRow>
+              </template>
+              <TableRow v-else>
+                <TableCell :colspan="columns.length" class="h-24 text-center text-muted-foreground">
+                  {{ isLoading ? 'Загрузка…' : 'Ничего не найдено' }}
                 </TableCell>
               </TableRow>
-            </template>
-            <TableRow v-else>
-              <TableCell :colspan="columns.length" class="h-24 text-center text-muted-foreground">
-                {{ isLoading ? 'Загрузка…' : 'Нет данных' }}
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </Card>
 
@@ -185,6 +235,7 @@ onMounted(loadPage)
           <Label for="rows-per-page" class="text-sm font-medium">Строк на странице</Label>
           <Select
             :model-value="`${pagination.pageSize}`"
+            :disabled="isLoading"
             @update:model-value="(value) => table.setPageSize(Number(value))"
           >
             <SelectTrigger id="rows-per-page" size="sm" class="w-20">
@@ -204,7 +255,7 @@ onMounted(loadPage)
           <Button
             variant="outline"
             class="hidden h-8 w-8 p-0 lg:flex"
-            :disabled="!table.getCanPreviousPage()"
+            :disabled="isLoading || !table.getCanPreviousPage()"
             @click="table.setPageIndex(0)"
           >
             <span class="sr-only">Первая страница</span>
@@ -214,7 +265,7 @@ onMounted(loadPage)
             variant="outline"
             class="size-8"
             size="icon"
-            :disabled="!table.getCanPreviousPage()"
+            :disabled="isLoading || !table.getCanPreviousPage()"
             @click="table.previousPage()"
           >
             <span class="sr-only">Предыдущая страница</span>
@@ -224,7 +275,7 @@ onMounted(loadPage)
             variant="outline"
             class="size-8"
             size="icon"
-            :disabled="!table.getCanNextPage()"
+            :disabled="isLoading || !table.getCanNextPage()"
             @click="table.nextPage()"
           >
             <span class="sr-only">Следующая страница</span>
@@ -233,7 +284,7 @@ onMounted(loadPage)
           <Button
             variant="outline"
             class="hidden size-8 lg:flex"
-            :disabled="!table.getCanNextPage()"
+            :disabled="isLoading || !table.getCanNextPage()"
             @click="table.setPageIndex(table.getPageCount() - 1)"
           >
             <span class="sr-only">Последняя страница</span>

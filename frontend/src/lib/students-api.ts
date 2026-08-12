@@ -32,8 +32,12 @@ export interface StudentsPage {
   pageSize: number
 }
 
-export async function fetchStudents(page: number, pageSize: number): Promise<StudentsPage> {
-  const response = await fetch(apiUrl(`/students?page=${page}&pageSize=${pageSize}`))
+export async function fetchStudents(page: number, pageSize: number, search: string): Promise<StudentsPage> {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
+  if (search) {
+    params.set('search', search)
+  }
+  const response = await fetch(apiUrl(`/students?${params}`))
   if (!response.ok) {
     throw new Error(`Не удалось получить список студентов (${response.status})`)
   }
