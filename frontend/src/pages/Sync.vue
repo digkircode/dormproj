@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/table'
 
 const rows = [
+  { name: 'Контингент студентов', status: 'Успешно', time: '12.08.2026 03:00', duration: '0м 47с' },
   { name: 'Синхронизация оплат', status: 'Успешно', time: '12.08.2026 09:14', duration: '1м 42с' },
   { name: 'Импорт заселения', status: 'Успешно', time: '12.08.2026 06:00', duration: '3м 05с' },
   { name: 'Синхронизация оплат', status: 'Ошибка', time: '11.08.2026 09:14', duration: '0м 18с' },

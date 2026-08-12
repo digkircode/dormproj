@@ -18,6 +18,9 @@ services:
       - db
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-dormproj}:${POSTGRES_PASSWORD:-dormproj}@db:5432/${POSTGRES_DB:-dormproj}?schema=public
+      EXTERNAL_API_URL: ${EXTERNAL_API_URL}
+      EXTERNAL_API_LOGIN: ${EXTERNAL_API_LOGIN}
+      EXTERNAL_API_PASSWORD: ${EXTERNAL_API_PASSWORD}
     ports:
       - "${BACKEND_PORT:-3000}:3000"
 

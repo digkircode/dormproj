@@ -4,10 +4,80 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+// Один активный студент = одна зачётная книжка (ZachetnayaKnigaUID из внешнего API).
+// Отчисленных/выпустившихся не храним — при синхронизации отсутствующие строки удаляются.
+model Student {
+  zachetnayaKnigaUid   String   @id @map("zachetnaya_kniga_uid")
+  fizicheskoyeLitsoUid String   @map("fizicheskoye_litso_uid")
+  fullName             String   @map("full_name")
+  zachetnayaKniga      String   @map("zachetnaya_kniga")
+  uchebYear            String   @map("ucheb_year")
+  uchebPlan            String   @map("ucheb_plan")
+  uchebPlanOsnova      String   @map("ucheb_plan_osnova")
+  formObuch            String   @map("form_obuch")
+  facultet             String
+  speciality           String
+  kurs                 String
+  kursNumber           Int      @map("kurs_number")
+  group                String   @map("study_group")
+  uchebStatus          String   @map("ucheb_status")
+  osnovaObuch          String   @map("osnova_obuch")
+  urovenPodgotov       String   @map("uroven_podgotov")
+  profilSpec           String?  @map("profil_spec")
+  dot                  Boolean
+  facultAbbr           String   @map("facult_abbr")
+  period               DateTime
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([fizicheskoyeLitsoUid])
+  @@map("students")
+}
+
+// Однорядный лок на время выполнения синхронизации данного типа — защита от параллельного запуска.
+// Уникальность type делает acquire атомарным на уровне БД (create падает, если лок уже держит кто-то другой).
+model SyncLock {
+  type      String   @id
+  startedAt DateTime @default(now()) @map("started_at")
+
+  @@map("sync_locks")
+}
+
+model SyncLog {
+  id           Int         @id @default(autoincrement())
+  type         String      @default("students")
+  trigger      SyncTrigger
+  status       SyncStatus
+  startedAt    DateTime    @default(now()) @map("started_at")
+  finishedAt   DateTime?   @map("finished_at")
+  fetchedCount Int?        @map("fetched_count")
+  added        Int?
+  updated      Int?
+  removed      Int?
+  errorMessage String?     @map("error_message")
+  errorStack   String?     @map("error_stack")
+
+  @@index([type, status, finishedAt])
+  @@map("sync_logs")
+}
+
+enum SyncTrigger {
+  CRON
+  MANUAL
+}
+
+enum SyncStatus {
+  RUNNING
+  SUCCESS
+  FAILED
 }
