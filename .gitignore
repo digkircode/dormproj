@@ -14,3 +14,6 @@ backend/dist/
 
 # prisma
 backend/prisma/*.db
+
+# local handoff notes (contains server access details)
+CONTEXT_HANDOFF.md
