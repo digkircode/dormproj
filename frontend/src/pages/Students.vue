@@ -417,12 +417,12 @@ onMounted(loadPage)
                   </button>
                   <div
                     v-if="header.column.getCanResize()"
-                    class="absolute -right-1.5 top-0 z-10 h-full w-3 cursor-col-resize touch-none select-none"
+                    class="group absolute -right-1.5 top-0 z-10 h-full w-3 cursor-col-resize touch-none select-none"
                     @mousedown="header.getResizeHandler()($event)"
                     @touchstart="header.getResizeHandler()($event)"
                   >
                     <div
-                      class="mx-auto h-full w-0.5 bg-transparent transition-colors hover:bg-primary"
+                      class="mx-auto h-full w-0.5 bg-transparent transition-colors group-hover:bg-primary"
                       :class="{ 'bg-primary': header.column.getIsResizing() }"
                     />
                   </div>
