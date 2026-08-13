@@ -46,68 +46,37 @@ export class SyncService {
     try {
       const records = await this.externalApi.fetchActiveStudents();
 
-      const { added, updated, removed } = await this.prisma.$transaction(
+      // Полная очистка + перезапись вместо построчного upsert/diff — источник всегда
+      // отдаёт полный список активных студентов, поэтому промежуточное состояние
+      // (кто добавился/обновился) не нужно, а bulk-запись быстрее N апсертов.
+      // Guard от аномального падения количества остаётся: если пришло заметно меньше,
+      // чем сейчас в базе, это больше похоже на сбой источника, чем на массовое
+      // отчисление — прерываем транзакцию без удаления данных.
+      const { added, removed } = await this.prisma.$transaction(
         async (tx) => {
-          const existingRows = await tx.student.findMany({
-            select: { zachetnayaKnigaUid: true, fizicheskoyeLitsoUid: true },
-          });
+          const existingCount = await tx.student.count();
 
           if (
-            existingRows.length > 0 &&
-            records.length < existingRows.length * MIN_SURVIVAL_RATIO
+            existingCount > 0 &&
+            records.length < existingCount * MIN_SURVIVAL_RATIO
           ) {
             throw new SyncGuardTrippedError(
-              `Во внешнем API пришло ${records.length} записей, а сейчас в базе ${existingRows.length} студентов — это меньше ${Math.round(MIN_SURVIVAL_RATIO * 100)}% от текущего количества. Похоже на сбой источника, синхронизация остановлена без удаления данных.`,
+              `Во внешнем API пришло ${records.length} записей, а сейчас в базе ${existingCount} студентов — это меньше ${Math.round(MIN_SURVIVAL_RATIO * 100)}% от текущего количества. Похоже на сбой источника, синхронизация остановлена без удаления данных.`,
             );
           }
 
-          const existingMap = new Map(
-            existingRows.map((r) => [
-              r.zachetnayaKnigaUid,
-              r.fizicheskoyeLitsoUid,
-            ]),
-          );
-          let added = 0;
-          let updated = 0;
+          await tx.student.deleteMany({});
 
-          for (const record of records) {
-            const existingLitsoUid = existingMap.get(record.ZachetnayaKnigaUID);
-
-            if (existingLitsoUid === undefined) {
-              added++;
-            } else {
-              updated++;
-              if (existingLitsoUid !== record.FizicheskoyeLitsoUID) {
-                this.logger.warn(
-                  `Аномалия: зачётка ${record.ZachetnayaKnigaUID} раньше была привязана к физлицу ${existingLitsoUid}, теперь пришла с ${record.FizicheskoyeLitsoUID}. Запись обновлена, но стоит проверить вручную.`,
-                );
-              }
-            }
-
-            const data = toStudentData(record);
-            await tx.student.upsert({
-              where: { zachetnayaKnigaUid: record.ZachetnayaKnigaUID },
-              create: {
-                zachetnayaKnigaUid: record.ZachetnayaKnigaUID,
-                ...data,
-              },
-              update: data,
-            });
-          }
-
-          let removed = 0;
           if (records.length > 0) {
-            const result = await tx.student.deleteMany({
-              where: {
-                zachetnayaKnigaUid: {
-                  notIn: records.map((r) => r.ZachetnayaKnigaUID),
-                },
-              },
+            await tx.student.createMany({
+              data: records.map((record) => ({
+                zachetnayaKnigaUid: record.ZachetnayaKnigaUID,
+                ...toStudentData(record),
+              })),
             });
-            removed = result.count;
           }
 
-          return { added, updated, removed };
+          return { added: records.length, removed: existingCount };
         },
         { timeout: TRANSACTION_TIMEOUT_MS },
       );
@@ -120,20 +89,20 @@ export class SyncService {
           finishedAt,
           fetchedCount: records.length,
           added,
-          updated,
+          updated: 0,
           removed,
         },
       });
 
       this.logger.log(
-        `Синхронизация студентов завершена: получено ${records.length}, добавлено ${added}, обновлено ${updated}, удалено ${removed}`,
+        `Синхронизация студентов завершена: очищено ${removed}, записано ${added}`,
       );
 
       return {
         status: 'SUCCESS',
         fetchedCount: records.length,
         added,
-        updated,
+        updated: 0,
         removed,
         startedAt: log.startedAt,
         finishedAt,
