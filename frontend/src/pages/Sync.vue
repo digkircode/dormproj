@@ -15,10 +15,10 @@ import {
 import { fetchStudentSyncLogs, triggerStudentSync, type SyncLogEntry } from '@/lib/sync-api'
 
 const staticRows = [
-  { name: 'Синхронизация оплат', status: 'Успешно', time: '12.08.2026 09:14', duration: '1м 42с' },
-  { name: 'Импорт заселения', status: 'Успешно', time: '12.08.2026 06:00', duration: '3м 05с' },
-  { name: 'Синхронизация оплат', status: 'Ошибка', time: '11.08.2026 09:14', duration: '0м 18с' },
-  { name: 'Обновление договоров', status: 'В процессе', time: '11.08.2026 22:47', duration: '—' },
+  { name: 'Физические лица', status: '—', time: '—', duration: '—' },
+  { name: 'Контактная информация', status: '—', time: '—', duration: '—' },
+  { name: 'Паспортные данные', status: '—', time: '—', duration: '—' },
+  { name: 'Гражданство', status: '—', time: '—', duration: '—' },
 ]
 
 const statusLabel = {
