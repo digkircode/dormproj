@@ -2,12 +2,12 @@
 import { computed } from 'vue'
 import type { SidebarProps } from '@/components/ui/sidebar'
 import {
-  LayoutDashboard,
   Repeat,
   BarChart3,
   Users,
   RefreshCw,
   User,
+  Table2,
 } from 'lucide-vue-next'
 import NavMain from '@/components/NavMain.vue'
 import NavProjects from '@/components/NavProjects.vue'
@@ -44,15 +44,6 @@ const data = {
   ],
   navMain: [
     {
-      title: 'Dashboard',
-      url: '#',
-      icon: LayoutDashboard,
-      items: [
-        { title: 'Обзор', url: '#' },
-        { title: 'Отчёты', url: '#' },
-      ],
-    },
-    {
       title: 'Lifecycle',
       url: '#',
       icon: Repeat,
@@ -79,9 +70,23 @@ const data = {
         { title: 'Роли', url: '#' },
       ],
     },
+    {
+      title: 'Физические лица',
+      url: '/individuals',
+      icon: User,
+    },
   ],
   projects: [
-    { name: 'Контингент', url: '/students', icon: User },
+    {
+      name: 'Системные таблицы',
+      icon: Table2,
+      items: [
+        { title: 'Контингент', url: '/students' },
+        { title: 'Гражданство', url: '/system-tables/citizenship' },
+        { title: 'Контактная информация', url: '/system-tables/contact-info' },
+        { title: 'Паспортные данные', url: '/system-tables/passport-data' },
+      ],
+    },
     { name: 'Синхронизация', url: '/sync', icon: RefreshCw },
   ],
 }
