@@ -57,15 +57,20 @@ const props = withDefaults(
     totalLabel: string
     cellText?: (columnId: string, value: unknown) => string
     pageSizeOptions?: number[]
+    hiddenByDefault?: string[]
   }>(),
   {
     cellText: (_columnId: string, value: unknown) => String(value ?? ''),
     pageSizeOptions: () => [10, 20, 30, 50, 100],
+    hiddenByDefault: () => [],
   },
 )
 
-// Пусто = видны все колонки (в TanStack отсутствие записи значит "видима", не "скрыта").
-const columnVisibility = ref<ColumnVisibilityState>({})
+// Пусто = видны все колонки (в TanStack отсутствие записи значит "видима", не "скрыта") —
+// поэтому "скрыто по умолчанию" выражается явной записью false, а не просто отсутствием.
+const columnVisibility = ref<ColumnVisibilityState>(
+  Object.fromEntries(props.hiddenByDefault.map((id) => [id, false])),
+)
 const pagination = ref<PaginationState>({ pageIndex: 0, pageSize: 20 })
 const sorting = ref<SortingState>([props.defaultSort])
 const searchInput = ref('')

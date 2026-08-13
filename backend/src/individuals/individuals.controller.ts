@@ -8,7 +8,7 @@ const MAX_PAGE_SIZE = 100;
 
 // birthDateText — сгенерированная БД колонка (DD.MM.YYYY от birth_date), чтобы дату
 // рождения можно было искать тем же ILIKE, что и обычный текст (см. schema.prisma).
-const SEARCHABLE_FIELDS = ['fullName', 'code', 'snils', 'inn', 'gender', 'birthDateText'] as const;
+const SEARCHABLE_FIELDS = ['fullName', 'code', 'snils', 'inn', 'gender', 'birthDateText', 'fizicheskoyeLitsoUid'] as const;
 
 const SORTABLE_FIELDS: Record<string, string> = {
   fullName: 'fullName',

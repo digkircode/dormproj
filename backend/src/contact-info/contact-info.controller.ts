@@ -19,6 +19,7 @@ const DIRECT_SEARCHABLE_FIELDS = [
   'phoneNumber',
   'phoneNumberNoCode',
   'dateStartText',
+  'fizicheskoyeLitsoUid',
 ] as const;
 
 const SORTABLE_FIELDS = [

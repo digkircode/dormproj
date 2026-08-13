@@ -8,8 +8,10 @@ const columnLabels: Record<string, string> = {
   period: 'Период',
   country: 'Страна',
   countryCode: 'Код страны',
+  fizicheskoyeLitsoUid: 'UID физлица',
 }
 const filterableFields = ['country', 'countryCode']
+const hiddenByDefault = ['countryCode', 'fizicheskoyeLitsoUid']
 
 function cellText(columnId: string, value: unknown): string {
   if (columnId === 'period' && typeof value === 'string') {
@@ -27,6 +29,7 @@ const columns = columnHelper.columns([
   columnHelper.accessor('period', { header: columnLabels.period, size: 128, minSize: 100 }),
   columnHelper.accessor('country', { header: columnLabels.country, size: 192, minSize: 120 }),
   columnHelper.accessor('countryCode', { header: columnLabels.countryCode, size: 128, minSize: 90 }),
+  columnHelper.accessor('fizicheskoyeLitsoUid', { header: columnLabels.fizicheskoyeLitsoUid, size: 280, minSize: 200 }),
 ])
 </script>
 
@@ -42,6 +45,7 @@ const columns = columnHelper.columns([
       :get-row-id="(c: Citizenship) => String(c.id)"
       total-label="записей о гражданстве"
       :cell-text="cellText"
+      :hidden-by-default="hiddenByDefault"
     />
   </div>
 </template>

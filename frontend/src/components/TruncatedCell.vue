@@ -29,6 +29,6 @@ watch(() => props.text, () => nextTick(checkTruncated))
     <TooltipTrigger as-child>
       <span ref="el" class="block truncate">{{ props.text }}</span>
     </TooltipTrigger>
-    <TooltipContent>{{ props.text }}</TooltipContent>
+    <TooltipContent class="max-w-md whitespace-pre-wrap break-words">{{ props.text }}</TooltipContent>
   </Tooltip>
 </template>

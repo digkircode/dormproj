@@ -6,8 +6,8 @@ import { PrismaService } from '../prisma/prisma.service';
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 
-// Текстовые поля, по которым ищем — весь "человекочитаемый" набор, кроме UID'ов
-// и внутренних кодов планов 1С, которые студентам/сотрудникам ничего не скажут.
+// Текстовые поля, по которым ищем — весь "человекочитаемый" набор плюс оба UID
+// (скрытые по умолчанию колонки в таблице всё равно должны находиться поиском).
 const SEARCHABLE_FIELDS = [
   'fullName',
   'zachetnayaKniga',
@@ -20,6 +20,8 @@ const SEARCHABLE_FIELDS = [
   'urovenPodgotov',
   'profilSpec',
   'uchebYear',
+  'zachetnayaKnigaUid',
+  'fizicheskoyeLitsoUid',
 ] as const;
 
 // Ключ — id колонки на фронте, значение — реальное поле для ORDER BY.

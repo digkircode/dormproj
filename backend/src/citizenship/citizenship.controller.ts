@@ -9,7 +9,7 @@ const MAX_PAGE_SIZE = 100;
 // fullName живёт в Individual, а не в Citizenship (см. schema.prisma) — ищем и сортируем
 // по нему через связь individual, остальные поля — напрямую. periodText — сгенерированная
 // БД колонка (DD.MM.YYYY), чтобы период искался тем же ILIKE, что и текст.
-const DIRECT_SEARCHABLE_FIELDS = ['country', 'countryCode', 'periodText'] as const;
+const DIRECT_SEARCHABLE_FIELDS = ['country', 'countryCode', 'periodText', 'fizicheskoyeLitsoUid'] as const;
 
 const SORTABLE_FIELDS = ['fullName', 'period', 'country', 'countryCode'] as const;
 type SortableField = (typeof SORTABLE_FIELDS)[number];

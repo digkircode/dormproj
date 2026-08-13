@@ -16,8 +16,10 @@ const columnLabels: Record<string, string> = {
   dateStart: 'Дата начала',
   xml: 'XML',
   json: 'JSON',
+  fizicheskoyeLitsoUid: 'UID физлица',
 }
-const filterableFields = ['type', 'country', 'region', 'city']
+const filterableFields = ['type', 'country']
+const hiddenByDefault = ['xml', 'json', 'fizicheskoyeLitsoUid']
 
 // 1С отдаёт "0001-01-01" как "дата не задана" — показываем такое как "—", а не 01.01.0001.
 function cellText(columnId: string, value: unknown): string {
@@ -45,6 +47,7 @@ const columns = columnHelper.columns([
   columnHelper.accessor('dateStart', { header: columnLabels.dateStart, size: 128, minSize: 100 }),
   columnHelper.accessor('xml', { header: columnLabels.xml, size: 320, minSize: 160 }),
   columnHelper.accessor('json', { header: columnLabels.json, size: 320, minSize: 160 }),
+  columnHelper.accessor('fizicheskoyeLitsoUid', { header: columnLabels.fizicheskoyeLitsoUid, size: 280, minSize: 200 }),
 ])
 </script>
 
@@ -60,6 +63,7 @@ const columns = columnHelper.columns([
       :get-row-id="(c: ContactInfo) => String(c.id)"
       total-label="записей контактной информации"
       :cell-text="cellText"
+      :hidden-by-default="hiddenByDefault"
     />
   </div>
 </template>

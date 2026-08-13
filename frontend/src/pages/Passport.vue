@@ -13,8 +13,10 @@ const columnLabels: Record<string, string> = {
   unit: 'Кем выдан',
   codeUnit: 'Код подразделения',
   systemDoc: 'Системный номер',
+  fizicheskoyeLitsoUid: 'UID физлица',
 }
-const filterableFields = ['type', 'unit', 'codeUnit']
+const filterableFields = ['type']
+const hiddenByDefault = ['systemDoc', 'fizicheskoyeLitsoUid']
 
 const DATE_COLUMNS = new Set(['period', 'dateStart'])
 
@@ -39,6 +41,7 @@ const columns = columnHelper.columns([
   columnHelper.accessor('unit', { header: columnLabels.unit, size: 288, minSize: 160 }),
   columnHelper.accessor('codeUnit', { header: columnLabels.codeUnit, size: 144, minSize: 100 }),
   columnHelper.accessor('systemDoc', { header: columnLabels.systemDoc, size: 144, minSize: 100 }),
+  columnHelper.accessor('fizicheskoyeLitsoUid', { header: columnLabels.fizicheskoyeLitsoUid, size: 280, minSize: 200 }),
 ])
 </script>
 
@@ -54,6 +57,7 @@ const columns = columnHelper.columns([
       :get-row-id="(p: Passport) => String(p.id)"
       total-label="паспортных записей"
       :cell-text="cellText"
+      :hidden-by-default="hiddenByDefault"
     />
   </div>
 </template>

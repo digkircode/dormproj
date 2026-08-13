@@ -16,10 +16,20 @@ const columnLabels: Record<string, string> = {
   profilSpec: 'Профиль',
   dot: 'ДОТ',
   uchebYear: 'Учебный год',
+  zachetnayaKnigaUid: 'UID зачётки',
+  fizicheskoyeLitsoUid: 'UID физлица',
 }
 // ФИО/зачётка/группа — почти уникальны на строку, для мультивыбора не годятся.
-const NON_FILTERABLE_FIELDS = new Set(['fullName', 'zachetnayaKniga', 'group'])
+// UID-поля — технические, для фильтра-мультивыбора бессмысленны в принципе.
+const NON_FILTERABLE_FIELDS = new Set([
+  'fullName',
+  'zachetnayaKniga',
+  'group',
+  'zachetnayaKnigaUid',
+  'fizicheskoyeLitsoUid',
+])
 const filterableFields = Object.keys(columnLabels).filter((f) => !NON_FILTERABLE_FIELDS.has(f))
+const hiddenByDefault = ['zachetnayaKnigaUid', 'fizicheskoyeLitsoUid']
 
 // Текст ячейки — должен совпадать с тем, что реально отрисовано, а не с сырым
 // значением (у profilSpec/dot свой формат), используется и в теле, и в тултипе.
@@ -44,6 +54,8 @@ const columns = columnHelper.columns([
   columnHelper.accessor('profilSpec', { header: columnLabels.profilSpec, size: 224, minSize: 120 }),
   columnHelper.accessor('dot', { header: columnLabels.dot, size: 64, minSize: 56 }),
   columnHelper.accessor('uchebYear', { header: columnLabels.uchebYear, size: 112, minSize: 80 }),
+  columnHelper.accessor('zachetnayaKnigaUid', { header: columnLabels.zachetnayaKnigaUid, size: 280, minSize: 200 }),
+  columnHelper.accessor('fizicheskoyeLitsoUid', { header: columnLabels.fizicheskoyeLitsoUid, size: 280, minSize: 200 }),
 ])
 </script>
 
@@ -59,6 +71,7 @@ const columns = columnHelper.columns([
       :get-row-id="(s: Student) => s.zachetnayaKnigaUid"
       total-label="студентов"
       :cell-text="cellText"
+      :hidden-by-default="hiddenByDefault"
     />
   </div>
 </template>

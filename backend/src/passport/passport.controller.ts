@@ -18,6 +18,7 @@ const DIRECT_SEARCHABLE_FIELDS = [
   'systemDoc',
   'periodText',
   'dateStartText',
+  'fizicheskoyeLitsoUid',
 ] as const;
 
 const SORTABLE_FIELDS = [
