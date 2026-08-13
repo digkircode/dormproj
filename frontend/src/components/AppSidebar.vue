@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { SidebarProps } from '@/components/ui/sidebar'
 import {
   LayoutDashboard,
@@ -12,6 +13,7 @@ import NavMain from '@/components/NavMain.vue'
 import NavProjects from '@/components/NavProjects.vue'
 import NavUser from '@/components/NavUser.vue'
 import TeamSwitcher from '@/components/TeamSwitcher.vue'
+import { currentUser } from '@/lib/auth-state'
 
 import {
   Sidebar,
@@ -25,12 +27,15 @@ const props = withDefaults(defineProps<SidebarProps>(), {
   collapsible: 'icon',
 })
 
+// AppSidebar рендерится только когда currentUser уже точно есть (см. App.vue) —
+// проверка тут просто чтобы TypeScript не ругался на возможный null.
+const user = computed(() => ({
+  name: currentUser.value?.fullName ?? '',
+  email: currentUser.value?.email ?? '',
+  avatar: '',
+}))
+
 const data = {
-  user: {
-    name: 'RosNOU',
-    email: 'admin@rosnou.ru',
-    avatar: '',
-  },
   teams: [
     {
       name: 'RosNOU',
@@ -92,7 +97,7 @@ const data = {
       <NavProjects :projects="data.projects" />
     </SidebarContent>
     <SidebarFooter>
-      <NavUser :user="data.user" />
+      <NavUser :user="user" />
     </SidebarFooter>
     <SidebarRail />
   </Sidebar>

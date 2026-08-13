@@ -5,6 +5,12 @@ export const envSchema = z.object({
   EXTERNAL_API_URL: z.url(),
   EXTERNAL_API_LOGIN: z.string().min(1),
   EXTERNAL_API_PASSWORD: z.string().min(1),
+  ROSNOU_ID_BASE_URL: z.url(),
+  ROSNOU_ID_CLIENT_ID: z.string().min(1),
+  ROSNOU_ID_CLIENT_SECRET: z.string().min(1),
+  ROSNOU_ID_REDIRECT_URI: z.url(),
+  FRONTEND_URL: z.url(),
+  SESSION_SECRET: z.string().min(32),
 });
 
 export type Env = z.infer<typeof envSchema>;

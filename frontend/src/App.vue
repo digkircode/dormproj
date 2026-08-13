@@ -1,15 +1,24 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import AppSidebar from './components/AppSidebar.vue'
+import LoginScreen from './components/LoginScreen.vue'
+import { currentUser, isAuthLoading, loadCurrentUser } from '@/lib/auth-state'
 
 const route = useRoute()
+
+onMounted(loadCurrentUser)
 </script>
 
 <template>
-  <SidebarProvider>
+  <div v-if="isAuthLoading" class="flex min-h-svh items-center justify-center text-muted-foreground">
+    Загрузка…
+  </div>
+  <LoginScreen v-else-if="!currentUser" />
+  <SidebarProvider v-else>
     <AppSidebar />
     <SidebarInset>
       <header class="flex h-14 shrink-0 items-center gap-2 border-b px-4">

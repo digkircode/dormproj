@@ -9,6 +9,7 @@ import { validateEnv } from './config/env.schema';
 import { PrismaModule } from './prisma/prisma.module';
 import { SyncModule } from './sync/sync.module';
 import { StudentsModule } from './students/students.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { StudentsModule } from './students/students.module';
       throttlers: [{ ttl: 60000, limit: 100 }],
     }),
     PrismaModule,
+    AuthModule,
     SyncModule,
     StudentsModule,
   ],

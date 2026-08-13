@@ -4,11 +4,14 @@ import {
   Get,
   HttpCode,
   Post,
+  UseGuards,
 } from '@nestjs/common';
+import { AuthGuard } from '../auth/auth.guard';
 import { SyncService, type SyncResult } from './sync.service';
 import { SyncAlreadyRunningError } from './sync.errors';
 
 @Controller('sync/students')
+@UseGuards(AuthGuard)
 export class SyncController {
   constructor(private readonly syncService: SyncService) {}
 

@@ -1,4 +1,4 @@
-import { apiUrl } from './api-base'
+import { apiFetch } from './api-base'
 
 export interface SyncLogEntry {
   id: number
@@ -16,7 +16,7 @@ export interface SyncLogEntry {
 }
 
 export async function fetchStudentSyncLogs(): Promise<SyncLogEntry[]> {
-  const response = await fetch(apiUrl('/sync/students/logs'))
+  const response = await apiFetch('/sync/students/logs')
   if (!response.ok) {
     throw new Error(`Не удалось получить логи синхронизации (${response.status})`)
   }
@@ -28,7 +28,7 @@ export type TriggerSyncResult =
   | { ok: false; conflict: boolean; message: string }
 
 export async function triggerStudentSync(): Promise<TriggerSyncResult> {
-  const response = await fetch(apiUrl('/sync/students'), { method: 'POST' })
+  const response = await apiFetch('/sync/students', { method: 'POST' })
   if (response.ok) {
     return { ok: true }
   }

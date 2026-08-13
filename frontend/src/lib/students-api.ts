@@ -1,4 +1,4 @@
-import { apiUrl } from './api-base'
+import { apiFetch } from './api-base'
 
 export interface Student {
   zachetnayaKnigaUid: string
@@ -55,7 +55,7 @@ export async function fetchStudents(options: FetchStudentsOptions): Promise<Stud
   if (Object.keys(activeFilters).length > 0) {
     params.set('filters', JSON.stringify(activeFilters))
   }
-  const response = await fetch(apiUrl(`/students?${params}`))
+  const response = await apiFetch(`/students?${params}`)
   if (!response.ok) {
     throw new Error(`Не удалось получить список студентов (${response.status})`)
   }
@@ -68,7 +68,7 @@ export interface FacetOption {
 }
 
 export async function fetchFacetValues(field: string): Promise<FacetOption[]> {
-  const response = await fetch(apiUrl(`/students/facets/${encodeURIComponent(field)}`))
+  const response = await apiFetch(`/students/facets/${encodeURIComponent(field)}`)
   if (!response.ok) {
     throw new Error(`Не удалось получить значения для фильтра (${response.status})`)
   }
