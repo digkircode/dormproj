@@ -17,19 +17,22 @@ import { useSyncRow } from '@/composables/useSyncRow'
 const staticRows = [
   { name: 'Контактная информация', status: '—', time: '—', duration: '—' },
   { name: 'Паспортные данные', status: '—', time: '—', duration: '—' },
-  { name: 'Гражданство', status: '—', time: '—', duration: '—' },
 ]
 
 const studentSync = useSyncRow('Контингент студентов', '/sync/students')
 const individualsSync = useSyncRow('Физические лица', '/sync/individuals')
+const citizenshipSync = useSyncRow('Гражданство', '/sync/citizenship')
 
 const rows = computed(() => [
   { ...studentSync.row.value, isRunning: studentSync.isRunning.value, run: studentSync.run },
   { ...individualsSync.row.value, isRunning: individualsSync.isRunning.value, run: individualsSync.run },
+  { ...citizenshipSync.row.value, isRunning: citizenshipSync.isRunning.value, run: citizenshipSync.run },
   ...staticRows.map((r) => ({ ...r, isReal: false as const, isRunning: false, run: undefined })),
 ])
 
-const errorText = computed(() => studentSync.errorText.value || individualsSync.errorText.value)
+const errorText = computed(
+  () => studentSync.errorText.value || individualsSync.errorText.value || citizenshipSync.errorText.value,
+)
 
 const statusIcon = {
   'Успешно': CircleCheck,
@@ -46,6 +49,7 @@ const statusIconClass: Record<string, string> = {
 onMounted(() => {
   studentSync.refresh()
   individualsSync.refresh()
+  citizenshipSync.refresh()
 })
 </script>
 

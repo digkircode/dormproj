@@ -73,10 +73,39 @@ model Individual {
   // не трогает и их UID не участвует в запросе к источнику (см. individuals-sync.service.ts).
   isManual             Boolean   @default(false) @map("is_manual")
 
+  citizenships Citizenship[]
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("individuals")
+}
+
+// "Слепок", а не синхрон в смысле Student/Individual — источник отдаёт историю
+// гражданств без какого-либо стабильного ключа (у одного физлица может быть
+// несколько периодов), апсертить не по чему. Поэтому при каждом запуске таблица
+// полностью очищается и заполняется заново (как раньше делали для Student).
+// ФИО в этой таблице не хранится — только fizicheskoyeLitsoUid, ФИО подтягивается
+// связью с Individual на чтении (см. citizenship.controller.ts).
+model Citizenship {
+  id                   Int        @id @default(autoincrement())
+  fizicheskoyeLitsoUid String     @map("fizicheskoye_litso_uid")
+  individual           Individual @relation(fields: [fizicheskoyeLitsoUid], references: [fizicheskoyeLitsoUid])
+
+  period      DateTime
+  // Сгенерированная БД колонка (см. birthDateText у Individual) — чтобы период
+  // тоже искался обычным ILIKE, а не только точным/диапазонным сравнением дат.
+  // period здесь всегда заполнен (не как birthDate у Individual), поэтому не String? —
+  // dbgenerated("") ничего не меняет в реальной БД (та задаётся ручной миграцией),
+  // но помечает поле как "с дефолтом", чтобы Prisma не требовал его при createMany.
+  periodText  String   @default(dbgenerated()) @map("period_text")
+  country     String
+  countryCode String   @map("country_code")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([fizicheskoyeLitsoUid])
+  @@map("citizenships")
 }
 
 // Однорядный лок на время выполнения синхронизации данного типа — защита от параллельного запуска.

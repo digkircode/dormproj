@@ -6,31 +6,30 @@ import { PrismaService } from '../prisma/prisma.service';
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 
-// birthDateText — сгенерированная БД колонка (DD.MM.YYYY от birth_date), чтобы дату
-// рождения можно было искать тем же ILIKE, что и обычный текст (см. schema.prisma).
-const SEARCHABLE_FIELDS = ['fullName', 'code', 'snils', 'inn', 'gender', 'birthDateText'] as const;
+// fullName живёт в Individual, а не в Citizenship (см. schema.prisma) — ищем и сортируем
+// по нему через связь individual, остальные поля — напрямую. periodText — сгенерированная
+// БД колонка (DD.MM.YYYY), чтобы период искался тем же ILIKE, что и текст.
+const DIRECT_SEARCHABLE_FIELDS = ['country', 'countryCode', 'periodText'] as const;
 
-const SORTABLE_FIELDS: Record<string, string> = {
-  fullName: 'fullName',
-  code: 'code',
-  snils: 'snils',
-  birthDate: 'birthDate',
-  inn: 'inn',
-  gender: 'gender',
-};
+const SORTABLE_FIELDS = ['fullName', 'period', 'country', 'countryCode'] as const;
+type SortableField = (typeof SORTABLE_FIELDS)[number];
 
-// Только пол — практичное поле для мультивыбора (пара значений); ФИО/код/СНИЛС/ИНН
-// почти уникальны на строку, дата рождения для чипов-фильтров неудобна.
-const FILTERABLE_FIELDS = ['gender'] as const;
+function isSortableField(field: string): field is SortableField {
+  return (SORTABLE_FIELDS as readonly string[]).includes(field);
+}
+
+// Только страна/код страны — практичные поля для мультивыбора (немного значений).
+// ФИО почти уникально на строку, период для чипов-фильтров неудобен.
+const FILTERABLE_FIELDS = ['country', 'countryCode'] as const;
 type FilterableField = (typeof FILTERABLE_FIELDS)[number];
 
 function isFilterableField(field: string): field is FilterableField {
   return (FILTERABLE_FIELDS as readonly string[]).includes(field);
 }
 
-@Controller('individuals')
+@Controller('citizenship')
 @UseGuards(AuthGuard)
-export class IndividualsController {
+export class CitizenshipController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Get()
@@ -45,10 +44,10 @@ export class IndividualsController {
     const page = Math.max(1, Number.parseInt(pageParam ?? '', 10) || 1);
     const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, Number.parseInt(pageSizeParam ?? '', 10) || DEFAULT_PAGE_SIZE));
     const search = searchParam?.trim();
-    const sortField = SORTABLE_FIELDS[sortByParam ?? ''] ?? 'fullName';
+    const sortField = isSortableField(sortByParam ?? '') ? (sortByParam as SortableField) : 'fullName';
     const sortDir: Prisma.SortOrder = sortDirParam === 'desc' ? 'desc' : 'asc';
 
-    const filterClauses: Prisma.IndividualWhereInput[] = [];
+    const filterClauses: Prisma.CitizenshipWhereInput[] = [];
     if (filtersParam) {
       try {
         const parsed: unknown = JSON.parse(filtersParam);
@@ -67,22 +66,33 @@ export class IndividualsController {
       }
     }
 
-    const searchClause: Prisma.IndividualWhereInput | undefined = search
-      ? { OR: SEARCHABLE_FIELDS.map((field) => ({ [field]: { contains: search, mode: 'insensitive' } })) }
+    const searchClause: Prisma.CitizenshipWhereInput | undefined = search
+      ? {
+          OR: [
+            ...DIRECT_SEARCHABLE_FIELDS.map((field) => ({ [field]: { contains: search, mode: 'insensitive' as const } })),
+            { individual: { fullName: { contains: search, mode: 'insensitive' as const } } },
+          ],
+        }
       : undefined;
 
-    const where: Prisma.IndividualWhereInput | undefined =
+    const where: Prisma.CitizenshipWhereInput | undefined =
       searchClause || filterClauses.length > 0 ? { AND: [...(searchClause ? [searchClause] : []), ...filterClauses] } : undefined;
 
-    const [data, total] = await Promise.all([
-      this.prisma.individual.findMany({
+    const orderBy: Prisma.CitizenshipOrderByWithRelationInput =
+      sortField === 'fullName' ? { individual: { fullName: sortDir } } : { [sortField]: sortDir };
+
+    const [rows, total] = await Promise.all([
+      this.prisma.citizenship.findMany({
         where,
-        orderBy: { [sortField]: sortDir },
+        include: { individual: { select: { fullName: true } } },
+        orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
-      this.prisma.individual.count({ where }),
+      this.prisma.citizenship.count({ where }),
     ]);
+
+    const data = rows.map(({ individual, ...row }) => ({ ...row, fullName: individual.fullName }));
 
     return { data, total, page, pageSize };
   }
@@ -93,10 +103,10 @@ export class IndividualsController {
       return [];
     }
 
-    const rows = await this.prisma.individual.findMany({
+    const rows = await this.prisma.citizenship.findMany({
       where: { [field]: { notIn: [''] } },
       select: { [field]: true },
-      distinct: [field as unknown as Prisma.IndividualScalarFieldEnum],
+      distinct: [field as unknown as Prisma.CitizenshipScalarFieldEnum],
       orderBy: { [field]: 'asc' },
       take: 500,
     });

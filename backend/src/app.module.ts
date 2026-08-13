@@ -9,8 +9,10 @@ import { validateEnv } from './config/env.schema';
 import { PrismaModule } from './prisma/prisma.module';
 import { SyncModule } from './sync/sync.module';
 import { IndividualsSyncModule } from './individuals-sync/individuals-sync.module';
+import { CitizenshipSyncModule } from './citizenship-sync/citizenship-sync.module';
 import { StudentsModule } from './students/students.module';
 import { IndividualsModule } from './individuals/individuals.module';
+import { CitizenshipModule } from './citizenship/citizenship.module';
 import { AuthModule } from './auth/auth.module';
 
 @Module({
@@ -27,8 +29,10 @@ import { AuthModule } from './auth/auth.module';
     AuthModule,
     SyncModule,
     IndividualsSyncModule,
+    CitizenshipSyncModule,
     StudentsModule,
     IndividualsModule,
+    CitizenshipModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
