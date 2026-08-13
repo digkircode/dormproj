@@ -10,6 +10,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { SyncModule } from './sync/sync.module';
 import { IndividualsSyncModule } from './individuals-sync/individuals-sync.module';
 import { StudentsModule } from './students/students.module';
+import { IndividualsModule } from './individuals/individuals.module';
 import { AuthModule } from './auth/auth.module';
 
 @Module({
@@ -27,6 +28,7 @@ import { AuthModule } from './auth/auth.module';
     SyncModule,
     IndividualsSyncModule,
     StudentsModule,
+    IndividualsModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
