@@ -48,22 +48,26 @@ model Student {
 // (у одного человека может быть несколько). Источник данных отдаёт их по запросу с
 // конкретными UID, а не полным списком, поэтому здесь никогда не делаем hard delete —
 // пропавшая или помеченная DeleteMark=true запись всё равно остаётся в базе как есть.
+// Только fullName обязателен. Синхрон из 1С заполняет все остальные поля всегда,
+// но будущее ручное добавление на сайте (см. isManual) может завести человека
+// сначала по одному имени, остальное — позже, поэтому у таблицы не может быть NOT NULL
+// на всём подряд.
 model Individual {
-  fizicheskoyeLitsoUid String   @id @map("fizicheskoye_litso_uid")
-  deleteMark           Boolean  @map("delete_mark")
-  code                 String
-  fullName             String   @map("full_name")
-  surname              String
-  name                 String
-  otchestvo            String
-  gender               String
-  birthDate            DateTime @map("birth_date")
-  inn                  String
-  snils                String
-  photoCode            String   @map("photo_code")
+  fizicheskoyeLitsoUid String    @id @map("fizicheskoye_litso_uid")
+  deleteMark           Boolean   @default(false) @map("delete_mark")
+  code                 String?
+  fullName             String    @map("full_name")
+  surname              String?
+  name                 String?
+  otchestvo            String?
+  gender               String?
+  birthDate            DateTime? @map("birth_date")
+  inn                  String?
+  snils                String?
+  photoCode            String?   @map("photo_code")
   // Заведено вручную на сайте, а не синхроном из 1С — такие записи синхрон физлиц
   // не трогает и их UID не участвует в запросе к источнику (см. individuals-sync.service.ts).
-  isManual             Boolean  @default(false) @map("is_manual")
+  isManual             Boolean   @default(false) @map("is_manual")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

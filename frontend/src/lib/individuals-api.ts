@@ -3,16 +3,16 @@ import { fetchListPage, fetchListFacets, type ListOptions, type ListPage, type F
 export interface Individual {
   fizicheskoyeLitsoUid: string
   deleteMark: boolean
-  code: string
+  code: string | null
   fullName: string
-  surname: string
-  name: string
-  otchestvo: string
-  gender: string
-  birthDate: string
-  inn: string
-  snils: string
-  photoCode: string
+  surname: string | null
+  name: string | null
+  otchestvo: string | null
+  gender: string | null
+  birthDate: string | null
+  inn: string | null
+  snils: string | null
+  photoCode: string | null
   isManual: boolean
   createdAt: string
   updatedAt: string
