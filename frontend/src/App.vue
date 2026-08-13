@@ -5,19 +5,23 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/s
 import { Separator } from '@/components/ui/separator'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import AppSidebar from './components/AppSidebar.vue'
-import LoginScreen from './components/LoginScreen.vue'
 import { currentUser, isAuthLoading, loadCurrentUser } from '@/lib/auth-state'
+import { rosnouLoginUrl } from '@/lib/auth-api'
 
 const route = useRoute()
 
-onMounted(loadCurrentUser)
+onMounted(async () => {
+  await loadCurrentUser()
+  if (!currentUser.value) {
+    window.location.href = rosnouLoginUrl()
+  }
+})
 </script>
 
 <template>
-  <div v-if="isAuthLoading" class="flex min-h-svh items-center justify-center text-muted-foreground">
+  <div v-if="isAuthLoading || !currentUser" class="flex min-h-svh items-center justify-center text-muted-foreground">
     Загрузка…
   </div>
-  <LoginScreen v-else-if="!currentUser" />
   <SidebarProvider v-else>
     <AppSidebar />
     <SidebarInset>
