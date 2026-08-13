@@ -19,9 +19,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div v-if="isAuthLoading || !currentUser" class="flex min-h-svh items-center justify-center text-muted-foreground">
-    Загрузка…
-  </div>
+  <div v-if="isAuthLoading || !currentUser" class="min-h-svh bg-background" />
   <SidebarProvider v-else>
     <AppSidebar />
     <SidebarInset>
