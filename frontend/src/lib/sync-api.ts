@@ -15,8 +15,8 @@ export interface SyncLogEntry {
   errorStack: string | null
 }
 
-export async function fetchStudentSyncLogs(): Promise<SyncLogEntry[]> {
-  const response = await apiFetch('/sync/students/logs')
+export async function fetchSyncLogs(basePath: string): Promise<SyncLogEntry[]> {
+  const response = await apiFetch(`${basePath}/logs`)
   if (!response.ok) {
     throw new Error(`Не удалось получить логи синхронизации (${response.status})`)
   }
@@ -27,8 +27,8 @@ export type TriggerSyncResult =
   | { ok: true }
   | { ok: false; conflict: boolean; message: string }
 
-export async function triggerStudentSync(): Promise<TriggerSyncResult> {
-  const response = await apiFetch('/sync/students', { method: 'POST' })
+export async function triggerSync(basePath: string): Promise<TriggerSyncResult> {
+  const response = await apiFetch(basePath, { method: 'POST' })
   if (response.ok) {
     return { ok: true }
   }

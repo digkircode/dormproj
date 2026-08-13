@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
+import { IndividualsSyncService } from '../individuals-sync/individuals-sync.service';
 import { SyncService } from './sync.service';
 import { getErrorMessage, SyncAlreadyRunningError } from './sync.errors';
 import { MISSED_RUN_THRESHOLD_MS, SYNC_TYPE_STUDENTS } from './sync.constants';
@@ -11,6 +12,7 @@ export class SyncScheduler {
 
   constructor(
     private readonly syncService: SyncService,
+    private readonly individualsSyncService: IndividualsSyncService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -25,10 +27,26 @@ export class SyncScheduler {
         this.logger.log(
           'Плановая синхронизация студентов пропущена: уже выполняется другая синхронизация (скорее всего, ручной запуск)',
         );
+      } else {
+        this.logger.error(
+          `Плановая синхронизация студентов завершилась с ошибкой: ${getErrorMessage(error)}`,
+        );
+      }
+    }
+
+    // Физлица синхронизируются сразу следом на свежем списке UID из только что
+    // обновлённой таблицы студентов — независимо от того, как прошёл шаг выше.
+    try {
+      await this.individualsSyncService.runSync('CRON');
+    } catch (error) {
+      if (error instanceof SyncAlreadyRunningError) {
+        this.logger.log(
+          'Плановая синхронизация физлиц пропущена: уже выполняется другая синхронизация (скорее всего, ручной запуск)',
+        );
         return;
       }
       this.logger.error(
-        `Плановая синхронизация студентов завершилась с ошибкой: ${getErrorMessage(error)}`,
+        `Плановая синхронизация физлиц завершилась с ошибкой: ${getErrorMessage(error)}`,
       );
     }
   }

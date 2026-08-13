@@ -8,6 +8,7 @@ import { AppService } from './app.service';
 import { validateEnv } from './config/env.schema';
 import { PrismaModule } from './prisma/prisma.module';
 import { SyncModule } from './sync/sync.module';
+import { IndividualsSyncModule } from './individuals-sync/individuals-sync.module';
 import { StudentsModule } from './students/students.module';
 import { AuthModule } from './auth/auth.module';
 
@@ -24,6 +25,7 @@ import { AuthModule } from './auth/auth.module';
     PrismaModule,
     AuthModule,
     SyncModule,
+    IndividualsSyncModule,
     StudentsModule,
   ],
   controllers: [AppController],
