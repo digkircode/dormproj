@@ -62,6 +62,10 @@ model Individual {
   otchestvo            String?
   gender               String?
   birthDate            DateTime? @map("birth_date")
+  // Сгенерированная БД колонка (to_char(birth_date, 'DD.MM.YYYY')) — только чтобы дату
+  // рождения можно было искать тем же ILIKE-поиском по тексту, что и остальные поля,
+  // не переписывая весь список на сырой SQL. Приложение в неё никогда не пишет.
+  birthDateText        String?   @map("birth_date_text")
   inn                  String?
   snils                String?
   photoCode            String?   @map("photo_code")
