@@ -14,21 +14,18 @@ import {
 } from '@/components/ui/table'
 import { useSyncRow } from '@/composables/useSyncRow'
 
-const staticRows = [
-  { name: 'Контактная информация', status: '—', time: '—', duration: '—' },
-]
-
 const studentSync = useSyncRow('Контингент студентов', '/sync/students')
 const individualsSync = useSyncRow('Физические лица', '/sync/individuals')
 const citizenshipSync = useSyncRow('Гражданство', '/sync/citizenship')
 const passportSync = useSyncRow('Паспортные данные', '/sync/passport')
+const contactInfoSync = useSyncRow('Контактная информация', '/sync/contact-info')
 
 const rows = computed(() => [
   { ...studentSync.row.value, isRunning: studentSync.isRunning.value, run: studentSync.run },
   { ...individualsSync.row.value, isRunning: individualsSync.isRunning.value, run: individualsSync.run },
   { ...citizenshipSync.row.value, isRunning: citizenshipSync.isRunning.value, run: citizenshipSync.run },
   { ...passportSync.row.value, isRunning: passportSync.isRunning.value, run: passportSync.run },
-  ...staticRows.map((r) => ({ ...r, isReal: false as const, isRunning: false, run: undefined })),
+  { ...contactInfoSync.row.value, isRunning: contactInfoSync.isRunning.value, run: contactInfoSync.run },
 ])
 
 const errorText = computed(
@@ -36,7 +33,8 @@ const errorText = computed(
     studentSync.errorText.value ||
     individualsSync.errorText.value ||
     citizenshipSync.errorText.value ||
-    passportSync.errorText.value,
+    passportSync.errorText.value ||
+    contactInfoSync.errorText.value,
 )
 
 const statusIcon = {
@@ -56,6 +54,7 @@ onMounted(() => {
   individualsSync.refresh()
   citizenshipSync.refresh()
   passportSync.refresh()
+  contactInfoSync.refresh()
 })
 </script>
 

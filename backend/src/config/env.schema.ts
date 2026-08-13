@@ -8,6 +8,7 @@ export const envSchema = z.object({
   EXTERNAL_API_INDIVIDUALS_URL: z.url(),
   EXTERNAL_API_CITIZENSHIP_URL: z.url(),
   EXTERNAL_API_PASSPORT_URL: z.url(),
+  EXTERNAL_API_CONTACT_INFO_URL: z.url(),
   ROSNOU_ID_BASE_URL: z.url(),
   ROSNOU_ID_CLIENT_ID: z.string().min(1),
   ROSNOU_ID_CLIENT_SECRET: z.string().min(1),

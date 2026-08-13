@@ -11,10 +11,12 @@ import { SyncModule } from './sync/sync.module';
 import { IndividualsSyncModule } from './individuals-sync/individuals-sync.module';
 import { CitizenshipSyncModule } from './citizenship-sync/citizenship-sync.module';
 import { PassportSyncModule } from './passport-sync/passport-sync.module';
+import { ContactInfoSyncModule } from './contact-info-sync/contact-info-sync.module';
 import { StudentsModule } from './students/students.module';
 import { IndividualsModule } from './individuals/individuals.module';
 import { CitizenshipModule } from './citizenship/citizenship.module';
 import { PassportModule } from './passport/passport.module';
+import { ContactInfoModule } from './contact-info/contact-info.module';
 import { AuthModule } from './auth/auth.module';
 
 @Module({
@@ -33,10 +35,12 @@ import { AuthModule } from './auth/auth.module';
     IndividualsSyncModule,
     CitizenshipSyncModule,
     PassportSyncModule,
+    ContactInfoSyncModule,
     StudentsModule,
     IndividualsModule,
     CitizenshipModule,
     PassportModule,
+    ContactInfoModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { IndividualsSyncService } from '../individuals-sync/individuals-sync.service';
 import { CitizenshipSyncService } from '../citizenship-sync/citizenship-sync.service';
 import { PassportSyncService } from '../passport-sync/passport-sync.service';
+import { ContactInfoSyncService } from '../contact-info-sync/contact-info-sync.service';
 import { SyncService } from './sync.service';
 import { getErrorMessage, SyncAlreadyRunningError } from './sync.errors';
 import { MISSED_RUN_THRESHOLD_MS, SYNC_TYPE_STUDENTS } from './sync.constants';
@@ -17,6 +18,7 @@ export class SyncScheduler {
     private readonly individualsSyncService: IndividualsSyncService,
     private readonly citizenshipSyncService: CitizenshipSyncService,
     private readonly passportSyncService: PassportSyncService,
+    private readonly contactInfoSyncService: ContactInfoSyncService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -78,10 +80,24 @@ export class SyncScheduler {
         this.logger.log(
           'Плановая синхронизация паспортных данных пропущена: уже выполняется другая синхронизация (скорее всего, ручной запуск)',
         );
+      } else {
+        this.logger.error(
+          `Плановая синхронизация паспортных данных завершилась с ошибкой: ${getErrorMessage(error)}`,
+        );
+      }
+    }
+
+    try {
+      await this.contactInfoSyncService.runSync('CRON');
+    } catch (error) {
+      if (error instanceof SyncAlreadyRunningError) {
+        this.logger.log(
+          'Плановая синхронизация контактной информации пропущена: уже выполняется другая синхронизация (скорее всего, ручной запуск)',
+        );
         return;
       }
       this.logger.error(
-        `Плановая синхронизация паспортных данных завершилась с ошибкой: ${getErrorMessage(error)}`,
+        `Плановая синхронизация контактной информации завершилась с ошибкой: ${getErrorMessage(error)}`,
       );
     }
   }

@@ -75,6 +75,7 @@ model Individual {
 
   citizenships Citizenship[]
   passports    Passport[]
+  contactInfos ContactInfo[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -132,6 +133,36 @@ model Passport {
 
   @@index([fizicheskoyeLitsoUid])
   @@map("passports")
+}
+
+// Тот же принцип "слепка" — контактов (адреса/телефоны/email/место рождения и т.д.)
+// у одного физлица может быть много, стабильного ключа нет, полная очистка+перезапись
+// при каждом запуске. XML/JSON — дубли Predstavleniye/Country/... в структурированном
+// виде из источника; по явной просьбе храним и показываем как есть, а не отбрасываем.
+model ContactInfo {
+  id                   Int        @id @default(autoincrement())
+  fizicheskoyeLitsoUid String     @map("fizicheskoye_litso_uid")
+  individual           Individual @relation(fields: [fizicheskoyeLitsoUid], references: [fizicheskoyeLitsoUid])
+
+  type              String
+  predstavleniye    String
+  xml               String
+  json              String
+  country           String
+  region            String
+  city              String
+  email             String
+  phoneNumber       String   @map("phone_number")
+  phoneNumberNoCode String   @map("phone_number_no_code")
+  // 1С отдаёт "0001-01-01" как "дата не задана" (не NULL) — храним как есть, на фронте
+  // такое значение показываем как "—" (см. ContactInfo.vue).
+  dateStart         DateTime @map("date_start")
+  dateStartText     String   @default(dbgenerated()) @map("date_start_text")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([fizicheskoyeLitsoUid])
+  @@map("contact_infos")
 }
 
 // Однорядный лок на время выполнения синхронизации данного типа — защита от параллельного запуска.
