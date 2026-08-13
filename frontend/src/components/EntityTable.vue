@@ -66,7 +66,7 @@ const props = withDefaults(
 
 // Пусто = видны все колонки (в TanStack отсутствие записи значит "видима", не "скрыта").
 const columnVisibility = ref<ColumnVisibilityState>({})
-const pagination = ref<PaginationState>({ pageIndex: 0, pageSize: props.pageSizeOptions[0] ?? 20 })
+const pagination = ref<PaginationState>({ pageIndex: 0, pageSize: 20 })
 const sorting = ref<SortingState>([props.defaultSort])
 const searchInput = ref('')
 const search = ref('')
