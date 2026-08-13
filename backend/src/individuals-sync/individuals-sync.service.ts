@@ -38,11 +38,7 @@ export class IndividualsSyncService {
     });
 
     try {
-      const students = await this.prisma.student.findMany({
-        select: { fizicheskoyeLitsoUid: true },
-        distinct: ['fizicheskoyeLitsoUid'],
-      });
-      const uids = students.map((s) => s.fizicheskoyeLitsoUid);
+      const uids = await this.collectUids();
 
       const records = await this.externalApi.fetchIndividuals(uids);
 
@@ -186,5 +182,29 @@ export class IndividualsSyncService {
       orderBy: { startedAt: 'desc' },
       take: limit,
     });
+  }
+
+  // UID берём не только из активных студентов, но и из уже засинканных физлиц —
+  // иначе после отчисления (студент пропадает из students при полной перезаписи)
+  // его физлицо переставало бы обновляться. isManual=true — записи, заведённые
+  // вручную на сайте, а не из 1С — их UID в источник не отправляем.
+  private async collectUids(): Promise<string[]> {
+    const [students, syncedIndividuals] = await Promise.all([
+      this.prisma.student.findMany({
+        select: { fizicheskoyeLitsoUid: true },
+        distinct: ['fizicheskoyeLitsoUid'],
+      }),
+      this.prisma.individual.findMany({
+        where: { isManual: false },
+        select: { fizicheskoyeLitsoUid: true },
+      }),
+    ]);
+
+    return Array.from(
+      new Set([
+        ...students.map((s) => s.fizicheskoyeLitsoUid),
+        ...syncedIndividuals.map((i) => i.fizicheskoyeLitsoUid),
+      ]),
+    );
   }
 }

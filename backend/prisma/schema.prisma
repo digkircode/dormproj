@@ -61,6 +61,9 @@ model Individual {
   inn                  String
   snils                String
   photoCode            String   @map("photo_code")
+  // Заведено вручную на сайте, а не синхроном из 1С — такие записи синхрон физлиц
+  // не трогает и их UID не участвует в запросе к источнику (см. individuals-sync.service.ts).
+  isManual             Boolean  @default(false) @map("is_manual")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
