@@ -24,7 +24,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { logout } from "@/lib/auth-api"
+import { rosnouLogoutUrl } from "@/lib/auth-api"
 
 const props = defineProps<{
   user: {
@@ -46,9 +46,8 @@ const initials = computed(() =>
     .toUpperCase(),
 )
 
-async function handleLogout() {
-  await logout()
-  window.location.reload()
+function handleLogout() {
+  window.location.href = rosnouLogoutUrl()
 }
 </script>
 

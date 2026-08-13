@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { BadRequestException, Controller, Get, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { CookieOptions, Request, Response } from 'express';
 import type { Env } from '../config/env.schema';
@@ -60,9 +60,15 @@ export class AuthController {
     return req.user;
   }
 
-  @Post('logout')
+  // Чистим только куку dormproj недостаточно — сессия на rosnou-id остаётся живой,
+  // и следующий /auth/rosnou/login тут же залогинит обратно без формы входа (уже
+  // одобренный клиент + активная сессия там). rosnou-id сам даёт для этого выход
+  // с редиректом обратно (см. routes/web.php: logout-portal).
+  @Get('rosnou/logout')
   logout(@Res() res: Response): void {
     this.sessions.clearCookie(res);
-    res.status(204).send();
+    const rosnouIdBaseUrl = this.config.get('ROSNOU_ID_BASE_URL', { infer: true });
+    const redirect = encodeURIComponent(this.config.get('FRONTEND_URL', { infer: true }));
+    res.redirect(`${rosnouIdBaseUrl}/logout-portal?redirect=${redirect}`);
   }
 }
