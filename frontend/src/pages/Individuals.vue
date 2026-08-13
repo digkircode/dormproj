@@ -27,13 +27,13 @@ function cellText(columnId: string, value: unknown): string {
 const columnHelper = createAppColumnHelper<Individual>()
 
 const columns = columnHelper.columns([
+  columnHelper.accessor('fizicheskoyeLitsoUid', { header: columnLabels.fizicheskoyeLitsoUid, size: 280, minSize: 200 }),
   columnHelper.accessor('fullName', { header: columnLabels.fullName, enableHiding: false, size: 256, minSize: 160 }),
   columnHelper.accessor('code', { header: columnLabels.code, size: 128, minSize: 90 }),
   columnHelper.accessor('birthDate', { header: columnLabels.birthDate, size: 128, minSize: 100 }),
   columnHelper.accessor('gender', { header: columnLabels.gender, size: 96, minSize: 80 }),
   columnHelper.accessor('snils', { header: columnLabels.snils, size: 144, minSize: 100 }),
   columnHelper.accessor('inn', { header: columnLabels.inn, size: 144, minSize: 100 }),
-  columnHelper.accessor('fizicheskoyeLitsoUid', { header: columnLabels.fizicheskoyeLitsoUid, size: 280, minSize: 200 }),
 ])
 </script>
 

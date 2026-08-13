@@ -35,6 +35,7 @@ function cellText(columnId: string, value: unknown): string {
 const columnHelper = createAppColumnHelper<ContactInfo>()
 
 const columns = columnHelper.columns([
+  columnHelper.accessor('fizicheskoyeLitsoUid', { header: columnLabels.fizicheskoyeLitsoUid, size: 280, minSize: 200 }),
   columnHelper.accessor('fullName', { header: columnLabels.fullName, enableHiding: false, size: 224, minSize: 160 }),
   columnHelper.accessor('type', { header: columnLabels.type, size: 176, minSize: 120 }),
   columnHelper.accessor('predstavleniye', { header: columnLabels.predstavleniye, size: 288, minSize: 160 }),
@@ -47,7 +48,6 @@ const columns = columnHelper.columns([
   columnHelper.accessor('dateStart', { header: columnLabels.dateStart, size: 128, minSize: 100 }),
   columnHelper.accessor('xml', { header: columnLabels.xml, size: 320, minSize: 160 }),
   columnHelper.accessor('json', { header: columnLabels.json, size: 320, minSize: 160 }),
-  columnHelper.accessor('fizicheskoyeLitsoUid', { header: columnLabels.fizicheskoyeLitsoUid, size: 280, minSize: 200 }),
 ])
 </script>
 

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import type { LucideIcon } from "lucide-vue-next"
+import { reactive } from "vue"
 import { ChevronRight } from "lucide-vue-next"
 import {
   Collapsible,
   CollapsibleContent,
-  CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import {
   SidebarGroup,
@@ -15,6 +15,7 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 
 defineProps<{
@@ -29,6 +30,20 @@ defineProps<{
     }[]
   }[]
 }>()
+
+const { state, isMobile, setOpen } = useSidebar()
+const openGroups = reactive<Record<string, boolean>>({})
+
+// Свёрнутый (иконочный) сайдбар прячет CollapsibleContent целиком — тоггл открытости
+// группы там визуально ничего не даёт, выглядит как "кнопка не работает". В этом
+// состоянии клик по группе должен разворачивать сам сайдбар, а не открывать группу.
+function handleGroupClick(title: string, isActive?: boolean) {
+  if (state.value === 'collapsed' && !isMobile.value) {
+    setOpen(true)
+    return
+  }
+  openGroups[title] = !(openGroups[title] ?? isActive ?? false)
+}
 </script>
 
 <template>
@@ -39,17 +54,15 @@ defineProps<{
         <Collapsible
           v-if="item.items?.length"
           as-child
-          :default-open="item.isActive"
+          :open="openGroups[item.title] ?? item.isActive ?? false"
           class="group/collapsible"
         >
           <SidebarMenuItem>
-            <CollapsibleTrigger as-child>
-              <SidebarMenuButton :tooltip="item.title">
-                <component :is="item.icon" v-if="item.icon" />
-                <span class="truncate">{{ item.title }}</span>
-                <ChevronRight class="ml-auto shrink-0 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-              </SidebarMenuButton>
-            </CollapsibleTrigger>
+            <SidebarMenuButton :tooltip="item.title" @click="handleGroupClick(item.title, item.isActive)">
+              <component :is="item.icon" v-if="item.icon" />
+              <span class="truncate">{{ item.title }}</span>
+              <ChevronRight class="ml-auto shrink-0 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+            </SidebarMenuButton>
             <CollapsibleContent>
               <SidebarMenuSub>
                 <SidebarMenuSubItem v-for="subItem in item.items" :key="subItem.title">

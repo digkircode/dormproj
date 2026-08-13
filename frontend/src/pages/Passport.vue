@@ -32,6 +32,7 @@ function cellText(columnId: string, value: unknown): string {
 const columnHelper = createAppColumnHelper<Passport>()
 
 const columns = columnHelper.columns([
+  columnHelper.accessor('fizicheskoyeLitsoUid', { header: columnLabels.fizicheskoyeLitsoUid, size: 280, minSize: 200 }),
   columnHelper.accessor('fullName', { header: columnLabels.fullName, enableHiding: false, size: 224, minSize: 160 }),
   columnHelper.accessor('period', { header: columnLabels.period, size: 112, minSize: 100 }),
   columnHelper.accessor('type', { header: columnLabels.type, size: 144, minSize: 100 }),
@@ -41,7 +42,6 @@ const columns = columnHelper.columns([
   columnHelper.accessor('unit', { header: columnLabels.unit, size: 288, minSize: 160 }),
   columnHelper.accessor('codeUnit', { header: columnLabels.codeUnit, size: 144, minSize: 100 }),
   columnHelper.accessor('systemDoc', { header: columnLabels.systemDoc, size: 144, minSize: 100 }),
-  columnHelper.accessor('fizicheskoyeLitsoUid', { header: columnLabels.fizicheskoyeLitsoUid, size: 280, minSize: 200 }),
 ])
 </script>
 

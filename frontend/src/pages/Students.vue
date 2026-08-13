@@ -42,6 +42,8 @@ function cellText(columnId: string, value: unknown): string {
 const columnHelper = createAppColumnHelper<Student>()
 
 const columns = columnHelper.columns([
+  columnHelper.accessor('fizicheskoyeLitsoUid', { header: columnLabels.fizicheskoyeLitsoUid, size: 280, minSize: 200 }),
+  columnHelper.accessor('zachetnayaKnigaUid', { header: columnLabels.zachetnayaKnigaUid, size: 280, minSize: 200 }),
   columnHelper.accessor('fullName', { header: columnLabels.fullName, enableHiding: false, size: 224, minSize: 140 }),
   columnHelper.accessor('zachetnayaKniga', { header: columnLabels.zachetnayaKniga, size: 144, minSize: 90 }),
   columnHelper.accessor('group', { header: columnLabels.group, size: 160, minSize: 90 }),
@@ -54,8 +56,6 @@ const columns = columnHelper.columns([
   columnHelper.accessor('profilSpec', { header: columnLabels.profilSpec, size: 224, minSize: 120 }),
   columnHelper.accessor('dot', { header: columnLabels.dot, size: 64, minSize: 56 }),
   columnHelper.accessor('uchebYear', { header: columnLabels.uchebYear, size: 112, minSize: 80 }),
-  columnHelper.accessor('zachetnayaKnigaUid', { header: columnLabels.zachetnayaKnigaUid, size: 280, minSize: 200 }),
-  columnHelper.accessor('fizicheskoyeLitsoUid', { header: columnLabels.fizicheskoyeLitsoUid, size: 280, minSize: 200 }),
 ])
 </script>
 
