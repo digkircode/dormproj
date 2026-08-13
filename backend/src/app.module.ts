@@ -10,9 +10,11 @@ import { PrismaModule } from './prisma/prisma.module';
 import { SyncModule } from './sync/sync.module';
 import { IndividualsSyncModule } from './individuals-sync/individuals-sync.module';
 import { CitizenshipSyncModule } from './citizenship-sync/citizenship-sync.module';
+import { PassportSyncModule } from './passport-sync/passport-sync.module';
 import { StudentsModule } from './students/students.module';
 import { IndividualsModule } from './individuals/individuals.module';
 import { CitizenshipModule } from './citizenship/citizenship.module';
+import { PassportModule } from './passport/passport.module';
 import { AuthModule } from './auth/auth.module';
 
 @Module({
@@ -30,9 +32,11 @@ import { AuthModule } from './auth/auth.module';
     SyncModule,
     IndividualsSyncModule,
     CitizenshipSyncModule,
+    PassportSyncModule,
     StudentsModule,
     IndividualsModule,
     CitizenshipModule,
+    PassportModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

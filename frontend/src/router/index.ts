@@ -4,6 +4,7 @@ import Sync from '@/pages/Sync.vue'
 import Students from '@/pages/Students.vue'
 import Individuals from '@/pages/Individuals.vue'
 import Citizenship from '@/pages/Citizenship.vue'
+import Passport from '@/pages/Passport.vue'
 import Placeholder from '@/pages/Placeholder.vue'
 
 const router = createRouter({
@@ -16,7 +17,7 @@ const router = createRouter({
     { path: '/individuals', name: 'individuals', component: Individuals, meta: { title: 'Физические лица' } },
     { path: '/system-tables/citizenship', name: 'citizenship', component: Citizenship, meta: { title: 'Гражданство' } },
     { path: '/system-tables/contact-info', name: 'contact-info', component: Placeholder, meta: { title: 'Контактная информация' } },
-    { path: '/system-tables/passport-data', name: 'passport-data', component: Placeholder, meta: { title: 'Паспортные данные' } },
+    { path: '/system-tables/passport-data', name: 'passport-data', component: Passport, meta: { title: 'Паспортные данные' } },
   ],
 })
 

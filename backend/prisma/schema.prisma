@@ -74,6 +74,7 @@ model Individual {
   isManual             Boolean   @default(false) @map("is_manual")
 
   citizenships Citizenship[]
+  passports    Passport[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -106,6 +107,31 @@ model Citizenship {
 
   @@index([fizicheskoyeLitsoUid])
   @@map("citizenships")
+}
+
+// Тот же принцип "слепка", что и Citizenship — история паспортных данных без
+// стабильного ключа (несколько документов на одно физлицо со временем), полная
+// очистка+перезапись при каждом запуске. ФИО не хранится, только связь с Individual.
+model Passport {
+  id                   Int        @id @default(autoincrement())
+  fizicheskoyeLitsoUid String     @map("fizicheskoye_litso_uid")
+  individual           Individual @relation(fields: [fizicheskoyeLitsoUid], references: [fizicheskoyeLitsoUid])
+
+  period        DateTime
+  periodText    String   @default(dbgenerated()) @map("period_text")
+  type          String
+  series        String
+  number        String
+  dateStart     DateTime @map("date_start")
+  dateStartText String   @default(dbgenerated()) @map("date_start_text")
+  unit          String
+  codeUnit      String   @map("code_unit")
+  systemDoc     String   @map("system_doc")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([fizicheskoyeLitsoUid])
+  @@map("passports")
 }
 
 // Однорядный лок на время выполнения синхронизации данного типа — защита от параллельного запуска.
