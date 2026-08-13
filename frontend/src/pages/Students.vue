@@ -123,6 +123,10 @@ const facetOptions = ref<Record<string, FacetOption[]>>({})
 // и фильтр не появляется в списке — иначе просто открыв и закрыв модалку,
 // получали бы висящий фильтр "любое значение".
 const filterModalField = ref<string | null>(null)
+// Отдельно от filterModalField — иначе обнуление поля при закрытии сразу очищает
+// filteredModalOptions/заголовок, и модалка на время exit-анимации успевает
+// мигнуть пустым состоянием ("Ничего не найдено") и схлопнуться в размере.
+const isFilterModalOpen = ref(false)
 const filterModalDraft = ref<string[]>([])
 const filterModalSearch = ref('')
 
@@ -196,6 +200,7 @@ async function loadPage() {
 // (донастроить) — в обоих случаях открывает модалку с черновиком выбора,
 // ничего не меняя в применённых фильтрах, пока не подтвердят.
 async function openFilterField(field: string) {
+  filterModalField.value = field
   filterModalDraft.value = [...(filterValues.value[field] ?? [])]
   if (!facetOptions.value[field]) {
     try {
@@ -206,12 +211,14 @@ async function openFilterField(field: string) {
     }
   }
   filterModalSearch.value = ''
-  filterModalField.value = field
+  isFilterModalOpen.value = true
 }
 
 // Закрытие крестиком/кликом вне/Escape — черновик просто отбрасывается.
+// filterModalField намеренно не трогаем — модалка ещё видна во время
+// exit-анимации, обнулять данные сейчас означало бы мигнуть пустым состоянием.
 function cancelFilterModal() {
-  filterModalField.value = null
+  isFilterModalOpen.value = false
 }
 
 // Только "Готово" реально применяет фильтр — даже пустой выбор ("любое значение").
@@ -223,7 +230,7 @@ function confirmFilterModal() {
   }
   filterValues.value = { ...filterValues.value, [field]: filterModalDraft.value }
   pagination.value = { ...pagination.value, pageIndex: 0 }
-  filterModalField.value = null
+  isFilterModalOpen.value = false
 }
 
 function toggleDraftValue(value: string, checked: boolean) {
@@ -356,7 +363,7 @@ onMounted(loadPage)
       </Button>
     </div>
 
-    <Dialog :open="filterModalField !== null" @update:open="(open) => { if (!open) cancelFilterModal() }">
+    <Dialog :open="isFilterModalOpen" @update:open="(open) => { if (!open) cancelFilterModal() }">
       <DialogScrollContent
         class="flex max-h-[85vh] flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
       >
