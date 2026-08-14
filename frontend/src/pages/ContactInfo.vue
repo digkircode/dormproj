@@ -64,6 +64,7 @@ const columns = columnHelper.columns([
       total-label="записей контактной информации"
       :cell-text="cellText"
       :hidden-by-default="hiddenByDefault"
+      storage-key="contact-info"
     />
   </div>
 </template>

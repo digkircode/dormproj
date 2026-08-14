@@ -2,6 +2,7 @@ import { Controller, Get, NotFoundException, Param, Query, UseGuards } from '@ne
 import { Prisma } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
+import { sortPassportsByPriority } from './passport-priority';
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -107,18 +108,17 @@ export class IndividualsController {
     });
   }
 
-  // Гражданство — только последнее по period (take: 1), паспорта — все, отсортированные
-  // так, что первый в списке и есть актуальный документ (см. schema.prisma: у обеих таблиц
-  // нет стабильного ключа, "актуальность" определяется только датами). Сортировка по
-  // dateStart (дата выдачи) в приоритете над period (датой записи в источнике) — это
-  // ближе к смыслу "актуальный документ", чем момент его попадания в наш слепок.
+  // Гражданство — только последнее по period (take: 1). Паспорта — все, пересортированные
+  // в приложении через sortPassportsByPriority: тип документа важнее даты (паспорт РФ,
+  // выданный раньше, всё равно актуальнее военного билета, полученного позже) — Prisma
+  // не умеет сортировать по произвольному приоритету значений напрямую в orderBy.
   @Get(':uid')
   async detail(@Param('uid') uid: string) {
     const individual = await this.prisma.individual.findUnique({
       where: { fizicheskoyeLitsoUid: uid },
       include: {
         citizenships: { orderBy: { period: 'desc' }, take: 1 },
-        passports: { orderBy: [{ dateStart: 'desc' }, { period: 'desc' }, { id: 'desc' }] },
+        passports: true,
       },
     });
 
@@ -126,6 +126,6 @@ export class IndividualsController {
       throw new NotFoundException('Физлицо не найдено');
     }
 
-    return individual;
+    return { ...individual, passports: sortPassportsByPriority(individual.passports) };
   }
 }

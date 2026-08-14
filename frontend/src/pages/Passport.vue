@@ -58,6 +58,7 @@ const columns = columnHelper.columns([
       total-label="паспортных записей"
       :cell-text="cellText"
       :hidden-by-default="hiddenByDefault"
+      storage-key="passport"
     />
   </div>
 </template>

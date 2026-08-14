@@ -67,6 +67,9 @@ const props = withDefaults(
     // чтобы остальные таблицы не менялись. getHref — ссылка (открыть в новой вкладке),
     // onClick — произвольное действие (открыть модалку и т.п.); передаётся ровно один.
     rowAction?: { icon: Component; label: string; getHref?: (row: TData) => string; onClick?: (row: TData) => void }
+    // Если задан — видимость колонок и сортировка сохраняются в localStorage под этим
+    // ключом и восстанавливаются при следующем визите. Без ключа поведение как раньше.
+    storageKey?: string
   }>(),
   {
     cellText: (_columnId: string, value: unknown) => String(value ?? ''),
@@ -75,13 +78,29 @@ const props = withDefaults(
   },
 )
 
+const emit = defineEmits<{ loaded: [rows: TData[]] }>()
+
+const STORAGE_PREFIX = 'entity-table:'
+
+function readStoredTableState(): { columnVisibility?: ColumnVisibilityState; sorting?: SortingState } | null {
+  if (!props.storageKey) return null
+  try {
+    const raw = localStorage.getItem(STORAGE_PREFIX + props.storageKey)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+const storedTableState = readStoredTableState()
+
 // Пусто = видны все колонки (в TanStack отсутствие записи значит "видима", не "скрыта") —
 // поэтому "скрыто по умолчанию" выражается явной записью false, а не просто отсутствием.
 const columnVisibility = ref<ColumnVisibilityState>(
-  Object.fromEntries(props.hiddenByDefault.map((id) => [id, false])),
+  storedTableState?.columnVisibility ?? Object.fromEntries(props.hiddenByDefault.map((id) => [id, false])),
 )
 const pagination = ref<PaginationState>({ pageIndex: 0, pageSize: 20 })
-const sorting = ref<SortingState>([props.defaultSort])
+const sorting = ref<SortingState>(storedTableState?.sorting ?? [props.defaultSort])
 const searchInput = ref('')
 const search = ref('')
 const activeFilterFields = ref<string[]>([])
@@ -158,6 +177,7 @@ async function loadPage() {
     })
     rows.value = page.data
     total.value = page.total
+    emit('loaded', page.data)
   } catch (error) {
     errorText.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -249,6 +269,22 @@ onBeforeUnmount(() => {
 // и pageIndex), бьют дублирующимися запросами вместо одного.
 watch([pagination, sorting, search, filterValues], loadPage, { deep: true })
 onMounted(loadPage)
+
+// Только видимость колонок и сортировка — страница/поиск/фильтры каждый раз с чистого
+// листа, иначе можно неожиданно "приземлиться" на середине списка при следующем визите.
+watch([columnVisibility, sorting], () => {
+  if (!props.storageKey) return
+  try {
+    localStorage.setItem(
+      STORAGE_PREFIX + props.storageKey,
+      JSON.stringify({ columnVisibility: columnVisibility.value, sorting: sorting.value }),
+    )
+  } catch {
+    // localStorage может быть недоступен (приватный режим и т.п.) — просто не сохраняем
+  }
+}, { deep: true })
+
+defineExpose({ refresh: loadPage })
 </script>
 
 <template>

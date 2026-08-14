@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ArrowLeft, ChevronRight, Info } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -21,8 +21,10 @@ import type { ListOptions } from '@/lib/list-api'
 
 const route = useRoute()
 const entity = computed(() => SYNC_ENTITIES.find((e) => e.slug === route.params.slug))
+const storageKey = computed(() => `sync-logs:${entity.value?.slug ?? 'unknown'}`)
 
 const selectedLog = ref<SyncLogEntry | null>(null)
+const tableRef = ref<{ refresh: () => void | Promise<void> } | null>(null)
 
 const columnLabels: Record<string, string> = {
   rowNumber: '№',
@@ -76,6 +78,24 @@ function fetchFacetValues(field: string) {
 function openLogDetails(log: SyncLogEntry) {
   selectedLog.value = log
 }
+
+const POLL_INTERVAL_MS = 3000
+let pollTimeout: ReturnType<typeof setTimeout> | undefined
+
+// Пока последний запуск ещё "В процессе", опрашиваем таблицу заново через её же
+// refresh() — она сама решит, показывать ли лоадер, и не потеряет текущую страницу/
+// сортировку/фильтры пользователя (в отличие от полного ремаунта компонента).
+function onLogsLoaded(logs: SyncLogEntry[]) {
+  if (selectedLog.value) {
+    selectedLog.value = logs.find((log) => log.id === selectedLog.value?.id) ?? selectedLog.value
+  }
+  clearTimeout(pollTimeout)
+  if (logs.some((log) => log.status === 'RUNNING')) {
+    pollTimeout = setTimeout(() => tableRef.value?.refresh(), POLL_INTERVAL_MS)
+  }
+}
+
+onUnmounted(() => clearTimeout(pollTimeout))
 </script>
 
 <template>
@@ -91,10 +111,11 @@ function openLogDetails(log: SyncLogEntry) {
     </div>
 
     <EntityTable
+      ref="tableRef"
       :columns="columns"
       :column-labels="columnLabels"
       :filterable-fields="filterableFields"
-      :default-sort="{ id: 'rowNumber', desc: false }"
+      :default-sort="{ id: 'rowNumber', desc: true }"
       :fetch-page="fetchPage"
       :fetch-facet-values="fetchFacetValues"
       :get-row-id="(log: SyncLogEntry) => String(log.id)"
@@ -102,6 +123,8 @@ function openLogDetails(log: SyncLogEntry) {
       :cell-text="cellText"
       :cell-renderers="cellRenderers"
       :row-action="{ icon: Info, label: 'Подробнее', onClick: openLogDetails }"
+      :storage-key="storageKey"
+      @loaded="onLogsLoaded"
     />
 
     <Dialog :open="!!selectedLog" @update:open="(open) => { if (!open) selectedLog = null }">

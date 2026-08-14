@@ -72,6 +72,7 @@ const columns = columnHelper.columns([
       total-label="студентов"
       :cell-text="cellText"
       :hidden-by-default="hiddenByDefault"
+      storage-key="students"
     />
   </div>
 </template>

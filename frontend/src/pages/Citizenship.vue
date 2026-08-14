@@ -46,6 +46,7 @@ const columns = columnHelper.columns([
       total-label="записей о гражданстве"
       :cell-text="cellText"
       :hidden-by-default="hiddenByDefault"
+      storage-key="citizenship"
     />
   </div>
 </template>

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { FileText, Loader, Play } from 'lucide-vue-next'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableHeader,
@@ -29,12 +30,20 @@ const rows = computed(() => [
   { ...contactInfoSync.row.value, isRunning: contactInfoSync.isRunning.value, run: contactInfoSync.run, slug: 'contact-info' },
 ])
 
-onMounted(() => {
-  studentSync.refresh()
-  individualsSync.refresh()
-  citizenshipSync.refresh()
-  passportSync.refresh()
-  contactInfoSync.refresh()
+const isLoading = ref(true)
+
+// Раньше 5 refresh() запускались параллельно, но каждая строка перерисовывалась
+// сама по себе по мере ответа своего запроса — получался дёрганый порядок появления
+// статусов/времени. Ждём, пока отработают все, и показываем таблицу разом.
+onMounted(async () => {
+  await Promise.all([
+    studentSync.refresh(),
+    individualsSync.refresh(),
+    citizenshipSync.refresh(),
+    passportSync.refresh(),
+    contactInfoSync.refresh(),
+  ])
+  isLoading.value = false
 })
 </script>
 
@@ -52,7 +61,17 @@ onMounted(() => {
             <TableHead class="w-10" />
           </TableRow>
         </TableHeader>
-        <TableBody>
+        <TableBody v-if="isLoading">
+          <TableRow v-for="i in 5" :key="i">
+            <TableCell><Skeleton class="h-4 w-40" /></TableCell>
+            <TableCell><Skeleton class="h-4 w-24" /></TableCell>
+            <TableCell><Skeleton class="h-4 w-28" /></TableCell>
+            <TableCell><Skeleton class="h-4 w-16" /></TableCell>
+            <TableCell class="w-10" />
+            <TableCell class="w-10" />
+          </TableRow>
+        </TableBody>
+        <TableBody v-else>
           <TableRow v-for="(row, i) in rows" :key="i">
             <TableCell class="font-medium">{{ row.name }}</TableCell>
             <TableCell>
