@@ -96,7 +96,7 @@ onMounted(async () => {
     </Card>
 
     <Dialog :open="!!selectedLog" @update:open="(open) => { if (!open) selectedLog = null }">
-      <DialogScrollContent v-if="selectedLog" class="max-h-[85vh] min-w-0">
+      <DialogScrollContent v-if="selectedLog" class="flex max-h-[85vh] min-w-0 flex-col gap-4">
         <DialogHeader>
           <DialogTitle>Лог #{{ selectedLog.id }}</DialogTitle>
           <DialogDescription>{{ formatDateTime(selectedLog.startedAt) }}</DialogDescription>

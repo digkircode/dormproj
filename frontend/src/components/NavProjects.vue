@@ -40,6 +40,7 @@ const openGroups = reactive<Record<string, boolean>>({})
 function handleGroupClick(name: string, isActive?: boolean) {
   if (state.value === 'collapsed' && !isMobile.value) {
     setOpen(true)
+    openGroups[name] = true
     return
   }
   openGroups[name] = !(openGroups[name] ?? isActive ?? false)
