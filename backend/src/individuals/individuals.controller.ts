@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Param, Query, UseGuards } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
@@ -105,5 +105,27 @@ export class IndividualsController {
       const value = (row as unknown as Record<string, string>)[field];
       return { value, label: value };
     });
+  }
+
+  // Гражданство — только последнее по period (take: 1), паспорта — все, отсортированные
+  // так, что первый в списке и есть актуальный документ (см. schema.prisma: у обеих таблиц
+  // нет стабильного ключа, "актуальность" определяется только датами). Сортировка по
+  // dateStart (дата выдачи) в приоритете над period (датой записи в источнике) — это
+  // ближе к смыслу "актуальный документ", чем момент его попадания в наш слепок.
+  @Get(':uid')
+  async detail(@Param('uid') uid: string) {
+    const individual = await this.prisma.individual.findUnique({
+      where: { fizicheskoyeLitsoUid: uid },
+      include: {
+        citizenships: { orderBy: { period: 'desc' }, take: 1 },
+        passports: { orderBy: [{ dateStart: 'desc' }, { period: 'desc' }, { id: 'desc' }] },
+      },
+    });
+
+    if (!individual) {
+      throw new NotFoundException('Физлицо не найдено');
+    }
+
+    return individual;
   }
 }

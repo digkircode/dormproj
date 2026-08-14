@@ -4,6 +4,7 @@ import Sync from '@/pages/Sync.vue'
 import SyncLogs from '@/pages/SyncLogs.vue'
 import Students from '@/pages/Students.vue'
 import Individuals from '@/pages/Individuals.vue'
+import IndividualDetail from '@/pages/IndividualDetail.vue'
 import Citizenship from '@/pages/Citizenship.vue'
 import Passport from '@/pages/Passport.vue'
 import ContactInfo from '@/pages/ContactInfo.vue'
@@ -17,6 +18,7 @@ const router = createRouter({
     { path: '/sync/:slug/logs', name: 'sync-logs', component: SyncLogs, meta: { title: 'Логи синхронизации', parent: 'sync' } },
 
     { path: '/individuals', name: 'individuals', component: Individuals, meta: { title: 'Физические лица' } },
+    { path: '/individuals/:uid', name: 'individual-detail', component: IndividualDetail, meta: { title: 'Физическое лицо', parent: 'individuals' } },
     { path: '/system-tables/citizenship', name: 'citizenship', component: Citizenship, meta: { title: 'Гражданство' } },
     { path: '/system-tables/contact-info', name: 'contact-info', component: ContactInfo, meta: { title: 'Контактная информация' } },
     { path: '/system-tables/passport-data', name: 'passport-data', component: Passport, meta: { title: 'Паспортные данные' } },

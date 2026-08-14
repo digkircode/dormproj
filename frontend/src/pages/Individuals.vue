@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ExternalLink } from 'lucide-vue-next'
 import EntityTable from '@/components/EntityTable.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import { fetchFacetValues, fetchIndividuals, type Individual } from '@/lib/individuals-api'
@@ -50,6 +51,11 @@ const columns = columnHelper.columns([
       total-label="физлиц"
       :cell-text="cellText"
       :hidden-by-default="hiddenByDefault"
+      :row-action="{
+        icon: ExternalLink,
+        label: 'Открыть карточку физлица',
+        getHref: (i: Individual) => `/individuals/${encodeURIComponent(i.fizicheskoyeLitsoUid)}`,
+      }"
     />
   </div>
 </template>

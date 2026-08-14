@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="TData extends RowData">
-import { computed, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch, type Component, type Ref } from 'vue'
 import type { ColumnDef, ColumnVisibilityState, PaginationState, RowData, SortingState } from '@tanstack/vue-table'
 import { FlexRender } from '@tanstack/vue-table'
 import {
@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   Dialog,
   DialogDescription,
@@ -58,6 +59,9 @@ const props = withDefaults(
     cellText?: (columnId: string, value: unknown) => string
     pageSizeOptions?: number[]
     hiddenByDefault?: string[]
+    // Необязательная колонка-кнопка в конце таблицы (открыть карточку в новой вкладке
+    // и т.п.) — по умолчанию не рендерится, чтобы остальные 4 таблицы не менялись.
+    rowAction?: { icon: Component; label: string; getHref: (row: TData) => string }
   }>(),
   {
     cellText: (_columnId: string, value: unknown) => String(value ?? ''),
@@ -394,6 +398,7 @@ onMounted(loadPage)
                     />
                   </div>
                 </TableHead>
+                <TableHead v-if="rowAction" class="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -407,10 +412,23 @@ onMounted(loadPage)
                   >
                     <TruncatedCell :text="cellText(cell.column.id, cell.getValue())" />
                   </TableCell>
+                  <TableCell v-if="rowAction">
+                    <Tooltip>
+                      <TooltipTrigger as-child>
+                        <Button variant="ghost" size="icon" class="size-7" as-child>
+                          <a :href="rowAction.getHref(row.original)" target="_blank" rel="noopener">
+                            <component :is="rowAction.icon" />
+                            <span class="sr-only">{{ rowAction.label }}</span>
+                          </a>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{{ rowAction.label }}</TooltipContent>
+                    </Tooltip>
+                  </TableCell>
                 </TableRow>
               </template>
               <TableRow v-else>
-                <TableCell :colspan="columns.length" class="h-24 text-center text-muted-foreground">
+                <TableCell :colspan="rowAction ? columns.length + 1 : columns.length" class="h-24 text-center text-muted-foreground">
                   {{ isLoading ? 'Загрузка…' : 'Ничего не найдено' }}
                 </TableCell>
               </TableRow>
