@@ -10,6 +10,7 @@ import {
   SYNC_TYPE_INDIVIDUALS,
   TRANSACTION_TIMEOUT_MS,
 } from './individuals-sync.constants';
+import { listSyncLogs, syncLogFacetValues, type SyncLogsListQuery } from '../sync/sync-logs-list';
 
 export interface IndividualsSyncResult {
   status: 'SUCCESS';
@@ -176,12 +177,12 @@ export class IndividualsSyncService {
     });
   }
 
-  async getRecentLogs(limit = 20) {
-    return this.prisma.syncLog.findMany({
-      where: { type: SYNC_TYPE_INDIVIDUALS },
-      orderBy: { startedAt: 'desc' },
-      take: limit,
-    });
+  async listLogs(query: SyncLogsListQuery) {
+    return listSyncLogs(this.prisma, SYNC_TYPE_INDIVIDUALS, query);
+  }
+
+  async logFacetValues(field: string) {
+    return syncLogFacetValues(this.prisma, SYNC_TYPE_INDIVIDUALS, field);
   }
 
   // UID берём не только из активных студентов, но и из уже засинканных физлиц —

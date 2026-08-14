@@ -1,19 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ArrowLeft, ChevronRight, Info } from 'lucide-vue-next'
-import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-  TableEmpty,
-} from '@/components/ui/table'
 import {
   Dialog,
   DialogHeader,
@@ -22,36 +11,73 @@ import {
   DialogScrollContent,
 } from '@/components/ui/dialog'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
-import { fetchSyncLogs, type SyncLogEntry } from '@/lib/sync-api'
+import EntityTable from '@/components/EntityTable.vue'
+import { createAppColumnHelper } from '@/lib/table'
+import { fetchSyncLogsPage, fetchSyncLogFacets, type SyncLogEntry } from '@/lib/sync-api'
 import { SYNC_ENTITIES } from '@/lib/sync-entities'
-import { statusLabel, statusIcon, statusIconClass, triggerLabel, formatDateTimeWithSeconds } from '@/lib/sync-format'
+import { statusLabel, triggerLabel, formatDateTimeWithSeconds } from '@/lib/sync-format'
+import type { ListOptions } from '@/lib/list-api'
 
 const route = useRoute()
 const entity = computed(() => SYNC_ENTITIES.find((e) => e.slug === route.params.slug))
 
-const logs = ref<SyncLogEntry[]>([])
-const isLoading = ref(true)
 const selectedLog = ref<SyncLogEntry | null>(null)
 
-const POLL_INTERVAL_MS = 3000
-let pollTimeout: ReturnType<typeof setTimeout> | undefined
+const columnLabels: Record<string, string> = {
+  rowNumber: '№',
+  trigger: 'Тип',
+  status: 'Статус',
+  startedAt: 'Время начала',
+  finishedAt: 'Время окончания',
+}
+const filterableFields = ['status', 'trigger']
 
-// Пока последний запуск ещё "В процессе", опрашиваем логи заново — иначе статус
-// так и остаётся зависшим на RUNNING, пока страницу не перезагрузят руками.
-async function load() {
-  if (!entity.value) return
-  logs.value = await fetchSyncLogs(entity.value.basePath)
-  isLoading.value = false
-  if (selectedLog.value) {
-    selectedLog.value = logs.value.find((log) => log.id === selectedLog.value?.id) ?? selectedLog.value
+function cellText(columnId: string, value: unknown): string {
+  if (columnId === 'trigger' && typeof value === 'string') {
+    return triggerLabel[value as keyof typeof triggerLabel] ?? value
   }
-  if (logs.value.some((log) => log.status === 'RUNNING')) {
-    pollTimeout = setTimeout(load, POLL_INTERVAL_MS)
+  if (columnId === 'status' && typeof value === 'string') {
+    return statusLabel[value as keyof typeof statusLabel] ?? value
   }
+  if (columnId === 'startedAt' && typeof value === 'string') {
+    return formatDateTimeWithSeconds(value)
+  }
+  if (columnId === 'finishedAt') {
+    return typeof value === 'string' ? formatDateTimeWithSeconds(value) : '—'
+  }
+  return String(value ?? '')
 }
 
-onMounted(load)
-onUnmounted(() => clearTimeout(pollTimeout))
+const columnHelper = createAppColumnHelper<SyncLogEntry>()
+
+// id (сквозной по всей таблице SyncLog, партиционированной по всем 5 типам синхронов)
+// сюда не выводим — в списке нужен порядковый номер именно для этого синхрона,
+// сам id остаётся доступен в модалке "Подробнее" (см. openLogDetails).
+const columns = columnHelper.columns([
+  columnHelper.accessor('rowNumber', {
+    header: columnLabels.rowNumber,
+    enableHiding: false,
+    enableSorting: false,
+    size: 64,
+    minSize: 56,
+  }),
+  columnHelper.accessor('trigger', { header: columnLabels.trigger, size: 160, minSize: 120 }),
+  columnHelper.accessor('status', { header: columnLabels.status, size: 144, minSize: 110 }),
+  columnHelper.accessor('startedAt', { header: columnLabels.startedAt, size: 176, minSize: 140 }),
+  columnHelper.accessor('finishedAt', { header: columnLabels.finishedAt, size: 176, minSize: 140 }),
+])
+
+function fetchPage(options: ListOptions) {
+  return fetchSyncLogsPage(entity.value?.basePath ?? '', options)
+}
+
+function fetchFacetValues(field: string) {
+  return fetchSyncLogFacets(entity.value?.basePath ?? '', field)
+}
+
+function openLogDetails(log: SyncLogEntry) {
+  selectedLog.value = log
+}
 </script>
 
 <template>
@@ -66,48 +92,18 @@ onUnmounted(() => clearTimeout(pollTimeout))
       <h1 class="text-lg font-medium">Логи: {{ entity?.name ?? '—' }}</h1>
     </div>
 
-    <Card class="gap-0 py-0">
-      <Table>
-        <TableHeader class="bg-muted sticky top-0 z-10">
-          <TableRow>
-            <TableHead>ID</TableHead>
-            <TableHead>Тип</TableHead>
-            <TableHead>Статус</TableHead>
-            <TableHead>Время начала</TableHead>
-            <TableHead>Время окончания</TableHead>
-            <TableHead class="w-10" />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          <TableEmpty v-if="!isLoading && !logs.length" :colspan="6">
-            Логов пока нет
-          </TableEmpty>
-          <TableRow v-for="log in logs" :key="log.id">
-            <TableCell class="text-muted-foreground">{{ log.id }}</TableCell>
-            <TableCell>{{ triggerLabel[log.trigger] }}</TableCell>
-            <TableCell>
-              <span class="flex items-center gap-2">
-                <component :is="statusIcon[statusLabel[log.status]]" class="size-4" :class="statusIconClass[statusLabel[log.status]]" />
-                {{ statusLabel[log.status] }}
-              </span>
-            </TableCell>
-            <TableCell class="text-muted-foreground">{{ formatDateTimeWithSeconds(log.startedAt) }}</TableCell>
-            <TableCell class="text-muted-foreground">{{ log.finishedAt ? formatDateTimeWithSeconds(log.finishedAt) : '—' }}</TableCell>
-            <TableCell>
-              <Tooltip>
-                <TooltipTrigger as-child>
-                  <Button variant="ghost" size="icon" class="size-7" @click="selectedLog = log">
-                    <Info />
-                    <span class="sr-only">Подробнее</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Подробнее</TooltipContent>
-              </Tooltip>
-            </TableCell>
-          </TableRow>
-        </TableBody>
-      </Table>
-    </Card>
+    <EntityTable
+      :columns="columns"
+      :column-labels="columnLabels"
+      :filterable-fields="filterableFields"
+      :default-sort="{ id: 'startedAt', desc: false }"
+      :fetch-page="fetchPage"
+      :fetch-facet-values="fetchFacetValues"
+      :get-row-id="(log: SyncLogEntry) => String(log.id)"
+      total-label="записей"
+      :cell-text="cellText"
+      :row-action="{ icon: Info, label: 'Подробнее', onClick: openLogDetails }"
+    />
 
     <Dialog :open="!!selectedLog" @update:open="(open) => { if (!open) selectedLog = null }">
       <DialogScrollContent v-if="selectedLog" class="flex min-w-0 flex-col gap-4">

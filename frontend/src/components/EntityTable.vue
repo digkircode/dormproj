@@ -59,9 +59,10 @@ const props = withDefaults(
     cellText?: (columnId: string, value: unknown) => string
     pageSizeOptions?: number[]
     hiddenByDefault?: string[]
-    // Необязательная колонка-кнопка в конце таблицы (открыть карточку в новой вкладке
-    // и т.п.) — по умолчанию не рендерится, чтобы остальные 4 таблицы не менялись.
-    rowAction?: { icon: Component; label: string; getHref: (row: TData) => string }
+    // Необязательная колонка-кнопка в конце таблицы — по умолчанию не рендерится,
+    // чтобы остальные таблицы не менялись. getHref — ссылка (открыть в новой вкладке),
+    // onClick — произвольное действие (открыть модалку и т.п.); передаётся ровно один.
+    rowAction?: { icon: Component; label: string; getHref?: (row: TData) => string; onClick?: (row: TData) => void }
   }>(),
   {
     cellText: (_columnId: string, value: unknown) => String(value ?? ''),
@@ -415,11 +416,15 @@ onMounted(loadPage)
                   <TableCell v-if="rowAction">
                     <Tooltip>
                       <TooltipTrigger as-child>
-                        <Button variant="ghost" size="icon" class="size-7" as-child>
+                        <Button v-if="rowAction.getHref" variant="ghost" size="icon" class="size-7" as-child>
                           <a :href="rowAction.getHref(row.original)" target="_blank" rel="noopener">
                             <component :is="rowAction.icon" />
                             <span class="sr-only">{{ rowAction.label }}</span>
                           </a>
+                        </Button>
+                        <Button v-else variant="ghost" size="icon" class="size-7" @click="rowAction!.onClick!(row.original)">
+                          <component :is="rowAction.icon" />
+                          <span class="sr-only">{{ rowAction.label }}</span>
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>{{ rowAction.label }}</TooltipContent>

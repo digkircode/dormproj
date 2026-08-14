@@ -3,7 +3,9 @@ import {
   Controller,
   Get,
   HttpCode,
+  Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
@@ -34,7 +36,19 @@ export class SyncController {
   }
 
   @Get('logs')
-  async logs() {
-    return this.syncService.getRecentLogs();
+  async logs(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortDir') sortDir?: string,
+    @Query('filters') filters?: string,
+  ) {
+    return this.syncService.listLogs({ page, pageSize, search, sortBy, sortDir, filters });
+  }
+
+  @Get('logs/facets/:field')
+  async logsFacets(@Param('field') field: string) {
+    return this.syncService.logFacetValues(field);
   }
 }

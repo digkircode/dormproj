@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { ArrowLeft, Check, ChevronRight, Copy } from 'lucide-vue-next'
+import { ArrowLeft, Check, Copy } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { fetchIndividualDetail, type IndividualDetail } from '@/lib/individuals-api'
 
@@ -29,7 +30,6 @@ const initials = computed(() =>
 
 const citizenship = computed(() => detail.value?.citizenships[0] ?? null)
 const latestPassport = computed(() => detail.value?.passports[0] ?? null)
-const olderPassports = computed(() => detail.value?.passports.slice(1) ?? [])
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—'
@@ -136,37 +136,43 @@ onMounted(async () => {
       <Card class="gap-3 p-6">
         <div class="text-sm font-medium">Документ, удостоверяющий личность</div>
 
-        <div v-if="latestPassport" class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
-          <div>
-            <div class="text-muted-foreground">Тип</div>
-            <div>{{ latestPassport.type }}</div>
-          </div>
-          <div>
-            <div class="text-muted-foreground">Серия и номер</div>
-            <div>{{ latestPassport.series }} {{ latestPassport.number }}</div>
-          </div>
-          <div>
-            <div class="text-muted-foreground">Дата выдачи</div>
-            <div>{{ formatDate(latestPassport.dateStart) }}</div>
-          </div>
-          <div>
-            <div class="text-muted-foreground">Кем выдан</div>
-            <div>{{ latestPassport.unit }}</div>
-          </div>
-          <div>
-            <div class="text-muted-foreground">Код подразделения</div>
-            <div>{{ latestPassport.codeUnit }}</div>
-          </div>
-        </div>
-        <div v-else class="text-sm text-muted-foreground">Нет данных</div>
+        <Tabs default-value="latest">
+          <TabsList>
+            <TabsTrigger value="latest">Актуальный</TabsTrigger>
+            <TabsTrigger value="all" class="gap-1.5">
+              Все
+              <Badge variant="secondary">{{ detail.passports.length }}</Badge>
+            </TabsTrigger>
+          </TabsList>
 
-        <Collapsible v-if="olderPassports.length" v-slot="{ open }">
-          <CollapsibleTrigger class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-            <ChevronRight class="size-4 shrink-0 transition-transform" :class="{ 'rotate-90': open }" />
-            Показать все документы ({{ detail.passports.length }})
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div class="mt-2 overflow-hidden rounded-lg border">
+          <TabsContent value="latest">
+            <div v-if="latestPassport" class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
+              <div>
+                <div class="text-muted-foreground">Тип</div>
+                <div>{{ latestPassport.type }}</div>
+              </div>
+              <div>
+                <div class="text-muted-foreground">Серия и номер</div>
+                <div>{{ latestPassport.series }} {{ latestPassport.number }}</div>
+              </div>
+              <div>
+                <div class="text-muted-foreground">Дата выдачи</div>
+                <div>{{ formatDate(latestPassport.dateStart) }}</div>
+              </div>
+              <div>
+                <div class="text-muted-foreground">Кем выдан</div>
+                <div>{{ latestPassport.unit }}</div>
+              </div>
+              <div>
+                <div class="text-muted-foreground">Код подразделения</div>
+                <div>{{ latestPassport.codeUnit }}</div>
+              </div>
+            </div>
+            <div v-else class="text-sm text-muted-foreground">Нет данных</div>
+          </TabsContent>
+
+          <TabsContent value="all">
+            <div v-if="detail.passports.length" class="overflow-hidden rounded-lg border">
               <Table>
                 <TableHeader class="bg-muted">
                   <TableRow>
@@ -178,7 +184,7 @@ onMounted(async () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow v-for="passport in olderPassports" :key="passport.id">
+                  <TableRow v-for="passport in detail.passports" :key="passport.id">
                     <TableCell>{{ passport.type }}</TableCell>
                     <TableCell>{{ passport.series }} {{ passport.number }}</TableCell>
                     <TableCell>{{ formatDate(passport.dateStart) }}</TableCell>
@@ -188,8 +194,9 @@ onMounted(async () => {
                 </TableBody>
               </Table>
             </div>
-          </CollapsibleContent>
-        </Collapsible>
+            <div v-else class="text-sm text-muted-foreground">Нет данных</div>
+          </TabsContent>
+        </Tabs>
       </Card>
     </template>
   </div>

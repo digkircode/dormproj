@@ -10,6 +10,7 @@ import {
   SYNC_TYPE_CONTACT_INFO,
   TRANSACTION_TIMEOUT_MS,
 } from './contact-info-sync.constants';
+import { listSyncLogs, syncLogFacetValues, type SyncLogsListQuery } from '../sync/sync-logs-list';
 
 export interface ContactInfoSyncResult {
   status: 'SUCCESS';
@@ -162,11 +163,11 @@ export class ContactInfoSyncService {
     });
   }
 
-  async getRecentLogs(limit = 20) {
-    return this.prisma.syncLog.findMany({
-      where: { type: SYNC_TYPE_CONTACT_INFO },
-      orderBy: { startedAt: 'desc' },
-      take: limit,
-    });
+  async listLogs(query: SyncLogsListQuery) {
+    return listSyncLogs(this.prisma, SYNC_TYPE_CONTACT_INFO, query);
+  }
+
+  async logFacetValues(field: string) {
+    return syncLogFacetValues(this.prisma, SYNC_TYPE_CONTACT_INFO, field);
   }
 }

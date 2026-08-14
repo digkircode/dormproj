@@ -1,7 +1,9 @@
 import { apiFetch } from './api-base'
+import { fetchListPage, fetchListFacets, type ListOptions, type ListPage, type FacetOption } from './list-api'
 
 export interface SyncLogEntry {
   id: number
+  rowNumber: number
   type: string
   trigger: 'CRON' | 'MANUAL'
   status: 'RUNNING' | 'SUCCESS' | 'FAILED'
@@ -15,12 +17,30 @@ export interface SyncLogEntry {
   errorStack: string | null
 }
 
+export type SyncLogsPage = ListPage<SyncLogEntry>
+export type { FacetOption }
+
+export function fetchSyncLogsPage(basePath: string, options: ListOptions): Promise<SyncLogsPage> {
+  return fetchListPage<SyncLogEntry>(`${basePath}/logs`, options)
+}
+
+export function fetchSyncLogFacets(basePath: string, field: string): Promise<FacetOption[]> {
+  return fetchListFacets(`${basePath}/logs`, field)
+}
+
+// Обзорная таблица на /sync (Sync.vue/useSyncRow.ts) хочет только самый последний лог
+// для статуса/времени/длительности строки — не переиспользует полный список логов,
+// просто просит первую страницу по 1 записи в убывающем порядке у того же эндпоинта.
 export async function fetchSyncLogs(basePath: string): Promise<SyncLogEntry[]> {
-  const response = await apiFetch(`${basePath}/logs`)
-  if (!response.ok) {
-    throw new Error(`Не удалось получить логи синхронизации (${response.status})`)
-  }
-  return response.json()
+  const page = await fetchSyncLogsPage(basePath, {
+    page: 1,
+    pageSize: 1,
+    search: '',
+    sortBy: 'startedAt',
+    sortDir: 'desc',
+    filters: {},
+  })
+  return page.data
 }
 
 export type TriggerSyncResult =
