@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ArrowLeft, ChevronRight, Info } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
@@ -33,11 +33,25 @@ const logs = ref<SyncLogEntry[]>([])
 const isLoading = ref(true)
 const selectedLog = ref<SyncLogEntry | null>(null)
 
-onMounted(async () => {
+const POLL_INTERVAL_MS = 3000
+let pollTimeout: ReturnType<typeof setTimeout> | undefined
+
+// Пока последний запуск ещё "В процессе", опрашиваем логи заново — иначе статус
+// так и остаётся зависшим на RUNNING, пока страницу не перезагрузят руками.
+async function load() {
   if (!entity.value) return
   logs.value = await fetchSyncLogs(entity.value.basePath)
   isLoading.value = false
-})
+  if (selectedLog.value) {
+    selectedLog.value = logs.value.find((log) => log.id === selectedLog.value?.id) ?? selectedLog.value
+  }
+  if (logs.value.some((log) => log.status === 'RUNNING')) {
+    pollTimeout = setTimeout(load, POLL_INTERVAL_MS)
+  }
+}
+
+onMounted(load)
+onUnmounted(() => clearTimeout(pollTimeout))
 </script>
 
 <template>
