@@ -14,7 +14,7 @@ const router = createRouter({
     { path: '/', name: 'home', component: Home, meta: { title: 'Главная' } },
     { path: '/students', name: 'students', component: Students, meta: { title: 'Контингент' } },
     { path: '/sync', name: 'sync', component: Sync, meta: { title: 'Синхронизация' } },
-    { path: '/sync/:slug/logs', name: 'sync-logs', component: SyncLogs, meta: { title: 'Логи синхронизации' } },
+    { path: '/sync/:slug/logs', name: 'sync-logs', component: SyncLogs, meta: { title: 'Логи синхронизации', parent: 'sync' } },
 
     { path: '/individuals', name: 'individuals', component: Individuals, meta: { title: 'Физические лица' } },
     { path: '/system-tables/citizenship', name: 'citizenship', component: Citizenship, meta: { title: 'Гражданство' } },

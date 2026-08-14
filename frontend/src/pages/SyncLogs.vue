@@ -96,13 +96,13 @@ onMounted(async () => {
     </Card>
 
     <Dialog :open="!!selectedLog" @update:open="(open) => { if (!open) selectedLog = null }">
-      <DialogScrollContent v-if="selectedLog" class="max-h-[85vh]">
+      <DialogScrollContent v-if="selectedLog" class="max-h-[85vh] min-w-0">
         <DialogHeader>
           <DialogTitle>Лог #{{ selectedLog.id }}</DialogTitle>
           <DialogDescription>{{ formatDateTime(selectedLog.startedAt) }}</DialogDescription>
         </DialogHeader>
 
-        <div class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
+        <div class="grid min-w-0 grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
           <div>
             <div class="text-muted-foreground">Получено</div>
             <div>{{ selectedLog.fetchedCount ?? '—' }}</div>
