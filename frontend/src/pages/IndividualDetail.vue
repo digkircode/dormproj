@@ -128,8 +128,8 @@ onMounted(async () => {
         </div>
       </Card>
 
-      <Card class="gap-5 p-6">
-        <div class="text-sm font-medium">Документы, удостоверяющие личность</div>
+      <Card class="gap-6 p-6">
+        <div class="text-sm font-medium">Документы удостоверяющие личность</div>
 
         <Tabs default-value="latest">
           <TabsList>
