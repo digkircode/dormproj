@@ -6,11 +6,16 @@ const MAX_PAGE_SIZE = 100;
 
 const SEARCHABLE_FIELDS = ['errorMessage'] as const;
 
+// rowNumber не хранится в БД — это порядковый номер записи среди ВСЕХ логов этого типа
+// (по id, см. ниже), поэтому сортировка по нему транслируется в сортировку по id: это
+// строго монотонное соответствие (id по типу растёт вместе с порядковым номером), так что
+// возрастание/убывание id визуально совпадает с возрастанием/убыванием rowNumber.
 const SORTABLE_FIELDS: Record<string, string> = {
   startedAt: 'startedAt',
   finishedAt: 'finishedAt',
   status: 'status',
   trigger: 'trigger',
+  rowNumber: 'id',
 };
 
 // Только статус/триггер — практичные поля для мультивыбора (пара значений каждое).
@@ -32,9 +37,10 @@ export interface SyncLogsListQuery {
 
 // Общий для всех 5 типов синхронов список логов (SyncLog — одна таблица, партиционированная
 // полем type) — контроллеры вызывают это вместо дублирования одного и того же запроса.
-// rowNumber — порядковый номер строки в текущей выдаче (зависит от сортировки/страницы),
-// в отличие от id (сквозной по всей таблице SyncLog, не только по этому типу синхрона) —
-// id остаётся в ответе и показывается только в модалке "Подробнее" на фронте.
+// rowNumber — стабильный порядковый номер записи среди ВСЕХ логов этого типа (не зависит
+// от текущей страницы/сортировки/фильтра/поиска, в отличие от id — тот сквозной по всей
+// таблице SyncLog сразу для всех 5 типов синхронов). id остаётся в ответе и показывается
+// только в модалке "Подробнее" на фронте.
 export async function listSyncLogs(prisma: PrismaService, syncType: string, query: SyncLogsListQuery) {
   const page = Math.max(1, Number.parseInt(query.page ?? '', 10) || 1);
   const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, Number.parseInt(query.pageSize ?? '', 10) || DEFAULT_PAGE_SIZE));
@@ -68,7 +74,7 @@ export async function listSyncLogs(prisma: PrismaService, syncType: string, quer
     ...(searchClause || filterClauses.length > 0 ? { AND: [...(searchClause ? [searchClause] : []), ...filterClauses] } : {}),
   };
 
-  const [rows, total] = await Promise.all([
+  const [rows, total, allIdsOfType] = await Promise.all([
     prisma.syncLog.findMany({
       where,
       orderBy: { [sortField]: sortDir },
@@ -76,9 +82,13 @@ export async function listSyncLogs(prisma: PrismaService, syncType: string, quer
       take: pageSize,
     }),
     prisma.syncLog.count({ where }),
+    // Только id, без остальных полей — дёшево даже при тысячах строк, а порядковый
+    // номер должен считаться по ВСЕМ логам типа, а не только по текущей отфильтрованной странице.
+    prisma.syncLog.findMany({ where: { type: syncType }, select: { id: true }, orderBy: { id: 'asc' } }),
   ]);
 
-  const data = rows.map((row, index) => ({ ...row, rowNumber: (page - 1) * pageSize + index + 1 }));
+  const rowNumberById = new Map(allIdsOfType.map(({ id }, index) => [id, index + 1]));
+  const data = rows.map((row) => ({ ...row, rowNumber: rowNumberById.get(row.id) ?? 0 }));
 
   return { data, total, page, pageSize };
 }

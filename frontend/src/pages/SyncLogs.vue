@@ -12,10 +12,11 @@ import {
 } from '@/components/ui/dialog'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import EntityTable from '@/components/EntityTable.vue'
+import SyncStatusCell from '@/components/SyncStatusCell.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import { fetchSyncLogsPage, fetchSyncLogFacets, type SyncLogEntry } from '@/lib/sync-api'
 import { SYNC_ENTITIES } from '@/lib/sync-entities'
-import { statusLabel, triggerLabel, formatDateTimeWithSeconds } from '@/lib/sync-format'
+import { triggerLabel, formatDateTimeWithSeconds } from '@/lib/sync-format'
 import type { ListOptions } from '@/lib/list-api'
 
 const route = useRoute()
@@ -31,13 +32,11 @@ const columnLabels: Record<string, string> = {
   finishedAt: 'Время окончания',
 }
 const filterableFields = ['status', 'trigger']
+const cellRenderers = { status: SyncStatusCell }
 
 function cellText(columnId: string, value: unknown): string {
   if (columnId === 'trigger' && typeof value === 'string') {
     return triggerLabel[value as keyof typeof triggerLabel] ?? value
-  }
-  if (columnId === 'status' && typeof value === 'string') {
-    return statusLabel[value as keyof typeof statusLabel] ?? value
   }
   if (columnId === 'startedAt' && typeof value === 'string') {
     return formatDateTimeWithSeconds(value)
@@ -57,7 +56,6 @@ const columns = columnHelper.columns([
   columnHelper.accessor('rowNumber', {
     header: columnLabels.rowNumber,
     enableHiding: false,
-    enableSorting: false,
     size: 64,
     minSize: 56,
   }),
@@ -102,6 +100,7 @@ function openLogDetails(log: SyncLogEntry) {
       :get-row-id="(log: SyncLogEntry) => String(log.id)"
       total-label="записей"
       :cell-text="cellText"
+      :cell-renderers="cellRenderers"
       :row-action="{ icon: Info, label: 'Подробнее', onClick: openLogDetails }"
     />
 

@@ -16,7 +16,8 @@ const uid = computed(() => String(route.params.uid))
 const detail = ref<IndividualDetail | null>(null)
 const isLoading = ref(true)
 const notFound = ref(false)
-const isCopied = ref(false)
+const copiedField = ref<'uid' | 'code' | null>(null)
+let copyResetTimeout: ReturnType<typeof setTimeout> | undefined
 
 const initials = computed(() =>
   (detail.value?.fullName ?? '')
@@ -38,11 +39,12 @@ function formatDate(iso: string | null | undefined): string {
   return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
 }
 
-async function copyUid() {
-  if (!detail.value) return
-  await navigator.clipboard.writeText(detail.value.fizicheskoyeLitsoUid)
-  isCopied.value = true
-  setTimeout(() => (isCopied.value = false), 1500)
+async function copyValue(field: 'uid' | 'code', value: string | null | undefined) {
+  if (!value) return
+  await navigator.clipboard.writeText(value)
+  copiedField.value = field
+  clearTimeout(copyResetTimeout)
+  copyResetTimeout = setTimeout(() => (copiedField.value = null), 1500)
 }
 
 onMounted(async () => {
@@ -73,21 +75,44 @@ onMounted(async () => {
 
     <template v-else-if="detail">
       <Card class="gap-4 p-6">
-        <div class="flex items-start gap-6">
-          <!-- Синхрона фотографий из 1С пока нет — заглушка с инициалами, как в NavUser -->
-          <Avatar class="size-20">
-            <AvatarFallback class="text-xl">{{ initials }}</AvatarFallback>
-          </Avatar>
-          <div class="flex flex-1 flex-col gap-1 pt-1">
-            <div class="text-xl font-semibold">{{ detail.fullName }}</div>
-            <button
-              type="button"
-              class="flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-              @click="copyUid"
-            >
-              <component :is="isCopied ? Check : Copy" class="size-3.5 shrink-0" />
-              <span>{{ detail.fizicheskoyeLitsoUid }}</span>
-            </button>
+        <div class="flex flex-wrap divide-x divide-border">
+          <div class="flex items-start gap-4 pr-6">
+            <!-- Синхрона фотографий из 1С пока нет — заглушка с инициалами, как в NavUser -->
+            <Avatar class="size-20">
+              <AvatarFallback class="text-xl">{{ initials }}</AvatarFallback>
+            </Avatar>
+            <div class="flex flex-col gap-1 pt-1">
+              <div class="text-xl font-semibold">{{ detail.fullName }}</div>
+              <button
+                type="button"
+                class="flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                @click="copyValue('uid', detail.fizicheskoyeLitsoUid)"
+              >
+                <component :is="copiedField === 'uid' ? Check : Copy" class="size-3.5 shrink-0" />
+                <span>{{ detail.fizicheskoyeLitsoUid }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="px-6">
+            <div class="text-xs text-muted-foreground">Пол</div>
+            <div class="text-sm">{{ detail.gender ?? '—' }}</div>
+          </div>
+          <div class="px-6">
+            <div class="text-xs text-muted-foreground">СНИЛС</div>
+            <div class="text-sm">{{ detail.snils ?? '—' }}</div>
+          </div>
+          <div class="px-6">
+            <div class="text-xs text-muted-foreground">ИНН</div>
+            <div class="text-sm">{{ detail.inn ?? '—' }}</div>
+          </div>
+          <div class="px-6">
+            <div class="text-xs text-muted-foreground">Дата рождения</div>
+            <div class="text-sm">{{ formatDate(detail.birthDate) }}</div>
+          </div>
+          <div class="pl-6">
+            <div class="text-xs text-muted-foreground">Гражданство</div>
+            <div class="text-sm">{{ citizenship?.country ?? '—' }}</div>
           </div>
         </div>
 
@@ -105,32 +130,18 @@ onMounted(async () => {
             <div>{{ detail.otchestvo ?? '—' }}</div>
           </div>
           <div>
-            <div class="text-muted-foreground">Дата рождения</div>
-            <div>{{ formatDate(detail.birthDate) }}</div>
-          </div>
-          <div>
-            <div class="text-muted-foreground">Пол</div>
-            <div>{{ detail.gender ?? '—' }}</div>
-          </div>
-          <div>
-            <div class="text-muted-foreground">СНИЛС</div>
-            <div>{{ detail.snils ?? '—' }}</div>
-          </div>
-          <div>
-            <div class="text-muted-foreground">ИНН</div>
-            <div>{{ detail.inn ?? '—' }}</div>
-          </div>
-          <div>
             <div class="text-muted-foreground">Код 1С</div>
-            <div>{{ detail.code ?? '—' }}</div>
+            <button
+              type="button"
+              class="flex items-center gap-1.5 hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+              :disabled="!detail.code"
+              @click="copyValue('code', detail.code)"
+            >
+              <component :is="copiedField === 'code' ? Check : Copy" class="size-3.5 shrink-0" />
+              <span>{{ detail.code ?? '—' }}</span>
+            </button>
           </div>
         </div>
-      </Card>
-
-      <Card class="gap-3 p-6">
-        <div class="text-sm font-medium">Гражданство</div>
-        <div v-if="citizenship" class="text-sm">{{ citizenship.country }}</div>
-        <div v-else class="text-sm text-muted-foreground">Нет данных</div>
       </Card>
 
       <Card class="gap-3 p-6">

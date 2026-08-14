@@ -57,6 +57,10 @@ const props = withDefaults(
     getRowId: (row: TData) => string
     totalLabel: string
     cellText?: (columnId: string, value: unknown) => string
+    // Кастомный рендер конкретной колонки (иконка статуса и т.п.) вместо обычного текста —
+    // по умолчанию нет ни у одной колонки, остальные таблицы рендерятся как раньше.
+    // Компонент получает пропы value (cell.getValue()) и row (row.original).
+    cellRenderers?: Record<string, Component>
     pageSizeOptions?: number[]
     hiddenByDefault?: string[]
     // Необязательная колонка-кнопка в конце таблицы — по умолчанию не рендерится,
@@ -411,7 +415,13 @@ onMounted(loadPage)
                     class="border-r border-border last:border-r-0"
                     :style="{ width: `var(--col-${cell.column.id}-size)` }"
                   >
-                    <TruncatedCell :text="cellText(cell.column.id, cell.getValue())" />
+                    <component
+                      :is="cellRenderers[cell.column.id]"
+                      v-if="cellRenderers?.[cell.column.id]"
+                      :value="cell.getValue()"
+                      :row="row.original"
+                    />
+                    <TruncatedCell v-else :text="cellText(cell.column.id, cell.getValue())" />
                   </TableCell>
                   <TableCell v-if="rowAction">
                     <Tooltip>
