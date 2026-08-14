@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import PassportTable from '@/components/PassportTable.vue'
 import { fetchIndividualDetail, type IndividualDetail } from '@/lib/individuals-api'
 import { copyToClipboard } from '@/lib/utils'
 
@@ -32,6 +32,7 @@ const initials = computed(() =>
 
 const citizenship = computed(() => detail.value?.citizenships[0] ?? null)
 const latestPassport = computed(() => detail.value?.passports[0] ?? null)
+const latestPassportRows = computed(() => (latestPassport.value ? [latestPassport.value] : []))
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—'
@@ -76,8 +77,8 @@ onMounted(async () => {
 
     <template v-else-if="detail">
       <Card class="gap-4 p-6">
-        <div class="flex flex-wrap divide-x divide-border">
-          <div class="flex items-start gap-4 pr-6">
+        <div class="flex flex-col divide-y divide-border sm:grid sm:grid-cols-[auto_repeat(5,1fr)] sm:divide-x sm:divide-y-0">
+          <div class="flex items-start gap-4 pb-4 sm:pb-0 sm:pr-6">
             <!-- Синхрона фотографий из 1С пока нет — заглушка с инициалами, как в NavUser -->
             <Avatar class="size-20">
               <AvatarFallback class="text-xl">{{ initials }}</AvatarFallback>
@@ -104,23 +105,23 @@ onMounted(async () => {
             </div>
           </div>
 
-          <div class="px-6">
+          <div class="py-4 sm:px-6 sm:py-0">
             <div class="text-xs text-muted-foreground">Гражданство</div>
             <div class="text-sm">{{ citizenship?.country ?? '—' }}</div>
           </div>
-          <div class="px-6">
+          <div class="py-4 sm:px-6 sm:py-0">
             <div class="text-xs text-muted-foreground">Дата рождения</div>
             <div class="text-sm">{{ formatDate(detail.birthDate) }}</div>
           </div>
-          <div class="px-6">
+          <div class="py-4 sm:px-6 sm:py-0">
             <div class="text-xs text-muted-foreground">Пол</div>
             <div class="text-sm">{{ detail.gender ?? '—' }}</div>
           </div>
-          <div class="px-6">
+          <div class="py-4 sm:px-6 sm:py-0">
             <div class="text-xs text-muted-foreground">СНИЛС</div>
             <div class="text-sm">{{ detail.snils ?? '—' }}</div>
           </div>
-          <div class="pl-6">
+          <div class="pt-4 sm:py-0 sm:pl-6">
             <div class="text-xs text-muted-foreground">ИНН</div>
             <div class="text-sm">{{ detail.inn ?? '—' }}</div>
           </div>
@@ -140,55 +141,11 @@ onMounted(async () => {
           </TabsList>
 
           <TabsContent value="latest">
-            <div v-if="latestPassport" class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
-              <div>
-                <div class="text-muted-foreground">Тип</div>
-                <div>{{ latestPassport.type }}</div>
-              </div>
-              <div>
-                <div class="text-muted-foreground">Серия и номер</div>
-                <div>{{ latestPassport.series }} {{ latestPassport.number }}</div>
-              </div>
-              <div>
-                <div class="text-muted-foreground">Дата выдачи</div>
-                <div>{{ formatDate(latestPassport.dateStart) }}</div>
-              </div>
-              <div>
-                <div class="text-muted-foreground">Кем выдан</div>
-                <div>{{ latestPassport.unit }}</div>
-              </div>
-              <div>
-                <div class="text-muted-foreground">Код подразделения</div>
-                <div>{{ latestPassport.codeUnit }}</div>
-              </div>
-            </div>
-            <div v-else class="text-sm text-muted-foreground">Нет данных</div>
+            <PassportTable :passports="latestPassportRows" />
           </TabsContent>
 
           <TabsContent value="all">
-            <div v-if="detail.passports.length" class="overflow-hidden rounded-lg border">
-              <Table>
-                <TableHeader class="bg-muted">
-                  <TableRow>
-                    <TableHead>Тип</TableHead>
-                    <TableHead>Серия и номер</TableHead>
-                    <TableHead>Дата выдачи</TableHead>
-                    <TableHead>Кем выдан</TableHead>
-                    <TableHead>Код подразделения</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow v-for="passport in detail.passports" :key="passport.id">
-                    <TableCell>{{ passport.type }}</TableCell>
-                    <TableCell>{{ passport.series }} {{ passport.number }}</TableCell>
-                    <TableCell>{{ formatDate(passport.dateStart) }}</TableCell>
-                    <TableCell>{{ passport.unit }}</TableCell>
-                    <TableCell>{{ passport.codeUnit }}</TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-            <div v-else class="text-sm text-muted-foreground">Нет данных</div>
+            <PassportTable :passports="detail.passports" />
           </TabsContent>
         </Tabs>
       </Card>
