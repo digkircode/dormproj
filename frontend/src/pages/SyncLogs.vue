@@ -94,7 +94,7 @@ function openLogDetails(log: SyncLogEntry) {
       :columns="columns"
       :column-labels="columnLabels"
       :filterable-fields="filterableFields"
-      :default-sort="{ id: 'startedAt', desc: false }"
+      :default-sort="{ id: 'rowNumber', desc: false }"
       :fetch-page="fetchPage"
       :fetch-facet-values="fetchFacetValues"
       :get-row-id="(log: SyncLogEntry) => String(log.id)"

@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { fetchIndividualDetail, type IndividualDetail } from '@/lib/individuals-api'
+import { copyToClipboard } from '@/lib/utils'
 
 const route = useRoute()
 const uid = computed(() => String(route.params.uid))
@@ -41,7 +42,7 @@ function formatDate(iso: string | null | undefined): string {
 
 async function copyValue(field: 'uid' | 'code', value: string | null | undefined) {
   if (!value) return
-  await navigator.clipboard.writeText(value)
+  await copyToClipboard(value)
   copiedField.value = field
   clearTimeout(copyResetTimeout)
   copyResetTimeout = setTimeout(() => (copiedField.value = null), 1500)
@@ -91,9 +92,26 @@ onMounted(async () => {
                 <component :is="copiedField === 'uid' ? Check : Copy" class="size-3.5 shrink-0" />
                 <span>{{ detail.fizicheskoyeLitsoUid }}</span>
               </button>
+              <button
+                type="button"
+                class="flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                :disabled="!detail.code"
+                @click="copyValue('code', detail.code)"
+              >
+                <component :is="copiedField === 'code' ? Check : Copy" class="size-3.5 shrink-0" />
+                <span>{{ detail.code ?? '—' }}</span>
+              </button>
             </div>
           </div>
 
+          <div class="px-6">
+            <div class="text-xs text-muted-foreground">Гражданство</div>
+            <div class="text-sm">{{ citizenship?.country ?? '—' }}</div>
+          </div>
+          <div class="px-6">
+            <div class="text-xs text-muted-foreground">Дата рождения</div>
+            <div class="text-sm">{{ formatDate(detail.birthDate) }}</div>
+          </div>
           <div class="px-6">
             <div class="text-xs text-muted-foreground">Пол</div>
             <div class="text-sm">{{ detail.gender ?? '—' }}</div>
@@ -102,44 +120,9 @@ onMounted(async () => {
             <div class="text-xs text-muted-foreground">СНИЛС</div>
             <div class="text-sm">{{ detail.snils ?? '—' }}</div>
           </div>
-          <div class="px-6">
+          <div class="pl-6">
             <div class="text-xs text-muted-foreground">ИНН</div>
             <div class="text-sm">{{ detail.inn ?? '—' }}</div>
-          </div>
-          <div class="px-6">
-            <div class="text-xs text-muted-foreground">Дата рождения</div>
-            <div class="text-sm">{{ formatDate(detail.birthDate) }}</div>
-          </div>
-          <div class="pl-6">
-            <div class="text-xs text-muted-foreground">Гражданство</div>
-            <div class="text-sm">{{ citizenship?.country ?? '—' }}</div>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-x-6 gap-y-4 border-t pt-4 text-sm sm:grid-cols-4">
-          <div>
-            <div class="text-muted-foreground">Фамилия</div>
-            <div>{{ detail.surname ?? '—' }}</div>
-          </div>
-          <div>
-            <div class="text-muted-foreground">Имя</div>
-            <div>{{ detail.name ?? '—' }}</div>
-          </div>
-          <div>
-            <div class="text-muted-foreground">Отчество</div>
-            <div>{{ detail.otchestvo ?? '—' }}</div>
-          </div>
-          <div>
-            <div class="text-muted-foreground">Код 1С</div>
-            <button
-              type="button"
-              class="flex items-center gap-1.5 hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-              :disabled="!detail.code"
-              @click="copyValue('code', detail.code)"
-            >
-              <component :is="copiedField === 'code' ? Check : Copy" class="size-3.5 shrink-0" />
-              <span>{{ detail.code ?? '—' }}</span>
-            </button>
           </div>
         </div>
       </Card>
