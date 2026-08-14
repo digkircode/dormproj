@@ -1,24 +1,6 @@
 import { computed, ref } from 'vue'
 import { fetchSyncLogs, triggerSync, type SyncLogEntry } from '@/lib/sync-api'
-
-const statusLabel = {
-  RUNNING: 'В процессе',
-  SUCCESS: 'Успешно',
-  FAILED: 'Ошибка',
-} as const
-
-function formatDateTime(iso: string): string {
-  const date = new Date(iso)
-  const pad = (n: number) => n.toString().padStart(2, '0')
-  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
-
-function formatDuration(startedAt: string, finishedAt: string | null): string {
-  if (!finishedAt) return '—'
-  const seconds = Math.round((new Date(finishedAt).getTime() - new Date(startedAt).getTime()) / 1000)
-  const minutes = Math.floor(seconds / 60)
-  return minutes > 0 ? `${minutes}м ${seconds % 60}с` : `${seconds}с`
-}
+import { statusLabel, formatDateTime, formatDuration } from '@/lib/sync-format'
 
 const POLL_INTERVAL_MS = 3000
 const MAX_POLL_MS = 3 * 60 * 1000
@@ -28,7 +10,6 @@ const MAX_POLL_MS = 3 * 60 * 1000
 export function useSyncRow(name: string, basePath: string) {
   const latestLog = ref<SyncLogEntry | null>(null)
   const isRunning = ref(false)
-  const errorText = ref('')
 
   const row = computed(() => {
     const log = latestLog.value
@@ -46,7 +27,7 @@ export function useSyncRow(name: string, basePath: string) {
       const logs = await fetchSyncLogs(basePath)
       latestLog.value = logs[0] ?? null
     } catch (error) {
-      errorText.value = error instanceof Error ? error.message : String(error)
+      console.error(`Не удалось получить логи синхронизации ${basePath}`, error)
     }
   }
 
@@ -62,21 +43,19 @@ export function useSyncRow(name: string, basePath: string) {
     }
   }
 
+  // Ошибку синхронизации отдельно на фронте не показываем — она отражается в
+  // изменившемся статусе строки, а подробности смотрят в логах через кнопку «Логи».
   async function run() {
     if (isRunning.value) return
     isRunning.value = true
-    errorText.value = ''
     const result = await triggerSync(basePath)
-    if (result.ok) {
-      await refresh()
-    } else if (result.conflict) {
+    if (!result.ok && result.conflict) {
       await pollUntilIdle()
     } else {
-      errorText.value = result.message
       await refresh()
     }
     isRunning.value = false
   }
 
-  return { row, isRunning, errorText, run, refresh }
+  return { row, isRunning, run, refresh }
 }

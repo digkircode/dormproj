@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Home from '@/pages/Home.vue'
 import Sync from '@/pages/Sync.vue'
+import SyncLogs from '@/pages/SyncLogs.vue'
 import Students from '@/pages/Students.vue'
 import Individuals from '@/pages/Individuals.vue'
 import Citizenship from '@/pages/Citizenship.vue'
@@ -13,6 +14,7 @@ const router = createRouter({
     { path: '/', name: 'home', component: Home, meta: { title: 'Главная' } },
     { path: '/students', name: 'students', component: Students, meta: { title: 'Контингент' } },
     { path: '/sync', name: 'sync', component: Sync, meta: { title: 'Синхронизация' } },
+    { path: '/sync/:slug/logs', name: 'sync-logs', component: SyncLogs, meta: { title: 'Логи синхронизации' } },
 
     { path: '/individuals', name: 'individuals', component: Individuals, meta: { title: 'Физические лица' } },
     { path: '/system-tables/citizenship', name: 'citizenship', component: Citizenship, meta: { title: 'Гражданство' } },
