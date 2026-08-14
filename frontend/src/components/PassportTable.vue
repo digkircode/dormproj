@@ -14,14 +14,16 @@ function formatDate(iso: string | null | undefined): string {
 
 <template>
   <div v-if="passports.length" class="overflow-hidden rounded-lg border">
-    <Table>
+    <!-- table-fixed + явные ширины в % — иначе table-layout: auto пересчитывает
+         ширину колонок по контенту, и она "прыгает" между вкладками (1 строка vs все). -->
+    <Table class="table-fixed">
       <TableHeader class="bg-muted">
         <TableRow>
-          <TableHead>Тип</TableHead>
-          <TableHead>Серия и номер</TableHead>
-          <TableHead>Дата выдачи</TableHead>
-          <TableHead>Кем выдан</TableHead>
-          <TableHead>Код подразделения</TableHead>
+          <TableHead class="w-[20%]">Тип</TableHead>
+          <TableHead class="w-[15%]">Серия и номер</TableHead>
+          <TableHead class="w-[15%]">Дата выдачи</TableHead>
+          <TableHead class="w-[35%]">Кем выдан</TableHead>
+          <TableHead class="w-[15%]">Код подразделения</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
