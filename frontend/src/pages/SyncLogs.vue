@@ -24,7 +24,7 @@ import {
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import { fetchSyncLogs, type SyncLogEntry } from '@/lib/sync-api'
 import { SYNC_ENTITIES } from '@/lib/sync-entities'
-import { statusLabel, statusIcon, statusIconClass, triggerLabel, formatDateTime } from '@/lib/sync-format'
+import { statusLabel, statusIcon, statusIconClass, triggerLabel, formatDateTimeWithSeconds } from '@/lib/sync-format'
 
 const route = useRoute()
 const entity = computed(() => SYNC_ENTITIES.find((e) => e.slug === route.params.slug))
@@ -91,8 +91,8 @@ onUnmounted(() => clearTimeout(pollTimeout))
                 {{ statusLabel[log.status] }}
               </span>
             </TableCell>
-            <TableCell class="text-muted-foreground">{{ formatDateTime(log.startedAt) }}</TableCell>
-            <TableCell class="text-muted-foreground">{{ log.finishedAt ? formatDateTime(log.finishedAt) : '—' }}</TableCell>
+            <TableCell class="text-muted-foreground">{{ formatDateTimeWithSeconds(log.startedAt) }}</TableCell>
+            <TableCell class="text-muted-foreground">{{ log.finishedAt ? formatDateTimeWithSeconds(log.finishedAt) : '—' }}</TableCell>
             <TableCell>
               <Tooltip>
                 <TooltipTrigger as-child>
@@ -113,7 +113,7 @@ onUnmounted(() => clearTimeout(pollTimeout))
       <DialogScrollContent v-if="selectedLog" class="flex min-w-0 flex-col gap-4">
         <DialogHeader>
           <DialogTitle>Лог #{{ selectedLog.id }}</DialogTitle>
-          <DialogDescription>{{ formatDateTime(selectedLog.startedAt) }}</DialogDescription>
+          <DialogDescription>{{ formatDateTimeWithSeconds(selectedLog.startedAt) }}</DialogDescription>
         </DialogHeader>
 
         <div class="grid min-w-0 grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
