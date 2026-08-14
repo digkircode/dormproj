@@ -135,7 +135,7 @@ onUnmounted(() => clearTimeout(pollTimeout))
           </div>
         </div>
 
-        <p v-if="selectedLog.errorMessage" class="text-sm text-red-500">{{ selectedLog.errorMessage }}</p>
+        <p v-if="selectedLog.errorMessage" class="text-sm text-red-500 break-words">{{ selectedLog.errorMessage }}</p>
 
         <Collapsible v-if="selectedLog.errorStack" v-slot="{ open }">
           <CollapsibleTrigger class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
