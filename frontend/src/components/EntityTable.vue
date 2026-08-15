@@ -156,10 +156,22 @@ const table = useAppTable({
 
 // CSS-переменные на ширины колонок вместо чтения column.getSize() в каждой ячейке —
 // при live-перетаскивании (columnResizeMode: onChange) это заметно дешевле.
+//
+// В процентах от ширины таблицы, а не в сырых пикселях из getSize() — иначе именно
+// во время "Загрузка…" (тело — один <td colspan>, а не по ячейке на колонку) браузер
+// не может пропорционально растянуть колонки под фактическую ширину таблицы (w-full)
+// и рисует <th> буквально по объявленным px (сумма < ширины контейнера, колонки уже
+// строк с данными) — это и есть "дёрганье", подтверждено замером getBoundingClientRect
+// в debug-харнессе: 256/128/192 при загрузке против 425/212/319 после. В процентах
+// результат идентичен в обоих состояниях, потому что не зависит от структуры тела.
 const columnSizeVars = computed(() => {
+  const headers = table.getFlatHeaders()
+  const totalSize = headers.reduce((sum, header) => sum + header.getSize(), 0) || 1
+  const reserved = props.rowAction ? '2.5rem' : '0px'
   const vars: Record<string, string> = {}
-  for (const header of table.getFlatHeaders()) {
-    vars[`--col-${header.column.id}-size`] = `${header.getSize()}px`
+  for (const header of headers) {
+    const fraction = header.getSize() / totalSize
+    vars[`--col-${header.column.id}-size`] = `calc((100% - ${reserved}) * ${fraction})`
   }
   return vars
 })
