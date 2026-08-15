@@ -68,7 +68,7 @@ const columns = columnHelper.columns([
       :default-sort="{ id: 'fullName', desc: false }"
       :fetch-page="fetchStudents"
       :fetch-facet-values="fetchFacetValues"
-      :get-row-id="(s: Student) => s.zachetnayaKnigaUid"
+      :get-row-id="(s: Student) => `${s.zachetnayaKnigaUid}:${s.fizicheskoyeLitsoUid}`"
       total-label="студентов"
       :cell-text="cellText"
       :hidden-by-default="hiddenByDefault"

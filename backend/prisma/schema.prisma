@@ -16,7 +16,7 @@ datasource db {
 // Один активный студент = одна зачётная книжка (ZachetnayaKnigaUID из внешнего API).
 // Отчисленных/выпустившихся не храним — при синхронизации отсутствующие строки удаляются.
 model Student {
-  zachetnayaKnigaUid   String   @id @map("zachetnaya_kniga_uid")
+  zachetnayaKnigaUid   String   @map("zachetnaya_kniga_uid")
   fizicheskoyeLitsoUid String   @map("fizicheskoye_litso_uid")
   fullName             String   @map("full_name")
   zachetnayaKniga      String   @map("zachetnaya_kniga")
@@ -40,6 +40,7 @@ model Student {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  @@id([zachetnayaKnigaUid, fizicheskoyeLitsoUid])
   @@index([fizicheskoyeLitsoUid])
   @@map("students")
 }
