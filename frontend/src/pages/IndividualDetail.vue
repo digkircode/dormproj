@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import PassportTable from '@/components/PassportTable.vue'
+import StudentFields from '@/components/StudentFields.vue'
 import { fetchIndividualDetail, type IndividualDetail } from '@/lib/individuals-api'
 import { copyToClipboard } from '@/lib/utils'
 
@@ -128,9 +129,9 @@ onMounted(async () => {
         </div>
       </Card>
 
-      <!-- Заголовок вынесен за рамку карточки, как ФИО в шапке страницы, а не втиснут
-           внутрь Card рядом с вкладками. -->
-      <div class="text-sm font-medium">Документы удостоверяющие личность</div>
+      <!-- Заголовки вынесены за рамку карточки, как ФИО в шапке страницы, а не втиснуты
+           внутрь Card рядом с вкладками — тот же размер шрифта, что у ФИО (text-lg). -->
+      <div class="text-lg font-medium">Документы удостоверяющие личность</div>
 
       <Card class="p-6">
         <Tabs default-value="latest">
@@ -148,6 +149,29 @@ onMounted(async () => {
 
           <TabsContent value="all">
             <PassportTable :passports="detail.passports" />
+          </TabsContent>
+        </Tabs>
+      </Card>
+
+      <div class="text-lg font-medium">Обучение</div>
+
+      <Card class="p-6">
+        <p v-if="!detail.students.length" class="text-sm text-muted-foreground">Нет данных</p>
+
+        <StudentFields v-else-if="detail.students.length === 1" :student="detail.students[0]" />
+
+        <Tabs v-else :default-value="detail.students[0].zachetnayaKnigaUid">
+          <TabsList class="h-auto flex-wrap">
+            <TabsTrigger
+              v-for="student in detail.students"
+              :key="student.zachetnayaKnigaUid"
+              :value="student.zachetnayaKnigaUid"
+            >
+              {{ student.zachetnayaKniga }}
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent v-for="student in detail.students" :key="student.zachetnayaKnigaUid" :value="student.zachetnayaKnigaUid">
+            <StudentFields :student="student" />
           </TabsContent>
         </Tabs>
       </Card>

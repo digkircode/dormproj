@@ -112,20 +112,28 @@ export class IndividualsController {
   // в приложении через sortPassportsByPriority: тип документа важнее даты (паспорт РФ,
   // выданный раньше, всё равно актуальнее военного билета, полученного позже) — Prisma
   // не умеет сортировать по произвольному приоритету значений напрямую в orderBy.
+  // Student не имеет Prisma-связи с Individual (только совпадающий fizicheskoyeLitsoUid,
+  // см. schema.prisma) — берём отдельным запросом, а не через include.
   @Get(':uid')
   async detail(@Param('uid') uid: string) {
-    const individual = await this.prisma.individual.findUnique({
-      where: { fizicheskoyeLitsoUid: uid },
-      include: {
-        citizenships: { orderBy: { period: 'desc' }, take: 1 },
-        passports: true,
-      },
-    });
+    const [individual, students] = await Promise.all([
+      this.prisma.individual.findUnique({
+        where: { fizicheskoyeLitsoUid: uid },
+        include: {
+          citizenships: { orderBy: { period: 'desc' }, take: 1 },
+          passports: true,
+        },
+      }),
+      this.prisma.student.findMany({
+        where: { fizicheskoyeLitsoUid: uid },
+        orderBy: { period: 'desc' },
+      }),
+    ]);
 
     if (!individual) {
       throw new NotFoundException('Физлицо не найдено');
     }
 
-    return { ...individual, passports: sortPassportsByPriority(individual.passports) };
+    return { ...individual, passports: sortPassportsByPriority(individual.passports), students };
   }
 }
