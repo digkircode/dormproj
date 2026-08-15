@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import PassportTable from '@/components/PassportTable.vue'
 import StudentFields from '@/components/StudentFields.vue'
 import { fetchIndividualDetail, type IndividualDetail } from '@/lib/individuals-api'
@@ -90,18 +89,19 @@ onMounted(async () => {
           <span class="sr-only">К физическим лицам</span>
         </RouterLink>
       </Button>
-      <h1 class="text-lg font-medium">{{ detail?.fullName ?? 'Физическое лицо' }}</h1>
+      <h1 class="text-lg font-medium">Информация о физическом лице</h1>
     </div>
 
     <p v-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
     <p v-else-if="notFound" class="text-sm text-red-500">Физлицо не найдено</p>
 
     <template v-else-if="detail">
-      <!-- Card по умолчанию не flex-контейнер (см. заметки проекта) — здесь у обеих
-           карточек несколько дочерних блоков подряд, поэтому flex flex-col обязателен,
-           иначе gap-4 между ними ничего не делает. -->
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-start">
-        <Card class="flex flex-1 flex-col gap-4 p-6">
+      <!-- Card по умолчанию не flex-контейнер (см. заметки проекта) — здесь несколько
+           дочерних блоков подряд, поэтому flex flex-col обязателен, иначе gap/divide
+           между ними ничего не делает. Один Card с внутренним разделителем (не два
+           отдельных Card рядом) — по просьбе пользователя. -->
+      <Card class="flex flex-col divide-y divide-border p-6 lg:flex-row lg:divide-x lg:divide-y-0">
+        <div class="flex flex-1 flex-col gap-4 pb-4 lg:pb-0 lg:pr-6">
           <div class="flex items-start gap-4">
             <!-- Синхрона фотографий из 1С пока нет — заглушка с инициалами, как в NavUser -->
             <Avatar class="size-20">
@@ -147,9 +147,9 @@ onMounted(async () => {
               Просмотр комнаты
             </Button>
           </div>
-        </Card>
+        </div>
 
-        <Card class="flex flex-col divide-y divide-border p-6 lg:w-80 lg:shrink-0">
+        <div class="flex flex-col divide-y divide-border pt-4 lg:w-80 lg:shrink-0 lg:pt-0 lg:pl-6">
           <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
             <span class="text-muted-foreground">Гражданство</span>
             <span>{{ citizenship?.country ?? '—' }}</span>
@@ -170,8 +170,8 @@ onMounted(async () => {
             <span class="text-muted-foreground">ИНН</span>
             <span>{{ detail.inn ?? '—' }}</span>
           </div>
-        </Card>
-      </div>
+        </div>
+      </Card>
 
       <!-- Заголовки вынесены за рамку карточки, как ФИО в шапке страницы, а не втиснуты
            внутрь Card рядом с вкладками — тот же размер шрифта, что у ФИО (text-lg). -->
@@ -202,8 +202,8 @@ onMounted(async () => {
       <Card class="p-6">
         <p v-if="!detail.students.length" class="text-sm text-muted-foreground">Нет данных</p>
 
-        <StudentFields v-else-if="detail.students.length === 1" :student="detail.students[0]" />
-
+        <!-- Вкладка с номером зачётки — всегда, даже если зачётка одна, а не StudentFields
+           напрямую: так вкладка сама подписывает, какой зачётке принадлежат поля. -->
         <Tabs v-else :default-value="detail.students[0].zachetnayaKnigaUid">
           <TabsList class="h-auto flex-wrap">
             <TabsTrigger
@@ -224,30 +224,25 @@ onMounted(async () => {
 
       <!-- По каждому типу источник может отдавать несколько строк (дубли, устаревшие,
            пустые записи) — бэкенд уже схлопнул их до одной актуальной на тип
-           (pickLatestContactInfo), поэтому здесь просто список без вкладок. Отдельные
-           Страна/Регион/Город намеренно не показываем — они ненадёжны (см. бэкенд),
-           текстовое "Значение" (predstavleniye) покрывает то же самое надёжнее. -->
+           (pickLatestContactInfo), поэтому здесь просто список без вкладок. Табличную
+           шапку убрали по просьбе — "тип"/"значение"/"дата" и так понятны без подписей
+           колонок. Страна/Регион/Город намеренно не показываем — они ненадёжны
+           (см. бэкенд), текстовое "Значение" (predstavleniye) покрывает то же самое
+           надёжнее. -->
       <Card class="p-6">
-        <div v-if="detail.contactInfos.length" class="overflow-hidden rounded-lg border">
-          <Table class="table-fixed">
-            <TableHeader class="bg-muted">
-              <TableRow>
-                <TableHead class="w-[25%]">Тип</TableHead>
-                <TableHead class="w-[55%]">Значение</TableHead>
-                <TableHead class="w-[20%]">Дата начала</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow v-for="contact in detail.contactInfos" :key="contact.id">
-                <TableCell class="flex items-center gap-2">
-                  <component :is="contactTypeIcon(contact.type)" v-if="contactTypeIcon(contact.type)" class="size-4 shrink-0 text-muted-foreground" />
-                  {{ contact.type }}
-                </TableCell>
-                <TableCell>{{ contact.predstavleniye || '—' }}</TableCell>
-                <TableCell>{{ formatContactDate(contact.dateStart) }}</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
+        <div v-if="detail.contactInfos.length" class="flex flex-col divide-y divide-border">
+          <div
+            v-for="contact in detail.contactInfos"
+            :key="contact.id"
+            class="flex flex-col gap-1 py-2 text-sm first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:gap-4"
+          >
+            <div class="flex w-48 shrink-0 items-center gap-2 text-muted-foreground">
+              <component :is="contactTypeIcon(contact.type)" v-if="contactTypeIcon(contact.type)" class="size-4 shrink-0" />
+              <span>{{ contact.type }}</span>
+            </div>
+            <div class="flex-1">{{ contact.predstavleniye || '—' }}</div>
+            <div class="shrink-0 text-muted-foreground sm:w-28 sm:text-right">{{ formatContactDate(contact.dateStart) }}</div>
+          </div>
         </div>
         <p v-else class="text-sm text-muted-foreground">Нет данных</p>
       </Card>
