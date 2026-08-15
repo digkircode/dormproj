@@ -3,6 +3,7 @@ import { Prisma } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { sortPassportsByPriority } from './passport-priority';
+import { pickLatestContactInfo } from './contact-info-priority';
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -112,6 +113,8 @@ export class IndividualsController {
   // в приложении через sortPassportsByPriority: тип документа важнее даты (паспорт РФ,
   // выданный раньше, всё равно актуальнее военного билета, полученного позже) — Prisma
   // не умеет сортировать по произвольному приоритету значений напрямую в orderBy.
+  // Контактная информация — тем же способом схлопывается до одной записи на Type,
+  // см. pickLatestContactInfo (там же — почему это эвристика, а не чистка данных).
   // Student не имеет Prisma-связи с Individual (только совпадающий fizicheskoyeLitsoUid,
   // см. schema.prisma) — берём отдельным запросом, а не через include.
   @Get(':uid')
@@ -122,6 +125,7 @@ export class IndividualsController {
         include: {
           citizenships: { orderBy: { period: 'desc' }, take: 1 },
           passports: true,
+          contactInfos: true,
         },
       }),
       this.prisma.student.findMany({
@@ -134,6 +138,11 @@ export class IndividualsController {
       throw new NotFoundException('Физлицо не найдено');
     }
 
-    return { ...individual, passports: sortPassportsByPriority(individual.passports), students };
+    return {
+      ...individual,
+      passports: sortPassportsByPriority(individual.passports),
+      contactInfos: pickLatestContactInfo(individual.contactInfos),
+      students,
+    };
   }
 }

@@ -38,6 +38,13 @@ export interface IndividualPassport {
   systemDoc: string
 }
 
+export interface IndividualContactInfo {
+  id: number
+  type: string
+  predstavleniye: string
+  dateStart: string
+}
+
 export interface IndividualStudent {
   zachetnayaKnigaUid: string
   zachetnayaKniga: string
@@ -59,11 +66,13 @@ export interface IndividualStudent {
 }
 
 // citizenships — максимум один элемент (последний по period, см. бэкенд), passports —
-// все документы, отсортированы так, что первый в списке и есть актуальный. students —
-// все зачётные книжки физлица (может быть несколько за разные периоды обучения).
+// все документы, отсортированы так, что первый в списке и есть актуальный. contactInfos —
+// по одной (самой актуальной) записи на каждый встретившийся Type, см. pickLatestContactInfo
+// на бэкенде. students — все зачётные книжки физлица (может быть несколько за разные периоды).
 export interface IndividualDetail extends Individual {
   citizenships: IndividualCitizenship[]
   passports: IndividualPassport[]
+  contactInfos: IndividualContactInfo[]
   students: IndividualStudent[]
 }
 

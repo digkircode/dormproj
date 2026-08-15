@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import PassportTable from '@/components/PassportTable.vue'
 import StudentFields from '@/components/StudentFields.vue'
 import { fetchIndividualDetail, type IndividualDetail } from '@/lib/individuals-api'
@@ -40,6 +41,14 @@ function formatDate(iso: string | null | undefined): string {
   const date = new Date(iso)
   const pad = (n: number) => n.toString().padStart(2, '0')
   return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
+}
+
+// Контактная информация: 1С отдаёт "0001-01-01" как "дата не задана" вместо null
+// (см. ContactInfo.vue) — такое показываем как "—", а не 01.01.0001.
+function formatContactDate(iso: string): string {
+  const date = new Date(iso)
+  if (date.getUTCFullYear() <= 1) return '—'
+  return formatDate(iso)
 }
 
 async function copyValue(field: 'uid' | 'code', value: string | null | undefined) {
@@ -174,6 +183,35 @@ onMounted(async () => {
             <StudentFields :student="student" />
           </TabsContent>
         </Tabs>
+      </Card>
+
+      <div class="text-lg font-medium">Контактная информация</div>
+
+      <!-- По каждому типу источник может отдавать несколько строк (дубли, устаревшие,
+           пустые записи) — бэкенд уже схлопнул их до одной актуальной на тип
+           (pickLatestContactInfo), поэтому здесь просто список без вкладок. Отдельные
+           Страна/Регион/Город намеренно не показываем — они ненадёжны (см. бэкенд),
+           текстовое "Значение" (predstavleniye) покрывает то же самое надёжнее. -->
+      <Card class="p-6">
+        <div v-if="detail.contactInfos.length" class="overflow-hidden rounded-lg border">
+          <Table class="table-fixed">
+            <TableHeader class="bg-muted">
+              <TableRow>
+                <TableHead class="w-[25%]">Тип</TableHead>
+                <TableHead class="w-[55%]">Значение</TableHead>
+                <TableHead class="w-[20%]">Дата начала</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow v-for="contact in detail.contactInfos" :key="contact.id">
+                <TableCell>{{ contact.type }}</TableCell>
+                <TableCell>{{ contact.predstavleniye || '—' }}</TableCell>
+                <TableCell>{{ formatContactDate(contact.dateStart) }}</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
+        <p v-else class="text-sm text-muted-foreground">Нет данных</p>
       </Card>
     </template>
   </div>
