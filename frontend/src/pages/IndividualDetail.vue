@@ -128,11 +128,11 @@ onMounted(async () => {
         </div>
       </Card>
 
-      <!-- Card сам по себе не flex, поэтому gap на нём ничего не делает без явного
-           flex flex-col — без этого класса отступ между заголовком и вкладками не растёт. -->
-      <Card class="flex flex-col gap-8 p-6">
-        <div class="text-sm font-medium">Документы удостоверяющие личность</div>
+      <!-- Заголовок вынесен за рамку карточки, как ФИО в шапке страницы, а не втиснут
+           внутрь Card рядом с вкладками. -->
+      <div class="text-sm font-medium">Документы удостоверяющие личность</div>
 
+      <Card class="p-6">
         <Tabs default-value="latest">
           <TabsList>
             <TabsTrigger value="latest">Актуальный</TabsTrigger>

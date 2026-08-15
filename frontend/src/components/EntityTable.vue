@@ -126,7 +126,9 @@ const state = computed(() => ({
 
 const rows = ref<TData[]>([]) as Ref<TData[]>
 const total = ref(0)
-const isLoading = ref(false)
+// true с самого начала — иначе на первом кадре (до onMounted) пустые rows[] на миг
+// показывают "Ничего не найдено" вместо "Загрузка…".
+const isLoading = ref(true)
 const errorText = ref('')
 
 const table = useAppTable({
