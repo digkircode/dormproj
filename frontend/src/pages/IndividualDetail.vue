@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { ArrowLeft, Check, Copy } from 'lucide-vue-next'
+import { ArrowLeft, Check, Copy, RefreshCw, FileSignature, Wallet, DoorOpen, Home, Phone, Mail, MapPin } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -51,6 +51,17 @@ function formatContactDate(iso: string): string {
   return formatDate(iso)
 }
 
+// Type — свободный текст из 1С (см. contact-info-priority.ts на бэкенде), а не enum,
+// поэтому сопоставление с иконкой — по вхождению подстроки, не точное совпадение.
+// Незнакомый тип — просто без иконки, а не поломка вёрстки.
+function contactTypeIcon(type: string) {
+  if (type.includes('Адрес')) return Home
+  if (type.includes('Телефон')) return Phone
+  if (type.includes('Email')) return Mail
+  if (type.includes('рождения')) return MapPin
+  return null
+}
+
 async function copyValue(field: 'uid' | 'code', value: string | null | undefined) {
   if (!value) return
   await copyToClipboard(value)
@@ -86,9 +97,12 @@ onMounted(async () => {
     <p v-else-if="notFound" class="text-sm text-red-500">Физлицо не найдено</p>
 
     <template v-else-if="detail">
-      <Card class="gap-4 p-6">
-        <div class="flex flex-col divide-y divide-border sm:grid sm:grid-cols-[auto_repeat(5,1fr)] sm:divide-x sm:divide-y-0">
-          <div class="flex items-start gap-4 pb-4 sm:pb-0 sm:pr-6">
+      <!-- Card по умолчанию не flex-контейнер (см. заметки проекта) — здесь у обеих
+           карточек несколько дочерних блоков подряд, поэтому flex flex-col обязателен,
+           иначе gap-4 между ними ничего не делает. -->
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-start">
+        <Card class="flex flex-1 flex-col gap-4 p-6">
+          <div class="flex items-start gap-4">
             <!-- Синхрона фотографий из 1С пока нет — заглушка с инициалами, как в NavUser -->
             <Avatar class="size-20">
               <AvatarFallback class="text-xl">{{ initials }}</AvatarFallback>
@@ -115,28 +129,49 @@ onMounted(async () => {
             </div>
           </div>
 
-          <div class="py-4 sm:px-6 sm:py-0">
-            <div class="text-xs text-muted-foreground">Гражданство</div>
-            <div class="text-sm">{{ citizenship?.country ?? '—' }}</div>
+          <div class="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm">
+              <RefreshCw />
+              Синхронизировать
+            </Button>
+            <Button size="sm">
+              <FileSignature />
+              Составить договор
+            </Button>
+            <Button variant="outline" size="sm">
+              <Wallet />
+              Просмотр оплаты
+            </Button>
+            <Button variant="outline" size="sm">
+              <DoorOpen />
+              Просмотр комнаты
+            </Button>
           </div>
-          <div class="py-4 sm:px-6 sm:py-0">
-            <div class="text-xs text-muted-foreground">Дата рождения</div>
-            <div class="text-sm">{{ formatDate(detail.birthDate) }}</div>
+        </Card>
+
+        <Card class="flex flex-col divide-y divide-border p-6 lg:w-80 lg:shrink-0">
+          <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
+            <span class="text-muted-foreground">Гражданство</span>
+            <span>{{ citizenship?.country ?? '—' }}</span>
           </div>
-          <div class="py-4 sm:px-6 sm:py-0">
-            <div class="text-xs text-muted-foreground">Пол</div>
-            <div class="text-sm">{{ detail.gender ?? '—' }}</div>
+          <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
+            <span class="text-muted-foreground">Дата рождения</span>
+            <span>{{ formatDate(detail.birthDate) }}</span>
           </div>
-          <div class="py-4 sm:px-6 sm:py-0">
-            <div class="text-xs text-muted-foreground">СНИЛС</div>
-            <div class="text-sm">{{ detail.snils ?? '—' }}</div>
+          <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
+            <span class="text-muted-foreground">Пол</span>
+            <span>{{ detail.gender ?? '—' }}</span>
           </div>
-          <div class="pt-4 sm:py-0 sm:pl-6">
-            <div class="text-xs text-muted-foreground">ИНН</div>
-            <div class="text-sm">{{ detail.inn ?? '—' }}</div>
+          <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
+            <span class="text-muted-foreground">СНИЛС</span>
+            <span>{{ detail.snils ?? '—' }}</span>
           </div>
-        </div>
-      </Card>
+          <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
+            <span class="text-muted-foreground">ИНН</span>
+            <span>{{ detail.inn ?? '—' }}</span>
+          </div>
+        </Card>
+      </div>
 
       <!-- Заголовки вынесены за рамку карточки, как ФИО в шапке страницы, а не втиснуты
            внутрь Card рядом с вкладками — тот же размер шрифта, что у ФИО (text-lg). -->
@@ -204,7 +239,10 @@ onMounted(async () => {
             </TableHeader>
             <TableBody>
               <TableRow v-for="contact in detail.contactInfos" :key="contact.id">
-                <TableCell>{{ contact.type }}</TableCell>
+                <TableCell class="flex items-center gap-2">
+                  <component :is="contactTypeIcon(contact.type)" v-if="contactTypeIcon(contact.type)" class="size-4 shrink-0 text-muted-foreground" />
+                  {{ contact.type }}
+                </TableCell>
                 <TableCell>{{ contact.predstavleniye || '—' }}</TableCell>
                 <TableCell>{{ formatContactDate(contact.dateStart) }}</TableCell>
               </TableRow>

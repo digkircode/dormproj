@@ -11,50 +11,54 @@ const isGraduate = props.student.uchebStatus.toLowerCase().includes('выпус�
   <div class="flex flex-col gap-4">
     <Badge :variant="isGraduate ? 'secondary' : 'default'" class="w-fit">{{ student.uchebStatus }}</Badge>
 
-    <div class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
-      <div>
-        <div class="text-muted-foreground">Учебный план</div>
-        <div>{{ student.uchebPlan }}</div>
+    <div class="grid grid-cols-1 gap-x-8 sm:grid-cols-2">
+      <div class="flex flex-col divide-y divide-border">
+        <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
+          <span class="text-muted-foreground">Учебный план</span>
+          <span>{{ student.uchebPlan }}</span>
+        </div>
+        <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
+          <span class="text-muted-foreground">Факультет</span>
+          <span>{{ student.facultet }}</span>
+        </div>
+        <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
+          <span class="text-muted-foreground">Форма обучения</span>
+          <span>{{ student.formObuch }}</span>
+        </div>
+        <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
+          <span class="text-muted-foreground">Уровень подготовки</span>
+          <span>{{ student.urovenPodgotov }}</span>
+        </div>
+        <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
+          <span class="text-muted-foreground">Специальность</span>
+          <span>{{ student.speciality }}</span>
+        </div>
+        <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
+          <span class="text-muted-foreground">Профиль (специализация)</span>
+          <span>{{ student.profilSpec ?? '—' }}</span>
+        </div>
       </div>
-      <div>
-        <div class="text-muted-foreground">Факультет</div>
-        <div>{{ student.facultet }}</div>
-      </div>
-      <div>
-        <div class="text-muted-foreground">Форма обучения</div>
-        <div>{{ student.formObuch }}</div>
-      </div>
-      <div>
-        <div class="text-muted-foreground">Уровень подготовки</div>
-        <div>{{ student.urovenPodgotov }}</div>
-      </div>
-      <div>
-        <div class="text-muted-foreground">Специальность</div>
-        <div>{{ student.speciality }}</div>
-      </div>
-      <div>
-        <div class="text-muted-foreground">Профиль (специализация)</div>
-        <div>{{ student.profilSpec ?? '—' }}</div>
-      </div>
-      <div>
-        <div class="text-muted-foreground">Курс</div>
-        <div>{{ student.kurs }}</div>
-      </div>
-      <div>
-        <div class="text-muted-foreground">Группа</div>
-        <div>{{ student.group }}</div>
-      </div>
-      <div>
-        <div class="text-muted-foreground">Основа</div>
-        <div>{{ student.osnovaObuch }}</div>
-      </div>
-      <div>
-        <div class="text-muted-foreground">Учебный год</div>
-        <div>{{ student.uchebYear }}</div>
-      </div>
-      <div>
-        <div class="text-muted-foreground">ДОТ</div>
-        <div>{{ student.dot ? 'Да' : 'Нет' }}</div>
+      <div class="flex flex-col divide-y divide-border">
+        <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
+          <span class="text-muted-foreground">Курс</span>
+          <span>{{ student.kurs }}</span>
+        </div>
+        <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
+          <span class="text-muted-foreground">Группа</span>
+          <span>{{ student.group }}</span>
+        </div>
+        <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
+          <span class="text-muted-foreground">Основа</span>
+          <span>{{ student.osnovaObuch }}</span>
+        </div>
+        <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
+          <span class="text-muted-foreground">Учебный год</span>
+          <span>{{ student.uchebYear }}</span>
+        </div>
+        <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
+          <span class="text-muted-foreground">ДОТ</span>
+          <span>{{ student.dot ? 'Да' : 'Нет' }}</span>
+        </div>
       </div>
     </div>
   </div>

@@ -19,19 +19,21 @@ function formatDate(iso: string | null | undefined): string {
     <Table class="table-fixed">
       <TableHeader class="bg-muted">
         <TableRow>
-          <TableHead class="w-[20%]">Тип</TableHead>
-          <TableHead class="w-[15%]">Серия и номер</TableHead>
-          <TableHead class="w-[15%]">Дата выдачи</TableHead>
-          <TableHead class="w-[35%]">Кем выдан</TableHead>
-          <TableHead class="w-[15%]">Код подразделения</TableHead>
+          <TableHead class="w-[15%]">Тип</TableHead>
+          <TableHead class="w-[10%]">Серия</TableHead>
+          <TableHead class="w-[12%]">Номер</TableHead>
+          <TableHead class="w-[38%]">Кем выдан</TableHead>
+          <TableHead class="w-[13%]">Дата выдачи</TableHead>
+          <TableHead class="w-[12%]">Код подразделения</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         <TableRow v-for="passport in passports" :key="passport.id">
           <TableCell>{{ passport.type }}</TableCell>
-          <TableCell>{{ passport.series }} {{ passport.number }}</TableCell>
-          <TableCell>{{ formatDate(passport.dateStart) }}</TableCell>
+          <TableCell>{{ passport.series }}</TableCell>
+          <TableCell>{{ passport.number }}</TableCell>
           <TableCell>{{ passport.unit }}</TableCell>
+          <TableCell>{{ formatDate(passport.dateStart) }}</TableCell>
           <TableCell>{{ passport.codeUnit }}</TableCell>
         </TableRow>
       </TableBody>
