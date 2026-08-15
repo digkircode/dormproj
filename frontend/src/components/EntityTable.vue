@@ -409,6 +409,15 @@ defineExpose({ refresh: loadPage })
       <div class="overflow-hidden rounded-lg border">
         <div class="overflow-x-auto transition-opacity" :class="{ 'opacity-60': isLoading }">
           <Table class="table-fixed" :style="columnSizeVars">
+            <!-- table-layout: fixed по спецификации должен брать ширины колонок из первой
+                 строки, но во время загрузки тело — один <td colspan> без индивидуальных
+                 ширин, и часть браузеров в этот момент пересчитывает ширины иначе, чем когда
+                 в строках уже есть реальные ячейки — колонки визуально "прыгают". colgroup
+                 задаёт ширины явно и не зависит от содержимого строк вообще. -->
+            <colgroup>
+              <col v-for="header in table.getFlatHeaders()" :key="header.id" :style="{ width: `var(--col-${header.column.id}-size)` }" />
+              <col v-if="rowAction" class="w-10" />
+            </colgroup>
             <TableHeader class="bg-muted sticky top-0 z-10">
               <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
                 <TableHead
