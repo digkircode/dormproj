@@ -42,14 +42,6 @@ function formatDate(iso: string | null | undefined): string {
   return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
 }
 
-// Контактная информация: 1С отдаёт "0001-01-01" как "дата не задана" вместо null
-// (см. ContactInfo.vue) — такое показываем как "—", а не 01.01.0001.
-function formatContactDate(iso: string): string {
-  const date = new Date(iso)
-  if (date.getUTCFullYear() <= 1) return '—'
-  return formatDate(iso)
-}
-
 // Type — свободный текст из 1С (см. contact-info-priority.ts на бэкенде), а не enum,
 // поэтому сопоставление с иконкой — по вхождению подстроки, не точное совпадение.
 // Незнакомый тип — просто без иконки, а не поломка вёрстки.
@@ -70,21 +62,16 @@ interface ContactRow {
   key: string
   type: string
   predstavleniye: string | null
-  dateStart: string | null
 }
 
 const contactRows = computed<ContactRow[]>(() => {
   const byType = new Map((detail.value?.contactInfos ?? []).map((c) => [c.type, c]))
   const extraTypes = [...byType.keys()].filter((type) => !CONTACT_TYPE_ORDER.includes(type)).sort((a, b) => a.localeCompare(b, 'ru'))
-  return [...CONTACT_TYPE_ORDER, ...extraTypes].map((type) => {
-    const contact = byType.get(type)
-    return {
-      key: type,
-      type,
-      predstavleniye: contact?.predstavleniye ?? null,
-      dateStart: contact?.dateStart ?? null,
-    }
-  })
+  return [...CONTACT_TYPE_ORDER, ...extraTypes].map((type) => ({
+    key: type,
+    type,
+    predstavleniye: byType.get(type)?.predstavleniye ?? null,
+  }))
 })
 
 async function copyValue(field: 'uid' | 'code', value: string | null | undefined) {
@@ -124,10 +111,12 @@ onMounted(async () => {
     <template v-else-if="detail">
       <!-- Card по умолчанию не flex-контейнер (см. заметки проекта) — здесь несколько
            дочерних блоков подряд, поэтому flex flex-col обязателен, иначе gap/divide
-           между ними ничего не делает. Один Card с внутренним разделителем (не два
-           отдельных Card рядом) — по просьбе пользователя. -->
+           между ними ничего не делает. Один Card с внутренним разделителем на 3 части
+           (не отдельные Card рядом) — по просьбе пользователя: слева личность+кнопки,
+           посередине атрибуты физлица, справа — контактная информация (без даты,
+           та осталась только у документов/обучения). -->
       <Card class="flex flex-col divide-y divide-border p-6 lg:flex-row lg:divide-x lg:divide-y-0">
-        <div class="flex flex-1 flex-col gap-4 pb-4 lg:pb-0 lg:pr-6">
+        <div class="flex flex-col gap-4 pb-4 lg:w-96 lg:shrink-0 lg:pb-0 lg:pr-6">
           <div class="flex items-start gap-4">
             <!-- Синхрона фотографий из 1С пока нет — заглушка с инициалами, как в NavUser -->
             <Avatar class="size-20">
@@ -155,7 +144,9 @@ onMounted(async () => {
             </div>
           </div>
 
-          <div class="flex flex-wrap gap-2">
+          <!-- Явно 2x2, а не flex-wrap — при трёх колонках в шапке места под ряд из
+               4 кнопок уже не хватает, а непредсказуемый перенос выглядит неряшливо. -->
+          <div class="grid grid-cols-2 gap-2">
             <Button variant="outline" size="sm">
               <RefreshCw />
               Синхронизировать
@@ -175,7 +166,7 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div class="flex flex-col divide-y divide-border pt-4 lg:w-80 lg:shrink-0 lg:pt-0 lg:pl-6">
+        <div class="flex flex-col divide-y divide-border py-4 lg:w-64 lg:shrink-0 lg:py-0 lg:px-6">
           <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
             <span class="text-muted-foreground">Гражданство</span>
             <span>{{ citizenship?.country ?? '—' }}</span>
@@ -195,6 +186,23 @@ onMounted(async () => {
           <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
             <span class="text-muted-foreground">ИНН</span>
             <span>{{ detail.inn ?? '—' }}</span>
+          </div>
+        </div>
+
+        <!-- Контактная информация — тем же способом схлопнута бэкендом до одной
+             актуальной записи на тип (см. contactRows/pickLatestContactInfo), дата
+             здесь не нужна (она осталась только у документов/обучения). -->
+        <div class="flex flex-col divide-y divide-border pt-4 lg:min-w-0 lg:flex-1 lg:pt-0 lg:pl-6">
+          <div
+            v-for="contact in contactRows"
+            :key="contact.key"
+            class="flex items-start gap-2 py-2 text-sm first:pt-0 last:pb-0"
+          >
+            <span class="flex w-40 shrink-0 items-center gap-1.5 text-muted-foreground">
+              <component :is="contactTypeIcon(contact.type)" v-if="contactTypeIcon(contact.type)" class="size-4 shrink-0" />
+              {{ contact.type }}
+            </span>
+            <span>{{ contact.predstavleniye || '—' }}</span>
           </div>
         </div>
       </Card>
@@ -244,38 +252,6 @@ onMounted(async () => {
             <StudentFields :student="student" />
           </TabsContent>
         </Tabs>
-      </Card>
-
-      <div class="text-lg font-medium">Контактная информация</div>
-
-      <!-- По каждому типу источник может отдавать несколько строк (дубли, устаревшие,
-           пустые записи) — бэкенд уже схлопнул их до одной актуальной на тип
-           (pickLatestContactInfo), поэтому здесь просто список без вкладок. Табличную
-           шапку убрали по просьбе — "тип"/"значение"/"дата" и так понятны без подписей
-           колонок. Страна/Регион/Город намеренно не показываем — они ненадёжны
-           (см. бэкенд), текстовое "Значение" (predstavleniye) покрывает то же самое
-           надёжнее. contactRows (см. скрипт) всегда рендерит все 5 известных типов,
-           даже без данных у этого физлица — бэкенд отдаёт только то, что реально
-           нашлось в источнике. -->
-      <Card class="p-6">
-        <div class="flex flex-col divide-y divide-border">
-          <!-- Первая колонка в % от ширины карточки (не фикс. px) — чтобы значение
-               заметно сдвигалось к центру и на узкой, и на широкой карточке одинаково. -->
-          <div
-            v-for="contact in contactRows"
-            :key="contact.key"
-            class="grid grid-cols-1 gap-1 py-2 text-sm first:pt-0 last:pb-0 sm:grid-cols-[40%_1fr_8rem] sm:items-center sm:gap-4"
-          >
-            <div class="flex items-center gap-2 text-muted-foreground">
-              <component :is="contactTypeIcon(contact.type)" v-if="contactTypeIcon(contact.type)" class="size-4 shrink-0" />
-              <span>{{ contact.type }}</span>
-            </div>
-            <div>{{ contact.predstavleniye || '—' }}</div>
-            <div class="text-muted-foreground sm:text-right">
-              {{ contact.dateStart ? formatContactDate(contact.dateStart) : '—' }}
-            </div>
-          </div>
-        </div>
       </Card>
     </template>
   </div>

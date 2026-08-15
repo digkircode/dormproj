@@ -1,6 +1,6 @@
 <script setup lang="ts" generic="TData extends RowData">
 import { computed, onBeforeUnmount, onMounted, ref, watch, type Component, type Ref } from 'vue'
-import type { ColumnDef, ColumnVisibilityState, PaginationState, RowData, SortingState } from '@tanstack/vue-table'
+import type { ColumnDef, ColumnSizingState, ColumnVisibilityState, PaginationState, RowData, SortingState } from '@tanstack/vue-table'
 import { FlexRender } from '@tanstack/vue-table'
 import {
   ArrowDown,
@@ -101,6 +101,10 @@ const columnVisibility = ref<ColumnVisibilityState>(
 )
 const pagination = ref<PaginationState>({ pageIndex: 0, pageSize: 20 })
 const sorting = ref<SortingState>(storedTableState?.sorting ?? [props.defaultSort])
+// columnSizing по умолчанию — неконтролируемое внутреннее состояние TanStack (не Vue ref),
+// наш computed на CSS-переменные его изменений не видит — без явного onColumnSizingChange
+// ресайз колонок визуально не работает (состояние обновляется, но рендер не реагирует).
+const columnSizing = ref<ColumnSizingState>({})
 const searchInput = ref('')
 const search = ref('')
 const activeFilterFields = ref<string[]>([])
@@ -122,6 +126,7 @@ const state = computed(() => ({
   pagination: pagination.value,
   columnVisibility: columnVisibility.value,
   sorting: sorting.value,
+  columnSizing: columnSizing.value,
 }))
 
 const rows = ref<TData[]>([]) as Ref<TData[]>
@@ -152,6 +157,9 @@ const table = useAppTable({
     sorting.value = typeof updater === 'function' ? updater(sorting.value) : updater
     pagination.value = { ...pagination.value, pageIndex: 0 }
   },
+  onColumnSizingChange: (updater) => {
+    columnSizing.value = typeof updater === 'function' ? updater(columnSizing.value) : updater
+  },
 })
 
 // CSS-переменные на ширины колонок вместо чтения column.getSize() в каждой ячейке —
@@ -164,14 +172,23 @@ const table = useAppTable({
 // строк с данными) — это и есть "дёрганье", подтверждено замером getBoundingClientRect
 // в debug-харнессе: 256/128/192 при загрузке против 425/212/319 после. В процентах
 // результат идентичен в обоих состояниях, потому что не зависит от структуры тела.
+//
+// Чистый calc(100% * fraction) — БЕЗ вычитания (calc((100% - Xrem) * fraction)) и без
+// фиксированной px/rem-колонки среди процентных соседей: смешение ломает резолвинг
+// ширины <col> под table-layout:fixed (все колонки схлопываются в одинаковую ширину,
+// подтверждено замером — резерв под rowAction тоже приходится выражать долей, а не rem).
+const ROW_ACTION_UNITS = 48
 const columnSizeVars = computed(() => {
   const headers = table.getFlatHeaders()
-  const totalSize = headers.reduce((sum, header) => sum + header.getSize(), 0) || 1
-  const reserved = props.rowAction ? '3rem' : '0px'
+  const dataTotal = headers.reduce((sum, header) => sum + header.getSize(), 0) || 1
+  const totalSize = props.rowAction ? dataTotal + ROW_ACTION_UNITS : dataTotal
   const vars: Record<string, string> = {}
   for (const header of headers) {
     const fraction = header.getSize() / totalSize
-    vars[`--col-${header.column.id}-size`] = `calc((100% - ${reserved}) * ${fraction})`
+    vars[`--col-${header.column.id}-size`] = `calc(100% * ${fraction})`
+  }
+  if (props.rowAction) {
+    vars['--col-row-action-size'] = `calc(100% * ${ROW_ACTION_UNITS / totalSize})`
   }
   return vars
 })
@@ -428,7 +445,7 @@ defineExpose({ refresh: loadPage })
                  задаёт ширины явно и не зависит от содержимого строк вообще. -->
             <colgroup>
               <col v-for="header in table.getFlatHeaders()" :key="header.id" :style="{ width: `var(--col-${header.column.id}-size)` }" />
-              <col v-if="rowAction" class="w-12" />
+              <col v-if="rowAction" :style="{ width: 'var(--col-row-action-size)' }" />
             </colgroup>
             <TableHeader class="bg-muted sticky top-0 z-10">
               <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
@@ -462,7 +479,7 @@ defineExpose({ refresh: loadPage })
                     />
                   </div>
                 </TableHead>
-                <TableHead v-if="rowAction" class="w-12" />
+                <TableHead v-if="rowAction" :style="{ width: 'var(--col-row-action-size)' }" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -482,7 +499,7 @@ defineExpose({ refresh: loadPage })
                     />
                     <TruncatedCell v-else :text="cellText(cell.column.id, cell.getValue())" />
                   </TableCell>
-                  <TableCell v-if="rowAction" class="w-12 p-2 text-center">
+                  <TableCell v-if="rowAction" class="p-2 text-center" :style="{ width: 'var(--col-row-action-size)' }">
                     <Tooltip>
                       <TooltipTrigger as-child>
                         <Button v-if="rowAction.getHref" variant="ghost" size="icon" class="size-7" as-child>
