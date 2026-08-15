@@ -167,7 +167,7 @@ const table = useAppTable({
 const columnSizeVars = computed(() => {
   const headers = table.getFlatHeaders()
   const totalSize = headers.reduce((sum, header) => sum + header.getSize(), 0) || 1
-  const reserved = props.rowAction ? '2.5rem' : '0px'
+  const reserved = props.rowAction ? '3rem' : '0px'
   const vars: Record<string, string> = {}
   for (const header of headers) {
     const fraction = header.getSize() / totalSize
@@ -428,7 +428,7 @@ defineExpose({ refresh: loadPage })
                  задаёт ширины явно и не зависит от содержимого строк вообще. -->
             <colgroup>
               <col v-for="header in table.getFlatHeaders()" :key="header.id" :style="{ width: `var(--col-${header.column.id}-size)` }" />
-              <col v-if="rowAction" class="w-10" />
+              <col v-if="rowAction" class="w-12" />
             </colgroup>
             <TableHeader class="bg-muted sticky top-0 z-10">
               <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
@@ -462,7 +462,7 @@ defineExpose({ refresh: loadPage })
                     />
                   </div>
                 </TableHead>
-                <TableHead v-if="rowAction" class="w-10" />
+                <TableHead v-if="rowAction" class="w-12" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -482,7 +482,7 @@ defineExpose({ refresh: loadPage })
                     />
                     <TruncatedCell v-else :text="cellText(cell.column.id, cell.getValue())" />
                   </TableCell>
-                  <TableCell v-if="rowAction" class="w-10">
+                  <TableCell v-if="rowAction" class="w-12 p-2 text-center">
                     <Tooltip>
                       <TooltipTrigger as-child>
                         <Button v-if="rowAction.getHref" variant="ghost" size="icon" class="size-7" as-child>

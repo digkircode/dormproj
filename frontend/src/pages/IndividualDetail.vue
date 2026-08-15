@@ -259,17 +259,19 @@ onMounted(async () => {
            нашлось в источнике. -->
       <Card class="p-6">
         <div class="flex flex-col divide-y divide-border">
+          <!-- Первая колонка в % от ширины карточки (не фикс. px) — чтобы значение
+               заметно сдвигалось к центру и на узкой, и на широкой карточке одинаково. -->
           <div
             v-for="contact in contactRows"
             :key="contact.key"
-            class="flex flex-col gap-1 py-2 text-sm first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:gap-12"
+            class="grid grid-cols-1 gap-1 py-2 text-sm first:pt-0 last:pb-0 sm:grid-cols-[40%_1fr_8rem] sm:items-center sm:gap-4"
           >
-            <div class="flex w-56 shrink-0 items-center gap-2 text-muted-foreground">
+            <div class="flex items-center gap-2 text-muted-foreground">
               <component :is="contactTypeIcon(contact.type)" v-if="contactTypeIcon(contact.type)" class="size-4 shrink-0" />
               <span>{{ contact.type }}</span>
             </div>
-            <div class="flex-1">{{ contact.predstavleniye || '—' }}</div>
-            <div class="shrink-0 text-muted-foreground sm:w-28 sm:text-right">
+            <div>{{ contact.predstavleniye || '—' }}</div>
+            <div class="text-muted-foreground sm:text-right">
               {{ contact.dateStart ? formatContactDate(contact.dateStart) : '—' }}
             </div>
           </div>
