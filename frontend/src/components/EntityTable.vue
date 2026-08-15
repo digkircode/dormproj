@@ -482,7 +482,7 @@ defineExpose({ refresh: loadPage })
                     />
                     <TruncatedCell v-else :text="cellText(cell.column.id, cell.getValue())" />
                   </TableCell>
-                  <TableCell v-if="rowAction">
+                  <TableCell v-if="rowAction" class="w-10">
                     <Tooltip>
                       <TooltipTrigger as-child>
                         <Button v-if="rowAction.getHref" variant="ghost" size="icon" class="size-7" as-child>

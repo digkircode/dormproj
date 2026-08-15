@@ -61,6 +61,32 @@ function contactTypeIcon(type: string) {
   return null
 }
 
+// На карточке нужны все 5 типов всегда, даже без данных у конкретного физлица —
+// а не только то, что реально пришло с бэкенда (тот отдаёт по одной актуальной
+// записи на тип, но только на те типы, что есть в источнике для этого человека).
+const CONTACT_TYPE_ORDER = ['Место рождения', 'Адрес по прописке', 'Адрес места проживания', 'Телефон мобильный', 'Email']
+
+interface ContactRow {
+  key: string
+  type: string
+  predstavleniye: string | null
+  dateStart: string | null
+}
+
+const contactRows = computed<ContactRow[]>(() => {
+  const byType = new Map((detail.value?.contactInfos ?? []).map((c) => [c.type, c]))
+  const extraTypes = [...byType.keys()].filter((type) => !CONTACT_TYPE_ORDER.includes(type)).sort((a, b) => a.localeCompare(b, 'ru'))
+  return [...CONTACT_TYPE_ORDER, ...extraTypes].map((type) => {
+    const contact = byType.get(type)
+    return {
+      key: type,
+      type,
+      predstavleniye: contact?.predstavleniye ?? null,
+      dateStart: contact?.dateStart ?? null,
+    }
+  })
+})
+
 async function copyValue(field: 'uid' | 'code', value: string | null | undefined) {
   if (!value) return
   await copyToClipboard(value)
@@ -228,23 +254,26 @@ onMounted(async () => {
            шапку убрали по просьбе — "тип"/"значение"/"дата" и так понятны без подписей
            колонок. Страна/Регион/Город намеренно не показываем — они ненадёжны
            (см. бэкенд), текстовое "Значение" (predstavleniye) покрывает то же самое
-           надёжнее. -->
+           надёжнее. contactRows (см. скрипт) всегда рендерит все 5 известных типов,
+           даже без данных у этого физлица — бэкенд отдаёт только то, что реально
+           нашлось в источнике. -->
       <Card class="p-6">
-        <div v-if="detail.contactInfos.length" class="flex flex-col divide-y divide-border">
+        <div class="flex flex-col divide-y divide-border">
           <div
-            v-for="contact in detail.contactInfos"
-            :key="contact.id"
-            class="flex flex-col gap-1 py-2 text-sm first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:gap-4"
+            v-for="contact in contactRows"
+            :key="contact.key"
+            class="flex flex-col gap-1 py-2 text-sm first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:gap-12"
           >
-            <div class="flex w-48 shrink-0 items-center gap-2 text-muted-foreground">
+            <div class="flex w-56 shrink-0 items-center gap-2 text-muted-foreground">
               <component :is="contactTypeIcon(contact.type)" v-if="contactTypeIcon(contact.type)" class="size-4 shrink-0" />
               <span>{{ contact.type }}</span>
             </div>
             <div class="flex-1">{{ contact.predstavleniye || '—' }}</div>
-            <div class="shrink-0 text-muted-foreground sm:w-28 sm:text-right">{{ formatContactDate(contact.dateStart) }}</div>
+            <div class="shrink-0 text-muted-foreground sm:w-28 sm:text-right">
+              {{ contact.dateStart ? formatContactDate(contact.dateStart) : '—' }}
+            </div>
           </div>
         </div>
-        <p v-else class="text-sm text-muted-foreground">Нет данных</p>
       </Card>
     </template>
   </div>
