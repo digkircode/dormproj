@@ -14,5 +14,5 @@ export const SYNC_ENTITIES: SyncEntity[] = [
   { slug: 'citizenship', name: 'Гражданство', basePath: '/sync/citizenship' },
   { slug: 'passport', name: 'Паспортные данные', basePath: '/sync/passport' },
   { slug: 'contact-info', name: 'Контактная информация', basePath: '/sync/contact-info' },
-  { slug: 'individual', name: 'Обновление физлица', basePath: '/sync/individual', showTargetUid: true },
+  { slug: 'individual', name: 'Обновление данных физлица', basePath: '/sync/individual', showTargetUid: true },
 ]

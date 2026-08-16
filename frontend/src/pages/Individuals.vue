@@ -52,6 +52,7 @@ const columns = columnHelper.columns([
       :cell-text="cellText"
       :hidden-by-default="hiddenByDefault"
       storage-key="individuals"
+      accent-icons
       :row-action="{
         icon: ExternalLink,
         label: 'Открыть карточку физлица',

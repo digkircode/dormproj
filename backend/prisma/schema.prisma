@@ -191,6 +191,10 @@ model SyncLog {
   // UID физлица — заполняется только для точечной синхронизации одного физлица
   // (с его карточки), у остальных 5 типов синхронов всегда null.
   targetUid    String?     @map("target_uid")
+  // Разбивка added/updated/removed по шагам (студент/физлицо/гражданство/паспорт/
+  // контакты) — только у точечной синхронизации физлица и только при успехе
+  // (см. IndividualSyncService), у остальных 5 типов синхронов всегда null.
+  details      Json?
 
   @@index([type, status, finishedAt])
   @@map("sync_logs")

@@ -70,6 +70,10 @@ const props = withDefaults(
     // Если задан — видимость колонок и сортировка сохраняются в localStorage под этим
     // ключом и восстанавливаются при следующем визите. Без ключа поведение как раньше.
     storageKey?: string
+    // Красит "хромовые" иконки таблицы (фильтр/настройка/сортировка/пагинация/rowAction)
+    // в text-primary — опционально, по умолчанию выключено, чтобы не менять остальные
+    // таблицы разом. Поиск и статусные ячейки (cellRenderers) сюда не входят намеренно.
+    accentIcons?: boolean
   }>(),
   {
     cellText: (_columnId: string, value: unknown) => String(value ?? ''),
@@ -332,7 +336,7 @@ defineExpose({ refresh: loadPage })
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
             <Button variant="outline" size="sm">
-              <ListFilter />
+              <ListFilter :class="{ 'text-primary': accentIcons }" />
               <span>Добавить фильтр</span>
             </Button>
           </DropdownMenuTrigger>
@@ -353,9 +357,9 @@ defineExpose({ refresh: loadPage })
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
             <Button variant="outline" size="sm">
-              <Settings2 />
+              <Settings2 :class="{ 'text-primary': accentIcons }" />
               <span>Настройка таблицы</span>
-              <ChevronDown />
+              <ChevronDown :class="{ 'text-primary': accentIcons }" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" class="w-56">
@@ -389,12 +393,12 @@ defineExpose({ refresh: loadPage })
           </span>
         </button>
         <button type="button" class="shrink-0 rounded-sm p-0.5 hover:bg-muted" @click="removeFilterField(field)">
-          <X class="size-3.5" />
+          <X class="size-3.5" :class="{ 'text-primary': accentIcons }" />
           <span class="sr-only">Убрать фильтр «{{ columnLabels[field] }}»</span>
         </button>
       </div>
       <Button variant="ghost" size="sm" class="ml-auto text-muted-foreground" @click="clearAllFilters">
-        <X class="size-3.5" />
+        <X class="size-3.5" :class="{ 'text-primary': accentIcons }" />
         Очистить
       </Button>
     </div>
@@ -463,9 +467,9 @@ defineExpose({ refresh: loadPage })
                     @click="header.column.toggleSorting(header.column.getIsSorted() === 'asc')"
                   >
                     <span class="truncate"><FlexRender :header="header" /></span>
-                    <ArrowUp v-if="header.column.getIsSorted() === 'asc'" class="size-3.5 shrink-0" />
-                    <ArrowDown v-else-if="header.column.getIsSorted() === 'desc'" class="size-3.5 shrink-0" />
-                    <ArrowUpDown v-else class="size-3.5 shrink-0 text-muted-foreground/50" />
+                    <ArrowUp v-if="header.column.getIsSorted() === 'asc'" class="size-3.5 shrink-0" :class="{ 'text-primary': accentIcons }" />
+                    <ArrowDown v-else-if="header.column.getIsSorted() === 'desc'" class="size-3.5 shrink-0" :class="{ 'text-primary': accentIcons }" />
+                    <ArrowUpDown v-else class="size-3.5 shrink-0" :class="accentIcons ? 'text-primary' : 'text-muted-foreground/50'" />
                   </button>
                   <div
                     v-if="header.column.getCanResize()"
@@ -504,12 +508,12 @@ defineExpose({ refresh: loadPage })
                       <TooltipTrigger as-child>
                         <Button v-if="rowAction.getHref" variant="ghost" size="icon" class="size-7" as-child>
                           <a :href="rowAction.getHref(row.original)" target="_blank" rel="noopener">
-                            <component :is="rowAction.icon" />
+                            <component :is="rowAction.icon" :class="{ 'text-primary': accentIcons }" />
                             <span class="sr-only">{{ rowAction.label }}</span>
                           </a>
                         </Button>
                         <Button v-else variant="ghost" size="icon" class="size-7" @click="rowAction!.onClick!(row.original)">
-                          <component :is="rowAction.icon" />
+                          <component :is="rowAction.icon" :class="{ 'text-primary': accentIcons }" />
                           <span class="sr-only">{{ rowAction.label }}</span>
                         </Button>
                       </TooltipTrigger>
@@ -562,7 +566,7 @@ defineExpose({ refresh: loadPage })
             @click="table.setPageIndex(0)"
           >
             <span class="sr-only">Первая страница</span>
-            <ChevronsLeft />
+            <ChevronsLeft :class="{ 'text-primary': accentIcons }" />
           </Button>
           <Button
             variant="outline"
@@ -572,7 +576,7 @@ defineExpose({ refresh: loadPage })
             @click="table.previousPage()"
           >
             <span class="sr-only">Предыдущая страница</span>
-            <ChevronLeft />
+            <ChevronLeft :class="{ 'text-primary': accentIcons }" />
           </Button>
           <Button
             variant="outline"
@@ -582,7 +586,7 @@ defineExpose({ refresh: loadPage })
             @click="table.nextPage()"
           >
             <span class="sr-only">Следующая страница</span>
-            <ChevronRight />
+            <ChevronRight :class="{ 'text-primary': accentIcons }" />
           </Button>
           <Button
             variant="outline"
@@ -591,7 +595,7 @@ defineExpose({ refresh: loadPage })
             @click="table.setPageIndex(table.getPageCount() - 1)"
           >
             <span class="sr-only">Последняя страница</span>
-            <ChevronsRight />
+            <ChevronsRight :class="{ 'text-primary': accentIcons }" />
           </Button>
         </div>
       </div>

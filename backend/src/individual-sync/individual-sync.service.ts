@@ -20,6 +20,13 @@ export interface IndividualSyncResult {
   finishedAt: Date;
 }
 
+interface StepResult {
+  fetchedCount: number;
+  added: number;
+  updated?: number;
+  removed?: number;
+}
+
 // Синхронизация одного физлица со своей карточки — проходит те же 5 источников, что
 // и ночной крон (студент → физлицо → гражданство → паспорт → контакты), но по одному
 // UID и как ОДИН лог, а не пять. Никакого cron/массового запуска для этого типа нет —
@@ -59,10 +66,21 @@ export class IndividualSyncService {
       const updated = individuals.updated;
       const removed = students.removed + citizenship.removed + passport.removed + contactInfo.removed;
 
+      // Разбивка по шагам — только при успехе (частичный набор шагов после падения
+      // на середине был бы вводящим в заблуждение), фронт разворачивает её в модалке
+      // "Подробнее" сразу при открытии.
+      const details: Record<string, StepResult> = {
+        students,
+        individuals,
+        citizenship,
+        passport,
+        contactInfo,
+      };
+
       const finishedAt = new Date();
       await this.prisma.syncLog.update({
         where: { id: log.id },
-        data: { status: 'SUCCESS', finishedAt, fetchedCount, added, updated, removed },
+        data: { status: 'SUCCESS', finishedAt, fetchedCount, added, updated, removed, details: details as unknown as Prisma.InputJsonValue },
       });
 
       this.logger.log(`Синхронизация физлица ${uid} завершена: получено ${fetchedCount}, записано ${added}, обновлено ${updated}`);

@@ -38,6 +38,15 @@ const columnLabels: Record<string, string> = {
 const filterableFields = computed(() => (entity.value?.showTargetUid ? ['status'] : ['status', 'trigger']))
 const cellRenderers = { status: SyncStatusCell }
 
+// Ключи details (см. IndividualSyncService) — подписи для модалки "Подробнее".
+const stepLabels: Record<string, string> = {
+  students: 'Студент (зачётки)',
+  individuals: 'Физлицо',
+  citizenship: 'Гражданство',
+  passport: 'Паспортные данные',
+  contactInfo: 'Контактная информация',
+}
+
 function cellText(columnId: string, value: unknown): string {
   if (columnId === 'trigger' && typeof value === 'string') {
     return triggerLabel[value as keyof typeof triggerLabel] ?? value
@@ -111,7 +120,7 @@ onUnmounted(() => clearTimeout(pollTimeout))
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" as-child>
         <RouterLink to="/sync">
-          <ArrowLeft />
+          <ArrowLeft class="text-primary" />
           <span class="sr-only">К синхронизации</span>
         </RouterLink>
       </Button>
@@ -132,6 +141,7 @@ onUnmounted(() => clearTimeout(pollTimeout))
       :cell-renderers="cellRenderers"
       :row-action="{ icon: Info, label: 'Подробнее', onClick: openLogDetails }"
       :storage-key="storageKey"
+      accent-icons
       @loaded="onLogsLoaded"
     />
 
@@ -165,11 +175,38 @@ onUnmounted(() => clearTimeout(pollTimeout))
 
         <Collapsible v-if="selectedLog.errorStack" v-slot="{ open }">
           <CollapsibleTrigger class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-            <ChevronRight class="size-4 shrink-0 transition-transform" :class="{ 'rotate-90': open }" />
+            <ChevronRight class="size-4 shrink-0 text-primary transition-transform" :class="{ 'rotate-90': open }" />
             Показать дополнительные данные
           </CollapsibleTrigger>
           <CollapsibleContent>
             <pre class="mt-2 max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs whitespace-pre-wrap break-words">{{ selectedLog.errorStack }}</pre>
+          </CollapsibleContent>
+        </Collapsible>
+
+        <!-- Разбивка по шагам — только у точечной синхронизации физлица (details
+             заполняется лишь там, см. IndividualSyncService), раскрыта сразу при
+             открытии модалки (default-open), в отличие от errorStack выше. -->
+        <Collapsible v-if="selectedLog.details" default-open v-slot="{ open }">
+          <CollapsibleTrigger class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+            <ChevronRight class="size-4 shrink-0 text-primary transition-transform" :class="{ 'rotate-90': open }" />
+            Подробнее по таблицам
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div class="mt-2 flex flex-col divide-y divide-border rounded-md border">
+              <div
+                v-for="(stats, key) in selectedLog.details"
+                :key="key"
+                class="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 px-3 py-2 text-sm"
+              >
+                <span class="font-medium">{{ stepLabels[key] ?? key }}</span>
+                <span class="flex flex-wrap gap-x-4 text-muted-foreground">
+                  <span>Получено: {{ stats.fetchedCount }}</span>
+                  <span>Добавлено: {{ stats.added }}</span>
+                  <span v-if="stats.updated !== undefined">Обновлено: {{ stats.updated }}</span>
+                  <span v-if="stats.removed !== undefined">Удалено: {{ stats.removed }}</span>
+                </span>
+              </div>
+            </div>
           </CollapsibleContent>
         </Collapsible>
       </DialogScrollContent>

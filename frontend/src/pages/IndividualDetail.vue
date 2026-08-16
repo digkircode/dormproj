@@ -1,7 +1,21 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { ArrowLeft, Check, Copy, RefreshCw, FileSignature, Wallet, DoorOpen, Home, Phone, Mail, MapPin } from 'lucide-vue-next'
+import {
+  ArrowLeft,
+  Check,
+  CircleCheck,
+  CircleX,
+  Copy,
+  RefreshCw,
+  FileSignature,
+  Wallet,
+  DoorOpen,
+  Home,
+  Phone,
+  Mail,
+  MapPin,
+} from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -76,6 +90,10 @@ const contactRows = computed<ContactRow[]>(() => {
 
 const isSyncing = ref(false)
 const syncError = ref('')
+// На 2с после завершения — зелёная галочка/красный крестик вместо иконки обновления,
+// затем сама возвращается к обычному виду.
+const syncFeedback = ref<'success' | 'error' | null>(null)
+let syncFeedbackTimeout: ReturnType<typeof setTimeout> | undefined
 
 // Перезапрашиваем всю карточку после успешной синхронизации — синхрон затрагивает
 // сразу 5 источников (студент/физлицо/гражданство/паспорт/контакты), проще перечитать
@@ -87,10 +105,14 @@ async function runSync() {
   try {
     await syncIndividual(uid.value)
     detail.value = await fetchIndividualDetail(uid.value)
+    syncFeedback.value = 'success'
   } catch (error) {
     syncError.value = error instanceof Error ? error.message : String(error)
+    syncFeedback.value = 'error'
   } finally {
     isSyncing.value = false
+    clearTimeout(syncFeedbackTimeout)
+    syncFeedbackTimeout = setTimeout(() => (syncFeedback.value = null), 2000)
   }
 }
 
@@ -118,7 +140,7 @@ onMounted(async () => {
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" as-child>
         <RouterLink to="/individuals">
-          <ArrowLeft />
+          <ArrowLeft class="text-primary" />
           <span class="sr-only">К физическим лицам</span>
         </RouterLink>
       </Button>
@@ -149,8 +171,11 @@ onMounted(async () => {
                 class="flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
                 @click="copyValue('uid', detail.fizicheskoyeLitsoUid)"
               >
-                <component :is="copiedField === 'uid' ? Check : Copy" class="size-3.5 shrink-0" />
-                <span>{{ detail.fizicheskoyeLitsoUid }}</span>
+                <Transition enter-active-class="animate-in fade-in-0 duration-200" leave-active-class="animate-out fade-out-0 duration-200" mode="out-in">
+                  <Check v-if="copiedField === 'uid'" key="check" class="size-3.5 shrink-0 text-emerald-500" />
+                  <Copy v-else key="copy" class="size-3.5 shrink-0" />
+                </Transition>
+                <span>{{ copiedField === 'uid' ? 'Скопировано' : detail.fizicheskoyeLitsoUid }}</span>
               </button>
               <button
                 type="button"
@@ -158,8 +183,11 @@ onMounted(async () => {
                 :disabled="!detail.code"
                 @click="copyValue('code', detail.code)"
               >
-                <component :is="copiedField === 'code' ? Check : Copy" class="size-3.5 shrink-0" />
-                <span>{{ detail.code ?? '—' }}</span>
+                <Transition enter-active-class="animate-in fade-in-0 duration-200" leave-active-class="animate-out fade-out-0 duration-200" mode="out-in">
+                  <Check v-if="copiedField === 'code'" key="check" class="size-3.5 shrink-0 text-emerald-500" />
+                  <Copy v-else key="copy" class="size-3.5 shrink-0" />
+                </Transition>
+                <span>{{ copiedField === 'code' ? 'Скопировано' : (detail.code ?? '—') }}</span>
               </button>
             </div>
           </div>
@@ -168,7 +196,11 @@ onMounted(async () => {
                4 кнопок уже не хватает, а непредсказуемый перенос выглядит неряшливо. -->
           <div class="grid grid-cols-2 gap-2">
             <Button variant="outline" size="sm" :disabled="isSyncing" @click="runSync">
-              <RefreshCw :class="{ 'animate-spin': isSyncing }" />
+              <Transition enter-active-class="animate-in fade-in-0 duration-200" leave-active-class="animate-out fade-out-0 duration-200" mode="out-in">
+                <CircleCheck v-if="syncFeedback === 'success'" key="success" class="text-emerald-500" />
+                <CircleX v-else-if="syncFeedback === 'error'" key="error" class="text-red-500" />
+                <RefreshCw v-else key="refresh" class="text-primary" :class="{ 'animate-spin': isSyncing }" />
+              </Transition>
               Синхронизировать
             </Button>
             <Button size="sm">
@@ -176,11 +208,11 @@ onMounted(async () => {
               Составить договор
             </Button>
             <Button variant="outline" size="sm">
-              <Wallet />
+              <Wallet class="text-primary" />
               Просмотр оплаты
             </Button>
             <Button variant="outline" size="sm">
-              <DoorOpen />
+              <DoorOpen class="text-primary" />
               Просмотр комнаты
             </Button>
           </div>
@@ -197,7 +229,7 @@ onMounted(async () => {
             class="flex items-start gap-2 py-2 text-sm first:pt-0 last:pb-0"
           >
             <span class="flex w-40 shrink-0 items-center gap-1.5 text-muted-foreground">
-              <component :is="contactTypeIcon(contact.type)" v-if="contactTypeIcon(contact.type)" class="size-4 shrink-0" />
+              <component :is="contactTypeIcon(contact.type)" v-if="contactTypeIcon(contact.type)" class="size-4 shrink-0 text-primary" />
               {{ contact.type }}
             </span>
             <span>{{ contact.predstavleniye || '—' }}</span>

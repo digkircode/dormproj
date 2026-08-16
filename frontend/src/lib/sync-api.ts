@@ -16,6 +16,9 @@ export interface SyncLogEntry {
   errorMessage: string | null
   errorStack: string | null
   targetUid: string | null
+  // Разбивка по шагам (студент/физлицо/гражданство/паспорт/контакты) — только у
+  // точечной синхронизации физлица и только при успехе, у остальных 5 типов — null.
+  details: Record<string, { fetchedCount: number; added: number; updated?: number; removed?: number }> | null
 }
 
 export type SyncLogsPage = ListPage<SyncLogEntry>

@@ -1,6 +1,14 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { computed, ref } from 'vue'
+import { Globe, ChevronDown } from 'lucide-vue-next'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 // Только переключатель значения — перевода интерфейса пока нет, выбор ничего не меняет.
 type Locale = 'ru' | 'en'
@@ -9,6 +17,7 @@ const localeOptions: { value: Locale; label: string }[] = [
   { value: 'en', label: 'English' },
 ]
 const locale = ref<Locale>('ru')
+const localeLabel = computed(() => localeOptions.find((o) => o.value === locale.value)?.label ?? '')
 
 // Пути и брендовые цвета — из simple-icons (VK 0077FF, Telegram 26A5E4). У себя
 // используем цвет из TeamSwitcher.vue (тот же логотип RosNOU в сайдбаре).
@@ -35,16 +44,22 @@ const socialLinks = [
     </div>
 
     <div class="flex items-center gap-3">
-      <Select :model-value="locale" @update:model-value="(value) => (locale = value as Locale)">
-        <SelectTrigger size="sm" class="w-28">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent align="end">
-          <SelectItem v-for="option in localeOptions" :key="option.value" :value="option.value">
-            {{ option.label }}
-          </SelectItem>
-        </SelectContent>
-      </Select>
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button variant="outline" size="sm">
+            <Globe />
+            <span>{{ localeLabel }}</span>
+            <ChevronDown />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuRadioGroup :model-value="locale" @update:model-value="(value) => (locale = value as Locale)">
+            <DropdownMenuRadioItem v-for="option in localeOptions" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <a
         v-for="social in socialLinks"
