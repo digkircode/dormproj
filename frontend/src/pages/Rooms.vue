@@ -1,35 +1,45 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Info, Plus } from 'lucide-vue-next'
-import EntityTable from '@/components/EntityTable.vue'
-import RoomDetailDialog from '@/components/RoomDetailDialog.vue'
+import { onMounted, ref } from 'vue'
+import { Card } from '@/components/ui/card'
+import RoomTree from '@/components/RoomTree.vue'
+import RoomDetailPanel from '@/components/RoomDetailPanel.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogScrollContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { createAppColumnHelper } from '@/lib/table'
-import { fetchFacetValues, fetchRooms, createRoom, type Room } from '@/lib/rooms-api'
+import { createRoom, fetchRoomsTree, type RoomTreeItem } from '@/lib/rooms-api'
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
 // Скрывает нативные стрелочки +/- у <input type="number"> (Chrome/Safari + Firefox).
 const NO_SPINNER_CLASS = '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
 
-const columnLabels: Record<string, string> = {
-  room: 'Номер',
+const treeItems = ref<RoomTreeItem[]>([])
+const isTreeLoading = ref(true)
+const treeError = ref('')
+
+async function loadTree() {
+  isTreeLoading.value = true
+  treeError.value = ''
+  try {
+    treeItems.value = await fetchRoomsTree()
+  } catch (error) {
+    treeError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isTreeLoading.value = false
+  }
 }
 
-const columnHelper = createAppColumnHelper<Room>()
+onMounted(loadTree)
 
-const columns = columnHelper.columns([
-  columnHelper.accessor('room', { header: columnLabels.room, enableHiding: false, size: 200, minSize: 120 }),
-])
-
-const table = ref<{ refresh: () => void | Promise<void> } | null>(null)
-
-// Карточка комнаты — модалка поверх списка, а не отдельная страница (по прямой просьбе:
-// открытие новой страницы для одной комнаты избыточно), см. RoomDetailDialog.vue.
+// Карточка комнаты — панель справа от дерева на этой же странице, а не отдельная
+// модалка/роут (по прямой просьбе), см. RoomDetailPanel.vue.
 const selectedRoomId = ref<number | null>(null)
+
+function onRoomDeleted() {
+  selectedRoomId.value = null
+  loadTree()
+}
 
 const isCreateOpen = ref(false)
 const newRoomNumber = ref('')
@@ -50,9 +60,10 @@ async function submitCreate() {
   isCreating.value = true
   createError.value = ''
   try {
-    await createRoom(newRoomNumber.value.trim(), floor)
+    const created = await createRoom(newRoomNumber.value.trim(), floor)
     isCreateOpen.value = false
-    table.value?.refresh()
+    await loadTree()
+    selectedRoomId.value = created.id
   } catch (error) {
     createError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -63,38 +74,23 @@ async function submitCreate() {
 
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
-    <EntityTable
-      ref="table"
-      :columns="columns"
-      :column-labels="columnLabels"
-      :filterable-fields="[]"
-      :default-sort="{ id: 'room', desc: false }"
-      :fetch-page="fetchRooms"
-      :fetch-facet-values="fetchFacetValues"
-      :get-row-id="(r: Room) => String(r.id)"
-      total-label="комнат"
-      storage-key="rooms"
-      accent-icons
-      :row-action="{
-        icon: Info,
-        label: 'Открыть карточку комнаты',
-        onClick: (r: Room) => (selectedRoomId = r.id),
-      }"
-    >
-      <template #actions>
-        <Button size="icon" title="Добавить комнату" @click="openCreate">
-          <Plus />
-          <span class="sr-only">Добавить комнату</span>
-        </Button>
-      </template>
-    </EntityTable>
+    <p v-if="treeError" class="text-sm text-red-500">{{ treeError }}</p>
 
-    <RoomDetailDialog
-      :room-id="selectedRoomId"
-      @update:room-id="(id) => (selectedRoomId = id)"
-      @deleted="table?.refresh()"
-      @renamed="table?.refresh()"
-    />
+    <div class="grid flex-1 grid-cols-1 gap-4 md:h-[calc(100vh-11.5rem)] md:grid-cols-[300px_1fr]">
+      <Card class="min-w-0 gap-0 overflow-hidden py-0">
+        <RoomTree
+          :items="treeItems"
+          :selected-id="selectedRoomId"
+          :is-loading="isTreeLoading"
+          @select="(id) => (selectedRoomId = id)"
+          @create="openCreate"
+        />
+      </Card>
+
+      <Card class="min-w-0 gap-0 overflow-hidden py-0">
+        <RoomDetailPanel :room-id="selectedRoomId" @deleted="onRoomDeleted" @changed="loadTree" />
+      </Card>
+    </div>
 
     <Dialog :open="isCreateOpen" @update:open="(open) => (isCreateOpen = open)">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
@@ -110,7 +106,7 @@ async function submitCreate() {
           <Label for="new-room-floor">Этаж</Label>
           <!-- Обычный native input, не Input.vue — та обёртка на type="number" не ловит
                v-model, а с ручным :value+@input через раз глотает нажатия (см.
-               RoomDetailDialog.vue). Классы скопированы из Input.vue вручную. -->
+               RoomDetailPanel.vue). Классы скопированы из Input.vue вручную. -->
           <input
             id="new-room-floor"
             v-model="newRoomFloor"

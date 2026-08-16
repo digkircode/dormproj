@@ -122,6 +122,32 @@ export class RoomsController {
     return [];
   }
 
+  // Все комнаты с текущим этажом — для дерева "Общежитие → этажи → комнаты" на фронте.
+  // Без пагинации: комнат в общежитии немного, тянуть их разом дешевле, чем N+1
+  // fetchRoomDetail на каждую. Регистрировать строго до @Get(':id') — иначе Nest
+  // примет "tree" за id.
+  @Get('tree')
+  async tree() {
+    const floorDefinition = await this.prisma.roomCharacteristicDefinition.findUnique({
+      where: { name: FLOOR_DEFINITION_NAME },
+    });
+    const rooms = await this.prisma.room.findMany({
+      orderBy: { room: 'asc' },
+      include: {
+        characteristicValues: {
+          where: { definitionId: floorDefinition?.id ?? -1 },
+          orderBy: { period: 'desc' },
+          take: 1,
+        },
+      },
+    });
+    return rooms.map((room) => ({
+      id: room.id,
+      room: room.room,
+      floor: room.characteristicValues[0] ? (fromStoredValue('NUMBER', room.characteristicValues[0]) as number | null) : null,
+    }));
+  }
+
   @Get(':id')
   async detail(@Param('id') idParam: string) {
     const id = parseIdParam(idParam);

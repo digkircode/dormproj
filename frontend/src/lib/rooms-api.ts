@@ -46,6 +46,21 @@ export function fetchRooms(options: ListOptions): Promise<RoomsPage> {
   return fetchListPage<Room>('/rooms', options)
 }
 
+// Для дерева "Общежитие → этажи → комнаты" — все комнаты разом, без пагинации.
+export interface RoomTreeItem {
+  id: number
+  room: string
+  floor: number | null
+}
+
+export async function fetchRoomsTree(): Promise<RoomTreeItem[]> {
+  const response = await apiFetch('/rooms/tree')
+  if (!response.ok) {
+    throw new Error(`Не удалось получить список комнат (${response.status})`)
+  }
+  return response.json()
+}
+
 export function fetchFacetValues(field: string): Promise<FacetOption[]> {
   return fetchListFacets('/rooms', field)
 }
