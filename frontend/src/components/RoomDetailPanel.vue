@@ -17,7 +17,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import {
   fetchRoomDetail,
@@ -34,7 +33,6 @@ import { fetchDefinitions, type RoomCharacteristicDefinition } from '@/lib/room-
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
-const HEADER_ANIMATE_CLASS = 'animate-in fade-in-0 slide-in-from-top-2 duration-300'
 const NO_SPINNER_CLASS = '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
 // Стартовые 5 характеристик, которые всегда показываем (даже без значения — прочерком) —
 // то, что заведено миграциями и защищено от удаления (definition.isProtected), а не всё
@@ -190,11 +188,6 @@ function toggleCharacteristicFilter(definitionId: number) {
 const selectedCharacteristicName = computed(
   () => displayCharacteristics.value.find((c) => c.definitionId === selectedCharacteristicFilter.value)?.name ?? null,
 )
-const filteredHistory = computed(() =>
-  selectedCharacteristicFilter.value === null
-    ? displayHistory.value
-    : displayHistory.value.filter((h) => h.definitionId === selectedCharacteristicFilter.value),
-)
 
 // --- Удаление комнаты ---
 const deleteRoomConfirmOpen = ref(false)
@@ -347,21 +340,16 @@ async function confirmDeleteValue() {
 
 <template>
   <div class="flex h-full min-w-0 flex-col">
-    <Transition
-      mode="out-in"
-      enter-active-class="animate-in fade-in-0 duration-200"
-      leave-active-class="animate-out fade-out-0 duration-150"
-    >
-      <div v-if="roomId === null" key="empty" class="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
-        <DoorOpen class="size-8" />
-        <p class="text-sm">Выберите комнату слева</p>
-      </div>
-
-      <p v-else-if="isLoading" key="loading" class="p-4 text-sm text-muted-foreground">Загрузка…</p>
-      <p v-else-if="loadError" key="error" class="p-4 text-sm text-red-500">{{ loadError }}</p>
-
-      <div v-else-if="detail" :key="detail.id" class="flex min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
-        <div :class="['flex shrink-0 items-center gap-1', HEADER_ANIMATE_CLASS]">
+    <!-- Заголовок — фиксированная полоса (h-14, как хедер приложения) той же высоты и
+         кегля, что и заголовок "Комнаты" в дереве слева, чтобы обе панели выглядели
+         единой парой. Меняется только содержимое внутри неё, сама полоса не скачет. -->
+    <div class="flex h-14 shrink-0 items-center gap-1 border-b px-4 md:px-6">
+      <Transition
+        mode="out-in"
+        enter-active-class="animate-in fade-in-0 slide-in-from-top-1 duration-300"
+        leave-active-class="animate-out fade-out-0 duration-150"
+      >
+        <div v-if="detail" :key="detail.id" class="flex items-center gap-1">
           <h2 class="text-lg font-medium">Комната {{ detail.room }}</h2>
           <Tooltip>
             <TooltipTrigger as-child>
@@ -378,16 +366,34 @@ async function confirmDeleteValue() {
             <TooltipContent>Удалить комнату</TooltipContent>
           </Tooltip>
         </div>
+        <h2 v-else key="placeholder" class="text-lg font-medium text-muted-foreground">Комната</h2>
+      </Transition>
+    </div>
 
-        <div class="flex shrink-0 items-center justify-between">
+    <div class="min-h-0 flex-1">
+      <Transition
+        mode="out-in"
+        enter-active-class="animate-in fade-in-0 duration-200"
+        leave-active-class="animate-out fade-out-0 duration-150"
+      >
+        <div v-if="roomId === null" key="empty" class="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
+          <DoorOpen class="size-8" />
+          <p class="text-sm">Выберите комнату слева</p>
+        </div>
+
+        <p v-else-if="isLoading" key="loading" class="p-4 text-sm text-muted-foreground">Загрузка…</p>
+        <p v-else-if="loadError" key="error" class="p-4 text-sm text-red-500">{{ loadError }}</p>
+
+        <div v-else-if="detail" :key="detail.id" class="flex h-full min-h-0 flex-col gap-4 p-4 md:p-6">
+          <div class="flex shrink-0 items-center gap-2">
           <div class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
             <SlidersHorizontal class="size-4 text-primary" />
             Характеристики
           </div>
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button size="icon" variant="outline" @click="openAddValue()">
-                <Plus class="text-primary" />
+              <Button variant="ghost" size="icon" class="size-6" @click="openAddValue()">
+                <Plus class="size-3.5 text-primary" />
                 <span class="sr-only">Добавить характеристику</span>
               </Button>
             </TooltipTrigger>
@@ -397,19 +403,26 @@ async function confirmDeleteValue() {
 
         <!-- Клик по характеристике фильтрует историю ниже только по ней, повторный клик
              снимает фильтр. Без absolute на leave — на table-элементах ниже он ломает
-             раскладку, здесь для единообразия тоже без него. -->
+             раскладку, здесь для единообразия тоже без него. Разделители — border
+             по чётности индекса (левая/правая колонка), а не divide-x: у CSS grid с
+             2 колонками divide-x лёг бы на случайную сторону в зависимости от потока. -->
         <TransitionGroup
           tag="div"
-          class="grid shrink-0 grid-cols-1 gap-x-8 gap-y-2 rounded-md border p-3 sm:grid-cols-2"
+          class="grid shrink-0 grid-cols-1 rounded-md border sm:grid-cols-2"
           enter-active-class="animate-in fade-in-0 duration-200"
           leave-active-class="animate-out fade-out-0 duration-200"
           move-class="transition-transform duration-200"
         >
           <div
-            v-for="c in displayCharacteristics"
+            v-for="(c, index) in displayCharacteristics"
             :key="c.definitionId"
-            class="-mx-1.5 flex cursor-pointer items-center justify-between gap-2 rounded px-1.5 py-1.5 text-sm hover:bg-accent"
-            :class="{ 'bg-accent': selectedCharacteristicFilter === c.definitionId }"
+            class="flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-accent"
+            :class="[
+              selectedCharacteristicFilter === c.definitionId ? 'bg-accent' : '',
+              index !== 0 ? 'border-t' : '',
+              index === 1 ? 'sm:border-t-0' : '',
+              index % 2 === 1 ? 'sm:border-l' : '',
+            ]"
             @click="toggleCharacteristicFilter(c.definitionId)"
           >
             <span class="text-muted-foreground">{{ c.name }}</span>
@@ -463,13 +476,24 @@ async function confirmDeleteValue() {
                 <th class="w-[20%] px-3 py-2" />
               </tr>
             </thead>
+            <!-- v-for идёт по полному displayHistory, а не отфильтрованному списку — состав
+                 строк меняется только при реальной правке данных (тогда TransitionGroup
+                 честно анимирует add/remove). Клик по характеристике наверху только скрывает
+                 несовпадающие строки классом (без добавления/удаления из DOM) — иначе
+                 TransitionGroup на каждый клик по фильтру гонял анимацию по всей таблице
+                 и выглядело как "дёрганье"/лишняя подгрузка. -->
             <TransitionGroup
               tag="tbody"
               enter-active-class="animate-in fade-in-0 duration-200"
               leave-active-class="animate-out fade-out-0 duration-200"
               move-class="transition-transform duration-200"
             >
-              <tr v-for="entry in filteredHistory" :key="entry.id" class="border-t">
+              <tr
+                v-for="entry in displayHistory"
+                :key="entry.id"
+                class="border-t"
+                :class="{ hidden: selectedCharacteristicFilter !== null && entry.definitionId !== selectedCharacteristicFilter }"
+              >
                 <td class="px-3 py-2">{{ entry.name }}</td>
                 <td class="px-3 py-2">{{ entry.hasValue ? formatValue(entry) : '—' }}</td>
                 <td class="px-3 py-2">{{ entry.period ? formatDate(entry.period) : '—' }}</td>
@@ -499,6 +523,7 @@ async function confirmDeleteValue() {
         </div>
       </div>
     </Transition>
+    </div>
 
     <!-- Подтверждение удаления комнаты -->
     <Dialog :open="deleteRoomConfirmOpen" @update:open="(v) => (deleteRoomConfirmOpen = v)">
@@ -533,18 +558,20 @@ async function confirmDeleteValue() {
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-2">
             <Label>Характеристика</Label>
-            <Select
+            <!-- Нативный <select>, не компонент Select — тот на Reka UI подвешивал
+                 pointer-events на body после выбора опции (см. CONTEXT_HANDOFF.md), из-за
+                 чего клик по "Сохранить" переставал что-либо делать: у комнаты, где все
+                 базовые характеристики уже заполнены, это единственный путь добавить новое
+                 значение, других полей без Select тут нет. -->
+            <select
               v-if="!valueFormLocked"
-              :model-value="valueDialogDefinitionId ? String(valueDialogDefinitionId) : undefined"
-              @update:model-value="(v) => (valueDialogDefinitionId = Number(v))"
+              :value="valueDialogDefinitionId ?? ''"
+              class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              @change="(e) => (valueDialogDefinitionId = Number((e.target as HTMLSelectElement).value))"
             >
-              <SelectTrigger>
-                <SelectValue placeholder="Выберите характеристику" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem v-for="d in definitions" :key="d.id" :value="String(d.id)">{{ d.name }}</SelectItem>
-              </SelectContent>
-            </Select>
+              <option value="" disabled>Выберите характеристику</option>
+              <option v-for="d in definitions" :key="d.id" :value="d.id">{{ d.name }}</option>
+            </select>
             <div v-else class="text-sm text-muted-foreground">{{ selectedDefinition?.name }}</div>
           </div>
 

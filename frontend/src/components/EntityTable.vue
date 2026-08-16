@@ -63,8 +63,10 @@ const props = withDefaults(
     pageSizeOptions?: number[]
     hiddenByDefault?: string[]
     // Необязательная колонка-кнопка в конце таблицы — по умолчанию не рендерится,
-    // чтобы остальные таблицы не менялись. getHref — ссылка (открыть в новой вкладке),
-    // onClick — произвольное действие (открыть модалку и т.п.); передаётся ровно один.
+    // чтобы остальные таблицы не менялись. getHref — внутренний роут, рендерится как
+    // RouterLink (обычный клик — переход внутри SPA без перезагрузки, колёсико/Ctrl+клик —
+    // родное поведение браузера, новая вкладка), onClick — произвольное действие
+    // (открыть модалку и т.п.); передаётся ровно один.
     rowAction?: { icon: Component; label: string; getHref?: (row: TData) => string; onClick?: (row: TData) => void }
     // Если задан — видимость колонок и сортировка сохраняются в localStorage под этим
     // ключом и восстанавливаются при следующем визите. Без ключа поведение как раньше.
@@ -507,10 +509,10 @@ defineExpose({ refresh: loadPage })
                     <Tooltip>
                       <TooltipTrigger as-child>
                         <Button v-if="rowAction.getHref" variant="ghost" size="icon" class="size-7" as-child>
-                          <a :href="rowAction.getHref(row.original)" target="_blank" rel="noopener">
+                          <RouterLink :to="rowAction.getHref(row.original)">
                             <component :is="rowAction.icon" :class="{ 'text-primary': accentIcons }" />
                             <span class="sr-only">{{ rowAction.label }}</span>
-                          </a>
+                          </RouterLink>
                         </Button>
                         <Button v-else variant="ghost" size="icon" class="size-7" @click="rowAction!.onClick!(row.original)">
                           <component :is="rowAction.icon" :class="{ 'text-primary': accentIcons }" />

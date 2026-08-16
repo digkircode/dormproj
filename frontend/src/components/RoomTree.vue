@@ -61,9 +61,11 @@ watch(
 </script>
 
 <template>
-  <div class="flex h-full min-w-0 flex-col gap-2 p-2">
-    <div class="flex items-center justify-between px-1">
-      <span class="text-sm font-medium text-muted-foreground">Комнаты</span>
+  <div class="flex h-full min-w-0 flex-col">
+    <!-- h-14 + border-b — та же высота и кегль, что и заголовок карточки комнаты
+         справа (RoomDetailPanel.vue), чтобы обе панели выглядели единой парой. -->
+    <div class="flex h-14 shrink-0 items-center justify-between border-b px-4">
+      <h2 class="text-lg font-medium">Комнаты</h2>
       <Tooltip>
         <TooltipTrigger as-child>
           <Button size="icon" variant="outline" class="size-7" @click="emit('create')">
@@ -75,7 +77,7 @@ watch(
       </Tooltip>
     </div>
 
-    <div class="min-h-0 flex-1 overflow-y-auto">
+    <div class="min-h-0 flex-1 overflow-y-auto p-2">
       <p v-if="isLoading" class="px-2 py-1.5 text-sm text-muted-foreground">Загрузка…</p>
       <Collapsible v-else :open="rootOpen" @update:open="(v) => (rootOpen = v)">
         <CollapsibleTrigger

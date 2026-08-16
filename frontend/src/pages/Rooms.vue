@@ -76,7 +76,7 @@ async function submitCreate() {
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
     <p v-if="treeError" class="text-sm text-red-500">{{ treeError }}</p>
 
-    <div class="grid flex-1 grid-cols-1 gap-4 md:h-[calc(100vh-11.5rem)] md:grid-cols-[300px_1fr]">
+    <div class="grid flex-1 grid-cols-1 gap-4 md:h-[calc(100vh-11.5rem)] md:grid-cols-[360px_1fr]">
       <Card class="min-w-0 gap-0 overflow-hidden py-0">
         <RoomTree
           :items="treeItems"

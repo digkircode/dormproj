@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { GripVertical, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-vue-next'
+import { VueDraggable } from 'vue-draggable-plus'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { Table, TableHeader, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogScrollContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -46,35 +47,17 @@ async function load() {
 
 onMounted(load)
 
-// --- Перетаскивание строк мышью (нативный HTML5 drag-and-drop — список маленький,
-// отдельная библиотека не нужна). Порядок меняется оптимистично, при ошибке сохранения
-// откатывается перезагрузкой с сервера. Перетаскивать можно только за ручку (иконка
-// слева), не за всю строку — иначе конфликтует с кликом по меню действий.
-const draggedId = ref<number | null>(null)
-const dragOverId = ref<number | null>(null)
+// --- Перетаскивание строк мышью (vue-draggable-plus, обёртка над SortableJS —
+// плавная FLIP-анимация перестановки вместо резких прыжков нативного HTML5 DnD).
+// Порядок меняется оптимистично (v-model на definitions), при ошибке сохранения
+// откатывается перезагрузкой с сервера. Перетаскивать можно только за ручку
+// (handle=".drag-handle"), не за всю строку — иначе конфликтует с кликом по меню действий.
 const reorderError = ref('')
 
-function onDragStart(id: number) {
-  draggedId.value = id
-}
-
-async function onDrop(targetId: number) {
-  dragOverId.value = null
-  const fromId = draggedId.value
-  draggedId.value = null
-  if (fromId === null || fromId === targetId) return
-
-  const fromIndex = definitions.value.findIndex((d) => d.id === fromId)
-  const toIndex = definitions.value.findIndex((d) => d.id === targetId)
-  if (fromIndex === -1 || toIndex === -1) return
-
-  const reordered = [...definitions.value]
-  const [moved] = reordered.splice(fromIndex, 1)
-  reordered.splice(toIndex, 0, moved)
-  definitions.value = reordered
+async function onDragEnd() {
   reorderError.value = ''
   try {
-    await reorderDefinitions(reordered.map((d) => d.id))
+    await reorderDefinitions(definitions.value.map((d) => d.id))
   } catch (error) {
     reorderError.value = error instanceof Error ? error.message : String(error)
     await load()
@@ -177,37 +160,32 @@ async function confirmDelete() {
         <Table v-else class="table-fixed">
           <TableHeader class="bg-muted">
             <TableRow>
-              <TableHead class="w-10" />
+              <TableHead class="w-8" />
               <TableHead class="w-[35%]">Название</TableHead>
               <TableHead class="w-[20%]">Тип значения</TableHead>
               <TableHead class="w-[25%]">Единица измерения</TableHead>
-              <TableHead class="w-10" />
+              <TableHead class="w-8" />
             </TableRow>
           </TableHeader>
-          <TableBody>
-            <TableRow
-              v-for="d in definitions"
-              :key="d.id"
-              :class="{ 'bg-accent': dragOverId === d.id }"
-              @dragover.prevent="dragOverId = d.id"
-              @dragleave="dragOverId = dragOverId === d.id ? null : dragOverId"
-              @drop="onDrop(d.id)"
-            >
-              <TableCell class="p-2">
-                <span
-                  draggable="true"
-                  class="flex cursor-grab items-center justify-center text-muted-foreground active:cursor-grabbing"
-                  title="Перетащить"
-                  @dragstart="onDragStart(d.id)"
-                  @dragend="draggedId = null; dragOverId = null"
-                >
+          <VueDraggable
+            v-model="definitions"
+            tag="tbody"
+            class="[&_tr:last-child]:border-0"
+            handle=".drag-handle"
+            :animation="150"
+            ghost-class="opacity-40"
+            @end="onDragEnd"
+          >
+            <TableRow v-for="d in definitions" :key="d.id">
+              <TableCell class="py-2 pl-3 pr-1">
+                <span class="drag-handle flex cursor-grab items-center justify-center text-primary active:cursor-grabbing" title="Перетащить">
                   <GripVertical class="size-4" />
                 </span>
               </TableCell>
               <TableCell>{{ d.name }}</TableCell>
               <TableCell>{{ VALUE_TYPE_LABELS[d.valueType] }}</TableCell>
               <TableCell>{{ d.unit ?? '—' }}</TableCell>
-              <TableCell class="p-2 text-center">
+              <TableCell class="py-2 pl-1 pr-3 text-right">
                 <DropdownMenu>
                   <DropdownMenuTrigger as-child>
                     <Button variant="ghost" size="icon" class="size-7">
@@ -228,7 +206,7 @@ async function confirmDelete() {
                 </DropdownMenu>
               </TableCell>
             </TableRow>
-          </TableBody>
+          </VueDraggable>
         </Table>
       </div>
     </Card>
