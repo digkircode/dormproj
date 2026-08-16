@@ -1,16 +1,14 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Monitor, Sun, Moon } from 'lucide-vue-next'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-// Переключение темы визуальное — самих тем (тёмной палитры и переключения class="dark")
-// в проекте пока нет, эти кнопки ничего не применяют, только меняют подсветку активной.
-type ThemeChoice = 'system' | 'light' | 'dark'
-const themeOptions: { value: ThemeChoice; icon: typeof Monitor; label: string }[] = [
-  { value: 'system', icon: Monitor, label: 'Системная тема' },
-  { value: 'light', icon: Sun, label: 'Светлая тема' },
-  { value: 'dark', icon: Moon, label: 'Тёмная тема' },
+// Только переключатель значения — перевода интерфейса пока нет, выбор ничего не меняет.
+type Locale = 'ru' | 'en'
+const localeOptions: { value: Locale; label: string }[] = [
+  { value: 'ru', label: 'Русский' },
+  { value: 'en', label: 'English' },
 ]
-const activeTheme = ref<ThemeChoice>('system')
+const locale = ref<Locale>('ru')
 
 // Пути и брендовые цвета — из simple-icons (VK 0077FF, Telegram 26A5E4). У себя
 // используем цвет из TeamSwitcher.vue (тот же логотип RosNOU в сайдбаре).
@@ -33,23 +31,21 @@ const socialLinks = [
 <template>
   <footer class="flex flex-col gap-3 border-t bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between md:px-6">
     <div class="flex flex-wrap items-center gap-3">
-      <div class="inline-flex items-center gap-0.5 rounded-md border p-0.5">
-        <button
-          v-for="option in themeOptions"
-          :key="option.value"
-          type="button"
-          class="flex size-7 items-center justify-center rounded transition-colors"
-          :class="activeTheme === option.value ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'"
-          :aria-label="option.label"
-          @click="activeTheme = option.value"
-        >
-          <component :is="option.icon" class="size-4" />
-        </button>
-      </div>
       <span class="text-xs text-muted-foreground">© 1991–2026 Российский новый университет</span>
     </div>
 
     <div class="flex items-center gap-3">
+      <Select :model-value="locale" @update:model-value="(value) => (locale = value as Locale)">
+        <SelectTrigger size="sm" class="w-28">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent align="end">
+          <SelectItem v-for="option in localeOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </SelectItem>
+        </SelectContent>
+      </Select>
+
       <a
         v-for="social in socialLinks"
         :key="social.label"
@@ -64,7 +60,7 @@ const socialLinks = [
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path :d="social.path" /></svg>
       </a>
       <a
-        href="https://portal.rosnou.ru/"
+        href="https://rosnou.ru/"
         target="_blank"
         rel="noopener"
         aria-label="RosNOU"

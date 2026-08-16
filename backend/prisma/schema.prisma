@@ -206,3 +206,14 @@ enum SyncStatus {
   SUCCESS
   FAILED
 }
+
+// Справочник комнат — разовая загрузка из выгрузки 1С (не через обычный REST-синхрон,
+// как остальные сущности), см. миграцию add_rooms. guid — тот же UID, что источник
+// использует для этого справочника, room — Element с отброшенным префиксом "Комната ".
+model Room {
+  id   Int    @id @default(autoincrement())
+  guid String @unique
+  room String
+
+  @@map("rooms")
+}
