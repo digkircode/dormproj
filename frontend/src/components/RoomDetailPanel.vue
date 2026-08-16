@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import {
   fetchRoomDetail,
@@ -92,6 +93,8 @@ async function refresh() {
   }
 }
 
+const selectedCharacteristicFilter = ref<number | null>(null)
+
 watch(
   () => props.roomId,
   (id) => {
@@ -101,8 +104,6 @@ watch(
   },
   { immediate: true },
 )
-
-const selectedCharacteristicFilter = ref<number | null>(null)
 
 function formatDate(iso: string): string {
   const date = new Date(iso)
@@ -392,8 +393,8 @@ async function confirmDeleteValue() {
           </div>
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon" class="size-6" @click="openAddValue()">
-                <Plus class="size-3.5 text-primary" />
+              <Button size="icon" variant="outline" class="size-7" @click="openAddValue()">
+                <Plus class="text-primary" />
                 <span class="sr-only">Добавить характеристику</span>
               </Button>
             </TooltipTrigger>
@@ -405,10 +406,13 @@ async function confirmDeleteValue() {
              снимает фильтр. Без absolute на leave — на table-элементах ниже он ломает
              раскладку, здесь для единообразия тоже без него. Разделители — border
              по чётности индекса (левая/правая колонка), а не divide-x: у CSS grid с
-             2 колонками divide-x лёг бы на случайную сторону в зависимости от потока. -->
+             2 колонками divide-x лёг бы на случайную сторону в зависимости от потока.
+             overflow-hidden + p-2 на контейнере — чтобы прямоугольные ячейки не вылезали
+             за скруглённые углы рамки и чтобы внутренние черточки не упирались в неё
+             вплотную, а были немного отступлены со всех сторон. -->
         <TransitionGroup
           tag="div"
-          class="grid shrink-0 grid-cols-1 rounded-md border sm:grid-cols-2"
+          class="grid shrink-0 grid-cols-1 overflow-hidden rounded-md border p-2 sm:grid-cols-2"
           enter-active-class="animate-in fade-in-0 duration-200"
           leave-active-class="animate-out fade-out-0 duration-200"
           move-class="transition-transform duration-200"
@@ -416,7 +420,7 @@ async function confirmDeleteValue() {
           <div
             v-for="(c, index) in displayCharacteristics"
             :key="c.definitionId"
-            class="flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-accent"
+            class="flex cursor-pointer items-center justify-between gap-2 rounded px-3 py-2 text-sm hover:bg-accent"
             :class="[
               selectedCharacteristicFilter === c.definitionId ? 'bg-accent' : '',
               index !== 0 ? 'border-t' : '',
@@ -481,12 +485,15 @@ async function confirmDeleteValue() {
                  честно анимирует add/remove). Клик по характеристике наверху только скрывает
                  несовпадающие строки классом (без добавления/удаления из DOM) — иначе
                  TransitionGroup на каждый клик по фильтру гонял анимацию по всей таблице
-                 и выглядело как "дёрганье"/лишняя подгрузка. -->
+                 и выглядело как "дёрганье"/лишняя подгрузка. Без move-class: FLIP-анимация
+                 перемещения меряет позиции через getBoundingClientRect, а у скрытых (hidden)
+                 строк она (0,0) — при быстром переключении фильтра это давало наведённый
+                 артефакт "прилетает сверху слева". Добавление/удаление строки всё ещё
+                 плавно анимируется через enter/leave, просто без доп. скольжения соседей. -->
             <TransitionGroup
               tag="tbody"
               enter-active-class="animate-in fade-in-0 duration-200"
               leave-active-class="animate-out fade-out-0 duration-200"
-              move-class="transition-transform duration-200"
             >
               <tr
                 v-for="entry in displayHistory"
@@ -558,20 +565,21 @@ async function confirmDeleteValue() {
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-2">
             <Label>Характеристика</Label>
-            <!-- Нативный <select>, не компонент Select — тот на Reka UI подвешивал
-                 pointer-events на body после выбора опции (см. CONTEXT_HANDOFF.md), из-за
-                 чего клик по "Сохранить" переставал что-либо делать: у комнаты, где все
-                 базовые характеристики уже заполнены, это единственный путь добавить новое
-                 значение, других полей без Select тут нет. -->
-            <select
+            <!-- Reka UI Select — вернул как было. Настоящей причиной "Сохранить ничего не
+                 делает" был ReferenceError из-за порядка объявлений (см. историю), Select
+                 тут ни при чём. -->
+            <Select
               v-if="!valueFormLocked"
-              :value="valueDialogDefinitionId ?? ''"
-              class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              @change="(e) => (valueDialogDefinitionId = Number((e.target as HTMLSelectElement).value))"
+              :model-value="valueDialogDefinitionId ? String(valueDialogDefinitionId) : undefined"
+              @update:model-value="(v) => (valueDialogDefinitionId = Number(v))"
             >
-              <option value="" disabled>Выберите характеристику</option>
-              <option v-for="d in definitions" :key="d.id" :value="d.id">{{ d.name }}</option>
-            </select>
+              <SelectTrigger>
+                <SelectValue placeholder="Выберите характеристику" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="d in definitions" :key="d.id" :value="String(d.id)">{{ d.name }}</SelectItem>
+              </SelectContent>
+            </Select>
             <div v-else class="text-sm text-muted-foreground">{{ selectedDefinition?.name }}</div>
           </div>
 

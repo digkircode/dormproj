@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableHeader, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogScrollContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -143,10 +144,15 @@ async function confirmDelete() {
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
     <div class="flex items-center justify-between">
       <h1 class="text-lg font-medium">Характеристики комнат</h1>
-      <Button size="icon" title="Добавить характеристику" @click="openCreate">
-        <Plus />
-        <span class="sr-only">Добавить характеристику</span>
-      </Button>
+      <Tooltip>
+        <TooltipTrigger as-child>
+          <Button size="icon" @click="openCreate">
+            <Plus />
+            <span class="sr-only">Добавить характеристику</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Добавить характеристику</TooltipContent>
+      </Tooltip>
     </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
@@ -161,8 +167,8 @@ async function confirmDelete() {
           <TableHeader class="bg-muted">
             <TableRow>
               <TableHead class="w-8" />
-              <TableHead class="w-[35%]">Название</TableHead>
-              <TableHead class="w-[20%]">Тип значения</TableHead>
+              <TableHead class="w-[35%] border-r border-border">Название</TableHead>
+              <TableHead class="w-[20%] border-r border-border">Тип значения</TableHead>
               <TableHead class="w-[25%]">Единица измерения</TableHead>
               <TableHead class="w-8" />
             </TableRow>
@@ -178,14 +184,22 @@ async function confirmDelete() {
           >
             <TableRow v-for="d in definitions" :key="d.id">
               <TableCell class="py-2 pl-3 pr-1">
-                <span class="drag-handle flex cursor-grab items-center justify-center text-primary active:cursor-grabbing" title="Перетащить">
-                  <GripVertical class="size-4" />
-                </span>
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <span class="drag-handle flex cursor-grab items-center justify-center text-primary active:cursor-grabbing">
+                      <GripVertical class="size-4" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>Перетащить</TooltipContent>
+                </Tooltip>
               </TableCell>
-              <TableCell>{{ d.name }}</TableCell>
-              <TableCell>{{ VALUE_TYPE_LABELS[d.valueType] }}</TableCell>
+              <TableCell class="border-r border-border">{{ d.name }}</TableCell>
+              <TableCell class="border-r border-border">{{ VALUE_TYPE_LABELS[d.valueType] }}</TableCell>
               <TableCell>{{ d.unit ?? '—' }}</TableCell>
               <TableCell class="py-2 pl-1 pr-3 text-right">
+                <!-- Без Tooltip на самом триггере — вложенность Tooltip+DropdownMenuTrigger
+                     на одной кнопке рискует тем же классом багов с зависающими Reka UI
+                     порталами, что уже ловили на Select/Dialog-в-Dialog, см. CONTEXT_HANDOFF.md. -->
                 <DropdownMenu>
                   <DropdownMenuTrigger as-child>
                     <Button variant="ghost" size="icon" class="size-7">
