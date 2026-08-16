@@ -206,7 +206,7 @@ provide(DEFINITION_ACTIONS_KEY, { edit: openEdit, remove: openDeleteConfirm })
         <p v-if="deleteError" class="text-sm text-red-500">{{ deleteError }}</p>
         <DialogFooter>
           <Button variant="outline" @click="deleteTarget = null">Отмена</Button>
-          <Button variant="destructive" :disabled="isDeleting" @click="confirmDelete">Да, удалить</Button>
+          <Button variant="outline" class="border-red-500 text-red-500 hover:text-red-500" :disabled="isDeleting" @click="confirmDelete">Да, удалить</Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>

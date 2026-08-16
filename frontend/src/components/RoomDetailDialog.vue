@@ -329,7 +329,7 @@ async function confirmDeleteValue() {
   <Dialog :open="isOpen" @update:open="(open) => (isOpen = open)">
     <DialogScrollContent :class="['flex max-h-[85vh] min-w-0 flex-col gap-4 sm:max-w-2xl', DIALOG_ANIMATE_CLASS]">
       <DialogHeader>
-        <div v-if="mode === 'detail'" class="flex items-center justify-between gap-2 pr-8">
+        <div v-if="mode === 'detail'" class="flex items-center gap-1 pr-8">
           <DialogTitle>{{ detail ? `Комната ${detail.room}` : 'Комната' }}</DialogTitle>
           <Button
             variant="ghost"
@@ -413,9 +413,12 @@ async function confirmDeleteValue() {
         </div>
         <p v-if="historyError" class="text-sm text-red-500">{{ historyError }}</p>
 
-        <div class="overflow-hidden rounded-md border">
+        <!-- max-h + overflow-y-auto — если характеристик много, скроллится сама таблица,
+             а не вся модалка (иначе список выше "прыгает" при смене высоты истории при
+             фильтрации/добавлении строк). -->
+        <div class="max-h-64 overflow-y-auto rounded-md border">
           <table class="w-full table-fixed text-sm">
-            <thead class="bg-muted">
+            <thead class="sticky top-0 z-10 bg-muted">
               <tr>
                 <th class="w-[30%] px-3 py-2 text-left font-medium">Характеристика</th>
                 <th class="w-[25%] px-3 py-2 text-left font-medium">Значение</th>
@@ -465,7 +468,7 @@ async function confirmDeleteValue() {
         <p v-if="deleteRoomError" class="text-sm text-red-500">{{ deleteRoomError }}</p>
         <DialogFooter>
           <Button variant="outline" @click="mode = 'detail'">Отмена</Button>
-          <Button variant="destructive" :disabled="isDeletingRoom" @click="confirmDeleteRoom">Да, удалить</Button>
+          <Button variant="outline" class="border-red-500 text-red-500 hover:text-red-500" :disabled="isDeletingRoom" @click="confirmDeleteRoom">Да, удалить</Button>
         </DialogFooter>
       </template>
 
@@ -522,17 +525,20 @@ async function confirmDeleteValue() {
                 Нет
               </label>
             </div>
-            <!-- v-model на Input.vue с type="number" не работает — useVModel почему-то
-                 не ловит ввод в числовом инпуте (проверено в debug-харнессе: DOM
-                 обновляется, реактивная ссылка — нет). Обход — родной @input вместо
-                 v-model, только для этого поля. -->
-            <Input
+            <!-- Обычный native input, не компонент Input.vue — тот на type="number" не
+                 просто не ловит v-model, а с ручным :value+@input ещё и через раз глотает
+                 нажатия (контролируемый инпут гоняется с каждым апдейтом value туда-обратно
+                 через реактивность обёртки). Голый input без обёртки печатает нормально —
+                 проверено тем же debug-харнессом. Классы скопированы из Input.vue вручную. -->
+            <input
               v-else-if="selectedDefinition?.valueType === 'NUMBER'"
-              :value="valueDialogNumberValue"
+              v-model="valueDialogNumberValue"
               type="number"
               step="any"
-              :class="NO_SPINNER_CLASS"
-              @input="(e: Event) => (valueDialogNumberValue = (e.target as HTMLInputElement).value)"
+              :class="[
+                'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+                NO_SPINNER_CLASS,
+              ]"
             />
             <Input v-else v-model="valueDialogTextValue" type="text" />
           </div>
@@ -552,7 +558,7 @@ async function confirmDeleteValue() {
         </DialogDescription>
         <DialogFooter>
           <Button variant="outline" @click="mode = 'detail'">Отмена</Button>
-          <Button variant="destructive" :disabled="deletingValueId !== null" @click="confirmDeleteValue">Да, удалить</Button>
+          <Button variant="outline" class="border-red-500 text-red-500 hover:text-red-500" :disabled="deletingValueId !== null" @click="confirmDeleteValue">Да, удалить</Button>
         </DialogFooter>
       </template>
     </DialogScrollContent>
