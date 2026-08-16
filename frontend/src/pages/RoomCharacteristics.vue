@@ -166,7 +166,7 @@ async function confirmDelete() {
         <Table v-else class="table-fixed">
           <TableHeader class="bg-muted">
             <TableRow>
-              <TableHead class="w-8" />
+              <TableHead class="w-6" />
               <TableHead class="w-[35%] border-r border-border">Название</TableHead>
               <TableHead class="w-[20%] border-r border-border">Тип значения</TableHead>
               <TableHead class="w-[25%]">Единица измерения</TableHead>
@@ -183,7 +183,7 @@ async function confirmDelete() {
             @end="onDragEnd"
           >
             <TableRow v-for="d in definitions" :key="d.id">
-              <TableCell class="py-2 pl-3 pr-1">
+              <TableCell class="py-2 pl-2 pr-0">
                 <Tooltip>
                   <TooltipTrigger as-child>
                     <span class="drag-handle flex cursor-grab items-center justify-center text-primary active:cursor-grabbing">
@@ -233,7 +233,7 @@ async function confirmDelete() {
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-2">
             <Label for="def-name">Название</Label>
-            <Input id="def-name" v-model="formName" placeholder="Санузел" />
+            <Input id="def-name" v-model="formName" />
           </div>
           <div class="flex flex-col gap-2">
             <Label>Тип значения</Label>
@@ -251,7 +251,7 @@ async function confirmDelete() {
           </div>
           <div class="flex flex-col gap-2">
             <Label for="def-unit">Единица измерения</Label>
-            <Input id="def-unit" v-model="formUnit" placeholder="м², ₽…" />
+            <Input id="def-unit" v-model="formUnit" />
           </div>
           <p v-if="dialogError" class="text-sm text-red-500">{{ dialogError }}</p>
         </div>

@@ -22,8 +22,14 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
 
 <template>
   <DialogPortal>
+    <!-- place-items:safe center, не просто center — обычный center у скроллящегося grid-
+         контейнера при переполнении (контент выше вьюпорта, например от мобильной
+         клавиатуры при фокусе на инпуте) обрезает доступ к одному из краёв контента даже
+         со скроллом — футер с кнопками становится недостижим/визуально пропадает. safe
+         center ведёт себя как center, пока контент помещается, и падает до start, когда
+         не помещается. -->
     <DialogOverlay
-      class="fixed inset-0 z-50 grid will-change-transform place-items-center overflow-y-auto bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+      class="fixed inset-0 z-50 grid will-change-transform [place-items:safe_center] overflow-y-auto bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
     >
       <DialogContent
         :class="

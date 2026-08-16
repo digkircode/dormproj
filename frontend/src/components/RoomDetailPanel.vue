@@ -189,6 +189,11 @@ function toggleCharacteristicFilter(definitionId: number) {
 const selectedCharacteristicName = computed(
   () => displayCharacteristics.value.find((c) => c.definitionId === selectedCharacteristicFilter.value)?.name ?? null,
 )
+const filteredHistory = computed(() =>
+  selectedCharacteristicFilter.value === null
+    ? displayHistory.value
+    : displayHistory.value.filter((h) => h.definitionId === selectedCharacteristicFilter.value),
+)
 
 // --- Удаление комнаты ---
 const deleteRoomConfirmOpen = ref(false)
@@ -257,6 +262,15 @@ function openEditValue(entry: { id: number; definitionId: number; period: string
   valueFormOpen.value = true
 }
 
+// Смена характеристики в незалоченном Select — старое значение теряет смысл (другой
+// valueType), а не только визуально прячется за другим полем.
+function onCharacteristicSelect(v: string) {
+  valueDialogDefinitionId.value = Number(v)
+  valueDialogBoolValue.value = null
+  valueDialogNumberValue.value = ''
+  valueDialogTextValue.value = ''
+}
+
 const calendarValue = computed<DateValue | undefined>(() =>
   valueDialogPeriod.value ? parseDate(valueDialogPeriod.value) : undefined,
 )
@@ -270,8 +284,12 @@ function buildValue(): boolean | number | string | null {
   const type = selectedDefinition.value?.valueType
   if (type === 'BOOLEAN') return valueDialogBoolValue.value
   if (type === 'NUMBER') {
-    const num = Number(valueDialogNumberValue.value)
-    return Number.isFinite(num) && valueDialogNumberValue.value.trim() !== '' ? num : null
+    // v-model на <input type="number"> сам приводит значение к number на вводе (даже
+    // без модификатора .number) — valueDialogNumberValue.value бывает и строкой (пусто),
+    // и числом, String(...) перед trim() нужен, чтобы не словить "x.trim is not a function".
+    const raw = String(valueDialogNumberValue.value).trim()
+    const num = Number(raw)
+    return raw !== '' && Number.isFinite(num) ? num : null
   }
   if (type === 'TEXT') return valueDialogTextValue.value.trim() || null
   return null
@@ -328,6 +346,14 @@ async function confirmDeleteValue() {
   try {
     await deleteCharacteristicValue(detail.value.id, deletingValueTarget.value.id)
     await refresh()
+    // Под текущим фильтром могло не остаться ни одной записи (удалили последнее значение
+    // этой характеристики) — снимаем фильтр, а не оставляем пустую таблицу без объяснения.
+    if (
+      selectedCharacteristicFilter.value !== null &&
+      !displayHistory.value.some((h) => h.definitionId === selectedCharacteristicFilter.value)
+    ) {
+      selectedCharacteristicFilter.value = null
+    }
     deletingValueTarget.value = null
     emit('changed')
   } catch (error) {
@@ -404,15 +430,15 @@ async function confirmDeleteValue() {
 
         <!-- Клик по характеристике фильтрует историю ниже только по ней, повторный клик
              снимает фильтр. Без absolute на leave — на table-элементах ниже он ломает
-             раскладку, здесь для единообразия тоже без него. Разделители — border
-             по чётности индекса (левая/правая колонка), а не divide-x: у CSS grid с
-             2 колонками divide-x лёг бы на случайную сторону в зависимости от потока.
-             overflow-hidden + p-2 на контейнере — чтобы прямоугольные ячейки не вылезали
-             за скруглённые углы рамки и чтобы внутренние черточки не упирались в неё
-             вплотную, а были немного отступлены со всех сторон. -->
+             раскладку, здесь для единообразия тоже без него. Только вертикальный
+             разделитель между колонками (border по чётности индекса, не divide-x — у CSS
+             grid с 2 колонками divide-x лёг бы на случайную сторону в зависимости от
+             потока), горизонтальных линий между строками нет — только gap. overflow-hidden
+             + p-2 на контейнере — чтобы прямоугольные ячейки не вылезали за скруглённые
+             углы рамки и разделитель не упирался в неё вплотную. -->
         <TransitionGroup
           tag="div"
-          class="grid shrink-0 grid-cols-1 overflow-hidden rounded-md border p-2 sm:grid-cols-2"
+          class="grid shrink-0 grid-cols-1 gap-y-1 overflow-hidden rounded-md border p-2 sm:grid-cols-2"
           enter-active-class="animate-in fade-in-0 duration-200"
           leave-active-class="animate-out fade-out-0 duration-200"
           move-class="transition-transform duration-200"
@@ -423,26 +449,12 @@ async function confirmDeleteValue() {
             class="flex cursor-pointer items-center justify-between gap-2 rounded px-3 py-2 text-sm hover:bg-accent"
             :class="[
               selectedCharacteristicFilter === c.definitionId ? 'bg-accent' : '',
-              index !== 0 ? 'border-t' : '',
-              index === 1 ? 'sm:border-t-0' : '',
               index % 2 === 1 ? 'sm:border-l' : '',
             ]"
             @click="toggleCharacteristicFilter(c.definitionId)"
           >
             <span class="text-muted-foreground">{{ c.name }}</span>
-            <span class="flex items-center gap-1">
-              <span class="font-medium">{{ c.hasValue ? formatValue(c) : '—' }}</span>
-              <Button
-                v-if="!c.hasValue"
-                variant="ghost"
-                size="icon"
-                class="size-6"
-                @click.stop="openAddValue(c.definitionId)"
-              >
-                <Plus class="size-3.5 text-primary" />
-                <span class="sr-only">Добавить</span>
-              </Button>
-            </span>
+            <span class="font-medium">{{ c.hasValue ? formatValue(c) : '—' }}</span>
           </div>
         </TransitionGroup>
 
@@ -480,27 +492,20 @@ async function confirmDeleteValue() {
                 <th class="w-[20%] px-3 py-2" />
               </tr>
             </thead>
-            <!-- v-for идёт по полному displayHistory, а не отфильтрованному списку — состав
-                 строк меняется только при реальной правке данных (тогда TransitionGroup
-                 честно анимирует add/remove). Клик по характеристике наверху только скрывает
-                 несовпадающие строки классом (без добавления/удаления из DOM) — иначе
-                 TransitionGroup на каждый клик по фильтру гонял анимацию по всей таблице
-                 и выглядело как "дёрганье"/лишняя подгрузка. Без move-class: FLIP-анимация
-                 перемещения меряет позиции через getBoundingClientRect, а у скрытых (hidden)
-                 строк она (0,0) — при быстром переключении фильтра это давало наведённый
-                 артефакт "прилетает сверху слева". Добавление/удаление строки всё ещё
-                 плавно анимируется через enter/leave, просто без доп. скольжения соседей. -->
+            <!-- v-for по отфильтрованному списку — строки, не подходящие под выбранную
+                 характеристику, честно уходят из DOM через leave-анимацию (плавный фейд),
+                 а не мгновенно прячутся классом. Без move-class: FLIP-анимация соседей
+                 меряет позиции через getBoundingClientRect, а у только что скрытых
+                 (display:none) элементов она (0,0) — при быстром переключении фильтра это
+                 давало артефакт "прилетает сверху слева". Без него остающиеся строки просто
+                 мгновенно занимают своё место, а не наводят на глюк, enter/leave при этом
+                 всё равно анимируются плавно. -->
             <TransitionGroup
               tag="tbody"
               enter-active-class="animate-in fade-in-0 duration-200"
               leave-active-class="animate-out fade-out-0 duration-200"
             >
-              <tr
-                v-for="entry in displayHistory"
-                :key="entry.id"
-                class="border-t"
-                :class="{ hidden: selectedCharacteristicFilter !== null && entry.definitionId !== selectedCharacteristicFilter }"
-              >
+              <tr v-for="entry in filteredHistory" :key="entry.id" class="border-t">
                 <td class="px-3 py-2">{{ entry.name }}</td>
                 <td class="px-3 py-2">{{ entry.hasValue ? formatValue(entry) : '—' }}</td>
                 <td class="px-3 py-2">{{ entry.period ? formatDate(entry.period) : '—' }}</td>
@@ -571,7 +576,7 @@ async function confirmDeleteValue() {
             <Select
               v-if="!valueFormLocked"
               :model-value="valueDialogDefinitionId ? String(valueDialogDefinitionId) : undefined"
-              @update:model-value="(v) => (valueDialogDefinitionId = Number(v))"
+              @update:model-value="(v) => onCharacteristicSelect(v as string)"
             >
               <SelectTrigger>
                 <SelectValue placeholder="Выберите характеристику" />

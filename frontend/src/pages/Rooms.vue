@@ -55,8 +55,12 @@ function openCreate() {
 }
 
 async function submitCreate() {
-  const floor = Number(newRoomFloor.value)
-  if (!newRoomNumber.value.trim() || !Number.isFinite(floor) || newRoomFloor.value.trim() === '') return
+  // v-model на <input type="number"> сам приводит значение к number на вводе (даже без
+  // модификатора .number) — newRoomFloor.value бывает и строкой (пусто), и числом,
+  // String(...) перед trim() нужен, чтобы не словить "x.trim is not a function".
+  const floorRaw = String(newRoomFloor.value).trim()
+  const floor = Number(floorRaw)
+  if (!newRoomNumber.value.trim() || floorRaw === '' || !Number.isFinite(floor)) return
   isCreating.value = true
   createError.value = ''
   try {
@@ -100,7 +104,7 @@ async function submitCreate() {
         </DialogHeader>
         <div class="flex flex-col gap-2">
           <Label for="new-room-number">Номер</Label>
-          <Input id="new-room-number" v-model="newRoomNumber" placeholder="405-2" @keyup.enter="submitCreate" />
+          <Input id="new-room-number" v-model="newRoomNumber" @keyup.enter="submitCreate" />
         </div>
         <div class="flex flex-col gap-2">
           <Label for="new-room-floor">Этаж</Label>
@@ -111,7 +115,6 @@ async function submitCreate() {
             id="new-room-floor"
             v-model="newRoomFloor"
             type="number"
-            placeholder="4"
             :class="[
               'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
               NO_SPINNER_CLASS,
@@ -122,7 +125,7 @@ async function submitCreate() {
         <p v-if="createError" class="text-sm text-red-500">{{ createError }}</p>
         <DialogFooter>
           <Button variant="outline" @click="isCreateOpen = false">Отмена</Button>
-          <Button :disabled="isCreating || !newRoomNumber.trim() || !newRoomFloor.trim()" @click="submitCreate">Создать</Button>
+          <Button :disabled="isCreating || !newRoomNumber.trim() || String(newRoomFloor).trim() === ''" @click="submitCreate">Создать</Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>

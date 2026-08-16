@@ -66,7 +66,11 @@ provideSidebarContext({
 </script>
 
 <template>
-  <TooltipProvider :delay-duration="0">
+  <!-- delay-duration не 0: при закрытии модалки/диалога браузер иногда шлёт "синтетический"
+       hover на элемент, оказавшийся под курсором, и с нулевой задержкой подсказка от него
+       успевала появиться и зависать поверх страницы. Небольшая задержка отфильтровывает
+       такие мгновенные наводки, не делая обычный осознанный hover заметно медленнее. -->
+  <TooltipProvider :delay-duration="150">
     <div
       :style="{
         '--sidebar-width': SIDEBAR_WIDTH,
