@@ -130,7 +130,10 @@ export class RoomsController {
       include: {
         characteristicValues: {
           include: { definition: true },
-          orderBy: { period: 'desc' },
+          // period без второго ключа даёт непредсказуемый порядок среди записей
+          // с одинаковым period (сиды все на 01.09.2026) — имя характеристики
+          // тай-брейкером делает историю стабильной и читаемой.
+          orderBy: [{ period: 'desc' }, { definition: { name: 'asc' } }],
         },
       },
     });

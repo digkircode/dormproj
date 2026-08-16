@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { CalendarIcon, Pencil, Plus, Trash2 } from 'lucide-vue-next'
+import { CalendarIcon, Pencil, Plus, Trash2, X } from 'lucide-vue-next'
 import { parseDate, today, getLocalTimeZone, type DateValue } from '@internationalized/date'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -92,10 +92,13 @@ watch(
   () => props.roomId,
   (id) => {
     mode.value = 'detail'
+    selectedCharacteristicFilter.value = null
     if (id !== null) load(id)
   },
   { immediate: true },
 )
+
+const selectedCharacteristicFilter = ref<number | null>(null)
 
 function formatDate(iso: string): string {
   const date = new Date(iso)
@@ -163,6 +166,21 @@ const displayHistory = computed<
     hasValue: false,
   }))
 })
+
+// Клик по характеристике в сетке "Текущие" фильтрует таблицу истории ниже только
+// по ней (повторный клик по той же — снимает фильтр), чтобы не листать всю историю
+// комнаты в поисках одной характеристики.
+function toggleCharacteristicFilter(definitionId: number) {
+  selectedCharacteristicFilter.value = selectedCharacteristicFilter.value === definitionId ? null : definitionId
+}
+const selectedCharacteristicName = computed(
+  () => displayCharacteristics.value.find((c) => c.definitionId === selectedCharacteristicFilter.value)?.name ?? null,
+)
+const filteredHistory = computed(() =>
+  selectedCharacteristicFilter.value === null
+    ? displayHistory.value
+    : displayHistory.value.filter((h) => h.definitionId === selectedCharacteristicFilter.value),
+)
 
 // --- Удаление комнаты ---
 const isDeletingRoom = ref(false)
@@ -311,7 +329,19 @@ async function confirmDeleteValue() {
   <Dialog :open="isOpen" @update:open="(open) => (isOpen = open)">
     <DialogScrollContent :class="['flex max-h-[85vh] min-w-0 flex-col gap-4 sm:max-w-2xl', DIALOG_ANIMATE_CLASS]">
       <DialogHeader>
-        <DialogTitle v-if="mode === 'detail'">{{ detail ? `Комната ${detail.room}` : 'Комната' }}</DialogTitle>
+        <div v-if="mode === 'detail'" class="flex items-center justify-between gap-2 pr-8">
+          <DialogTitle>{{ detail ? `Комната ${detail.room}` : 'Комната' }}</DialogTitle>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="size-7 shrink-0 text-red-500 hover:text-red-500"
+            title="Удалить комнату"
+            @click="mode = 'delete-room-confirm'"
+          >
+            <Trash2 />
+            <span class="sr-only">Удалить комнату</span>
+          </Button>
+        </div>
         <DialogTitle v-else-if="mode === 'delete-room-confirm'">Удалить комнату?</DialogTitle>
         <DialogTitle v-else-if="mode === 'value-form'">
           {{ valueFormKind === 'add' ? 'Новое значение характеристики' : 'Изменить значение' }}
@@ -324,13 +354,6 @@ async function confirmDeleteValue() {
 
       <!-- Основной вид карточки -->
       <template v-else-if="detail && mode === 'detail'">
-        <div class="flex items-center justify-end">
-          <Button variant="outline" size="sm" class="text-red-500 hover:text-red-500" @click="mode = 'delete-room-confirm'">
-            <Trash2 />
-            Удалить комнату
-          </Button>
-        </div>
-
         <div class="flex items-center justify-between">
           <div class="text-sm font-medium text-muted-foreground">Характеристики</div>
           <Button size="icon" variant="outline" title="Добавить значение" @click="openAddValue()">
@@ -339,6 +362,8 @@ async function confirmDeleteValue() {
           </Button>
         </div>
 
+        <!-- Клик по характеристике фильтрует историю ниже только по ней, повторный клик
+             снимает фильтр — редактирование/удаление значений теперь только в истории. -->
         <TransitionGroup
           tag="div"
           class="grid grid-cols-1 gap-x-8 gap-y-2 rounded-md border p-3 sm:grid-cols-2"
@@ -349,24 +374,20 @@ async function confirmDeleteValue() {
           <div
             v-for="c in displayCharacteristics"
             :key="c.definitionId"
-            class="flex items-center justify-between gap-2 border-b py-1.5 text-sm last:border-b-0"
+            class="-mx-1.5 flex cursor-pointer items-center justify-between gap-2 rounded px-1.5 py-1.5 text-sm hover:bg-accent"
+            :class="{ 'bg-accent': selectedCharacteristicFilter === c.definitionId }"
+            @click="toggleCharacteristicFilter(c.definitionId)"
           >
             <span class="text-muted-foreground">{{ c.name }}</span>
             <span class="flex items-center gap-1">
               <span class="font-medium">{{ c.hasValue ? formatValue(c) : '—' }}</span>
-              <template v-if="c.hasValue">
-                <template v-if="!c.isProtected">
-                  <Button variant="ghost" size="icon" class="size-6" @click="openEditValue(c)">
-                    <Pencil class="size-3.5 text-primary" />
-                    <span class="sr-only">Изменить</span>
-                  </Button>
-                  <Button variant="ghost" size="icon" class="size-6" @click="openDeleteValueConfirm(c)">
-                    <Trash2 class="size-3.5 text-red-500" />
-                    <span class="sr-only">Удалить</span>
-                  </Button>
-                </template>
-              </template>
-              <Button v-else variant="ghost" size="icon" class="size-6" @click="openAddValue(c.definitionId)">
+              <Button
+                v-if="!c.hasValue"
+                variant="ghost"
+                size="icon"
+                class="size-6"
+                @click.stop="openAddValue(c.definitionId)"
+              >
                 <Plus class="size-3.5 text-primary" />
                 <span class="sr-only">Добавить</span>
               </Button>
@@ -374,7 +395,22 @@ async function confirmDeleteValue() {
           </div>
         </TransitionGroup>
 
-        <div class="text-sm font-medium text-muted-foreground">История значений</div>
+        <div class="flex items-center gap-2">
+          <div class="text-sm font-medium text-muted-foreground">
+            {{ selectedCharacteristicName ? `История значений — ${selectedCharacteristicName}` : 'История значений' }}
+          </div>
+          <Button
+            v-if="selectedCharacteristicFilter !== null"
+            variant="ghost"
+            size="icon"
+            class="size-6"
+            title="Показать всю историю"
+            @click="selectedCharacteristicFilter = null"
+          >
+            <X class="size-3.5 text-red-500" />
+            <span class="sr-only">Показать всю историю</span>
+          </Button>
+        </div>
         <p v-if="historyError" class="text-sm text-red-500">{{ historyError }}</p>
 
         <div class="overflow-hidden rounded-md border">
@@ -393,7 +429,7 @@ async function confirmDeleteValue() {
               leave-active-class="animate-out fade-out-0 duration-200 absolute"
               move-class="transition-transform duration-200"
             >
-              <tr v-for="entry in displayHistory" :key="entry.id" class="border-t">
+              <tr v-for="entry in filteredHistory" :key="entry.id" class="border-t">
                 <td class="px-3 py-2">{{ entry.name }}</td>
                 <td class="px-3 py-2">{{ entry.hasValue ? formatValue(entry) : '—' }}</td>
                 <td class="px-3 py-2">{{ entry.period ? formatDate(entry.period) : '—' }}</td>
@@ -486,12 +522,17 @@ async function confirmDeleteValue() {
                 Нет
               </label>
             </div>
+            <!-- v-model на Input.vue с type="number" не работает — useVModel почему-то
+                 не ловит ввод в числовом инпуте (проверено в debug-харнессе: DOM
+                 обновляется, реактивная ссылка — нет). Обход — родной @input вместо
+                 v-model, только для этого поля. -->
             <Input
               v-else-if="selectedDefinition?.valueType === 'NUMBER'"
-              v-model="valueDialogNumberValue"
+              :value="valueDialogNumberValue"
               type="number"
               step="any"
               :class="NO_SPINNER_CLASS"
+              @input="(e: Event) => (valueDialogNumberValue = (e.target as HTMLInputElement).value)"
             />
             <Input v-else v-model="valueDialogTextValue" type="text" />
           </div>

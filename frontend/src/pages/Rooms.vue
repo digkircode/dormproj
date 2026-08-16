@@ -108,12 +108,15 @@ async function submitCreate() {
         </div>
         <div class="flex flex-col gap-2">
           <Label for="new-room-floor">Этаж</Label>
+          <!-- v-model на Input.vue с type="number" не ловит ввод (см. RoomDetailDialog.vue) —
+               обход через родной @input. -->
           <Input
             id="new-room-floor"
-            v-model="newRoomFloor"
+            :value="newRoomFloor"
             type="number"
             :class="NO_SPINNER_CLASS"
             placeholder="4"
+            @input="(e: Event) => (newRoomFloor = (e.target as HTMLInputElement).value)"
             @keyup.enter="submitCreate"
           />
         </div>
