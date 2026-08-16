@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import PassportTable from '@/components/PassportTable.vue'
 import StudentFields from '@/components/StudentFields.vue'
-import { fetchIndividualDetail, type IndividualDetail } from '@/lib/individuals-api'
+import { fetchIndividualDetail, syncIndividual, type IndividualDetail } from '@/lib/individuals-api'
 import { copyToClipboard } from '@/lib/utils'
 
 const route = useRoute()
@@ -73,6 +73,26 @@ const contactRows = computed<ContactRow[]>(() => {
     predstavleniye: byType.get(type)?.predstavleniye ?? null,
   }))
 })
+
+const isSyncing = ref(false)
+const syncError = ref('')
+
+// Перезапрашиваем всю карточку после успешной синхронизации — синхрон затрагивает
+// сразу 5 источников (студент/физлицо/гражданство/паспорт/контакты), проще перечитать
+// всё разом, чем точечно обновлять каждый раздел.
+async function runSync() {
+  if (isSyncing.value) return
+  isSyncing.value = true
+  syncError.value = ''
+  try {
+    await syncIndividual(uid.value)
+    detail.value = await fetchIndividualDetail(uid.value)
+  } catch (error) {
+    syncError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isSyncing.value = false
+  }
+}
 
 async function copyValue(field: 'uid' | 'code', value: string | null | undefined) {
   if (!value) return
@@ -147,8 +167,8 @@ onMounted(async () => {
           <!-- Явно 2x2, а не flex-wrap — при трёх колонках в шапке места под ряд из
                4 кнопок уже не хватает, а непредсказуемый перенос выглядит неряшливо. -->
           <div class="grid grid-cols-2 gap-2">
-            <Button variant="outline" size="sm">
-              <RefreshCw />
+            <Button variant="outline" size="sm" :disabled="isSyncing" @click="runSync">
+              <RefreshCw :class="{ 'animate-spin': isSyncing }" />
               Синхронизировать
             </Button>
             <Button size="sm">
@@ -164,9 +184,27 @@ onMounted(async () => {
               Просмотр комнаты
             </Button>
           </div>
+          <p v-if="syncError" class="text-sm text-red-500">{{ syncError }}</p>
         </div>
 
-        <div class="flex flex-col divide-y divide-border py-4 lg:w-64 lg:shrink-0 lg:py-0 lg:px-6">
+        <!-- Контактная информация — тем же способом схлопнута бэкендом до одной
+             актуальной записи на тип (см. contactRows/pickLatestContactInfo), дата
+             здесь не нужна (она осталась только у документов/обучения). -->
+        <div class="flex flex-col divide-y divide-border py-4 lg:min-w-0 lg:flex-1 lg:py-0 lg:px-6">
+          <div
+            v-for="contact in contactRows"
+            :key="contact.key"
+            class="flex items-start gap-2 py-2 text-sm first:pt-0 last:pb-0"
+          >
+            <span class="flex w-40 shrink-0 items-center gap-1.5 text-muted-foreground">
+              <component :is="contactTypeIcon(contact.type)" v-if="contactTypeIcon(contact.type)" class="size-4 shrink-0" />
+              {{ contact.type }}
+            </span>
+            <span>{{ contact.predstavleniye || '—' }}</span>
+          </div>
+        </div>
+
+        <div class="flex flex-col divide-y divide-border pt-4 lg:w-64 lg:shrink-0 lg:pt-0 lg:pl-6">
           <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
             <span class="text-muted-foreground">Гражданство</span>
             <span>{{ citizenship?.country ?? '—' }}</span>
@@ -186,23 +224,6 @@ onMounted(async () => {
           <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
             <span class="text-muted-foreground">ИНН</span>
             <span>{{ detail.inn ?? '—' }}</span>
-          </div>
-        </div>
-
-        <!-- Контактная информация — тем же способом схлопнута бэкендом до одной
-             актуальной записи на тип (см. contactRows/pickLatestContactInfo), дата
-             здесь не нужна (она осталась только у документов/обучения). -->
-        <div class="flex flex-col divide-y divide-border pt-4 lg:min-w-0 lg:flex-1 lg:pt-0 lg:pl-6">
-          <div
-            v-for="contact in contactRows"
-            :key="contact.key"
-            class="flex items-start gap-2 py-2 text-sm first:pt-0 last:pb-0"
-          >
-            <span class="flex w-40 shrink-0 items-center gap-1.5 text-muted-foreground">
-              <component :is="contactTypeIcon(contact.type)" v-if="contactTypeIcon(contact.type)" class="size-4 shrink-0" />
-              {{ contact.type }}
-            </span>
-            <span>{{ contact.predstavleniye || '—' }}</span>
           </div>
         </div>
       </Card>

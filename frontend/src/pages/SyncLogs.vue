@@ -29,11 +29,13 @@ const tableRef = ref<{ refresh: () => void | Promise<void> } | null>(null)
 const columnLabels: Record<string, string> = {
   rowNumber: '№',
   trigger: 'Тип',
+  targetUid: 'UID',
   status: 'Статус',
   startedAt: 'Время начала',
   finishedAt: 'Время окончания',
 }
-const filterableFields = ['status', 'trigger']
+// У точечной синхронизации физлица Trigger всегда MANUAL — фильтр по нему бессмысленен.
+const filterableFields = computed(() => (entity.value?.showTargetUid ? ['status'] : ['status', 'trigger']))
 const cellRenderers = { status: SyncStatusCell }
 
 function cellText(columnId: string, value: unknown): string {
@@ -51,21 +53,27 @@ function cellText(columnId: string, value: unknown): string {
 
 const columnHelper = createAppColumnHelper<SyncLogEntry>()
 
-// id (сквозной по всей таблице SyncLog, партиционированной по всем 5 типам синхронов)
+// id (сквозной по всей таблице SyncLog, партиционированной по всем 6 типам синхронов)
 // сюда не выводим — в списке нужен порядковый номер именно для этого синхрона,
-// сам id остаётся доступен в модалке "Подробнее" (см. openLogDetails).
-const columns = columnHelper.columns([
-  columnHelper.accessor('rowNumber', {
-    header: columnLabels.rowNumber,
-    enableHiding: false,
-    size: 64,
-    minSize: 56,
-  }),
-  columnHelper.accessor('trigger', { header: columnLabels.trigger, size: 160, minSize: 120 }),
-  columnHelper.accessor('status', { header: columnLabels.status, size: 144, minSize: 110 }),
-  columnHelper.accessor('startedAt', { header: columnLabels.startedAt, size: 176, minSize: 140 }),
-  columnHelper.accessor('finishedAt', { header: columnLabels.finishedAt, size: 176, minSize: 140 }),
-])
+// сам id остаётся доступен в модалке "Подробнее" (см. openLogDetails). У точечной
+// синхронизации физлица вместо "Тип" (Trigger всегда MANUAL, бесполезная колонка) —
+// UID синхронизированного физлица.
+const columns = computed(() =>
+  columnHelper.columns([
+    columnHelper.accessor('rowNumber', {
+      header: columnLabels.rowNumber,
+      enableHiding: false,
+      size: 64,
+      minSize: 56,
+    }),
+    entity.value?.showTargetUid
+      ? columnHelper.accessor('targetUid', { header: columnLabels.targetUid, size: 280, minSize: 200 })
+      : columnHelper.accessor('trigger', { header: columnLabels.trigger, size: 160, minSize: 120 }),
+    columnHelper.accessor('status', { header: columnLabels.status, size: 144, minSize: 110 }),
+    columnHelper.accessor('startedAt', { header: columnLabels.startedAt, size: 176, minSize: 140 }),
+    columnHelper.accessor('finishedAt', { header: columnLabels.finishedAt, size: 176, minSize: 140 }),
+  ]),
+)
 
 function fetchPage(options: ListOptions) {
   return fetchSyncLogsPage(entity.value?.basePath ?? '', options)

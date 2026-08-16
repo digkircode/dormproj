@@ -110,6 +110,27 @@ export class ContactInfoSyncService {
     }
   }
 
+  // Точечная синхронизация одного физлица (кнопка на карточке) — та же логика "слепка",
+  // что и в общем прогоне, но удаляет и заново пишет только строки этого UID, а не всю
+  // таблицу. Без отдельного SyncLog — это шаг общего лога IndividualSyncService.
+  async syncOne(uid: string): Promise<{ fetchedCount: number; added: number; removed: number }> {
+    const records = await this.externalApi.fetchContactInfo([uid]);
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        const existingCount = await tx.contactInfo.count({ where: { fizicheskoyeLitsoUid: uid } });
+        await tx.contactInfo.deleteMany({ where: { fizicheskoyeLitsoUid: uid } });
+
+        if (records.length > 0) {
+          await tx.contactInfo.createMany({ data: records.map((record) => toContactInfoData(record)) });
+        }
+
+        return { fetchedCount: records.length, added: records.length, removed: existingCount };
+      },
+      { timeout: TRANSACTION_TIMEOUT_MS },
+    );
+  }
+
   private async acquireLock(): Promise<void> {
     try {
       await this.prisma.syncLock.create({

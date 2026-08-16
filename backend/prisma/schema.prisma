@@ -188,6 +188,9 @@ model SyncLog {
   removed      Int?
   errorMessage String?     @map("error_message")
   errorStack   String?     @map("error_stack")
+  // UID физлица — заполняется только для точечной синхронизации одного физлица
+  // (с его карточки), у остальных 5 типов синхронов всегда null.
+  targetUid    String?     @map("target_uid")
 
   @@index([type, status, finishedAt])
   @@map("sync_logs")

@@ -12,6 +12,7 @@ import { IndividualsSyncModule } from './individuals-sync/individuals-sync.modul
 import { CitizenshipSyncModule } from './citizenship-sync/citizenship-sync.module';
 import { PassportSyncModule } from './passport-sync/passport-sync.module';
 import { ContactInfoSyncModule } from './contact-info-sync/contact-info-sync.module';
+import { IndividualSyncModule } from './individual-sync/individual-sync.module';
 import { StudentsModule } from './students/students.module';
 import { IndividualsModule } from './individuals/individuals.module';
 import { CitizenshipModule } from './citizenship/citizenship.module';
@@ -36,6 +37,7 @@ import { AuthModule } from './auth/auth.module';
     CitizenshipSyncModule,
     PassportSyncModule,
     ContactInfoSyncModule,
+    IndividualSyncModule,
     StudentsModule,
     IndividualsModule,
     CitizenshipModule,

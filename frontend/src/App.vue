@@ -5,6 +5,7 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/s
 import { Separator } from '@/components/ui/separator'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import AppSidebar from './components/AppSidebar.vue'
+import AppFooter from './components/AppFooter.vue'
 import { currentUser, isAuthLoading, loadCurrentUser } from '@/lib/auth-state'
 import { rosnouLoginUrl } from '@/lib/auth-api'
 
@@ -66,6 +67,7 @@ onMounted(async () => {
       </header>
 
       <RouterView />
+      <AppFooter />
     </SidebarInset>
   </SidebarProvider>
 </template>

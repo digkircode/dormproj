@@ -21,6 +21,7 @@ const individualsSync = useSyncRow('Физические лица', '/sync/indiv
 const citizenshipSync = useSyncRow('Гражданство', '/sync/citizenship')
 const passportSync = useSyncRow('Паспортные данные', '/sync/passport')
 const contactInfoSync = useSyncRow('Контактная информация', '/sync/contact-info')
+const individualManualSync = useSyncRow('Обновление физлица', '/sync/individual')
 
 const rows = computed(() => [
   { ...studentSync.row.value, isRunning: studentSync.isRunning.value, run: studentSync.run, slug: 'students' },
@@ -28,11 +29,14 @@ const rows = computed(() => [
   { ...citizenshipSync.row.value, isRunning: citizenshipSync.isRunning.value, run: citizenshipSync.run, slug: 'citizenship' },
   { ...passportSync.row.value, isRunning: passportSync.isRunning.value, run: passportSync.run, slug: 'passport' },
   { ...contactInfoSync.row.value, isRunning: contactInfoSync.isRunning.value, run: contactInfoSync.run, slug: 'contact-info' },
+  // Запускается только с карточки конкретного физлица — здесь только строка с логами,
+  // без кнопки "Запустить" (см. isReal ниже и TableCell в шаблоне).
+  { ...individualManualSync.row.value, isRunning: false, run: individualManualSync.run, slug: 'individual', isReal: false as const },
 ])
 
 const isLoading = ref(true)
 
-// Раньше 5 refresh() запускались параллельно, но каждая строка перерисовывалась
+// Раньше 6 refresh() запускались параллельно, но каждая строка перерисовывалась
 // сама по себе по мере ответа своего запроса — получался дёрганый порядок появления
 // статусов/времени. Ждём, пока отработают все, и показываем таблицу разом.
 onMounted(async () => {
@@ -42,6 +46,7 @@ onMounted(async () => {
     citizenshipSync.refresh(),
     passportSync.refresh(),
     contactInfoSync.refresh(),
+    individualManualSync.refresh(),
   ])
   isLoading.value = false
 })
@@ -62,7 +67,7 @@ onMounted(async () => {
           </TableRow>
         </TableHeader>
         <TableBody v-if="isLoading">
-          <TableRow v-for="i in 5" :key="i">
+          <TableRow v-for="i in 6" :key="i">
             <TableCell><Skeleton class="h-4 w-40" /></TableCell>
             <TableCell><Skeleton class="h-4 w-24" /></TableCell>
             <TableCell><Skeleton class="h-4 w-28" /></TableCell>
@@ -96,16 +101,16 @@ onMounted(async () => {
               </Tooltip>
             </TableCell>
             <TableCell>
-              <Tooltip>
+              <Tooltip v-if="row.isReal">
                 <TooltipTrigger as-child>
                   <Button
                     variant="ghost"
                     size="icon"
                     class="size-7"
-                    :disabled="row.isReal && row.isRunning"
-                    @click="row.isReal ? row.run() : undefined"
+                    :disabled="row.isRunning"
+                    @click="row.run()"
                   >
-                    <Loader v-if="row.isReal && row.isRunning" class="animate-spin" />
+                    <Loader v-if="row.isRunning" class="animate-spin" />
                     <Play v-else />
                     <span class="sr-only">Запустить</span>
                   </Button>

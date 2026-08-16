@@ -21,5 +21,6 @@ import { SyncService } from './sync.service';
   ],
   controllers: [SyncController],
   providers: [ExternalStudentApiService, SyncService, SyncScheduler],
+  exports: [SyncService],
 })
 export class SyncModule {}

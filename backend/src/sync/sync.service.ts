@@ -124,6 +124,33 @@ export class SyncService {
     }
   }
 
+  // Точечная синхронизация одного физлица (кнопка на карточке) — без guard'а от
+  // падения количества (тот защищает полный слепок; здесь 0 записей у человека,
+  // переставшего быть активным студентом, — легитимный исход, а не сбой источника).
+  // Отдельного SyncLog не пишет — это шаг общего лога, который ведёт IndividualSyncService.
+  async syncOne(uid: string): Promise<{ fetchedCount: number; added: number; removed: number }> {
+    const records = await this.externalApi.fetchActiveStudentsByUid(uid);
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        const existingCount = await tx.student.count({ where: { fizicheskoyeLitsoUid: uid } });
+        await tx.student.deleteMany({ where: { fizicheskoyeLitsoUid: uid } });
+
+        if (records.length > 0) {
+          await tx.student.createMany({
+            data: records.map((record) => ({
+              zachetnayaKnigaUid: record.ZachetnayaKnigaUID,
+              ...toStudentData(record),
+            })),
+          });
+        }
+
+        return { fetchedCount: records.length, added: records.length, removed: existingCount };
+      },
+      { timeout: TRANSACTION_TIMEOUT_MS },
+    );
+  }
+
   private async acquireLock(): Promise<void> {
     try {
       await this.prisma.syncLock.create({ data: { type: SYNC_TYPE_STUDENTS } });

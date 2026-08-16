@@ -124,6 +124,34 @@ export class IndividualsSyncService {
     }
   }
 
+  // Точечная синхронизация одного физлица (кнопка на карточке) — тот же upsert, что и
+  // в общем прогоне, но по одному UID и без отдельного SyncLog (его ведёт вызывающий
+  // IndividualSyncService как один шаг общего лога).
+  async syncOne(uid: string): Promise<{ fetchedCount: number; added: number; updated: number }> {
+    const records = await this.externalApi.fetchIndividuals([uid]);
+    const existing = await this.prisma.individual.findUnique({
+      where: { fizicheskoyeLitsoUid: uid },
+      select: { fizicheskoyeLitsoUid: true },
+    });
+
+    let added = 0;
+    let updated = 0;
+
+    for (const record of records) {
+      if (existing) updated++;
+      else added++;
+
+      const data = toIndividualData(record);
+      await this.prisma.individual.upsert({
+        where: { fizicheskoyeLitsoUid: record.FizicheskoyeLitsoUID },
+        create: { fizicheskoyeLitsoUid: record.FizicheskoyeLitsoUID, ...data },
+        update: data,
+      });
+    }
+
+    return { fetchedCount: records.length, added, updated };
+  }
+
   private async acquireLock(): Promise<void> {
     try {
       await this.prisma.syncLock.create({

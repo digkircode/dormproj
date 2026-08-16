@@ -15,6 +15,7 @@ export interface SyncLogEntry {
   removed: number | null
   errorMessage: string | null
   errorStack: string | null
+  targetUid: string | null
 }
 
 export type SyncLogsPage = ListPage<SyncLogEntry>

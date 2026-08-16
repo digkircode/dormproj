@@ -25,7 +25,15 @@ export class ExternalStudentApiService {
     return validateStudentApiResponse(raw, this.logger);
   }
 
-  private async fetchWithRetry(): Promise<unknown> {
+  // Тот же эндпоинт, что и полный список, но с фильтром по одному физлицу — источник
+  // сам возвращает только его действующие зачётки (может быть 0, если человек сейчас
+  // не студент). Используется точечной ручной синхронизацией с карточки физлица.
+  async fetchActiveStudentsByUid(uid: string): Promise<StudentApiRecord[]> {
+    const raw = await this.fetchWithRetry({ FizicheskoyeLitsoUID: uid });
+    return validateStudentApiResponse(raw, this.logger);
+  }
+
+  private async fetchWithRetry(params?: Record<string, string>): Promise<unknown> {
     try {
       const response = await firstValueFrom(
         this.http
@@ -36,6 +44,7 @@ export class ExternalStudentApiService {
                 infer: true,
               }),
             },
+            params,
             timeout: REQUEST_TIMEOUT_MS,
           })
           .pipe(

@@ -95,3 +95,24 @@ export async function fetchIndividualDetail(uid: string): Promise<IndividualDeta
   }
   return response.json()
 }
+
+export interface IndividualSyncResult {
+  status: 'SUCCESS'
+  fetchedCount: number
+  added: number
+  updated: number
+  removed: number
+  startedAt: string
+  finishedAt: string
+}
+
+// Кнопка "Синхронизировать" на карточке — единственное место, откуда запускается
+// этот синхрон (см. бэкенд: у него нет общего /sync/individual без UID).
+export async function syncIndividual(uid: string): Promise<IndividualSyncResult> {
+  const response = await apiFetch(`/individuals/${encodeURIComponent(uid)}/sync`, { method: 'POST' })
+  if (!response.ok) {
+    const body: { message?: string } = await response.json().catch(() => ({}))
+    throw new Error(body.message ?? `Не удалось синхронизировать физлицо (${response.status})`)
+  }
+  return response.json()
+}

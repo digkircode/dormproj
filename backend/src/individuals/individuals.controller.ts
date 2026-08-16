@@ -1,9 +1,11 @@
-import { Controller, Get, NotFoundException, Param, Query, UseGuards } from '@nestjs/common';
+import { ConflictException, Controller, Get, HttpCode, NotFoundException, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { sortPassportsByPriority } from './passport-priority';
 import { pickLatestContactInfo } from './contact-info-priority';
+import { IndividualSyncService, type IndividualSyncResult } from '../individual-sync/individual-sync.service';
+import { SyncAlreadyRunningError } from '../sync/sync.errors';
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -33,7 +35,10 @@ function isFilterableField(field: string): field is FilterableField {
 @Controller('individuals')
 @UseGuards(AuthGuard)
 export class IndividualsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly individualSyncService: IndividualSyncService,
+  ) {}
 
   @Get()
   async list(
@@ -144,5 +149,20 @@ export class IndividualsController {
       contactInfos: pickLatestContactInfo(individual.contactInfos),
       students,
     };
+  }
+
+  // Кнопка "Синхронизировать" на карточке физлица — единственный способ запустить
+  // этот синхрон (см. IndividualSyncController: там только логи, без POST).
+  @Post(':uid/sync')
+  @HttpCode(200)
+  async sync(@Param('uid') uid: string): Promise<IndividualSyncResult> {
+    try {
+      return await this.individualSyncService.runSyncForIndividual(uid);
+    } catch (error) {
+      if (error instanceof SyncAlreadyRunningError) {
+        throw new ConflictException('Синхронизация физлица уже выполняется, дождитесь её завершения');
+      }
+      throw error;
+    }
   }
 }
