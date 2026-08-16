@@ -93,6 +93,12 @@ const syncError = ref('')
 // затем сама возвращается к обычному виду.
 const syncFeedback = ref<'success' | 'error' | null>(null)
 let syncFeedbackTimeout: ReturnType<typeof setTimeout> | undefined
+// disabled снимается синхронно с состоянием (isSyncing/syncFeedback), а иконка ещё
+// доигрывает fade out/in (mode="out-in", ~400мс) — без этого флага кнопка становится
+// кликабельной раньше, чем иконка успевает вернуться к обычному виду. Ставится в
+// before-leave (иконка начала меняться) и снимается в after-enter (новая иконка
+// полностью на месте) — см. Transition ниже.
+const isSyncIconAnimating = ref(false)
 
 // Перезапрашиваем всю карточку после успешной синхронизации — синхрон затрагивает
 // сразу 5 источников (студент/физлицо/гражданство/паспорт/контакты), проще перечитать
@@ -167,15 +173,15 @@ onMounted(async () => {
               <div class="text-xl font-semibold">{{ detail.fullName }}</div>
               <button
                 type="button"
-                class="flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                class="grid w-fit items-center text-xs text-muted-foreground hover:text-foreground"
                 @click="copyValue('uid', detail.fizicheskoyeLitsoUid)"
               >
                 <Transition enter-active-class="animate-in fade-in-0 duration-200" leave-active-class="animate-out fade-out-0 duration-200">
-                  <span v-if="copiedField === 'uid'" key="copied" class="flex items-center gap-1.5">
+                  <span v-if="copiedField === 'uid'" key="copied" class="col-start-1 row-start-1 flex items-center gap-1.5">
                     <Check class="size-3.5 shrink-0 text-emerald-500" />
                     <span>Скопировано</span>
                   </span>
-                  <span v-else key="value" class="flex items-center gap-1.5">
+                  <span v-else key="value" class="col-start-1 row-start-1 flex items-center gap-1.5">
                     <Copy class="size-3.5 shrink-0" />
                     <span>{{ detail.fizicheskoyeLitsoUid }}</span>
                   </span>
@@ -183,16 +189,16 @@ onMounted(async () => {
               </button>
               <button
                 type="button"
-                class="flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                class="grid w-fit items-center text-xs text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
                 :disabled="!detail.code"
                 @click="copyValue('code', detail.code)"
               >
                 <Transition enter-active-class="animate-in fade-in-0 duration-200" leave-active-class="animate-out fade-out-0 duration-200">
-                  <span v-if="copiedField === 'code'" key="copied" class="flex items-center gap-1.5">
+                  <span v-if="copiedField === 'code'" key="copied" class="col-start-1 row-start-1 flex items-center gap-1.5">
                     <Check class="size-3.5 shrink-0 text-emerald-500" />
                     <span>Скопировано</span>
                   </span>
-                  <span v-else key="value" class="flex items-center gap-1.5">
+                  <span v-else key="value" class="col-start-1 row-start-1 flex items-center gap-1.5">
                     <Copy class="size-3.5 shrink-0" />
                     <span>{{ detail.code ?? '—' }}</span>
                   </span>
@@ -204,8 +210,14 @@ onMounted(async () => {
           <!-- Явно 2x2, а не flex-wrap — при трёх колонках в шапке места под ряд из
                4 кнопок уже не хватает, а непредсказуемый перенос выглядит неряшливо. -->
           <div class="grid grid-cols-2 gap-2">
-            <Button variant="outline" size="sm" :disabled="isSyncing || syncFeedback !== null" @click="runSync">
-              <Transition enter-active-class="animate-in fade-in-0 duration-200" leave-active-class="animate-out fade-out-0 duration-200" mode="out-in">
+            <Button variant="outline" size="sm" :disabled="isSyncing || syncFeedback !== null || isSyncIconAnimating" @click="runSync">
+              <Transition
+                enter-active-class="animate-in fade-in-0 duration-200"
+                leave-active-class="animate-out fade-out-0 duration-200"
+                mode="out-in"
+                @before-leave="isSyncIconAnimating = true"
+                @after-enter="isSyncIconAnimating = false"
+              >
                 <Check v-if="syncFeedback === 'success'" key="success" class="text-emerald-500" />
                 <X v-else-if="syncFeedback === 'error'" key="error" class="text-red-500" />
                 <RefreshCw v-else key="refresh" class="text-primary" :class="{ 'animate-spin': isSyncing }" />

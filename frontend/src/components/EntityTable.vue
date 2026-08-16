@@ -6,7 +6,6 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -333,11 +332,13 @@ defineExpose({ refresh: loadPage })
       </div>
 
       <div class="flex items-center gap-2">
+        <slot name="actions" />
+
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="icon" title="Добавить фильтр">
               <ListFilter :class="{ 'text-primary': accentIcons }" />
-              <span>Добавить фильтр</span>
+              <span class="sr-only">Добавить фильтр</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" class="w-56">
@@ -356,10 +357,9 @@ defineExpose({ refresh: loadPage })
 
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="icon" title="Настройка таблицы">
               <Settings2 :class="{ 'text-primary': accentIcons }" />
-              <span>Настройка таблицы</span>
-              <ChevronDown />
+              <span class="sr-only">Настройка таблицы</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" class="w-56">

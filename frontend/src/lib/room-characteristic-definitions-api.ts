@@ -6,6 +6,7 @@ export interface RoomCharacteristicDefinition {
   name: string
   valueType: CharacteristicValueType
   unit: string | null
+  isProtected: boolean
 }
 
 export async function fetchDefinitions(): Promise<RoomCharacteristicDefinition[]> {

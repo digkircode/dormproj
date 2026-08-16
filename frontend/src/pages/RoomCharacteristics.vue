@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Dialog, DialogScrollContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   fetchDefinitions,
@@ -16,6 +17,9 @@ import {
   type RoomCharacteristicDefinition,
 } from '@/lib/room-characteristic-definitions-api'
 import type { CharacteristicValueType } from '@/lib/rooms-api'
+
+const DIALOG_ANIMATE_CLASS =
+  'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
 
 const VALUE_TYPE_LABELS: Record<CharacteristicValueType, string> = {
   BOOLEAN: 'Да/Нет',
@@ -143,7 +147,16 @@ async function remove(definition: RoomCharacteristicDefinition) {
                 <Pencil class="text-primary" />
                 <span class="sr-only">Изменить</span>
               </Button>
-              <Button variant="ghost" size="icon" class="size-7" :disabled="deletingId === d.id" @click="remove(d)">
+              <Tooltip v-if="d.isProtected">
+                <TooltipTrigger as-child>
+                  <Button variant="ghost" size="icon" class="size-7" disabled>
+                    <Trash2 class="text-muted-foreground" />
+                    <span class="sr-only">Удалить</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Эту характеристику нельзя удалить</TooltipContent>
+              </Tooltip>
+              <Button v-else variant="ghost" size="icon" class="size-7" :disabled="deletingId === d.id" @click="remove(d)">
                 <Trash2 class="text-red-500" />
                 <span class="sr-only">Удалить</span>
               </Button>
@@ -154,7 +167,7 @@ async function remove(definition: RoomCharacteristicDefinition) {
     </Card>
 
     <Dialog :open="isDialogOpen" @update:open="(open) => (isDialogOpen = open)">
-      <DialogContent>
+      <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
           <DialogTitle>{{ dialogMode === 'create' ? 'Новая характеристика' : 'Изменить характеристику' }}</DialogTitle>
         </DialogHeader>
@@ -186,7 +199,7 @@ async function remove(definition: RoomCharacteristicDefinition) {
         <DialogFooter>
           <Button :disabled="isSaving || !formName.trim()" @click="submitDialog">Сохранить</Button>
         </DialogFooter>
-      </DialogContent>
+      </DialogScrollContent>
     </Dialog>
   </div>
 </template>

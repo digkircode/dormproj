@@ -196,7 +196,7 @@ onUnmounted(() => clearTimeout(pollTimeout))
               <div
                 v-for="(stats, key) in selectedLog.details"
                 :key="key"
-                class="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 px-3 py-2 text-sm"
+                class="flex flex-col gap-2 px-3 py-3 text-sm"
               >
                 <span class="font-medium">{{ stepLabels[key] ?? key }}</span>
                 <span class="flex flex-wrap gap-x-4 text-muted-foreground">
@@ -205,6 +205,7 @@ onUnmounted(() => clearTimeout(pollTimeout))
                   <span v-if="stats.updated !== undefined">Обновлено: {{ stats.updated }}</span>
                   <span v-if="stats.removed !== undefined">Удалено: {{ stats.removed }}</span>
                 </span>
+                <pre class="overflow-auto rounded-md bg-muted p-2 text-xs whitespace-pre-wrap break-words">{{ JSON.stringify(stats, null, 2) }}</pre>
               </div>
             </div>
           </CollapsibleContent>

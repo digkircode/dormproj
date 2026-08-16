@@ -245,6 +245,11 @@ model RoomCharacteristicDefinition {
   name      String                       @unique
   valueType RoomCharacteristicValueType  @map("value_type")
   unit      String?
+  // Стартовые 4 характеристики из 1С-выгрузки (Жилое помещение/Количество мест/Площадь/
+  // Стоимость) — их нельзя удалить через UI, в отличие от всего, что заводят сотрудники
+  // сами (см. room-characteristic-definitions.controller.ts). Переименовывать/менять
+  // единицу измерения по-прежнему можно — блокируется только delete.
+  isProtected Boolean @default(false) @map("is_protected")
 
   values RoomCharacteristicValue[]
 

@@ -91,6 +91,13 @@ export class RoomCharacteristicDefinitionsController {
   @Delete(':id')
   async remove(@Param('id') idParam: string) {
     const id = parseIdParam(idParam);
+    const existing = await this.prisma.roomCharacteristicDefinition.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException('Характеристика не найдена');
+    }
+    if (existing.isProtected) {
+      throw new ConflictException('Эту характеристику нельзя удалить');
+    }
     try {
       return await this.prisma.roomCharacteristicDefinition.delete({ where: { id } });
     } catch (error) {
