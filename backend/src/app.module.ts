@@ -18,6 +18,8 @@ import { IndividualsModule } from './individuals/individuals.module';
 import { CitizenshipModule } from './citizenship/citizenship.module';
 import { PassportModule } from './passport/passport.module';
 import { ContactInfoModule } from './contact-info/contact-info.module';
+import { RoomsModule } from './rooms/rooms.module';
+import { RoomCharacteristicDefinitionsModule } from './room-characteristic-definitions/room-characteristic-definitions.module';
 import { AuthModule } from './auth/auth.module';
 
 @Module({
@@ -43,6 +45,8 @@ import { AuthModule } from './auth/auth.module';
     CitizenshipModule,
     PassportModule,
     ContactInfoModule,
+    RoomsModule,
+    RoomCharacteristicDefinitionsModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

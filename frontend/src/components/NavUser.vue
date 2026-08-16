@@ -95,7 +95,7 @@ function handleLogout() {
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem @click="handleLogout">
-            <LogOut />
+            <LogOut class="text-primary" />
             Выход
           </DropdownMenuItem>
         </DropdownMenuContent>

@@ -65,6 +65,7 @@ const columns = columnHelper.columns([
       :cell-text="cellText"
       :hidden-by-default="hiddenByDefault"
       storage-key="contact-info"
+      accent-icons
     />
   </div>
 </template>

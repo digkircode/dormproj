@@ -8,6 +8,9 @@ import IndividualDetail from '@/pages/IndividualDetail.vue'
 import Citizenship from '@/pages/Citizenship.vue'
 import Passport from '@/pages/Passport.vue'
 import ContactInfo from '@/pages/ContactInfo.vue'
+import Rooms from '@/pages/Rooms.vue'
+import RoomDetail from '@/pages/RoomDetail.vue'
+import RoomCharacteristics from '@/pages/RoomCharacteristics.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -22,6 +25,10 @@ const router = createRouter({
     { path: '/system-tables/citizenship', name: 'citizenship', component: Citizenship, meta: { title: 'Гражданство' } },
     { path: '/system-tables/contact-info', name: 'contact-info', component: ContactInfo, meta: { title: 'Контактная информация' } },
     { path: '/system-tables/passport-data', name: 'passport-data', component: Passport, meta: { title: 'Паспортные данные' } },
+
+    { path: '/rooms', name: 'rooms', component: Rooms, meta: { title: 'Комнаты' } },
+    { path: '/rooms/:id', name: 'room-detail', component: RoomDetail, meta: { title: 'Комната', parent: 'rooms' } },
+    { path: '/room-characteristics', name: 'room-characteristics', component: RoomCharacteristics, meta: { title: 'Характеристики комнат' } },
   ],
 })
 

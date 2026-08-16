@@ -46,9 +46,9 @@ const socialLinks = [
     <div class="flex items-center gap-3">
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
-          <Button variant="outline" size="sm">
-            <Globe />
-            <span>{{ localeLabel }}</span>
+          <Button variant="outline" size="sm" class="w-36 justify-start">
+            <Globe class="text-primary" />
+            <span class="flex-1 text-left">{{ localeLabel }}</span>
             <ChevronDown />
           </Button>
         </DropdownMenuTrigger>

@@ -111,7 +111,7 @@ onMounted(async () => {
                     @click="row.run()"
                   >
                     <Loader v-if="row.isRunning" class="animate-spin" />
-                    <Play v-else />
+                    <Play v-else class="text-emerald-500" />
                     <span class="sr-only">Запустить</span>
                   </Button>
                 </TooltipTrigger>

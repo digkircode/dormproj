@@ -47,6 +47,7 @@ const columns = columnHelper.columns([
       :cell-text="cellText"
       :hidden-by-default="hiddenByDefault"
       storage-key="citizenship"
+      accent-icons
     />
   </div>
 </template>

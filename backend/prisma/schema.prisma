@@ -211,13 +211,69 @@ enum SyncStatus {
   FAILED
 }
 
-// Справочник комнат — разовая загрузка из выгрузки 1С (не через обычный REST-синхрон,
-// как остальные сущности), см. миграцию add_rooms. guid — тот же UID, что источник
-// использует для этого справочника, room — Element с отброшенным префиксом "Комната ".
+// Справочник комнат — изначально разовая загрузка из выгрузки 1С (см. миграцию add_rooms),
+// теперь дополняется вручную через UI (создание/переименование/удаление комнаты), поэтому
+// guid — nullable: у комнат, заведённых на сайте, 1С-идентификатора нет и не будет.
+// floor — сгенерированная БД-колонка (ведущие цифры номера до дефиса в room), см. миграцию
+// add_room_characteristics, тем же способом, что birthDateText у Individual. Nullable —
+// у комнат с нетиповым номером (заведённых вручную без цифрового префикса) регулярка не
+// матчится, и колонка остаётся NULL, а не падает.
 model Room {
-  id   Int    @id @default(autoincrement())
-  guid String @unique
-  room String
+  id    Int     @id @default(autoincrement())
+  guid  String? @unique
+  room  String
+  floor Int?    @default(dbgenerated()) @map("floor")
+
+  characteristicValues RoomCharacteristicValue[]
 
   @@map("rooms")
+}
+
+enum RoomCharacteristicValueType {
+  BOOLEAN
+  NUMBER
+  TEXT
+}
+
+// Открытый каталог характеристик комнат — в отличие от floor/room, которые фиксированы,
+// сотрудники заводят/переименовывают/удаляют характеристики сами через UI (см. обсуждение:
+// "Жилое помещение", "Количество мест", "Площадь", "Стоимость" — стартовый набор из 1С-выгрузки,
+// "Санузел" и всё, что появится дальше — уже полностью ручное). valueType закрепляет, в какую
+// из типизированных колонок RoomCharacteristicValue пишется значение этой характеристики.
+model RoomCharacteristicDefinition {
+  id        Int                          @id @default(autoincrement())
+  name      String                       @unique
+  valueType RoomCharacteristicValueType  @map("value_type")
+  unit      String?
+
+  values RoomCharacteristicValue[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("room_characteristic_definitions")
+}
+
+// Значение характеристики комнаты на конкретную дату — история хранится как есть (не
+// перетирается), "актуальное" значение — просто ряд с максимальным period на пару
+// (room, definition), см. current-characteristics.ts (тот же принцип, что pickLatestContactInfo
+// у физлиц, только без эвристик — period здесь всегда надёжен, не 1С-сентинел).
+// Типизированный EAV: заполнена ровно одна из трёх value*-колонок — какая именно, определяет
+// definition.valueType (не дублируется на каждой записи, чтобы не могло рассинхронизироваться).
+model RoomCharacteristicValue {
+  id           Int                          @id @default(autoincrement())
+  roomId       Int                          @map("room_id")
+  room         Room                         @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  definitionId Int                          @map("definition_id")
+  definition   RoomCharacteristicDefinition @relation(fields: [definitionId], references: [id])
+  period       DateTime
+
+  valueBool   Boolean? @map("value_bool")
+  valueNumber Decimal? @map("value_number") @db.Decimal(12, 2)
+  valueText   String?  @map("value_text")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([roomId, definitionId, period])
+  @@index([roomId])
+  @@map("room_characteristic_values")
 }

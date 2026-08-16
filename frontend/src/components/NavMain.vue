@@ -60,7 +60,7 @@ function handleGroupClick(title: string, isActive?: boolean) {
         >
           <SidebarMenuItem>
             <SidebarMenuButton :tooltip="item.title" @click="handleGroupClick(item.title, item.isActive)">
-              <component :is="item.icon" v-if="item.icon" />
+              <component :is="item.icon" v-if="item.icon" class="text-primary" />
               <span class="truncate">{{ item.title }}</span>
               <ChevronRight class="ml-auto shrink-0 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
             </SidebarMenuButton>
@@ -80,7 +80,7 @@ function handleGroupClick(title: string, isActive?: boolean) {
         <SidebarMenuItem v-else>
           <SidebarMenuButton as-child :tooltip="item.title">
             <RouterLink :to="item.url ?? '#'">
-              <component :is="item.icon" v-if="item.icon" />
+              <component :is="item.icon" v-if="item.icon" class="text-primary" />
               <span>{{ item.title }}</span>
             </RouterLink>
           </SidebarMenuButton>

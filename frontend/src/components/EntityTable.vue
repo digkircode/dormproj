@@ -70,9 +70,9 @@ const props = withDefaults(
     // Если задан — видимость колонок и сортировка сохраняются в localStorage под этим
     // ключом и восстанавливаются при следующем визите. Без ключа поведение как раньше.
     storageKey?: string
-    // Красит "хромовые" иконки таблицы (фильтр/настройка/сортировка/пагинация/rowAction)
-    // в text-primary — опционально, по умолчанию выключено, чтобы не менять остальные
-    // таблицы разом. Поиск и статусные ячейки (cellRenderers) сюда не входят намеренно.
+    // Красит основные иконки таблицы (фильтр, настройка, кнопка rowAction) в text-primary —
+    // опционально. Остальные хромовые иконки (сортировка/пагинация/шеврон настройки/крестики
+    // фильтров) в accentIcons намеренно не входят, как и поиск и статусные ячейки (cellRenderers).
     accentIcons?: boolean
   }>(),
   {
@@ -359,7 +359,7 @@ defineExpose({ refresh: loadPage })
             <Button variant="outline" size="sm">
               <Settings2 :class="{ 'text-primary': accentIcons }" />
               <span>Настройка таблицы</span>
-              <ChevronDown :class="{ 'text-primary': accentIcons }" />
+              <ChevronDown />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" class="w-56">
@@ -393,12 +393,12 @@ defineExpose({ refresh: loadPage })
           </span>
         </button>
         <button type="button" class="shrink-0 rounded-sm p-0.5 hover:bg-muted" @click="removeFilterField(field)">
-          <X class="size-3.5" :class="{ 'text-primary': accentIcons }" />
+          <X class="size-3.5" />
           <span class="sr-only">Убрать фильтр «{{ columnLabels[field] }}»</span>
         </button>
       </div>
       <Button variant="ghost" size="sm" class="ml-auto text-muted-foreground" @click="clearAllFilters">
-        <X class="size-3.5" :class="{ 'text-primary': accentIcons }" />
+        <X class="size-3.5" />
         Очистить
       </Button>
     </div>
@@ -467,9 +467,9 @@ defineExpose({ refresh: loadPage })
                     @click="header.column.toggleSorting(header.column.getIsSorted() === 'asc')"
                   >
                     <span class="truncate"><FlexRender :header="header" /></span>
-                    <ArrowUp v-if="header.column.getIsSorted() === 'asc'" class="size-3.5 shrink-0" :class="{ 'text-primary': accentIcons }" />
-                    <ArrowDown v-else-if="header.column.getIsSorted() === 'desc'" class="size-3.5 shrink-0" :class="{ 'text-primary': accentIcons }" />
-                    <ArrowUpDown v-else class="size-3.5 shrink-0" :class="accentIcons ? 'text-primary' : 'text-muted-foreground/50'" />
+                    <ArrowUp v-if="header.column.getIsSorted() === 'asc'" class="size-3.5 shrink-0" />
+                    <ArrowDown v-else-if="header.column.getIsSorted() === 'desc'" class="size-3.5 shrink-0" />
+                    <ArrowUpDown v-else class="size-3.5 shrink-0 text-muted-foreground/50" />
                   </button>
                   <div
                     v-if="header.column.getCanResize()"
@@ -566,7 +566,7 @@ defineExpose({ refresh: loadPage })
             @click="table.setPageIndex(0)"
           >
             <span class="sr-only">Первая страница</span>
-            <ChevronsLeft :class="{ 'text-primary': accentIcons }" />
+            <ChevronsLeft />
           </Button>
           <Button
             variant="outline"
@@ -576,7 +576,7 @@ defineExpose({ refresh: loadPage })
             @click="table.previousPage()"
           >
             <span class="sr-only">Предыдущая страница</span>
-            <ChevronLeft :class="{ 'text-primary': accentIcons }" />
+            <ChevronLeft />
           </Button>
           <Button
             variant="outline"
@@ -586,7 +586,7 @@ defineExpose({ refresh: loadPage })
             @click="table.nextPage()"
           >
             <span class="sr-only">Следующая страница</span>
-            <ChevronRight :class="{ 'text-primary': accentIcons }" />
+            <ChevronRight />
           </Button>
           <Button
             variant="outline"
@@ -595,7 +595,7 @@ defineExpose({ refresh: loadPage })
             @click="table.setPageIndex(table.getPageCount() - 1)"
           >
             <span class="sr-only">Последняя страница</span>
-            <ChevronsRight :class="{ 'text-primary': accentIcons }" />
+            <ChevronsRight />
           </Button>
         </div>
       </div>

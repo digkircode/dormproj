@@ -8,6 +8,7 @@ import {
   RefreshCw,
   User,
   Table2,
+  DoorOpen,
 } from 'lucide-vue-next'
 import NavMain from '@/components/NavMain.vue'
 import NavProjects from '@/components/NavProjects.vue'
@@ -75,6 +76,11 @@ const data = {
       url: '/individuals',
       icon: User,
     },
+    {
+      title: 'Комнаты',
+      url: '/rooms',
+      icon: DoorOpen,
+    },
   ],
   projects: [
     {
@@ -85,6 +91,7 @@ const data = {
         { title: 'Гражданство', url: '/system-tables/citizenship' },
         { title: 'Контактная информация', url: '/system-tables/contact-info' },
         { title: 'Паспортные данные', url: '/system-tables/passport-data' },
+        { title: 'Характеристики комнат', url: '/room-characteristics' },
       ],
     },
     { name: 'Синхронизация', url: '/sync', icon: RefreshCw },

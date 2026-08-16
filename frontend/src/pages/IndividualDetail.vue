@@ -4,8 +4,7 @@ import { useRoute } from 'vue-router'
 import {
   ArrowLeft,
   Check,
-  CircleCheck,
-  CircleX,
+  X,
   Copy,
   RefreshCw,
   FileSignature,
@@ -171,11 +170,16 @@ onMounted(async () => {
                 class="flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
                 @click="copyValue('uid', detail.fizicheskoyeLitsoUid)"
               >
-                <Transition enter-active-class="animate-in fade-in-0 duration-200" leave-active-class="animate-out fade-out-0 duration-200" mode="out-in">
-                  <Check v-if="copiedField === 'uid'" key="check" class="size-3.5 shrink-0 text-emerald-500" />
-                  <Copy v-else key="copy" class="size-3.5 shrink-0" />
+                <Transition enter-active-class="animate-in fade-in-0 duration-200" leave-active-class="animate-out fade-out-0 duration-200">
+                  <span v-if="copiedField === 'uid'" key="copied" class="flex items-center gap-1.5">
+                    <Check class="size-3.5 shrink-0 text-emerald-500" />
+                    <span>Скопировано</span>
+                  </span>
+                  <span v-else key="value" class="flex items-center gap-1.5">
+                    <Copy class="size-3.5 shrink-0" />
+                    <span>{{ detail.fizicheskoyeLitsoUid }}</span>
+                  </span>
                 </Transition>
-                <span>{{ copiedField === 'uid' ? 'Скопировано' : detail.fizicheskoyeLitsoUid }}</span>
               </button>
               <button
                 type="button"
@@ -183,11 +187,16 @@ onMounted(async () => {
                 :disabled="!detail.code"
                 @click="copyValue('code', detail.code)"
               >
-                <Transition enter-active-class="animate-in fade-in-0 duration-200" leave-active-class="animate-out fade-out-0 duration-200" mode="out-in">
-                  <Check v-if="copiedField === 'code'" key="check" class="size-3.5 shrink-0 text-emerald-500" />
-                  <Copy v-else key="copy" class="size-3.5 shrink-0" />
+                <Transition enter-active-class="animate-in fade-in-0 duration-200" leave-active-class="animate-out fade-out-0 duration-200">
+                  <span v-if="copiedField === 'code'" key="copied" class="flex items-center gap-1.5">
+                    <Check class="size-3.5 shrink-0 text-emerald-500" />
+                    <span>Скопировано</span>
+                  </span>
+                  <span v-else key="value" class="flex items-center gap-1.5">
+                    <Copy class="size-3.5 shrink-0" />
+                    <span>{{ detail.code ?? '—' }}</span>
+                  </span>
                 </Transition>
-                <span>{{ copiedField === 'code' ? 'Скопировано' : (detail.code ?? '—') }}</span>
               </button>
             </div>
           </div>
@@ -195,10 +204,10 @@ onMounted(async () => {
           <!-- Явно 2x2, а не flex-wrap — при трёх колонках в шапке места под ряд из
                4 кнопок уже не хватает, а непредсказуемый перенос выглядит неряшливо. -->
           <div class="grid grid-cols-2 gap-2">
-            <Button variant="outline" size="sm" :disabled="isSyncing" @click="runSync">
+            <Button variant="outline" size="sm" :disabled="isSyncing || syncFeedback !== null" @click="runSync">
               <Transition enter-active-class="animate-in fade-in-0 duration-200" leave-active-class="animate-out fade-out-0 duration-200" mode="out-in">
-                <CircleCheck v-if="syncFeedback === 'success'" key="success" class="text-emerald-500" />
-                <CircleX v-else-if="syncFeedback === 'error'" key="error" class="text-red-500" />
+                <Check v-if="syncFeedback === 'success'" key="success" class="text-emerald-500" />
+                <X v-else-if="syncFeedback === 'error'" key="error" class="text-red-500" />
                 <RefreshCw v-else key="refresh" class="text-primary" :class="{ 'animate-spin': isSyncing }" />
               </Transition>
               Синхронизировать
