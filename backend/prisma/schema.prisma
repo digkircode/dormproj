@@ -214,15 +214,14 @@ enum SyncStatus {
 // Справочник комнат — изначально разовая загрузка из выгрузки 1С (см. миграцию add_rooms),
 // теперь дополняется вручную через UI (создание/переименование/удаление комнаты), поэтому
 // guid — nullable: у комнат, заведённых на сайте, 1С-идентификатора нет и не будет.
-// floor — сгенерированная БД-колонка (ведущие цифры номера до дефиса в room), см. миграцию
-// add_room_characteristics, тем же способом, что birthDateText у Individual. Nullable —
-// у комнат с нетиповым номером (заведённых вручную без цифрового префикса) регулярка не
-// матчится, и колонка остаётся NULL, а не падает.
+// Этаж больше не отдельная колонка — раньше выводился регуляркой из номера (see миграция
+// add_room_characteristics), теперь это обычная защищённая характеристика (см.
+// RoomCharacteristicDefinition), задаётся вручную при создании комнаты (миграция
+// floor_as_characteristic переносит старые значения и убирает generated-колонку).
 model Room {
-  id    Int     @id @default(autoincrement())
-  guid  String? @unique
-  room  String
-  floor Int?    @default(dbgenerated()) @map("floor")
+  id   Int     @id @default(autoincrement())
+  guid String? @unique
+  room String
 
   characteristicValues RoomCharacteristicValue[]
 
@@ -275,6 +274,10 @@ model RoomCharacteristicValue {
   valueBool   Boolean? @map("value_bool")
   valueNumber Decimal? @map("value_number") @db.Decimal(12, 2)
   valueText   String?  @map("value_text")
+  // Исторические значения на 01.09.2026 (стартовая выгрузка 1С) — заблокированы от
+  // изменения/удаления через UI навсегда, в отличие от значений, которые добавляют
+  // сотрудники позже (см. rooms.controller.ts).
+  isProtected Boolean @default(false) @map("is_protected")
 
   createdAt DateTime @default(now()) @map("created_at")
 

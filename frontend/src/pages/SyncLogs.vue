@@ -205,7 +205,10 @@ onUnmounted(() => clearTimeout(pollTimeout))
                   <span v-if="stats.updated !== undefined">Обновлено: {{ stats.updated }}</span>
                   <span v-if="stats.removed !== undefined">Удалено: {{ stats.removed }}</span>
                 </span>
-                <pre class="overflow-auto rounded-md bg-muted p-2 text-xs whitespace-pre-wrap break-words">{{ JSON.stringify(stats, null, 2) }}</pre>
+                <pre
+                  v-if="stats.records?.length"
+                  class="overflow-auto rounded-md bg-muted p-2 text-xs whitespace-pre-wrap break-words"
+                >{{ JSON.stringify(stats.records, null, 2) }}</pre>
               </div>
             </div>
           </CollapsibleContent>

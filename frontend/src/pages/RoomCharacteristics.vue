@@ -1,21 +1,23 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { Pencil, Plus, Trash2 } from 'lucide-vue-next'
-import { Card } from '@/components/ui/card'
+import { provide, ref } from 'vue'
+import { Plus } from 'lucide-vue-next'
+import EntityTable from '@/components/EntityTable.vue'
+import RoomCharacteristicActionsCell from '@/components/RoomCharacteristicActionsCell.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Dialog, DialogScrollContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogScrollContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { createAppColumnHelper } from '@/lib/table'
 import {
-  fetchDefinitions,
+  fetchDefinitionsPage,
+  fetchDefinitionFacets,
   createDefinition,
   updateDefinition,
   deleteDefinition,
   type RoomCharacteristicDefinition,
 } from '@/lib/room-characteristic-definitions-api'
+import { DEFINITION_ACTIONS_KEY } from '@/lib/definition-actions-key'
 import type { CharacteristicValueType } from '@/lib/rooms-api'
 
 const DIALOG_ANIMATE_CLASS =
@@ -27,23 +29,32 @@ const VALUE_TYPE_LABELS: Record<CharacteristicValueType, string> = {
   TEXT: 'Текст',
 }
 
-const definitions = ref<RoomCharacteristicDefinition[]>([])
-const isLoading = ref(true)
-const loadError = ref('')
+const columnLabels: Record<string, string> = {
+  name: 'Название',
+  valueType: 'Тип значения',
+  unit: 'Единица измерения',
+  actions: '',
+}
+const filterableFields = ['valueType']
 
-async function load() {
-  isLoading.value = true
-  loadError.value = ''
-  try {
-    definitions.value = await fetchDefinitions()
-  } catch (error) {
-    loadError.value = error instanceof Error ? error.message : String(error)
-  } finally {
-    isLoading.value = false
-  }
+function cellText(columnId: string, value: unknown): string {
+  if (columnId === 'valueType') return VALUE_TYPE_LABELS[value as CharacteristicValueType] ?? String(value)
+  if (columnId === 'unit') return (value as string | null) || '—'
+  return String(value ?? '')
 }
 
-onMounted(load)
+const columnHelper = createAppColumnHelper<RoomCharacteristicDefinition>()
+
+const columns = columnHelper.columns([
+  columnHelper.accessor('name', { header: columnLabels.name, enableHiding: false, size: 280, minSize: 160 }),
+  columnHelper.accessor('valueType', { header: columnLabels.valueType, size: 160, minSize: 120 }),
+  columnHelper.accessor('unit', { header: columnLabels.unit, size: 200, minSize: 120 }),
+  columnHelper.display({ id: 'actions', header: columnLabels.actions, size: 120, minSize: 96, enableSorting: false, enableHiding: false }),
+])
+
+const cellRenderers = { actions: RoomCharacteristicActionsCell }
+
+const table = ref<{ refresh: () => void | Promise<void> } | null>(null)
 
 // --- Создание/редактирование ---
 const isDialogOpen = ref(false)
@@ -85,8 +96,8 @@ async function submitDialog() {
     } else if (editingId.value !== null) {
       await updateDefinition(editingId.value, { name: formName.value.trim(), unit: formUnit.value.trim() || null })
     }
-    await load()
     isDialogOpen.value = false
+    table.value?.refresh()
   } catch (error) {
     dialogError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -94,77 +105,58 @@ async function submitDialog() {
   }
 }
 
-// --- Удаление ---
-const deletingId = ref<number | null>(null)
+// --- Удаление (с подтверждением) ---
+const deleteTarget = ref<RoomCharacteristicDefinition | null>(null)
+const isDeleting = ref(false)
 const deleteError = ref('')
 
-async function remove(definition: RoomCharacteristicDefinition) {
-  deletingId.value = definition.id
+function openDeleteConfirm(definition: RoomCharacteristicDefinition) {
+  deleteTarget.value = definition
+  deleteError.value = ''
+}
+
+async function confirmDelete() {
+  if (!deleteTarget.value) return
+  isDeleting.value = true
   deleteError.value = ''
   try {
-    await deleteDefinition(definition.id)
-    await load()
+    await deleteDefinition(deleteTarget.value.id)
+    deleteTarget.value = null
+    table.value?.refresh()
   } catch (error) {
     deleteError.value = error instanceof Error ? error.message : String(error)
   } finally {
-    deletingId.value = null
+    isDeleting.value = false
   }
 }
+
+provide(DEFINITION_ACTIONS_KEY, { edit: openEdit, remove: openDeleteConfirm })
 </script>
 
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
-    <div class="flex items-center justify-between">
-      <h1 class="text-lg font-medium">Характеристики комнат</h1>
-      <Button size="sm" @click="openCreate">
-        <Plus />
-        Добавить характеристику
-      </Button>
-    </div>
-
-    <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-    <p v-if="deleteError" class="text-sm text-red-500">{{ deleteError }}</p>
-
-    <Card class="p-6">
-      <p v-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
-      <p v-else-if="!definitions.length" class="text-sm text-muted-foreground">Характеристик пока нет</p>
-      <Table v-else class="table-fixed">
-        <TableHeader class="bg-muted">
-          <TableRow>
-            <TableHead class="w-[35%]">Название</TableHead>
-            <TableHead class="w-[20%]">Тип значения</TableHead>
-            <TableHead class="w-[20%]">Единица измерения</TableHead>
-            <TableHead class="w-[25%]" />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          <TableRow v-for="d in definitions" :key="d.id">
-            <TableCell>{{ d.name }}</TableCell>
-            <TableCell>{{ VALUE_TYPE_LABELS[d.valueType] }}</TableCell>
-            <TableCell>{{ d.unit ?? '—' }}</TableCell>
-            <TableCell class="flex items-center justify-end gap-1">
-              <Button variant="ghost" size="icon" class="size-7" @click="openEdit(d)">
-                <Pencil class="text-primary" />
-                <span class="sr-only">Изменить</span>
-              </Button>
-              <Tooltip v-if="d.isProtected">
-                <TooltipTrigger as-child>
-                  <Button variant="ghost" size="icon" class="size-7" disabled>
-                    <Trash2 class="text-muted-foreground" />
-                    <span class="sr-only">Удалить</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Эту характеристику нельзя удалить</TooltipContent>
-              </Tooltip>
-              <Button v-else variant="ghost" size="icon" class="size-7" :disabled="deletingId === d.id" @click="remove(d)">
-                <Trash2 class="text-red-500" />
-                <span class="sr-only">Удалить</span>
-              </Button>
-            </TableCell>
-          </TableRow>
-        </TableBody>
-      </Table>
-    </Card>
+    <EntityTable
+      ref="table"
+      :columns="columns"
+      :column-labels="columnLabels"
+      :filterable-fields="filterableFields"
+      :default-sort="{ id: 'id', desc: false }"
+      :fetch-page="fetchDefinitionsPage"
+      :fetch-facet-values="fetchDefinitionFacets"
+      :get-row-id="(d: RoomCharacteristicDefinition) => String(d.id)"
+      total-label="характеристик"
+      :cell-text="cellText"
+      :cell-renderers="cellRenderers"
+      storage-key="room-characteristics"
+      accent-icons
+    >
+      <template #actions>
+        <Button size="icon" title="Добавить характеристику" @click="openCreate">
+          <Plus />
+          <span class="sr-only">Добавить характеристику</span>
+        </Button>
+      </template>
+    </EntityTable>
 
     <Dialog :open="isDialogOpen" @update:open="(open) => (isDialogOpen = open)">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
@@ -197,7 +189,24 @@ async function remove(definition: RoomCharacteristicDefinition) {
           <p v-if="dialogError" class="text-sm text-red-500">{{ dialogError }}</p>
         </div>
         <DialogFooter>
+          <Button variant="outline" @click="isDialogOpen = false">Отмена</Button>
           <Button :disabled="isSaving || !formName.trim()" @click="submitDialog">Сохранить</Button>
+        </DialogFooter>
+      </DialogScrollContent>
+    </Dialog>
+
+    <Dialog :open="!!deleteTarget" @update:open="(open) => { if (!open) deleteTarget = null }">
+      <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
+        <DialogHeader>
+          <DialogTitle>Удалить характеристику?</DialogTitle>
+          <DialogDescription>
+            Вы уверены, что хотите удалить «{{ deleteTarget?.name }}»? Действие необратимо.
+          </DialogDescription>
+        </DialogHeader>
+        <p v-if="deleteError" class="text-sm text-red-500">{{ deleteError }}</p>
+        <DialogFooter>
+          <Button variant="outline" @click="deleteTarget = null">Отмена</Button>
+          <Button variant="destructive" :disabled="isDeleting" @click="confirmDelete">Да, удалить</Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>

@@ -44,7 +44,9 @@ export class RoomCharacteristicDefinitionsController {
 
   @Get()
   list() {
-    return this.prisma.roomCharacteristicDefinition.findMany({ orderBy: { name: 'asc' } });
+    // По id, не по имени — новые характеристики должны появляться внизу списка,
+    // а не запрыгивать в середину алфавита.
+    return this.prisma.roomCharacteristicDefinition.findMany({ orderBy: { id: 'asc' } });
   }
 
   @Post()

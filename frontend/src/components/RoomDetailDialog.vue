@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Pencil, Plus, Trash2 } from 'lucide-vue-next'
+import { CalendarIcon, Pencil, Plus, Trash2 } from 'lucide-vue-next'
+import { parseDate, today, getLocalTimeZone, type DateValue } from '@internationalized/date'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { Calendar } from '@/components/ui/calendar'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Dialog,
   DialogScrollContent,
@@ -17,13 +19,12 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   fetchRoomDetail,
-  updateRoom,
   deleteRoom,
   addCharacteristicValue,
   updateCharacteristicValue,
   deleteCharacteristicValue,
   type RoomDetail,
-  type RoomHistoryEntry,
+  type RoomCharacteristic,
   type CharacteristicValueType,
   type CharacteristicValue,
 } from '@/lib/rooms-api'
@@ -31,6 +32,12 @@ import { fetchDefinitions, type RoomCharacteristicDefinition } from '@/lib/room-
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
+const NO_SPINNER_CLASS = '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
+// Стартовые 5 характеристик, которые всегда показываем (даже без значения — прочерком),
+// см. обсуждение: этаж/жилое помещение/количество мест/площадь/стоимость — то, что
+// заведено миграциями и защищено от удаления (definition.isProtected), а не всё подряд
+// из открытого каталога.
+const CORE_ORDER = ['Этаж', 'Жилое помещение', 'Количество мест', 'Площадь', 'Стоимость']
 
 const props = defineProps<{ roomId: number | null }>()
 const emit = defineEmits<{ 'update:roomId': [value: number | null]; deleted: []; renamed: [] }>()
@@ -42,11 +49,21 @@ const isOpen = computed({
   },
 })
 
+type Mode = 'detail' | 'delete-room-confirm' | 'value-form' | 'delete-value-confirm'
+const mode = ref<Mode>('detail')
+
 const detail = ref<RoomDetail | null>(null)
 const definitions = ref<RoomCharacteristicDefinition[]>([])
 const isLoading = ref(true)
 const loadError = ref('')
 
+function sortByCore<T extends { name: string }>(items: T[]): T[] {
+  return [...items].sort((a, b) => CORE_ORDER.indexOf(a.name) - CORE_ORDER.indexOf(b.name))
+}
+
+// Первый загруз/смена комнаты — с "Загрузка…"; refresh() после правок — тихо, без
+// сброса текущего содержимого, чтобы TransitionGroup плавно доанимировал разницу,
+// а не мигал пустым экраном.
 async function load(id: number) {
   isLoading.value = true
   loadError.value = ''
@@ -62,9 +79,19 @@ async function load(id: number) {
   }
 }
 
+async function refresh() {
+  if (!detail.value) return
+  try {
+    detail.value = await fetchRoomDetail(detail.value.id)
+  } catch (error) {
+    loadError.value = error instanceof Error ? error.message : String(error)
+  }
+}
+
 watch(
   () => props.roomId,
   (id) => {
+    mode.value = 'detail'
     if (id !== null) load(id)
   },
   { immediate: true },
@@ -76,50 +103,68 @@ function formatDate(iso: string): string {
   return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
 }
 
-function toDateInputValue(iso: string): string {
-  return iso.slice(0, 10)
-}
-
-function todayInputValue(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
 function formatValue(entry: { valueType: CharacteristicValueType; value: CharacteristicValue; unit: string | null }): string {
   if (entry.value === null || entry.value === undefined) return '—'
   if (entry.valueType === 'BOOLEAN') return entry.value ? 'Да' : 'Нет'
   return entry.unit ? `${entry.value} ${entry.unit}` : String(entry.value)
 }
 
-// --- Редактирование номера комнаты ---
-const isEditRoomOpen = ref(false)
-const editRoomNumber = ref('')
-const editRoomError = ref('')
-const isSavingRoom = ref(false)
-
-function openEditRoom() {
-  editRoomNumber.value = detail.value?.room ?? ''
-  editRoomError.value = ''
-  isEditRoomOpen.value = true
+// Синтетическая "пустая" строка для защищённой характеристики без значения — id
+// отрицательный (никогда не совпадёт с настоящим), чтобы отличать от реальной записи.
+interface DisplayCharacteristic extends Omit<RoomCharacteristic, 'period'> {
+  period: string | null
+  hasValue: boolean
 }
 
-async function submitEditRoom() {
-  if (!detail.value || !editRoomNumber.value.trim()) return
-  isSavingRoom.value = true
-  editRoomError.value = ''
-  try {
-    await updateRoom(detail.value.id, editRoomNumber.value.trim())
-    await load(detail.value.id)
-    isEditRoomOpen.value = false
-    emit('renamed')
-  } catch (error) {
-    editRoomError.value = error instanceof Error ? error.message : String(error)
-  } finally {
-    isSavingRoom.value = false
+const displayCharacteristics = computed<DisplayCharacteristic[]>(() => {
+  if (!detail.value) return []
+  const byDefId = new Map(detail.value.characteristics.map((c) => [c.definitionId, c]))
+  const coreDefs = sortByCore(definitions.value.filter((d) => d.isProtected))
+  const coreRows: DisplayCharacteristic[] = coreDefs.map((d) => {
+    const existing = byDefId.get(d.id)
+    if (existing) return { ...existing, period: existing.period, hasValue: true }
+    return {
+      id: -d.id,
+      definitionId: d.id,
+      name: d.name,
+      valueType: d.valueType,
+      unit: d.unit,
+      value: null,
+      period: null,
+      isProtected: false,
+      hasValue: false,
+    }
+  })
+  const customRows: DisplayCharacteristic[] = detail.value.characteristics
+    .filter((c) => !definitions.value.find((d) => d.id === c.definitionId)?.isProtected)
+    .map((c) => ({ ...c, hasValue: true }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+  return [...coreRows, ...customRows]
+})
+
+// История пустая у только что созданной комнаты — показываем те же 5 характеристик
+// прочерками вместо "Нет данных", а не молчим совсем.
+const displayHistory = computed<
+  { id: number; definitionId: number; name: string; valueType: CharacteristicValueType; unit: string | null; period: string | null; value: CharacteristicValue; isProtected: boolean; hasValue: boolean }[]
+>(() => {
+  if (!detail.value) return []
+  if (detail.value.history.length) {
+    return detail.value.history.map((h) => ({ ...h, hasValue: true }))
   }
-}
+  return sortByCore(definitions.value.filter((d) => d.isProtected)).map((d) => ({
+    id: -d.id,
+    definitionId: d.id,
+    name: d.name,
+    valueType: d.valueType,
+    unit: d.unit,
+    period: null,
+    value: null,
+    isProtected: false,
+    hasValue: false,
+  }))
+})
 
 // --- Удаление комнаты ---
-const isDeleteRoomOpen = ref(false)
 const isDeletingRoom = ref(false)
 const deleteRoomError = ref('')
 
@@ -129,7 +174,6 @@ async function confirmDeleteRoom() {
   deleteRoomError.value = ''
   try {
     await deleteRoom(detail.value.id)
-    isDeleteRoomOpen.value = false
     emit('deleted')
     emit('update:roomId', null)
   } catch (error) {
@@ -139,12 +183,12 @@ async function confirmDeleteRoom() {
 }
 
 // --- Добавление/редактирование значения характеристики ---
-const isValueDialogOpen = ref(false)
-const valueDialogMode = ref<'add' | 'edit'>('add')
+const valueFormKind = ref<'add' | 'edit'>('add')
+const valueFormLocked = ref(false)
 const valueDialogDefinitionId = ref<number | null>(null)
 const valueDialogEditingId = ref<number | null>(null)
 const valueDialogPeriod = ref('')
-const valueDialogBoolValue = ref(false)
+const valueDialogBoolValue = ref<boolean | null>(null)
 const valueDialogNumberValue = ref('')
 const valueDialogTextValue = ref('')
 const valueDialogError = ref('')
@@ -154,28 +198,41 @@ const deletingValueId = ref<number | null>(null)
 
 const selectedDefinition = computed(() => definitions.value.find((d) => d.id === valueDialogDefinitionId.value) ?? null)
 
-function openAddValue() {
-  valueDialogMode.value = 'add'
-  valueDialogDefinitionId.value = definitions.value[0]?.id ?? null
+function todayIso(): string {
+  return today(getLocalTimeZone()).toString()
+}
+
+function openAddValue(definitionId?: number) {
+  mode.value = 'value-form'
+  valueFormKind.value = 'add'
+  valueFormLocked.value = definitionId !== undefined
+  valueDialogDefinitionId.value = definitionId ?? definitions.value[0]?.id ?? null
   valueDialogEditingId.value = null
-  valueDialogPeriod.value = todayInputValue()
-  valueDialogBoolValue.value = false
+  valueDialogPeriod.value = todayIso()
+  valueDialogBoolValue.value = null
   valueDialogNumberValue.value = ''
   valueDialogTextValue.value = ''
   valueDialogError.value = ''
-  isValueDialogOpen.value = true
 }
 
-function openEditValue(entry: RoomHistoryEntry) {
-  valueDialogMode.value = 'edit'
+function openEditValue(entry: { id: number; definitionId: number; period: string | null; valueType: CharacteristicValueType; value: CharacteristicValue }) {
+  mode.value = 'value-form'
+  valueFormKind.value = 'edit'
+  valueFormLocked.value = true
   valueDialogDefinitionId.value = entry.definitionId
   valueDialogEditingId.value = entry.id
-  valueDialogPeriod.value = toDateInputValue(entry.period)
-  valueDialogBoolValue.value = entry.valueType === 'BOOLEAN' ? Boolean(entry.value) : false
+  valueDialogPeriod.value = entry.period ? entry.period.slice(0, 10) : todayIso()
+  valueDialogBoolValue.value = entry.valueType === 'BOOLEAN' ? Boolean(entry.value) : null
   valueDialogNumberValue.value = entry.valueType === 'NUMBER' && entry.value !== null ? String(entry.value) : ''
   valueDialogTextValue.value = entry.valueType === 'TEXT' && entry.value !== null ? String(entry.value) : ''
   valueDialogError.value = ''
-  isValueDialogOpen.value = true
+}
+
+const calendarValue = computed<DateValue | undefined>(() =>
+  valueDialogPeriod.value ? parseDate(valueDialogPeriod.value) : undefined,
+)
+function onCalendarSelect(value: DateValue | undefined) {
+  if (value) valueDialogPeriod.value = value.toString()
 }
 
 function buildValue(): boolean | number | string | null {
@@ -189,7 +246,7 @@ function buildValue(): boolean | number | string | null {
   return null
 }
 
-async function submitValueDialog() {
+async function submitValueForm() {
   if (!detail.value || !selectedDefinition.value) return
   const value = buildValue()
   if (value === null) {
@@ -203,7 +260,7 @@ async function submitValueDialog() {
   isSavingValue.value = true
   valueDialogError.value = ''
   try {
-    if (valueDialogMode.value === 'add') {
+    if (valueFormKind.value === 'add') {
       await addCharacteristicValue(detail.value.id, {
         definitionId: selectedDefinition.value.id,
         period: valueDialogPeriod.value,
@@ -215,8 +272,8 @@ async function submitValueDialog() {
         value,
       })
     }
-    await load(detail.value.id)
-    isValueDialogOpen.value = false
+    await refresh()
+    mode.value = 'detail'
   } catch (error) {
     valueDialogError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -224,15 +281,26 @@ async function submitValueDialog() {
   }
 }
 
-async function removeValue(entry: RoomHistoryEntry) {
-  if (!detail.value) return
-  deletingValueId.value = entry.id
+// --- Удаление значения характеристики ---
+const deletingValueTarget = ref<{ id: number; name: string } | null>(null)
+
+function openDeleteValueConfirm(entry: { id: number; name: string }) {
+  deletingValueTarget.value = entry
+  historyError.value = ''
+  mode.value = 'delete-value-confirm'
+}
+
+async function confirmDeleteValue() {
+  if (!detail.value || !deletingValueTarget.value) return
+  deletingValueId.value = deletingValueTarget.value.id
   historyError.value = ''
   try {
-    await deleteCharacteristicValue(detail.value.id, entry.id)
-    await load(detail.value.id)
+    await deleteCharacteristicValue(detail.value.id, deletingValueTarget.value.id)
+    await refresh()
+    mode.value = 'detail'
   } catch (error) {
     historyError.value = error instanceof Error ? error.message : String(error)
+    mode.value = 'detail'
   } finally {
     deletingValueId.value = null
   }
@@ -243,20 +311,21 @@ async function removeValue(entry: RoomHistoryEntry) {
   <Dialog :open="isOpen" @update:open="(open) => (isOpen = open)">
     <DialogScrollContent :class="['flex max-h-[85vh] min-w-0 flex-col gap-4 sm:max-w-2xl', DIALOG_ANIMATE_CLASS]">
       <DialogHeader>
-        <DialogTitle>{{ detail ? `Комната ${detail.room}` : 'Комната' }}</DialogTitle>
-        <DialogDescription v-if="detail?.floor !== null && detail?.floor !== undefined">{{ detail.floor }} этаж</DialogDescription>
+        <DialogTitle v-if="mode === 'detail'">{{ detail ? `Комната ${detail.room}` : 'Комната' }}</DialogTitle>
+        <DialogTitle v-else-if="mode === 'delete-room-confirm'">Удалить комнату?</DialogTitle>
+        <DialogTitle v-else-if="mode === 'value-form'">
+          {{ valueFormKind === 'add' ? 'Новое значение характеристики' : 'Изменить значение' }}
+        </DialogTitle>
+        <DialogTitle v-else-if="mode === 'delete-value-confirm'">Удалить значение?</DialogTitle>
       </DialogHeader>
 
       <p v-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
       <p v-else-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
 
-      <template v-else-if="detail">
-        <div class="flex items-center justify-end gap-2">
-          <Button variant="outline" size="sm" @click="openEditRoom">
-            <Pencil class="text-primary" />
-            Изменить номер
-          </Button>
-          <Button variant="outline" size="sm" class="text-red-500 hover:text-red-500" @click="isDeleteRoomOpen = true">
+      <!-- Основной вид карточки -->
+      <template v-else-if="detail && mode === 'detail'">
+        <div class="flex items-center justify-end">
+          <Button variant="outline" size="sm" class="text-red-500 hover:text-red-500" @click="mode = 'delete-room-confirm'">
             <Trash2 />
             Удалить комнату
           </Button>
@@ -264,139 +333,187 @@ async function removeValue(entry: RoomHistoryEntry) {
 
         <div class="flex items-center justify-between">
           <div class="text-sm font-medium text-muted-foreground">Характеристики</div>
-          <Button size="sm" :disabled="!definitions.length" @click="openAddValue">
-            <Plus />
-            Добавить значение
+          <Button size="icon" variant="outline" title="Добавить значение" @click="openAddValue()">
+            <Plus class="text-primary" />
+            <span class="sr-only">Добавить значение</span>
           </Button>
         </div>
 
-        <p v-if="!detail.characteristics.length" class="text-sm text-muted-foreground">Нет данных</p>
-        <div v-else class="grid grid-cols-1 gap-x-8 gap-y-2 rounded-md border p-3 sm:grid-cols-2">
+        <TransitionGroup
+          tag="div"
+          class="grid grid-cols-1 gap-x-8 gap-y-2 rounded-md border p-3 sm:grid-cols-2"
+          enter-active-class="animate-in fade-in-0 duration-200"
+          leave-active-class="animate-out fade-out-0 duration-200 absolute"
+          move-class="transition-transform duration-200"
+        >
           <div
-            v-for="c in detail.characteristics"
+            v-for="c in displayCharacteristics"
             :key="c.definitionId"
             class="flex items-center justify-between gap-2 border-b py-1.5 text-sm last:border-b-0"
           >
             <span class="text-muted-foreground">{{ c.name }}</span>
-            <span class="font-medium">{{ formatValue(c) }}</span>
+            <span class="flex items-center gap-1">
+              <span class="font-medium">{{ c.hasValue ? formatValue(c) : '—' }}</span>
+              <template v-if="c.hasValue">
+                <template v-if="!c.isProtected">
+                  <Button variant="ghost" size="icon" class="size-6" @click="openEditValue(c)">
+                    <Pencil class="size-3.5 text-primary" />
+                    <span class="sr-only">Изменить</span>
+                  </Button>
+                  <Button variant="ghost" size="icon" class="size-6" @click="openDeleteValueConfirm(c)">
+                    <Trash2 class="size-3.5 text-red-500" />
+                    <span class="sr-only">Удалить</span>
+                  </Button>
+                </template>
+              </template>
+              <Button v-else variant="ghost" size="icon" class="size-6" @click="openAddValue(c.definitionId)">
+                <Plus class="size-3.5 text-primary" />
+                <span class="sr-only">Добавить</span>
+              </Button>
+            </span>
           </div>
-        </div>
+        </TransitionGroup>
 
         <div class="text-sm font-medium text-muted-foreground">История значений</div>
         <p v-if="historyError" class="text-sm text-red-500">{{ historyError }}</p>
 
-        <p v-if="!detail.history.length" class="text-sm text-muted-foreground">Нет данных</p>
-        <div v-else class="overflow-hidden rounded-md border">
-          <Table class="table-fixed">
-            <TableHeader class="bg-muted">
-              <TableRow>
-                <TableHead class="w-[30%]">Характеристика</TableHead>
-                <TableHead class="w-[25%]">Значение</TableHead>
-                <TableHead class="w-[20%]">Период</TableHead>
-                <TableHead class="w-[25%]" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow v-for="entry in detail.history" :key="entry.id">
-                <TableCell>{{ entry.name }}</TableCell>
-                <TableCell>{{ formatValue(entry) }}</TableCell>
-                <TableCell>{{ formatDate(entry.period) }}</TableCell>
-                <TableCell class="flex items-center justify-end gap-1">
-                  <Button variant="ghost" size="icon" class="size-7" @click="openEditValue(entry)">
-                    <Pencil class="text-primary" />
-                    <span class="sr-only">Изменить</span>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    class="size-7"
-                    :disabled="deletingValueId === entry.id"
-                    @click="removeValue(entry)"
-                  >
-                    <Trash2 class="text-red-500" />
-                    <span class="sr-only">Удалить</span>
-                  </Button>
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
+        <div class="overflow-hidden rounded-md border">
+          <table class="w-full table-fixed text-sm">
+            <thead class="bg-muted">
+              <tr>
+                <th class="w-[30%] px-3 py-2 text-left font-medium">Характеристика</th>
+                <th class="w-[25%] px-3 py-2 text-left font-medium">Значение</th>
+                <th class="w-[20%] px-3 py-2 text-left font-medium">Период</th>
+                <th class="w-[25%] px-3 py-2" />
+              </tr>
+            </thead>
+            <TransitionGroup
+              tag="tbody"
+              enter-active-class="animate-in fade-in-0 duration-200"
+              leave-active-class="animate-out fade-out-0 duration-200 absolute"
+              move-class="transition-transform duration-200"
+            >
+              <tr v-for="entry in displayHistory" :key="entry.id" class="border-t">
+                <td class="px-3 py-2">{{ entry.name }}</td>
+                <td class="px-3 py-2">{{ entry.hasValue ? formatValue(entry) : '—' }}</td>
+                <td class="px-3 py-2">{{ entry.period ? formatDate(entry.period) : '—' }}</td>
+                <td class="flex items-center justify-end gap-1 px-3 py-2">
+                  <template v-if="entry.hasValue && !entry.isProtected">
+                    <Button variant="ghost" size="icon" class="size-7" @click="openEditValue(entry)">
+                      <Pencil class="text-primary" />
+                      <span class="sr-only">Изменить</span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="size-7"
+                      :disabled="deletingValueId === entry.id"
+                      @click="openDeleteValueConfirm(entry)"
+                    >
+                      <Trash2 class="text-red-500" />
+                      <span class="sr-only">Удалить</span>
+                    </Button>
+                  </template>
+                </td>
+              </tr>
+            </TransitionGroup>
+          </table>
         </div>
       </template>
-    </DialogScrollContent>
-  </Dialog>
 
-  <!-- Изменение номера комнаты -->
-  <Dialog :open="isEditRoomOpen" @update:open="(open) => (isEditRoomOpen = open)">
-    <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
-      <DialogHeader>
-        <DialogTitle>Изменить номер комнаты</DialogTitle>
-      </DialogHeader>
-      <div class="flex flex-col gap-2">
-        <Label for="edit-room-number">Номер</Label>
-        <Input id="edit-room-number" v-model="editRoomNumber" @keyup.enter="submitEditRoom" />
-        <p v-if="editRoomError" class="text-sm text-red-500">{{ editRoomError }}</p>
-      </div>
-      <DialogFooter>
-        <Button :disabled="isSavingRoom || !editRoomNumber.trim()" @click="submitEditRoom">Сохранить</Button>
-      </DialogFooter>
-    </DialogScrollContent>
-  </Dialog>
+      <!-- Подтверждение удаления комнаты -->
+      <template v-else-if="mode === 'delete-room-confirm'">
+        <DialogDescription>
+          Вы уверены? Вместе с комнатой удалится вся история значений её характеристик. Действие необратимо.
+        </DialogDescription>
+        <p v-if="deleteRoomError" class="text-sm text-red-500">{{ deleteRoomError }}</p>
+        <DialogFooter>
+          <Button variant="outline" @click="mode = 'detail'">Отмена</Button>
+          <Button variant="destructive" :disabled="isDeletingRoom" @click="confirmDeleteRoom">Да, удалить</Button>
+        </DialogFooter>
+      </template>
 
-  <!-- Удаление комнаты -->
-  <Dialog :open="isDeleteRoomOpen" @update:open="(open) => (isDeleteRoomOpen = open)">
-    <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
-      <DialogHeader>
-        <DialogTitle>Удалить комнату?</DialogTitle>
-        <DialogDescription>Вместе с комнатой удалится вся история значений её характеристик. Действие необратимо.</DialogDescription>
-      </DialogHeader>
-      <p v-if="deleteRoomError" class="text-sm text-red-500">{{ deleteRoomError }}</p>
-      <DialogFooter>
-        <Button variant="outline" @click="isDeleteRoomOpen = false">Отмена</Button>
-        <Button variant="destructive" :disabled="isDeletingRoom" @click="confirmDeleteRoom">Удалить</Button>
-      </DialogFooter>
-    </DialogScrollContent>
-  </Dialog>
-
-  <!-- Добавление/редактирование значения характеристики -->
-  <Dialog :open="isValueDialogOpen" @update:open="(open) => (isValueDialogOpen = open)">
-    <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
-      <DialogHeader>
-        <DialogTitle>{{ valueDialogMode === 'add' ? 'Новое значение характеристики' : 'Изменить значение' }}</DialogTitle>
-      </DialogHeader>
-      <div class="flex flex-col gap-4">
-        <div v-if="valueDialogMode === 'add'" class="flex flex-col gap-2">
-          <Label>Характеристика</Label>
-          <Select :model-value="valueDialogDefinitionId ? String(valueDialogDefinitionId) : undefined" @update:model-value="(v) => (valueDialogDefinitionId = Number(v))">
-            <SelectTrigger>
-              <SelectValue placeholder="Выберите характеристику" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem v-for="d in definitions" :key="d.id" :value="String(d.id)">{{ d.name }}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div v-else class="text-sm text-muted-foreground">{{ selectedDefinition?.name }}</div>
-
-        <div class="flex flex-col gap-2">
-          <Label for="value-period">Дата</Label>
-          <Input id="value-period" v-model="valueDialogPeriod" type="date" />
-        </div>
-
-        <div class="flex flex-col gap-2">
-          <Label>Значение</Label>
-          <div v-if="selectedDefinition?.valueType === 'BOOLEAN'" class="flex items-center gap-2">
-            <Checkbox :model-value="valueDialogBoolValue" @update:model-value="(v) => (valueDialogBoolValue = !!v)" />
-            <span class="text-sm">Да</span>
+      <!-- Форма значения характеристики -->
+      <template v-else-if="mode === 'value-form'">
+        <div class="flex flex-col gap-4">
+          <div class="flex flex-col gap-2">
+            <Label>Характеристика</Label>
+            <Select
+              v-if="!valueFormLocked"
+              :model-value="valueDialogDefinitionId ? String(valueDialogDefinitionId) : undefined"
+              @update:model-value="(v) => (valueDialogDefinitionId = Number(v))"
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Выберите характеристику" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="d in definitions" :key="d.id" :value="String(d.id)">{{ d.name }}</SelectItem>
+              </SelectContent>
+            </Select>
+            <div v-else class="text-sm text-muted-foreground">{{ selectedDefinition?.name }}</div>
           </div>
-          <Input v-else-if="selectedDefinition?.valueType === 'NUMBER'" v-model="valueDialogNumberValue" type="number" step="any" />
-          <Input v-else v-model="valueDialogTextValue" type="text" />
-        </div>
 
-        <p v-if="valueDialogError" class="text-sm text-red-500">{{ valueDialogError }}</p>
-      </div>
-      <DialogFooter>
-        <Button :disabled="isSavingValue || !selectedDefinition" @click="submitValueDialog">Сохранить</Button>
-      </DialogFooter>
+          <div class="flex flex-col gap-2">
+            <Label>Дата</Label>
+            <Popover>
+              <PopoverTrigger as-child>
+                <Button variant="outline" class="w-full justify-start text-left font-normal">
+                  <CalendarIcon class="mr-2 size-4 text-primary" />
+                  {{ valueDialogPeriod ? formatDate(valueDialogPeriod) : 'Выберите дату' }}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent class="w-auto p-0">
+                <Calendar :model-value="calendarValue" @update:model-value="onCalendarSelect" />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <Label>Значение</Label>
+            <div v-if="selectedDefinition?.valueType === 'BOOLEAN'" class="flex items-center gap-4">
+              <label class="flex items-center gap-2 text-sm">
+                <Checkbox
+                  :model-value="valueDialogBoolValue === true"
+                  @update:model-value="(v) => { if (v) valueDialogBoolValue = true }"
+                />
+                Да
+              </label>
+              <label class="flex items-center gap-2 text-sm">
+                <Checkbox
+                  :model-value="valueDialogBoolValue === false"
+                  @update:model-value="(v) => { if (v) valueDialogBoolValue = false }"
+                />
+                Нет
+              </label>
+            </div>
+            <Input
+              v-else-if="selectedDefinition?.valueType === 'NUMBER'"
+              v-model="valueDialogNumberValue"
+              type="number"
+              step="any"
+              :class="NO_SPINNER_CLASS"
+            />
+            <Input v-else v-model="valueDialogTextValue" type="text" />
+          </div>
+
+          <p v-if="valueDialogError" class="text-sm text-red-500">{{ valueDialogError }}</p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="mode = 'detail'">Отмена</Button>
+          <Button :disabled="isSavingValue || !selectedDefinition" @click="submitValueForm">Сохранить</Button>
+        </DialogFooter>
+      </template>
+
+      <!-- Подтверждение удаления значения -->
+      <template v-else-if="mode === 'delete-value-confirm'">
+        <DialogDescription>
+          Вы уверены, что хотите удалить значение «{{ deletingValueTarget?.name }}»? Действие необратимо.
+        </DialogDescription>
+        <DialogFooter>
+          <Button variant="outline" @click="mode = 'detail'">Отмена</Button>
+          <Button variant="destructive" :disabled="deletingValueId !== null" @click="confirmDeleteValue">Да, удалить</Button>
+        </DialogFooter>
+      </template>
     </DialogScrollContent>
   </Dialog>
 </template>

@@ -128,7 +128,7 @@ export class SyncService {
   // падения количества (тот защищает полный слепок; здесь 0 записей у человека,
   // переставшего быть активным студентом, — легитимный исход, а не сбой источника).
   // Отдельного SyncLog не пишет — это шаг общего лога, который ведёт IndividualSyncService.
-  async syncOne(uid: string): Promise<{ fetchedCount: number; added: number; removed: number }> {
+  async syncOne(uid: string): Promise<{ fetchedCount: number; added: number; removed: number; records: unknown[] }> {
     const records = await this.externalApi.fetchActiveStudentsByUid(uid);
 
     return this.prisma.$transaction(
@@ -145,7 +145,7 @@ export class SyncService {
           });
         }
 
-        return { fetchedCount: records.length, added: records.length, removed: existingCount };
+        return { fetchedCount: records.length, added: records.length, removed: existingCount, records };
       },
       { timeout: TRANSACTION_TIMEOUT_MS },
     );

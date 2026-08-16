@@ -113,7 +113,7 @@ export class CitizenshipSyncService {
   // Точечная синхронизация одного физлица (кнопка на карточке) — та же логика "слепка",
   // что и в общем прогоне, но удаляет и заново пишет только строки этого UID, а не всю
   // таблицу. Без отдельного SyncLog — это шаг общего лога IndividualSyncService.
-  async syncOne(uid: string): Promise<{ fetchedCount: number; added: number; removed: number }> {
+  async syncOne(uid: string): Promise<{ fetchedCount: number; added: number; removed: number; records: unknown[] }> {
     const records = await this.externalApi.fetchCitizenships([uid]);
 
     return this.prisma.$transaction(
@@ -125,7 +125,7 @@ export class CitizenshipSyncService {
           await tx.citizenship.createMany({ data: records.map((record) => toCitizenshipData(record)) });
         }
 
-        return { fetchedCount: records.length, added: records.length, removed: existingCount };
+        return { fetchedCount: records.length, added: records.length, removed: existingCount, records };
       },
       { timeout: TRANSACTION_TIMEOUT_MS },
     );

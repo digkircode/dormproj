@@ -5,19 +5,20 @@ export interface Room {
   id: number
   guid: string | null
   room: string
-  floor: number | null
 }
 
 export type CharacteristicValueType = 'BOOLEAN' | 'NUMBER' | 'TEXT'
 export type CharacteristicValue = boolean | number | string | null
 
 export interface RoomCharacteristic {
+  id: number
   definitionId: number
   name: string
   valueType: CharacteristicValueType
   unit: string | null
   value: CharacteristicValue
   period: string
+  isProtected: boolean
 }
 
 export interface RoomHistoryEntry {
@@ -28,6 +29,7 @@ export interface RoomHistoryEntry {
   unit: string | null
   period: string
   value: CharacteristicValue
+  isProtected: boolean
 }
 
 // characteristics — по одной (самой актуальной по period) записи на каждую встретившуюся
@@ -56,11 +58,11 @@ export async function fetchRoomDetail(id: number): Promise<RoomDetail> {
   return response.json()
 }
 
-export async function createRoom(room: string): Promise<Room> {
+export async function createRoom(room: string, floor: number): Promise<Room> {
   const response = await apiFetch('/rooms', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ room }),
+    body: JSON.stringify({ room, floor }),
   })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))

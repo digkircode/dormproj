@@ -21,7 +21,7 @@ const individualsSync = useSyncRow('Физические лица', '/sync/indiv
 const citizenshipSync = useSyncRow('Гражданство', '/sync/citizenship')
 const passportSync = useSyncRow('Паспортные данные', '/sync/passport')
 const contactInfoSync = useSyncRow('Контактная информация', '/sync/contact-info')
-const individualManualSync = useSyncRow('Обновление данных физических лиц', '/sync/individual')
+const individualManualSync = useSyncRow('Обновление данных физического лица', '/sync/individual')
 
 const rows = computed(() => [
   { ...studentSync.row.value, isRunning: studentSync.isRunning.value, run: studentSync.run, slug: 'students' },

@@ -23,15 +23,20 @@ const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 
 const SEARCHABLE_FIELDS = ['room'] as const;
-const SORTABLE_FIELDS: Record<string, string> = { room: 'room', floor: 'floor' };
-const FILTERABLE_FIELDS = ['floor'] as const;
+const SORTABLE_FIELDS: Record<string, string> = { room: 'room' };
+const FILTERABLE_FIELDS = [] as const;
 type FilterableField = (typeof FILTERABLE_FIELDS)[number];
 
 function isFilterableField(field: string): field is FilterableField {
   return (FILTERABLE_FIELDS as readonly string[]).includes(field);
 }
 
-const createRoomSchema = z.object({ room: z.string().trim().min(1) });
+// Этаж — теперь обычная (защищённая) характеристика, а не колонка Room, но при создании
+// комнаты его всё равно нужно указать явно (раньше выводился регуляркой из номера, теперь
+// такого автоматизма нет) — см. create().
+const FLOOR_DEFINITION_NAME = 'Этаж';
+
+const createRoomSchema = z.object({ room: z.string().trim().min(1), floor: z.number().int() });
 const updateRoomSchema = z.object({ room: z.string().trim().min(1) });
 const createValueSchema = z.object({
   definitionId: z.number().int(),
@@ -109,18 +114,12 @@ export class RoomsController {
   }
 
   @Get('facets/:field')
-  async facetValues(@Param('field') field: string) {
-    if (!isFilterableField(field)) return [];
-
-    const rows = await this.prisma.room.findMany({
-      where: { floor: { not: null } },
-      select: { floor: true },
-      distinct: ['floor'],
-      orderBy: { floor: 'asc' },
-      take: 500,
-    });
-
-    return rows.map((row) => ({ value: String(row.floor), label: String(row.floor) }));
+  facetValues(@Param('field') field: string) {
+    // Фильтруемых полей у комнат сейчас нет — этаж переехал в характеристики
+    // (см. FLOOR_DEFINITION_NAME), сортировать/фильтровать список комнат по нему
+    // отдельно не нужно, он смотрится на карточке конкретной комнаты.
+    void field;
+    return [];
   }
 
   @Get(':id')
@@ -151,6 +150,7 @@ export class RoomsController {
         unit: row.definition.unit,
         period: row.period,
         value: fromStoredValue(row.definition.valueType, row),
+        isProtected: row.isProtected,
       })),
     };
   }
@@ -161,8 +161,24 @@ export class RoomsController {
     if (!parsed.success) {
       throw new BadRequestException(parsed.error.message);
     }
+
+    const floorDefinition = await this.prisma.roomCharacteristicDefinition.findUnique({
+      where: { name: FLOOR_DEFINITION_NAME },
+    });
+    if (!floorDefinition) {
+      // Не должно происходить в проде (заведено миграцией), но каталог теоретически
+      // редактируется через UI — на всякий случай не 500'им без объяснения.
+      throw new ConflictException('Характеристика "Этаж" не найдена в каталоге');
+    }
+
     try {
-      return await this.prisma.room.create({ data: { room: parsed.data.room } });
+      return await this.prisma.$transaction(async (tx) => {
+        const room = await tx.room.create({ data: { room: parsed.data.room } });
+        await tx.roomCharacteristicValue.create({
+          data: { roomId: room.id, definitionId: floorDefinition.id, period: new Date(), valueNumber: parsed.data.floor },
+        });
+        return room;
+      });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('Комната с таким номером уже существует');
@@ -256,6 +272,9 @@ export class RoomsController {
     if (!existing) {
       throw new NotFoundException('Значение характеристики не найдено');
     }
+    if (existing.isProtected) {
+      throw new ConflictException('Это значение нельзя изменить');
+    }
 
     const stored = parsed.data.value === undefined ? {} : toStoredValue(existing.definition.valueType, parsed.data.value);
     try {
@@ -280,6 +299,9 @@ export class RoomsController {
     const existing = await this.prisma.roomCharacteristicValue.findFirst({ where: { id: valueId, roomId } });
     if (!existing) {
       throw new NotFoundException('Значение характеристики не найдено');
+    }
+    if (existing.isProtected) {
+      throw new ConflictException('Это значение нельзя удалить');
     }
 
     return this.prisma.roomCharacteristicValue.delete({ where: { id: valueId } });
