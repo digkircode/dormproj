@@ -28,6 +28,7 @@ const updateSchema = z.object({
   name: z.string().trim().min(1).optional(),
   unit: z.string().trim().min(1).nullish(),
 });
+const reorderSchema = z.object({ ids: z.array(z.number().int()).min(1) });
 
 function parseIdParam(idParam: string): number {
   const id = Number.parseInt(idParam, 10);
@@ -44,9 +45,9 @@ export class RoomCharacteristicDefinitionsController {
 
   @Get()
   list() {
-    // По id, не по имени — новые характеристики должны появляться внизу списка,
-    // а не запрыгивать в середину алфавита.
-    return this.prisma.roomCharacteristicDefinition.findMany({ orderBy: { id: 'asc' } });
+    // По sortOrder — ручной порядок через drag-and-drop в UI (не по id/имени),
+    // новые характеристики получают max(sortOrder)+1 при создании, см. create().
+    return this.prisma.roomCharacteristicDefinition.findMany({ orderBy: { sortOrder: 'asc' } });
   }
 
   @Post()
@@ -56,8 +57,14 @@ export class RoomCharacteristicDefinitionsController {
       throw new BadRequestException(parsed.error.message);
     }
     try {
+      const last = await this.prisma.roomCharacteristicDefinition.findFirst({ orderBy: { sortOrder: 'desc' } });
       return await this.prisma.roomCharacteristicDefinition.create({
-        data: { name: parsed.data.name, valueType: parsed.data.valueType, unit: parsed.data.unit ?? null },
+        data: {
+          name: parsed.data.name,
+          valueType: parsed.data.valueType,
+          unit: parsed.data.unit ?? null,
+          sortOrder: (last?.sortOrder ?? 0) + 1,
+        },
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -65,6 +72,23 @@ export class RoomCharacteristicDefinitionsController {
       }
       throw error;
     }
+  }
+
+  // Перетаскивание строк в UI — ids в новом порядке целиком, sortOrder переставляется
+  // по позиции в массиве. Регистрируется раньше ":id" ниже, иначе Nest примет "reorder"
+  // за id и упадёт в parseIdParam.
+  @Patch('reorder')
+  async reorder(@Body() body: unknown) {
+    const parsed = reorderSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.message);
+    }
+    await this.prisma.$transaction(
+      parsed.data.ids.map((id, index) =>
+        this.prisma.roomCharacteristicDefinition.update({ where: { id }, data: { sortOrder: index } }),
+      ),
+    );
+    return this.list();
   }
 
   @Patch(':id')

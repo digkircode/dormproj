@@ -1,23 +1,22 @@
 <script setup lang="ts">
-import { provide, ref } from 'vue'
-import { Plus } from 'lucide-vue-next'
-import EntityTable from '@/components/EntityTable.vue'
-import RoomCharacteristicActionsCell from '@/components/RoomCharacteristicActionsCell.vue'
+import { onMounted, ref } from 'vue'
+import { GripVertical, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-vue-next'
+import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogScrollContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { createAppColumnHelper } from '@/lib/table'
 import {
-  fetchDefinitionsPage,
-  fetchDefinitionFacets,
+  fetchDefinitions,
   createDefinition,
   updateDefinition,
   deleteDefinition,
+  reorderDefinitions,
   type RoomCharacteristicDefinition,
 } from '@/lib/room-characteristic-definitions-api'
-import { DEFINITION_ACTIONS_KEY } from '@/lib/definition-actions-key'
 import type { CharacteristicValueType } from '@/lib/rooms-api'
 
 const DIALOG_ANIMATE_CLASS =
@@ -29,32 +28,58 @@ const VALUE_TYPE_LABELS: Record<CharacteristicValueType, string> = {
   TEXT: 'Текст',
 }
 
-const columnLabels: Record<string, string> = {
-  name: 'Название',
-  valueType: 'Тип значения',
-  unit: 'Единица измерения',
-  actions: '',
+const definitions = ref<RoomCharacteristicDefinition[]>([])
+const isLoading = ref(true)
+const loadError = ref('')
+
+async function load() {
+  isLoading.value = true
+  loadError.value = ''
+  try {
+    definitions.value = await fetchDefinitions()
+  } catch (error) {
+    loadError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isLoading.value = false
+  }
 }
-const filterableFields = ['valueType']
 
-function cellText(columnId: string, value: unknown): string {
-  if (columnId === 'valueType') return VALUE_TYPE_LABELS[value as CharacteristicValueType] ?? String(value)
-  if (columnId === 'unit') return (value as string | null) || '—'
-  return String(value ?? '')
+onMounted(load)
+
+// --- Перетаскивание строк мышью (нативный HTML5 drag-and-drop — список маленький,
+// отдельная библиотека не нужна). Порядок меняется оптимистично, при ошибке сохранения
+// откатывается перезагрузкой с сервера. Перетаскивать можно только за ручку (иконка
+// слева), не за всю строку — иначе конфликтует с кликом по меню действий.
+const draggedId = ref<number | null>(null)
+const dragOverId = ref<number | null>(null)
+const reorderError = ref('')
+
+function onDragStart(id: number) {
+  draggedId.value = id
 }
 
-const columnHelper = createAppColumnHelper<RoomCharacteristicDefinition>()
+async function onDrop(targetId: number) {
+  dragOverId.value = null
+  const fromId = draggedId.value
+  draggedId.value = null
+  if (fromId === null || fromId === targetId) return
 
-const columns = columnHelper.columns([
-  columnHelper.accessor('name', { header: columnLabels.name, enableHiding: false, size: 280, minSize: 160 }),
-  columnHelper.accessor('valueType', { header: columnLabels.valueType, size: 160, minSize: 120 }),
-  columnHelper.accessor('unit', { header: columnLabels.unit, size: 200, minSize: 120 }),
-  columnHelper.display({ id: 'actions', header: columnLabels.actions, size: 120, minSize: 96, enableSorting: false, enableHiding: false }),
-])
+  const fromIndex = definitions.value.findIndex((d) => d.id === fromId)
+  const toIndex = definitions.value.findIndex((d) => d.id === targetId)
+  if (fromIndex === -1 || toIndex === -1) return
 
-const cellRenderers = { actions: RoomCharacteristicActionsCell }
-
-const table = ref<{ refresh: () => void | Promise<void> } | null>(null)
+  const reordered = [...definitions.value]
+  const [moved] = reordered.splice(fromIndex, 1)
+  reordered.splice(toIndex, 0, moved)
+  definitions.value = reordered
+  reorderError.value = ''
+  try {
+    await reorderDefinitions(reordered.map((d) => d.id))
+  } catch (error) {
+    reorderError.value = error instanceof Error ? error.message : String(error)
+    await load()
+  }
+}
 
 // --- Создание/редактирование ---
 const isDialogOpen = ref(false)
@@ -97,7 +122,7 @@ async function submitDialog() {
       await updateDefinition(editingId.value, { name: formName.value.trim(), unit: formUnit.value.trim() || null })
     }
     isDialogOpen.value = false
-    table.value?.refresh()
+    await load()
   } catch (error) {
     dialogError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -122,41 +147,91 @@ async function confirmDelete() {
   try {
     await deleteDefinition(deleteTarget.value.id)
     deleteTarget.value = null
-    table.value?.refresh()
+    await load()
   } catch (error) {
     deleteError.value = error instanceof Error ? error.message : String(error)
   } finally {
     isDeleting.value = false
   }
 }
-
-provide(DEFINITION_ACTIONS_KEY, { edit: openEdit, remove: openDeleteConfirm })
 </script>
 
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
-    <EntityTable
-      ref="table"
-      :columns="columns"
-      :column-labels="columnLabels"
-      :filterable-fields="filterableFields"
-      :default-sort="{ id: 'id', desc: false }"
-      :fetch-page="fetchDefinitionsPage"
-      :fetch-facet-values="fetchDefinitionFacets"
-      :get-row-id="(d: RoomCharacteristicDefinition) => String(d.id)"
-      total-label="характеристик"
-      :cell-text="cellText"
-      :cell-renderers="cellRenderers"
-      storage-key="room-characteristics"
-      accent-icons
-    >
-      <template #actions>
-        <Button size="icon" title="Добавить характеристику" @click="openCreate">
-          <Plus />
-          <span class="sr-only">Добавить характеристику</span>
-        </Button>
-      </template>
-    </EntityTable>
+    <div class="flex items-center justify-between">
+      <h1 class="text-lg font-medium">Характеристики комнат</h1>
+      <Button size="icon" title="Добавить характеристику" @click="openCreate">
+        <Plus />
+        <span class="sr-only">Добавить характеристику</span>
+      </Button>
+    </div>
+
+    <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
+    <p v-if="reorderError" class="text-sm text-red-500">{{ reorderError }}</p>
+    <p v-if="deleteError" class="text-sm text-red-500">{{ deleteError }}</p>
+
+    <Card class="min-w-0 gap-0 py-0">
+      <div class="overflow-hidden rounded-lg border">
+        <p v-if="isLoading" class="p-6 text-sm text-muted-foreground">Загрузка…</p>
+        <p v-else-if="!definitions.length" class="p-6 text-sm text-muted-foreground">Характеристик пока нет</p>
+        <Table v-else class="table-fixed">
+          <TableHeader class="bg-muted">
+            <TableRow>
+              <TableHead class="w-10" />
+              <TableHead class="w-[35%]">Название</TableHead>
+              <TableHead class="w-[20%]">Тип значения</TableHead>
+              <TableHead class="w-[25%]">Единица измерения</TableHead>
+              <TableHead class="w-10" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow
+              v-for="d in definitions"
+              :key="d.id"
+              :class="{ 'bg-accent': dragOverId === d.id }"
+              @dragover.prevent="dragOverId = d.id"
+              @dragleave="dragOverId = dragOverId === d.id ? null : dragOverId"
+              @drop="onDrop(d.id)"
+            >
+              <TableCell class="p-2">
+                <span
+                  draggable="true"
+                  class="flex cursor-grab items-center justify-center text-muted-foreground active:cursor-grabbing"
+                  title="Перетащить"
+                  @dragstart="onDragStart(d.id)"
+                  @dragend="draggedId = null; dragOverId = null"
+                >
+                  <GripVertical class="size-4" />
+                </span>
+              </TableCell>
+              <TableCell>{{ d.name }}</TableCell>
+              <TableCell>{{ VALUE_TYPE_LABELS[d.valueType] }}</TableCell>
+              <TableCell>{{ d.unit ?? '—' }}</TableCell>
+              <TableCell class="p-2 text-center">
+                <DropdownMenu>
+                  <DropdownMenuTrigger as-child>
+                    <Button variant="ghost" size="icon" class="size-7">
+                      <MoreVertical class="text-muted-foreground" />
+                      <span class="sr-only">Действия</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem @click="openEdit(d)">
+                      <Pencil class="text-primary" />
+                      Редактировать
+                    </DropdownMenuItem>
+                    <DropdownMenuItem :disabled="d.isProtected" @click="openDeleteConfirm(d)">
+                      <Trash2 class="text-red-500" />
+                      Удалить
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
+    </Card>
 
     <Dialog :open="isDialogOpen" @update:open="(open) => (isDialogOpen = open)">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">

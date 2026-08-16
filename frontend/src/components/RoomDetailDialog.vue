@@ -249,8 +249,10 @@ function openEditValue(entry: { id: number; definitionId: number; period: string
 const calendarValue = computed<DateValue | undefined>(() =>
   valueDialogPeriod.value ? parseDate(valueDialogPeriod.value) : undefined,
 )
+const isCalendarOpen = ref(false)
 function onCalendarSelect(value: DateValue | undefined) {
   if (value) valueDialogPeriod.value = value.toString()
+  isCalendarOpen.value = false
 }
 
 function buildValue(): boolean | number | string | null {
@@ -352,111 +354,116 @@ async function confirmDeleteValue() {
       <p v-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
       <p v-else-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
 
-      <!-- Основной вид карточки -->
+      <!-- Основной вид карточки — фиксированная высота, чтобы модалка не двигалась и не
+           меняла размер ни при фильтрации истории, ни при добавлении строк — гибкая
+           только таблица истории внутри (flex-1 + overflow-y-auto). -->
       <template v-else-if="detail && mode === 'detail'">
-        <div class="flex items-center justify-between">
-          <div class="text-sm font-medium text-muted-foreground">Характеристики</div>
-          <Button size="icon" variant="outline" title="Добавить значение" @click="openAddValue()">
-            <Plus class="text-primary" />
-            <span class="sr-only">Добавить значение</span>
-          </Button>
-        </div>
-
-        <!-- Клик по характеристике фильтрует историю ниже только по ней, повторный клик
-             снимает фильтр — редактирование/удаление значений теперь только в истории. -->
-        <TransitionGroup
-          tag="div"
-          class="grid grid-cols-1 gap-x-8 gap-y-2 rounded-md border p-3 sm:grid-cols-2"
-          enter-active-class="animate-in fade-in-0 duration-200"
-          leave-active-class="animate-out fade-out-0 duration-200 absolute"
-          move-class="transition-transform duration-200"
-        >
-          <div
-            v-for="c in displayCharacteristics"
-            :key="c.definitionId"
-            class="-mx-1.5 flex cursor-pointer items-center justify-between gap-2 rounded px-1.5 py-1.5 text-sm hover:bg-accent"
-            :class="{ 'bg-accent': selectedCharacteristicFilter === c.definitionId }"
-            @click="toggleCharacteristicFilter(c.definitionId)"
-          >
-            <span class="text-muted-foreground">{{ c.name }}</span>
-            <span class="flex items-center gap-1">
-              <span class="font-medium">{{ c.hasValue ? formatValue(c) : '—' }}</span>
-              <Button
-                v-if="!c.hasValue"
-                variant="ghost"
-                size="icon"
-                class="size-6"
-                @click.stop="openAddValue(c.definitionId)"
-              >
-                <Plus class="size-3.5 text-primary" />
-                <span class="sr-only">Добавить</span>
-              </Button>
-            </span>
+        <div class="flex h-[min(560px,80vh)] flex-col gap-4">
+          <div class="flex items-center justify-between">
+            <div class="text-sm font-medium text-muted-foreground">Характеристики</div>
+            <Button size="icon" variant="outline" title="Добавить значение" @click="openAddValue()">
+              <Plus class="text-primary" />
+              <span class="sr-only">Добавить значение</span>
+            </Button>
           </div>
-        </TransitionGroup>
 
-        <div class="flex items-center gap-2">
-          <div class="text-sm font-medium text-muted-foreground">
-            {{ selectedCharacteristicName ? `История значений — ${selectedCharacteristicName}` : 'История значений' }}
-          </div>
-          <Button
-            v-if="selectedCharacteristicFilter !== null"
-            variant="ghost"
-            size="icon"
-            class="size-6"
-            title="Показать всю историю"
-            @click="selectedCharacteristicFilter = null"
+          <!-- Клик по характеристике фильтрует историю ниже только по ней, повторный клик
+               снимает фильтр — редактирование/удаление значений теперь только в истории.
+               Без absolute на leave — на table-элементах ниже он ломает раскладку и
+               строки наезжают друг на друга, здесь для единообразия тоже без него. -->
+          <TransitionGroup
+            tag="div"
+            class="grid shrink-0 grid-cols-1 gap-x-8 gap-y-2 rounded-md border p-3 sm:grid-cols-2"
+            enter-active-class="animate-in fade-in-0 duration-200"
+            leave-active-class="animate-out fade-out-0 duration-200"
+            move-class="transition-transform duration-200"
           >
-            <X class="size-3.5 text-red-500" />
-            <span class="sr-only">Показать всю историю</span>
-          </Button>
-        </div>
-        <p v-if="historyError" class="text-sm text-red-500">{{ historyError }}</p>
-
-        <!-- max-h + overflow-y-auto — если характеристик много, скроллится сама таблица,
-             а не вся модалка (иначе список выше "прыгает" при смене высоты истории при
-             фильтрации/добавлении строк). -->
-        <div class="max-h-64 overflow-y-auto rounded-md border">
-          <table class="w-full table-fixed text-sm">
-            <thead class="sticky top-0 z-10 bg-muted">
-              <tr>
-                <th class="w-[30%] px-3 py-2 text-left font-medium">Характеристика</th>
-                <th class="w-[25%] px-3 py-2 text-left font-medium">Значение</th>
-                <th class="w-[20%] px-3 py-2 text-left font-medium">Период</th>
-                <th class="w-[25%] px-3 py-2" />
-              </tr>
-            </thead>
-            <TransitionGroup
-              tag="tbody"
-              enter-active-class="animate-in fade-in-0 duration-200"
-              leave-active-class="animate-out fade-out-0 duration-200 absolute"
-              move-class="transition-transform duration-200"
+            <div
+              v-for="c in displayCharacteristics"
+              :key="c.definitionId"
+              class="-mx-1.5 flex cursor-pointer items-center justify-between gap-2 rounded px-1.5 py-1.5 text-sm hover:bg-accent"
+              :class="{ 'bg-accent': selectedCharacteristicFilter === c.definitionId }"
+              @click="toggleCharacteristicFilter(c.definitionId)"
             >
-              <tr v-for="entry in filteredHistory" :key="entry.id" class="border-t">
-                <td class="px-3 py-2">{{ entry.name }}</td>
-                <td class="px-3 py-2">{{ entry.hasValue ? formatValue(entry) : '—' }}</td>
-                <td class="px-3 py-2">{{ entry.period ? formatDate(entry.period) : '—' }}</td>
-                <td class="flex items-center justify-end gap-1 px-3 py-2">
-                  <template v-if="entry.hasValue && !entry.isProtected">
-                    <Button variant="ghost" size="icon" class="size-7" @click="openEditValue(entry)">
-                      <Pencil class="text-primary" />
-                      <span class="sr-only">Изменить</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      class="size-7"
-                      :disabled="deletingValueId === entry.id"
-                      @click="openDeleteValueConfirm(entry)"
-                    >
-                      <Trash2 class="text-red-500" />
-                      <span class="sr-only">Удалить</span>
-                    </Button>
-                  </template>
-                </td>
-              </tr>
-            </TransitionGroup>
-          </table>
+              <span class="text-muted-foreground">{{ c.name }}</span>
+              <span class="flex items-center gap-1">
+                <span class="font-medium">{{ c.hasValue ? formatValue(c) : '—' }}</span>
+                <Button
+                  v-if="!c.hasValue"
+                  variant="ghost"
+                  size="icon"
+                  class="size-6"
+                  @click.stop="openAddValue(c.definitionId)"
+                >
+                  <Plus class="size-3.5 text-primary" />
+                  <span class="sr-only">Добавить</span>
+                </Button>
+              </span>
+            </div>
+          </TransitionGroup>
+
+          <div class="flex shrink-0 items-center gap-2">
+            <div class="text-sm font-medium text-muted-foreground">
+              {{ selectedCharacteristicName ? `История значений — ${selectedCharacteristicName}` : 'История значений' }}
+            </div>
+            <Button
+              v-if="selectedCharacteristicFilter !== null"
+              variant="ghost"
+              size="icon"
+              class="size-6"
+              title="Показать всю историю"
+              @click="selectedCharacteristicFilter = null"
+            >
+              <X class="size-3.5 text-red-500" />
+              <span class="sr-only">Показать всю историю</span>
+            </Button>
+          </div>
+          <p v-if="historyError" class="shrink-0 text-sm text-red-500">{{ historyError }}</p>
+
+          <!-- min-h-0 обязателен — иначе flex-элемент с overflow-y-auto не сжимается
+               внутри фиксированной высоты родителя и скролл не работает. -->
+          <div class="min-h-0 flex-1 overflow-y-auto rounded-md border">
+            <table class="w-full table-fixed text-sm">
+              <thead class="sticky top-0 z-10 bg-muted">
+                <tr>
+                  <th class="w-[30%] px-3 py-2 text-left font-medium">Характеристика</th>
+                  <th class="w-[25%] px-3 py-2 text-left font-medium">Значение</th>
+                  <th class="w-[20%] px-3 py-2 text-left font-medium">Период</th>
+                  <th class="w-[25%] px-3 py-2" />
+                </tr>
+              </thead>
+              <TransitionGroup
+                tag="tbody"
+                enter-active-class="animate-in fade-in-0 duration-200"
+                leave-active-class="animate-out fade-out-0 duration-200"
+                move-class="transition-transform duration-200"
+              >
+                <tr v-for="entry in filteredHistory" :key="entry.id" class="border-t">
+                  <td class="px-3 py-2">{{ entry.name }}</td>
+                  <td class="px-3 py-2">{{ entry.hasValue ? formatValue(entry) : '—' }}</td>
+                  <td class="px-3 py-2">{{ entry.period ? formatDate(entry.period) : '—' }}</td>
+                  <td class="flex items-center justify-end gap-1 px-3 py-2">
+                    <template v-if="entry.hasValue && !entry.isProtected">
+                      <Button variant="ghost" size="icon" class="size-7" @click="openEditValue(entry)">
+                        <Pencil class="text-primary" />
+                        <span class="sr-only">Изменить</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        class="size-7"
+                        :disabled="deletingValueId === entry.id"
+                        @click="openDeleteValueConfirm(entry)"
+                      >
+                        <Trash2 class="text-red-500" />
+                        <span class="sr-only">Удалить</span>
+                      </Button>
+                    </template>
+                  </td>
+                </tr>
+              </TransitionGroup>
+            </table>
+          </div>
         </div>
       </template>
 
@@ -494,7 +501,7 @@ async function confirmDeleteValue() {
 
           <div class="flex flex-col gap-2">
             <Label>Дата</Label>
-            <Popover>
+            <Popover :open="isCalendarOpen" @update:open="(v) => (isCalendarOpen = v)">
               <PopoverTrigger as-child>
                 <Button variant="outline" class="w-full justify-start text-left font-normal">
                   <CalendarIcon class="mr-2 size-4 text-primary" />

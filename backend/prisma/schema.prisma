@@ -249,6 +249,9 @@ model RoomCharacteristicDefinition {
   // сами (см. room-characteristic-definitions.controller.ts). Переименовывать/менять
   // единицу измерения по-прежнему можно — блокируется только delete.
   isProtected Boolean @default(false) @map("is_protected")
+  // Ручной порядок для drag-and-drop в UI — новые характеристики получают
+  // max(sortOrder)+1 (в конец списка), см. room-characteristic-definitions.controller.ts.
+  sortOrder Int @default(0) @map("sort_order")
 
   values RoomCharacteristicValue[]
 
