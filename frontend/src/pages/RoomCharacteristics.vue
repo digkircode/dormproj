@@ -166,27 +166,32 @@ async function confirmDelete() {
         <Table v-else class="table-fixed">
           <TableHeader class="bg-muted">
             <TableRow>
-              <TableHead class="w-6" />
+              <TableHead class="w-7" />
               <TableHead class="w-[35%] border-r border-border">Название</TableHead>
               <TableHead class="w-[20%] border-r border-border">Тип значения</TableHead>
               <TableHead class="w-[25%]">Единица измерения</TableHead>
               <TableHead class="w-8" />
             </TableRow>
           </TableHeader>
+          <!-- force-fallback: без него SortableJS тянет через нативный HTML5 drag-and-drop,
+               а Firefox рендерит его по-своему — превью не уважает наши стили (ghost-class,
+               анимацию), выглядит иначе/хуже, чем в Chrome. force-fallback переключает на
+               JS-эмуляцию драга — картинка одинаковая во всех браузерах. -->
           <VueDraggable
             v-model="definitions"
             tag="tbody"
             class="[&_tr:last-child]:border-0"
             handle=".drag-handle"
             :animation="150"
+            :force-fallback="true"
             ghost-class="opacity-40"
             @end="onDragEnd"
           >
             <TableRow v-for="d in definitions" :key="d.id">
-              <TableCell class="py-2 pl-2 pr-0">
+              <TableCell class="py-2 pl-0 pr-0">
                 <Tooltip>
                   <TooltipTrigger as-child>
-                    <span class="drag-handle flex cursor-grab items-center justify-center text-primary active:cursor-grabbing">
+                    <span class="drag-handle flex size-7 cursor-grab items-center justify-center text-primary active:cursor-grabbing">
                       <GripVertical class="size-4" />
                     </span>
                   </TooltipTrigger>

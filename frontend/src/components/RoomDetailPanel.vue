@@ -449,7 +449,7 @@ async function confirmDeleteValue() {
             class="flex cursor-pointer items-center justify-between gap-2 rounded px-3 py-2 text-sm hover:bg-accent"
             :class="[
               selectedCharacteristicFilter === c.definitionId ? 'bg-accent' : '',
-              index % 2 === 1 ? 'sm:border-l' : '',
+              index % 2 === 1 ? 'sm:border-l sm:border-border' : '',
             ]"
             @click="toggleCharacteristicFilter(c.definitionId)"
           >

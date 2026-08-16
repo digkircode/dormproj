@@ -22,7 +22,15 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
 
 <template>
   <TooltipPortal>
-    <TooltipContent v-bind="{ ...forwarded, ...$attrs }" :class="cn('z-50 overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2', props.class)">
+    <!-- Без анимаций (ни enter, ни exit) сознательно: Reka показывает/убирает подсказку
+         из DOM через Presence-паттерн (см. usePresence в reka-ui), который держит элемент
+         в DOM, пока не сработает animationend для текущего animation-name. Поймано вживую —
+         если это событие по какой-то причине не срабатывает (а animate-in безусловно
+         числился "текущей анимацией" даже после закрытия), подсказка виснет в DOM навсегда
+         поверх страницы, в том числе после закрытия диалога. Без animation-name вообще
+         Presence видит "анимации нет" и мгновенно домонтирует/удаляет элемент напрямую,
+         без зависимости от animationend. -->
+    <TooltipContent v-bind="{ ...forwarded, ...$attrs }" :class="cn('z-50 overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md', props.class)">
       <slot />
     </TooltipContent>
   </TooltipPortal>

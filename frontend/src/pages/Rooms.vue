@@ -81,7 +81,7 @@ async function submitCreate() {
     <p v-if="treeError" class="text-sm text-red-500">{{ treeError }}</p>
 
     <div class="grid flex-1 grid-cols-1 gap-4 md:h-[calc(100vh-11.5rem)] md:grid-cols-[360px_1fr]">
-      <Card class="min-w-0 gap-0 overflow-hidden py-0">
+      <Card class="min-h-0 min-w-0 gap-0 overflow-hidden py-0">
         <RoomTree
           :items="treeItems"
           :selected-id="selectedRoomId"
@@ -91,7 +91,7 @@ async function submitCreate() {
         />
       </Card>
 
-      <Card class="min-w-0 gap-0 overflow-hidden py-0">
+      <Card class="min-h-0 min-w-0 gap-0 overflow-hidden py-0">
         <RoomDetailPanel :room-id="selectedRoomId" @deleted="onRoomDeleted" @changed="loadTree" />
       </Card>
     </div>
