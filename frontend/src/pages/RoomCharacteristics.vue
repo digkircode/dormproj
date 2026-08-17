@@ -174,7 +174,7 @@ async function confirmDelete() {
         <Table v-else class="table-fixed">
           <TableHeader class="bg-muted">
             <TableRow>
-              <TableHead class="w-7" />
+              <TableHead class="w-8" />
               <TableHead class="w-[35%] border-r border-border">Название</TableHead>
               <TableHead class="w-[20%] border-r border-border">Тип значения</TableHead>
               <TableHead class="w-[25%]">Единица измерения</TableHead>
@@ -194,20 +194,21 @@ async function confirmDelete() {
             ghost-class="sortable-ghost"
             chosen-class="sortable-chosen"
             drag-class="sortable-drag"
+            :set-data="(dataTransfer: DataTransfer) => { dataTransfer.effectAllowed = 'move' }"
             @end="onDragEnd"
           >
-            <TableRow v-for="d in definitions" :key="d.id">
-              <TableCell class="py-2 pl-0 pr-0">
+            <TableRow v-for="d in definitions" :key="d.id" class="select-none">
+              <TableCell class="py-2 pl-2 pr-0">
                 <Tooltip>
                   <TooltipTrigger as-child>
-                    <span class="drag-handle flex size-7 cursor-grab items-center justify-center text-primary active:cursor-grabbing">
+                    <span class="drag-handle flex size-6 cursor-grab items-center justify-center text-primary active:cursor-grabbing">
                       <GripVertical class="size-4" />
                     </span>
                   </TooltipTrigger>
                   <TooltipContent>Перетащить</TooltipContent>
                 </Tooltip>
               </TableCell>
-              <TableCell class="border-r border-border">{{ d.name }}</TableCell>
+              <TableCell class="border-r border-border pl-2">{{ d.name }}</TableCell>
               <TableCell class="border-r border-border">{{ VALUE_TYPE_LABELS[d.valueType] }}</TableCell>
               <TableCell>{{ d.unit ?? '—' }}</TableCell>
               <TableCell class="py-2 pl-1 pr-3 text-right">
@@ -300,8 +301,10 @@ async function confirmDelete() {
 }
 .sortable-chosen {
   cursor: grabbing;
+  user-select: none;
 }
 .sortable-drag {
   opacity: 1;
+  user-select: none;
 }
 </style>

@@ -102,7 +102,10 @@ watch(
 async function saveDormitoryInfo() {
   const payload: Partial<Record<DormitoryInfoFieldKey, number | null>> = {}
   for (const field of DORMITORY_INFO_FIELDS) {
-    const raw = dormitoryEditValues[field.key].trim()
+    // v-model на <input type="number"> сам приводит значение к number на вводе (даже без
+    // модификатора .number) — dormitoryEditValues[field.key] бывает и строкой, и числом,
+    // String(...) перед trim() нужен, чтобы не словить "x.trim is not a function".
+    const raw = String(dormitoryEditValues[field.key]).trim()
     if (raw === '') {
       payload[field.key] = null
       continue
@@ -566,6 +569,10 @@ async function confirmDeleteValue() {
               index % 2 === 1 ? 'sm:border-l sm:border-border' : '',
               index > 0 ? 'border-t border-border' : '',
               index === 1 ? 'sm:border-t-0' : '',
+              // Нечётное количество — последняя карточка одна в своей строке, растягиваем
+              // на обе колонки, иначе её border-t не доходит до правого края (только под
+              // первой колонкой) и горизонтальная линия обрывается на середине строки.
+              index === displayCharacteristics.length - 1 && displayCharacteristics.length % 2 === 1 ? 'sm:col-span-2' : '',
             ]"
             @click="toggleCharacteristicFilter(c.definitionId)"
           >

@@ -91,15 +91,17 @@ async function submitCreate() {
 </script>
 
 <template>
-  <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
-    <p v-if="treeError" class="text-sm text-red-500">{{ treeError }}</p>
+  <!-- h-full + min-h-0 — берём всю высоту, которую даёт App.vue (SidebarInset ограничен
+       h-svh), а не гадаем константу под высоту хедера через calc(100vh-Xrem) (та плыла
+       при любой правке шапки и не работала на мобильном). min-h-0 обязателен — иначе
+       flex-элемент отказывается сжиматься ниже размера контента, и вся страница снова
+       растягивается вместо внутреннего скролла (см. тот же приём в RoomDetailPanel.vue). -->
+  <div class="flex h-full min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
+    <p v-if="treeError" class="shrink-0 text-sm text-red-500">{{ treeError }}</p>
 
-    <!-- Высота задана всегда (не только с md:) — иначе на узких экранах у грида нет
-         ограничения по высоте, и внутренний скролл таблицы истории (RoomDetailPanel)
-         не может сработать: контейнер растёт по контенту и растягивает страницу целиком.
-         На мобильном — 2 явных ряда (дерево фиксированной высоты сверху, карточка
-         комнаты — оставшееся), на md — снова 1 ряд, колонки вместо рядов. -->
-    <div class="grid h-[calc(100vh-11.5rem)] flex-1 grid-cols-1 grid-rows-[280px_minmax(0,1fr)] gap-4 md:grid-rows-1 md:grid-cols-[360px_1fr]">
+    <!-- На мобильном — 2 явных ряда (дерево фиксированной высоты сверху, карточка комнаты —
+         оставшееся), на md — снова 1 ряд, колонки вместо рядов. -->
+    <div class="grid min-h-0 flex-1 grid-cols-1 grid-rows-[280px_minmax(0,1fr)] gap-4 md:grid-rows-1 md:grid-cols-[360px_1fr]">
       <Card class="min-h-0 min-w-0 gap-0 overflow-hidden py-0">
         <RoomTree
           :items="treeItems"

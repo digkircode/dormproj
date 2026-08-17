@@ -39,7 +39,12 @@ onMounted(async () => {
   <div v-if="isAuthLoading || !currentUser" class="min-h-svh bg-background" />
   <SidebarProvider v-else>
     <AppSidebar />
-    <SidebarInset>
+    <!-- h-svh + overflow-hidden — сама страница (html/body/SidebarInset) никогда не
+         скроллится, только явно выделенные блоки внутри неё (см. ниже + Rooms.vue). Раньше
+         страницы вроде Rooms.vue подгоняли себя под calc(100vh-Xrem) с угаданной константой
+         под высоту хедера — хрупко и разъезжалось при малейшем изменении шапки. Теперь
+         высота считается только через flex/min-h-0 от реального SidebarInset, без магических чисел. -->
+    <SidebarInset class="h-svh overflow-hidden">
       <header class="flex h-14 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger />
         <Separator orientation="vertical" class="mr-2 h-4" />
@@ -66,8 +71,14 @@ onMounted(async () => {
         </Breadcrumb>
       </header>
 
-      <RouterView />
-      <AppFooter />
+      <!-- Единственный уровень, где допустим "обычный" скролл страницы — для страниц,
+           которым не нужен собственный внутренний скролл (списки с пагинацией и т.п.), это
+           выглядит как раньше. Страницы вроде Rooms.vue сами заполняют это место (h-full)
+           и внутри управляют скроллом по блокам — тогда здесь скроллить нечему. -->
+      <div class="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <RouterView />
+        <AppFooter />
+      </div>
     </SidebarInset>
   </SidebarProvider>
 </template>
