@@ -218,18 +218,16 @@ async function confirmDelete() {
           >
             <!-- Ручка и название — одна ячейка, не две с общей границей: расстояние между
                  иконкой и текстом задаёт только gap-1.5 у внутреннего flex, не зависит от
-                 padding соседних table-колонок — так гарантированно "впритык", как в референсе. -->
+                 padding соседних table-колонок — так гарантированно "впритык", как в референсе.
+                 Без Tooltip на ручке — всплывала посреди драга (курсор всё это время технически
+                 "наведён" на элемент-триггер), а не только при обычном hover. Иконка
+                 самообъясняющая (cursor-grab), подсказка не нужна. -->
             <TableRow v-for="d in definitions" :key="d.id" class="select-none">
               <TableCell class="border-r border-border">
                 <div class="flex items-center gap-1.5">
-                  <Tooltip>
-                    <TooltipTrigger as-child>
-                      <span class="drag-handle flex size-5 shrink-0 cursor-grab items-center justify-center text-primary active:cursor-grabbing">
-                        <GripVertical class="size-4" />
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>Перетащить</TooltipContent>
-                  </Tooltip>
+                  <span class="drag-handle flex size-5 shrink-0 cursor-grab items-center justify-center text-primary active:cursor-grabbing">
+                    <GripVertical class="size-4" />
+                  </span>
                   <span>{{ d.name }}</span>
                 </div>
               </TableCell>
@@ -320,8 +318,14 @@ async function confirmDelete() {
 </template>
 
 <style scoped>
+/* Плейсхолдер на месте перетаскиваемой строки — пустая заглушка (только фон), не
+   полупрозрачный дубль текста/значений: с dimmed-текстом рядом с плывущим за курсором
+   клоном читалось как "два экземпляра строки одновременно". */
 .sortable-ghost {
-  opacity: 0.35;
+  background-color: var(--muted);
+}
+.sortable-ghost * {
+  visibility: hidden;
 }
 .sortable-chosen {
   cursor: grabbing;

@@ -5,6 +5,15 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+// <input type="number"> нативно разрешает "e"/"E"/"+" (научная нотация вида 1e5) —
+// единственные буквы/символы, которые проходят в поле, где ожидается обычное число.
+// Визуально выглядит как "нажал букву — а она возьми и появись". Вешать на @keydown.
+export function blockScientificNotationKeys(event: KeyboardEvent) {
+  if (event.key === 'e' || event.key === 'E' || event.key === '+') {
+    event.preventDefault()
+  }
+}
+
 // navigator.clipboard требует secure context (HTTPS или localhost) — сайт пока на
 // обычном HTTP (см. CONTEXT_HANDOFF.md, "Secure=false — пока нет HTTPS), там его либо
 // нет вовсе, либо writeText молча не срабатывает. Фолбэк — скрытая textarea +

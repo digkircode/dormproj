@@ -31,6 +31,7 @@ import {
   type CharacteristicValue,
 } from '@/lib/rooms-api'
 import { fetchDefinitions, type RoomCharacteristicDefinition } from '@/lib/room-characteristic-definitions-api'
+import { blockScientificNotationKeys } from '@/lib/utils'
 import {
   fetchDormitoryInfo,
   updateDormitoryInfo,
@@ -518,15 +519,20 @@ async function confirmDeleteValue() {
           </div>
           <p v-if="dormitoryLoadError" class="text-sm text-red-500">{{ dormitoryLoadError }}</p>
           <p v-if="isDormitoryLoading" class="text-sm text-muted-foreground">Загрузка…</p>
-          <div v-else class="w-full max-w-sm overflow-hidden rounded-md border">
+          <!-- max-w-md (не sm) — у самых длинных названий ("Суточная оплата (Другой
+               вуз.)") строка из метки+инпута+единицы+галочки не помещалась в одну строку
+               и переносилась. Галочка — всегда в DOM, переключается только opacity (не
+               v-if/v-else) — со свапом элементов Transition on/off рендерил оба сразу во
+               время кроссфейда, отсюда и "дёргало" ширину строки. -->
+          <div v-else class="w-full max-w-md overflow-hidden rounded-md border">
             <div
               v-for="(field, index) in DORMITORY_INFO_FIELDS"
               :key="field.key"
               class="flex items-center justify-between gap-2 px-3 py-2 text-sm"
               :class="index > 0 ? 'border-t border-border' : ''"
             >
-              <span class="text-muted-foreground">{{ field.name }}</span>
-              <div class="flex items-center gap-1.5">
+              <span class="shrink-0 text-muted-foreground">{{ field.name }}</span>
+              <div class="flex shrink-0 items-center gap-1.5">
                 <input
                   v-model="dormitoryEditValues[field.key]"
                   type="number"
@@ -536,16 +542,14 @@ async function confirmDeleteValue() {
                     NO_SPINNER_CLASS,
                   ]"
                   @change="saveDormitoryField(field)"
+                  @keydown="blockScientificNotationKeys"
                   @keyup.enter="($event.target as HTMLInputElement).blur()"
                 />
                 <span class="w-4 shrink-0 text-xs text-muted-foreground">{{ field.unit }}</span>
-                <Transition
-                  enter-active-class="animate-in fade-in-0 duration-150"
-                  leave-active-class="animate-out fade-out-0 duration-300"
-                >
-                  <Check v-if="dormitorySavedFields[field.key]" class="size-4 shrink-0 text-green-500" />
-                  <span v-else class="size-4 shrink-0" />
-                </Transition>
+                <Check
+                  class="size-4 shrink-0 text-green-500 transition-opacity duration-300"
+                  :class="dormitorySavedFields[field.key] ? 'opacity-100' : 'opacity-0'"
+                />
               </div>
             </div>
           </div>
@@ -797,6 +801,7 @@ async function confirmDeleteValue() {
                 'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
                 NO_SPINNER_CLASS,
               ]"
+              @keydown="blockScientificNotationKeys"
             />
             <Input v-else v-model="valueDialogTextValue" type="text" />
           </div>
