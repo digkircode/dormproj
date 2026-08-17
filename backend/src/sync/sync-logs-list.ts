@@ -105,8 +105,12 @@ export async function syncLogFacetValues(prisma: PrismaService, syncType: string
     return [];
   }
 
+  // Без notIn: [''] — status/trigger это Prisma enum-колонки (SyncStatus/SyncTrigger),
+  // не String как в аналогичных facetValues по Individual/Student. '' не входит в набор
+  // значений enum, Postgres валит запрос на invalid input value for enum → 500. У enum-полей
+  // пустой строки в принципе не бывает (оба NOT NULL), фильтр тут просто не нужен.
   const rows = await prisma.syncLog.findMany({
-    where: { type: syncType, [field]: { notIn: [''] } },
+    where: { type: syncType },
     select: { [field]: true },
     distinct: [field as unknown as Prisma.SyncLogScalarFieldEnum],
     orderBy: { [field]: 'asc' },

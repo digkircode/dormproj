@@ -190,7 +190,13 @@ async function confirmDelete() {
     <p v-if="deleteError" class="text-sm text-red-500">{{ deleteError }}</p>
 
     <Card class="min-w-0 gap-0 py-0">
-      <div class="overflow-hidden rounded-lg border">
+      <!-- [transform:translateZ(0)] — не визуальный эффект (нулевой сдвиг), а способ сделать
+           этот div containing block для потомков с position: fixed (по спецификации CSS —
+           только у предка с transform/filter/perspective position: fixed считается уже не от
+           viewport, а от него). Плавающий клон драга (force-fallback, см. ниже) — как раз
+           position: fixed, поэтому вместе с overflow-hidden это визуально не даёт вынести его
+           за границы таблицы вверх/вниз, куда бы ни укатилась мышь. -->
+      <div class="overflow-hidden rounded-lg border [transform:translateZ(0)]">
         <p v-if="isLoading" class="p-6 text-sm text-muted-foreground">Загрузка…</p>
         <p v-else-if="!definitions.length" class="p-6 text-sm text-muted-foreground">Характеристик пока нет</p>
         <Table v-else class="table-fixed">
@@ -331,8 +337,13 @@ async function confirmDelete() {
   cursor: grabbing;
   user-select: none;
 }
+/* Плывущий за курсором клон — та же подсветка, что hover:bg-muted/50 у обычной строки.
+   Псевдокласс :hover тут не сработает: Sortable ставит клону pointer-events: none (чтобы
+   события мыши долетали до строки под ним, а не до самого клона), а без hit-test'а элемент
+   не может считаться "наведённым" — фон приходится задавать явно. */
 .sortable-drag {
   opacity: 1;
   user-select: none;
+  background-color: var(--muted);
 }
 </style>

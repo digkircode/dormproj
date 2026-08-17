@@ -92,7 +92,7 @@ onMounted(async () => {
                 <TooltipTrigger as-child>
                   <Button variant="ghost" size="icon" class="size-7" as-child>
                     <RouterLink :to="`/sync/${row.slug}/logs`">
-                      <FileText />
+                      <FileText class="text-primary" />
                       <span class="sr-only">Логи</span>
                     </RouterLink>
                   </Button>

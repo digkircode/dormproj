@@ -538,7 +538,7 @@ async function confirmDeleteValue() {
                   type="number"
                   step="any"
                   :class="[
-                    'w-24 rounded border border-transparent bg-transparent px-1 py-0.5 text-right text-sm font-medium hover:border-input focus:border-input focus:outline-none focus:ring-1 focus:ring-ring',
+                    'w-24 rounded border border-input bg-transparent px-1 py-0.5 text-right text-sm font-medium focus:outline-none focus:ring-1 focus:ring-ring',
                     NO_SPINNER_CLASS,
                   ]"
                   @change="saveDormitoryField(field)"
