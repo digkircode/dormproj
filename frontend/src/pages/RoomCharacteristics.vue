@@ -87,6 +87,33 @@ function unfreezeRowCellWidths(evt: DraggableEvent) {
   }
 }
 
+// Sortable (fallback-режим) двигает плавающий клон через `transform: matrix(...)`,
+// где 5-й/6-й компоненты — сдвиг по X/Y от точки захвата, обновляется на каждый
+// mousemove/touchmove на document. Своей listener на choose добавляем ПОСЛЕ
+// внутреннего (он навешивается раньше, до эмита события choose, см. библиотеку) —
+// значит наш обработчик всегда отрабатывает следующим в том же событии и может
+// поверх переписать transform, обнулив X и оставив Y как есть: визуально драг
+// становится строго вертикальным, без "прыжков в сторону" от неровной руки.
+let verticalDragLockHandler: (() => void) | null = null
+
+function lockDragToVertical() {
+  verticalDragLockHandler = () => {
+    const clone = document.querySelector<HTMLElement>('.sortable-drag')
+    if (!clone?.style.transform) return
+    const dy = new DOMMatrix(clone.style.transform).m42
+    clone.style.transform = `matrix(1, 0, 0, 1, 0, ${dy})`
+  }
+  document.addEventListener('mousemove', verticalDragLockHandler)
+  document.addEventListener('touchmove', verticalDragLockHandler)
+}
+
+function unlockDragVertical() {
+  if (!verticalDragLockHandler) return
+  document.removeEventListener('mousemove', verticalDragLockHandler)
+  document.removeEventListener('touchmove', verticalDragLockHandler)
+  verticalDragLockHandler = null
+}
+
 // --- Создание/редактирование ---
 const isDialogOpen = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
@@ -218,8 +245,8 @@ async function confirmDelete() {
             ghost-class="sortable-ghost"
             chosen-class="sortable-chosen"
             drag-class="sortable-drag"
-            @choose="freezeRowCellWidths"
-            @unchoose="unfreezeRowCellWidths"
+            @choose="(evt: DraggableEvent) => { freezeRowCellWidths(evt); lockDragToVertical() }"
+            @unchoose="(evt: DraggableEvent) => { unfreezeRowCellWidths(evt); unlockDragVertical() }"
             @end="onDragEnd"
           >
             <!-- Ручка и название — одна ячейка, не две с общей границей: расстояние между
