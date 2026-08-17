@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { CalendarIcon, DoorOpen, History, MoreVertical, Pencil, Plus, SlidersHorizontal, Trash2, X } from 'lucide-vue-next'
+import { computed, reactive, ref, watch } from 'vue'
+import { Building2, CalendarIcon, DoorOpen, History, MoreVertical, Pencil, Plus, SlidersHorizontal, Trash2, X } from 'lucide-vue-next'
 import { parseDate, today, getLocalTimeZone, type DateValue } from '@internationalized/date'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,6 +31,12 @@ import {
   type CharacteristicValue,
 } from '@/lib/rooms-api'
 import { fetchDefinitions, type RoomCharacteristicDefinition } from '@/lib/room-characteristic-definitions-api'
+import {
+  fetchDormitoryInfo,
+  updateDormitoryInfo,
+  DORMITORY_INFO_FIELDS,
+  type DormitoryInfoFieldKey,
+} from '@/lib/dormitory-info-api'
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
@@ -40,13 +46,84 @@ const NO_SPINNER_CLASS = '[appearance:textfield] [&::-webkit-outer-spin-button]:
 // подряд из открытого каталога. Тот же порядок используется и для сортировки истории.
 const CORE_ORDER = ['Этаж', 'Жилое помещение', 'Количество мест', 'Площадь', 'Стоимость']
 
-const props = defineProps<{ roomId: number | null }>()
+const props = defineProps<{ roomId: number | null; showDormitoryInfo?: boolean }>()
 const emit = defineEmits<{ deleted: []; changed: [] }>()
 
 const detail = ref<RoomDetail | null>(null)
 const definitions = ref<RoomCharacteristicDefinition[]>([])
 const isLoading = ref(true)
 const loadError = ref('')
+
+// Общежитские поля (DORMITORY_INFO_FIELDS) не должны попадать в выбор при добавлении
+// характеристики комнаты — они не per-room, см. компактную карточку в шаблоне ниже.
+// Создать определение с таким именем и так нельзя (RoomCharacteristics.vue), но
+// фильтруем здесь тоже — на случай, если оно всё же появится в каталоге (сид/1С/старые
+// данные), список добавления не должен его показывать.
+const addableDefinitions = computed(() =>
+  definitions.value.filter((d) => !DORMITORY_INFO_FIELDS.some((f) => f.name === d.name)),
+)
+
+// --- Общежитские поля (компактная карточка при клике на корень дерева) ---
+const dormitoryLoadError = ref('')
+const isDormitoryLoading = ref(false)
+const dormitoryEditValues = reactive<Record<DormitoryInfoFieldKey, string>>({
+  communalServicesCost: '',
+  dailyPaymentInternal: '',
+  dailyPaymentOther: '',
+})
+const isSavingDormitoryInfo = ref(false)
+const dormitorySaveError = ref('')
+
+async function loadDormitoryInfo() {
+  isDormitoryLoading.value = true
+  dormitoryLoadError.value = ''
+  try {
+    const info = await fetchDormitoryInfo()
+    for (const field of DORMITORY_INFO_FIELDS) {
+      dormitoryEditValues[field.key] = info[field.key] === null ? '' : String(info[field.key])
+    }
+  } catch (error) {
+    dormitoryLoadError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isDormitoryLoading.value = false
+  }
+}
+
+// Подгружаем при каждом переходе на карточку общежития — не кешируем между визитами,
+// чтобы не показать устаревшие значения, если их поменяли откуда-то ещё.
+watch(
+  () => props.showDormitoryInfo,
+  (show) => {
+    if (show) loadDormitoryInfo()
+  },
+  { immediate: true },
+)
+
+async function saveDormitoryInfo() {
+  const payload: Partial<Record<DormitoryInfoFieldKey, number | null>> = {}
+  for (const field of DORMITORY_INFO_FIELDS) {
+    const raw = dormitoryEditValues[field.key].trim()
+    if (raw === '') {
+      payload[field.key] = null
+      continue
+    }
+    const num = Number(raw)
+    if (!Number.isFinite(num)) {
+      dormitorySaveError.value = `«${field.name}» — должно быть числом`
+      return
+    }
+    payload[field.key] = num
+  }
+  isSavingDormitoryInfo.value = true
+  dormitorySaveError.value = ''
+  try {
+    await updateDormitoryInfo(payload)
+  } catch (error) {
+    dormitorySaveError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isSavingDormitoryInfo.value = false
+  }
+}
 
 function sortByCore<T extends { name: string }>(items: T[]): T[] {
   return [...items].sort((a, b) => CORE_ORDER.indexOf(a.name) - CORE_ORDER.indexOf(b.name))
@@ -239,7 +316,7 @@ function todayIso(): string {
 function openAddValue(definitionId?: number) {
   valueFormKind.value = 'add'
   valueFormLocked.value = definitionId !== undefined
-  valueDialogDefinitionId.value = definitionId ?? definitions.value[0]?.id ?? null
+  valueDialogDefinitionId.value = definitionId ?? addableDefinitions.value[0]?.id ?? null
   valueDialogEditingId.value = null
   valueDialogPeriod.value = todayIso()
   valueDialogBoolValue.value = null
@@ -376,7 +453,10 @@ async function confirmDeleteValue() {
         enter-active-class="animate-in fade-in-0 slide-in-from-top-1 duration-300"
         leave-active-class="animate-out fade-out-0 duration-150"
       >
-        <div v-if="detail" :key="detail.id" class="flex items-center gap-1">
+        <div v-if="showDormitoryInfo" key="dormitory" class="flex items-center gap-1">
+          <h2 class="text-lg font-medium">Общежитие РосНОУ</h2>
+        </div>
+        <div v-else-if="detail" :key="detail.id" class="flex items-center gap-1">
           <h2 class="text-lg font-medium">Комната {{ detail.room }}</h2>
           <Tooltip>
             <TooltipTrigger as-child>
@@ -403,7 +483,40 @@ async function confirmDeleteValue() {
         enter-active-class="animate-in fade-in-0 duration-200"
         leave-active-class="animate-out fade-out-0 duration-150"
       >
-        <div v-if="roomId === null" key="empty" class="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
+        <!-- Компактная карточка общежитских полей — по прямой просьбе НЕ растягивается на
+             всю панель (max-w-sm, высота по контенту), в отличие от карточки комнаты ниже.
+             Редактируется на месте, без диалога — полей всего 3 и они фиксированы
+             (см. DORMITORY_INFO_FIELDS), отдельная форма как у характеристик комнаты
+             была бы избыточна. -->
+        <div v-if="showDormitoryInfo" key="dormitory-info" class="flex h-full flex-col gap-4 p-4 md:p-6">
+          <div class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <Building2 class="size-4 text-primary" />
+            Информация об общежитии
+          </div>
+          <p v-if="dormitoryLoadError" class="text-sm text-red-500">{{ dormitoryLoadError }}</p>
+          <p v-if="isDormitoryLoading" class="text-sm text-muted-foreground">Загрузка…</p>
+          <div v-else class="flex w-full max-w-sm flex-col gap-3">
+            <div v-for="field in DORMITORY_INFO_FIELDS" :key="field.key" class="flex flex-col gap-1.5">
+              <Label>{{ field.name }}</Label>
+              <div class="flex items-center gap-2">
+                <input
+                  v-model="dormitoryEditValues[field.key]"
+                  type="number"
+                  step="any"
+                  :class="[
+                    'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+                    NO_SPINNER_CLASS,
+                  ]"
+                />
+                <span class="shrink-0 text-sm text-muted-foreground">{{ field.unit }}</span>
+              </div>
+            </div>
+            <p v-if="dormitorySaveError" class="text-sm text-red-500">{{ dormitorySaveError }}</p>
+            <Button class="self-start" :disabled="isSavingDormitoryInfo" @click="saveDormitoryInfo">Сохранить</Button>
+          </div>
+        </div>
+
+        <div v-else-if="roomId === null" key="empty" class="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
           <DoorOpen class="size-8" />
           <p class="text-sm">Выберите комнату слева</p>
         </div>
@@ -430,15 +543,16 @@ async function confirmDeleteValue() {
 
         <!-- Клик по характеристике фильтрует историю ниже только по ней, повторный клик
              снимает фильтр. Без absolute на leave — на table-элементах ниже он ломает
-             раскладку, здесь для единообразия тоже без него. Только вертикальный
-             разделитель между колонками (border по чётности индекса, не divide-x — у CSS
-             grid с 2 колонками divide-x лёг бы на случайную сторону в зависимости от
-             потока), горизонтальных линий между строками нет — только gap. overflow-hidden
-             + p-2 на контейнере — чтобы прямоугольные ячейки не вылезали за скруглённые
-             углы рамки и разделитель не упирался в неё вплотную. -->
+             раскладку, здесь для единообразия тоже без него. Полная сетка: вертикальный
+             разделитель по чётности индекса (не divide-x — у CSS grid с 2 колонками
+             divide-x лёг бы на случайную сторону в зависимости от потока) + горизонтальный
+             между строками (border-t от второй строки, на sm — от index>=2, т.к. там 2
+             колонки и первая строка — это index 0 и 1). overflow-hidden на контейнере —
+             чтобы прямоугольные ячейки не вылезали за скруглённые углы рамки, p-0 — чтобы
+             линии сетки доходили до самой рамки, как в таблице. -->
         <TransitionGroup
           tag="div"
-          class="grid shrink-0 grid-cols-1 gap-y-1 overflow-hidden rounded-md border p-2 sm:grid-cols-2"
+          class="grid shrink-0 grid-cols-1 gap-0 overflow-hidden rounded-md border sm:grid-cols-2"
           enter-active-class="animate-in fade-in-0 duration-200"
           leave-active-class="animate-out fade-out-0 duration-200"
           move-class="transition-transform duration-200"
@@ -446,10 +560,12 @@ async function confirmDeleteValue() {
           <div
             v-for="(c, index) in displayCharacteristics"
             :key="c.definitionId"
-            class="flex cursor-pointer items-center justify-between gap-2 rounded px-3 py-2 text-sm hover:bg-accent"
+            class="flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-accent"
             :class="[
               selectedCharacteristicFilter === c.definitionId ? 'bg-accent' : '',
               index % 2 === 1 ? 'sm:border-l sm:border-border' : '',
+              index > 0 ? 'border-t border-border' : '',
+              index === 1 ? 'sm:border-t-0' : '',
             ]"
             @click="toggleCharacteristicFilter(c.definitionId)"
           >
@@ -483,55 +599,54 @@ async function confirmDeleteValue() {
         <!-- min-h-0 обязателен — иначе flex-элемент с overflow-y-auto не сжимается
              внутри родителя и скролл не работает. -->
         <div class="min-h-0 flex-1 overflow-y-auto rounded-md border">
-          <table class="w-full table-fixed text-sm">
-            <thead class="sticky top-0 z-10 bg-muted">
-              <tr>
-                <th class="w-[30%] px-3 py-2 text-left font-medium">Характеристика</th>
-                <th class="w-[25%] px-3 py-2 text-left font-medium">Значение</th>
-                <th class="w-[25%] px-3 py-2 text-left font-medium">Период</th>
-                <th class="w-[20%] px-3 py-2" />
-              </tr>
-            </thead>
-            <!-- v-for по отфильтрованному списку — строки, не подходящие под выбранную
-                 характеристику, честно уходят из DOM через leave-анимацию (плавный фейд),
-                 а не мгновенно прячутся классом. Без move-class: FLIP-анимация соседей
-                 меряет позиции через getBoundingClientRect, а у только что скрытых
-                 (display:none) элементов она (0,0) — при быстром переключении фильтра это
-                 давало артефакт "прилетает сверху слева". Без него остающиеся строки просто
-                 мгновенно занимают своё место, а не наводят на глюк, enter/leave при этом
-                 всё равно анимируются плавно. -->
-            <TransitionGroup
-              tag="tbody"
-              enter-active-class="animate-in fade-in-0 duration-200"
-              leave-active-class="animate-out fade-out-0 duration-200"
-            >
-              <tr v-for="entry in filteredHistory" :key="entry.id" class="border-t">
-                <td class="px-3 py-2">{{ entry.name }}</td>
-                <td class="px-3 py-2">{{ entry.hasValue ? formatValue(entry) : '—' }}</td>
-                <td class="px-3 py-2">{{ entry.period ? formatDate(entry.period) : '—' }}</td>
-                <td class="px-3 py-2 text-right">
-                  <DropdownMenu v-if="entry.hasValue && !entry.isProtected">
-                    <DropdownMenuTrigger as-child>
-                      <Button variant="ghost" size="icon" class="size-7" :disabled="deletingValueId === entry.id">
-                        <MoreVertical class="text-muted-foreground" />
-                        <span class="sr-only">Действия</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem @click="openEditValue(entry)">
-                        <Pencil class="text-primary" />
-                        Редактировать
-                      </DropdownMenuItem>
-                      <DropdownMenuItem @click="openDeleteValueConfirm(entry)">
-                        <Trash2 class="text-red-500" />
-                        Удалить
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </td>
-              </tr>
-            </TransitionGroup>
-          </table>
+          <!-- Смена фильтра (клик по характеристике) переключает таблицу целиком тем же
+               fade-swap, что и смена комнаты выше (Transition mode="out-in", те же классы
+               fade-in-0/fade-out-0 duration-200/150) — не поэлементная анимация строк.
+               Ключ на фильтре пересоздаёт tbody целиком, поэтому внутри уже не нужен
+               TransitionGroup — старая таблица уходит и приходит новая одним блоком. -->
+          <Transition
+            mode="out-in"
+            enter-active-class="animate-in fade-in-0 duration-200"
+            leave-active-class="animate-out fade-out-0 duration-150"
+          >
+            <table :key="selectedCharacteristicFilter ?? 'all'" class="w-full table-fixed text-sm">
+              <thead class="sticky top-0 z-10 bg-muted">
+                <tr>
+                  <th class="w-[30%] px-3 py-2 text-left font-medium">Характеристика</th>
+                  <th class="w-[25%] px-3 py-2 text-left font-medium">Значение</th>
+                  <th class="w-[25%] px-3 py-2 text-left font-medium">Период</th>
+                  <th class="w-[20%] px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="entry in filteredHistory" :key="entry.id" class="border-t">
+                  <td class="px-3 py-2">{{ entry.name }}</td>
+                  <td class="px-3 py-2">{{ entry.hasValue ? formatValue(entry) : '—' }}</td>
+                  <td class="px-3 py-2">{{ entry.period ? formatDate(entry.period) : '—' }}</td>
+                  <td class="px-3 py-2 text-right">
+                    <DropdownMenu v-if="entry.hasValue && !entry.isProtected">
+                      <DropdownMenuTrigger as-child>
+                        <Button variant="ghost" size="icon" class="size-7" :disabled="deletingValueId === entry.id">
+                          <MoreVertical class="text-muted-foreground" />
+                          <span class="sr-only">Действия</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem @click="openEditValue(entry)">
+                          <Pencil class="text-primary" />
+                          Редактировать
+                        </DropdownMenuItem>
+                        <DropdownMenuItem @click="openDeleteValueConfirm(entry)">
+                          <Trash2 class="text-red-500" />
+                          Удалить
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </Transition>
         </div>
       </div>
     </Transition>
@@ -582,7 +697,7 @@ async function confirmDeleteValue() {
                 <SelectValue placeholder="Выберите характеристику" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem v-for="d in definitions" :key="d.id" :value="String(d.id)">{{ d.name }}</SelectItem>
+                <SelectItem v-for="d in addableDefinitions" :key="d.id" :value="String(d.id)">{{ d.name }}</SelectItem>
               </SelectContent>
             </Select>
             <div v-else class="text-sm text-muted-foreground">{{ selectedDefinition?.name }}</div>

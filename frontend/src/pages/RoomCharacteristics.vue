@@ -19,6 +19,7 @@ import {
   reorderDefinitions,
   type RoomCharacteristicDefinition,
 } from '@/lib/room-characteristic-definitions-api'
+import { DORMITORY_INFO_FIELDS } from '@/lib/dormitory-info-api'
 import type { CharacteristicValueType } from '@/lib/rooms-api'
 
 const DIALOG_ANIMATE_CLASS =
@@ -96,7 +97,14 @@ function openEdit(definition: RoomCharacteristicDefinition) {
 }
 
 async function submitDialog() {
-  if (!formName.value.trim()) return
+  const trimmedName = formName.value.trim()
+  if (!trimmedName) return
+  // Эти 3 названия — учёт по общежитию в целом (см. RoomTree.vue), не per-room
+  // характеристика, заводить их в этом каталоге нельзя.
+  if (dialogMode.value === 'create' && DORMITORY_INFO_FIELDS.some((f) => f.name === trimmedName)) {
+    dialogError.value = 'Это характеристика общежития в целом, а не комнаты — её нельзя добавить сюда'
+    return
+  }
   isSaving.value = true
   dialogError.value = ''
   try {
@@ -173,18 +181,19 @@ async function confirmDelete() {
               <TableHead class="w-8" />
             </TableRow>
           </TableHeader>
-          <!-- force-fallback: без него SortableJS тянет через нативный HTML5 drag-and-drop,
-               а Firefox рендерит его по-своему — превью не уважает наши стили (ghost-class,
-               анимацию), выглядит иначе/хуже, чем в Chrome. force-fallback переключает на
-               JS-эмуляцию драга — картинка одинаковая во всех браузерах. -->
+          <!-- Без force-fallback: JS-клон вне таблицы (fallback-режим) терял colgroup-контекст
+               table-layout: fixed и был источником "прыжков" ширины строки во время драга.
+               Нативный HTML5 DnD этого не делает — оригинальный <tr> остаётся на месте
+               (полупрозрачным через ghost-class), браузер сам рисует drag-image. -->
           <VueDraggable
             v-model="definitions"
             tag="tbody"
             class="[&_tr:last-child]:border-0"
             handle=".drag-handle"
             :animation="150"
-            :force-fallback="true"
-            ghost-class="opacity-40"
+            ghost-class="sortable-ghost"
+            chosen-class="sortable-chosen"
+            drag-class="sortable-drag"
             @end="onDragEnd"
           >
             <TableRow v-for="d in definitions" :key="d.id">
@@ -284,3 +293,15 @@ async function confirmDelete() {
     </Dialog>
   </div>
 </template>
+
+<style scoped>
+.sortable-ghost {
+  opacity: 0.35;
+}
+.sortable-chosen {
+  cursor: grabbing;
+}
+.sortable-drag {
+  opacity: 1;
+}
+</style>

@@ -20,6 +20,7 @@ import { PassportModule } from './passport/passport.module';
 import { ContactInfoModule } from './contact-info/contact-info.module';
 import { RoomsModule } from './rooms/rooms.module';
 import { RoomCharacteristicDefinitionsModule } from './room-characteristic-definitions/room-characteristic-definitions.module';
+import { DormitoryInfoModule } from './dormitory-info/dormitory-info.module';
 import { AuthModule } from './auth/auth.module';
 
 @Module({
@@ -47,6 +48,7 @@ import { AuthModule } from './auth/auth.module';
     ContactInfoModule,
     RoomsModule,
     RoomCharacteristicDefinitionsModule,
+    DormitoryInfoModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

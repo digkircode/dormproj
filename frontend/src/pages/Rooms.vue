@@ -35,6 +35,19 @@ onMounted(loadTree)
 // Карточка комнаты — панель справа от дерева на этой же странице, а не отдельная
 // модалка/роут (по прямой просьбе), см. RoomDetailPanel.vue.
 const selectedRoomId = ref<number | null>(null)
+// Клик по корню дерева ("Общежитие РосНОУ") — отдельный режим, показывает в
+// RoomDetailPanel компактную карточку общежитских полей вместо конкретной комнаты.
+const showDormitoryInfo = ref(false)
+
+function onRoomSelect(id: number) {
+  showDormitoryInfo.value = false
+  selectedRoomId.value = id
+}
+
+function onDormitorySelect() {
+  showDormitoryInfo.value = true
+  selectedRoomId.value = null
+}
 
 function onRoomDeleted() {
   selectedRoomId.value = null
@@ -67,6 +80,7 @@ async function submitCreate() {
     const created = await createRoom(newRoomNumber.value.trim(), floor)
     isCreateOpen.value = false
     await loadTree()
+    showDormitoryInfo.value = false
     selectedRoomId.value = created.id
   } catch (error) {
     createError.value = error instanceof Error ? error.message : String(error)
@@ -80,19 +94,26 @@ async function submitCreate() {
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
     <p v-if="treeError" class="text-sm text-red-500">{{ treeError }}</p>
 
-    <div class="grid flex-1 grid-cols-1 gap-4 md:h-[calc(100vh-11.5rem)] md:grid-cols-[360px_1fr]">
+    <!-- Высота задана всегда (не только с md:) — иначе на узких экранах у грида нет
+         ограничения по высоте, и внутренний скролл таблицы истории (RoomDetailPanel)
+         не может сработать: контейнер растёт по контенту и растягивает страницу целиком.
+         На мобильном — 2 явных ряда (дерево фиксированной высоты сверху, карточка
+         комнаты — оставшееся), на md — снова 1 ряд, колонки вместо рядов. -->
+    <div class="grid h-[calc(100vh-11.5rem)] flex-1 grid-cols-1 grid-rows-[280px_minmax(0,1fr)] gap-4 md:grid-rows-1 md:grid-cols-[360px_1fr]">
       <Card class="min-h-0 min-w-0 gap-0 overflow-hidden py-0">
         <RoomTree
           :items="treeItems"
           :selected-id="selectedRoomId"
           :is-loading="isTreeLoading"
-          @select="(id) => (selectedRoomId = id)"
+          :is-dormitory-selected="showDormitoryInfo"
+          @select="onRoomSelect"
+          @select-dormitory="onDormitorySelect"
           @create="openCreate"
         />
       </Card>
 
       <Card class="min-h-0 min-w-0 gap-0 overflow-hidden py-0">
-        <RoomDetailPanel :room-id="selectedRoomId" @deleted="onRoomDeleted" @changed="loadTree" />
+        <RoomDetailPanel :room-id="selectedRoomId" :show-dormitory-info="showDormitoryInfo" @deleted="onRoomDeleted" @changed="loadTree" />
       </Card>
     </div>
 

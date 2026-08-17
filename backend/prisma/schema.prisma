@@ -288,3 +288,20 @@ model RoomCharacteristicValue {
   @@index([roomId])
   @@map("room_characteristic_values")
 }
+
+// Финансовые показатели по общежитию в целом, не по конкретной комнате — компактная
+// карточка при клике на корень дерева комнат (см. RoomTree.vue/Rooms.vue), не через
+// обычный каталог характеристик комнат. Ровно 3 фиксированных поля, не открытый каталог,
+// как у комнат — сотрудники не заводят/переименовывают/удаляют свои произвольные,
+// поэтому обычные колонки, а не EAV. Singleton: ровно одна строка с id=1, общежитие одно
+// (см. DormitoryInfoController — upsert по этому id на каждом чтении/записи). Только
+// текущее значение, без истории по period — по прямой просьбе, в отличие от комнат.
+model DormitoryInfo {
+  id                   Int      @id @default(1)
+  communalServicesCost Decimal? @map("communal_services_cost") @db.Decimal(12, 2)
+  dailyPaymentInternal Decimal? @map("daily_payment_internal") @db.Decimal(12, 2)
+  dailyPaymentOther    Decimal? @map("daily_payment_other") @db.Decimal(12, 2)
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@map("dormitory_info")
+}
