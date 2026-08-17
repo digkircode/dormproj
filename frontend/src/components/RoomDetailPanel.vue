@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import { Building2, CalendarIcon, DoorOpen, History, MoreVertical, Pencil, Plus, SlidersHorizontal, Trash2, X } from 'lucide-vue-next'
+import { Building2, CalendarIcon, Check, DoorOpen, History, MoreVertical, Pencil, Plus, SlidersHorizontal, Trash2, X } from 'lucide-vue-next'
 import { parseDate, today, getLocalTimeZone, type DateValue } from '@internationalized/date'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -71,8 +71,21 @@ const dormitoryEditValues = reactive<Record<DormitoryInfoFieldKey, string>>({
   dailyPaymentInternal: '',
   dailyPaymentOther: '',
 })
-const isSavingDormitoryInfo = ref(false)
-const dormitorySaveError = ref('')
+const dormitorySavingFields = reactive<Record<DormitoryInfoFieldKey, boolean>>({
+  communalServicesCost: false,
+  dailyPaymentInternal: false,
+  dailyPaymentOther: false,
+})
+const dormitorySavedFields = reactive<Record<DormitoryInfoFieldKey, boolean>>({
+  communalServicesCost: false,
+  dailyPaymentInternal: false,
+  dailyPaymentOther: false,
+})
+const dormitoryFieldErrors = reactive<Record<DormitoryInfoFieldKey, string>>({
+  communalServicesCost: '',
+  dailyPaymentInternal: '',
+  dailyPaymentOther: '',
+})
 
 async function loadDormitoryInfo() {
   isDormitoryLoading.value = true
@@ -99,32 +112,38 @@ watch(
   { immediate: true },
 )
 
-async function saveDormitoryInfo() {
-  const payload: Partial<Record<DormitoryInfoFieldKey, number | null>> = {}
-  for (const field of DORMITORY_INFO_FIELDS) {
-    // v-model на <input type="number"> сам приводит значение к number на вводе (даже без
-    // модификатора .number) — dormitoryEditValues[field.key] бывает и строкой, и числом,
-    // String(...) перед trim() нужен, чтобы не словить "x.trim is not a function".
-    const raw = String(dormitoryEditValues[field.key]).trim()
-    if (raw === '') {
-      payload[field.key] = null
-      continue
-    }
+// Автосохранение по полю (без общей кнопки "Сохранить") — по клику на @change (срабатывает
+// на blur/Enter, не на каждое нажатие клавиши). Успех — зелёная галочка на пару секунд,
+// не постоянный индикатор, чтобы не путать с текущим состоянием "сохранено вообще всегда".
+async function saveDormitoryField(field: (typeof DORMITORY_INFO_FIELDS)[number]) {
+  // v-model на <input type="number"> сам приводит значение к number на вводе (даже без
+  // модификатора .number) — dormitoryEditValues[field.key] бывает и строкой, и числом,
+  // String(...) перед trim() нужен, чтобы не словить "x.trim is not a function".
+  const raw = String(dormitoryEditValues[field.key]).trim()
+  let value: number | null
+  if (raw === '') {
+    value = null
+  } else {
     const num = Number(raw)
     if (!Number.isFinite(num)) {
-      dormitorySaveError.value = `«${field.name}» — должно быть числом`
+      dormitoryFieldErrors[field.key] = `«${field.name}» — должно быть числом`
       return
     }
-    payload[field.key] = num
+    value = num
   }
-  isSavingDormitoryInfo.value = true
-  dormitorySaveError.value = ''
+  dormitoryFieldErrors[field.key] = ''
+  dormitorySavingFields[field.key] = true
+  dormitorySavedFields[field.key] = false
   try {
-    await updateDormitoryInfo(payload)
+    await updateDormitoryInfo({ [field.key]: value })
+    dormitorySavedFields[field.key] = true
+    setTimeout(() => {
+      dormitorySavedFields[field.key] = false
+    }, 2000)
   } catch (error) {
-    dormitorySaveError.value = error instanceof Error ? error.message : String(error)
+    dormitoryFieldErrors[field.key] = error instanceof Error ? error.message : String(error)
   } finally {
-    isSavingDormitoryInfo.value = false
+    dormitorySavingFields[field.key] = false
   }
 }
 
@@ -488,9 +507,10 @@ async function confirmDeleteValue() {
       >
         <!-- Компактная карточка общежитских полей — по прямой просьбе НЕ растягивается на
              всю панель (max-w-sm, высота по контенту), в отличие от карточки комнаты ниже.
-             Редактируется на месте, без диалога — полей всего 3 и они фиксированы
-             (см. DORMITORY_INFO_FIELDS), отдельная форма как у характеристик комнаты
-             была бы избыточна. -->
+             Стиль — тот же грид, что и у характеристик комнаты (border+px-3 py-2 строки,
+             метка слева, значение справа): значение — сразу input, без отдельной формы и
+             кнопки "Сохранить" — автосохранение по @change (blur/Enter), зелёная галочка
+             на пару секунд вместо статичного индикатора состояния. -->
         <div v-if="showDormitoryInfo" key="dormitory-info" class="flex h-full flex-col gap-4 p-4 md:p-6">
           <div class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
             <Building2 class="size-4 text-primary" />
@@ -498,25 +518,40 @@ async function confirmDeleteValue() {
           </div>
           <p v-if="dormitoryLoadError" class="text-sm text-red-500">{{ dormitoryLoadError }}</p>
           <p v-if="isDormitoryLoading" class="text-sm text-muted-foreground">Загрузка…</p>
-          <div v-else class="flex w-full max-w-sm flex-col gap-3">
-            <div v-for="field in DORMITORY_INFO_FIELDS" :key="field.key" class="flex flex-col gap-1.5">
-              <Label>{{ field.name }}</Label>
-              <div class="flex items-center gap-2">
+          <div v-else class="w-full max-w-sm overflow-hidden rounded-md border">
+            <div
+              v-for="(field, index) in DORMITORY_INFO_FIELDS"
+              :key="field.key"
+              class="flex items-center justify-between gap-2 px-3 py-2 text-sm"
+              :class="index > 0 ? 'border-t border-border' : ''"
+            >
+              <span class="text-muted-foreground">{{ field.name }}</span>
+              <div class="flex items-center gap-1.5">
                 <input
                   v-model="dormitoryEditValues[field.key]"
                   type="number"
                   step="any"
                   :class="[
-                    'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+                    'w-24 rounded border border-transparent bg-transparent px-1 py-0.5 text-right text-sm font-medium hover:border-input focus:border-input focus:outline-none focus:ring-1 focus:ring-ring',
                     NO_SPINNER_CLASS,
                   ]"
+                  @change="saveDormitoryField(field)"
+                  @keyup.enter="($event.target as HTMLInputElement).blur()"
                 />
-                <span class="shrink-0 text-sm text-muted-foreground">{{ field.unit }}</span>
+                <span class="w-4 shrink-0 text-xs text-muted-foreground">{{ field.unit }}</span>
+                <Transition
+                  enter-active-class="animate-in fade-in-0 duration-150"
+                  leave-active-class="animate-out fade-out-0 duration-300"
+                >
+                  <Check v-if="dormitorySavedFields[field.key]" class="size-4 shrink-0 text-green-500" />
+                  <span v-else class="size-4 shrink-0" />
+                </Transition>
               </div>
             </div>
-            <p v-if="dormitorySaveError" class="text-sm text-red-500">{{ dormitorySaveError }}</p>
-            <Button class="self-start" :disabled="isSavingDormitoryInfo" @click="saveDormitoryInfo">Сохранить</Button>
           </div>
+          <p v-if="Object.values(dormitoryFieldErrors).some(Boolean)" class="text-sm text-red-500">
+            {{ Object.values(dormitoryFieldErrors).find(Boolean) }}
+          </p>
         </div>
 
         <div v-else-if="roomId === null" key="empty" class="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
@@ -569,16 +604,23 @@ async function confirmDeleteValue() {
               index % 2 === 1 ? 'sm:border-l sm:border-border' : '',
               index > 0 ? 'border-t border-border' : '',
               index === 1 ? 'sm:border-t-0' : '',
-              // Нечётное количество — последняя карточка одна в своей строке, растягиваем
-              // на обе колонки, иначе её border-t не доходит до правого края (только под
-              // первой колонкой) и горизонтальная линия обрывается на середине строки.
-              index === displayCharacteristics.length - 1 && displayCharacteristics.length % 2 === 1 ? 'sm:col-span-2' : '',
             ]"
             @click="toggleCharacteristicFilter(c.definitionId)"
           >
             <span class="text-muted-foreground">{{ c.name }}</span>
             <span class="font-medium">{{ c.hasValue ? formatValue(c) : '—' }}</span>
           </div>
+          <!-- Нечётное количество характеристик — последняя карточка одна в своей строке,
+               по прямой просьбе НЕ растягиваем её на обе колонки (пустое место остаётся
+               пустым). Вместо этого невидимая ячейка во второй колонке с той же
+               border-t/border-l линией, что была бы у настоящей пары — только чтобы
+               разделитель всё равно доходил до правого края, а не обрывался на середине. -->
+          <div
+            v-if="displayCharacteristics.length % 2 === 1"
+            key="grid-placeholder"
+            aria-hidden="true"
+            class="hidden border-t border-l border-border sm:block"
+          />
         </TransitionGroup>
 
         <div class="flex shrink-0 items-center gap-2">

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { GripVertical, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-vue-next'
-import { VueDraggable } from 'vue-draggable-plus'
+import { VueDraggable, type DraggableEvent } from 'vue-draggable-plus'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -66,6 +66,27 @@ async function onDragEnd() {
   }
 }
 
+// force-fallback обязателен — без него нативный HTML5 DnD браузера сам решает, как
+// рисовать курсор/drag-image (значок "копирования", задвоенный снимок строки поверх
+// ghost-плейсхолдера) — контролировать это кросс-браузерно нельзя. Но fallback-клон —
+// это cloneNode() исходного <tr>, а <td> внутри него без явной inline-width рендерятся
+// не по table-layout: fixed колонкам исходной таблицы, а по своему контенту — отсюда
+// был "прыжок" ширины строки. Снимаем текущую ширину каждой ячейки в px на choose и
+// снимаем инлайн-стиль обратно на unchoose — клон наследует те же px через cloneNode
+// и колонки больше не скачут.
+function freezeRowCellWidths(evt: DraggableEvent) {
+  const row = evt.item as unknown as HTMLTableRowElement
+  for (const cell of Array.from(row.cells)) {
+    cell.style.width = `${cell.offsetWidth}px`
+  }
+}
+function unfreezeRowCellWidths(evt: DraggableEvent) {
+  const row = evt.item as unknown as HTMLTableRowElement
+  for (const cell of Array.from(row.cells)) {
+    cell.style.width = ''
+  }
+}
+
 // --- Создание/редактирование ---
 const isDialogOpen = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
@@ -100,8 +121,9 @@ async function submitDialog() {
   const trimmedName = formName.value.trim()
   if (!trimmedName) return
   // Эти 3 названия — учёт по общежитию в целом (см. RoomTree.vue), не per-room
-  // характеристика, заводить их в этом каталоге нельзя.
-  if (dialogMode.value === 'create' && DORMITORY_INFO_FIELDS.some((f) => f.name === trimmedName)) {
+  // характеристика, заводить их в этом каталоге нельзя — ни созданием, ни переименованием
+  // существующей характеристики в одно из этих названий.
+  if (DORMITORY_INFO_FIELDS.some((f) => f.name === trimmedName)) {
     dialogError.value = 'Это характеристика общежития в целом, а не комнаты — её нельзя добавить сюда'
     return
   }
@@ -174,41 +196,43 @@ async function confirmDelete() {
         <Table v-else class="table-fixed">
           <TableHeader class="bg-muted">
             <TableRow>
-              <TableHead class="w-8" />
-              <TableHead class="w-[35%] border-r border-border">Название</TableHead>
+              <TableHead class="w-[38%] border-r border-border">Название</TableHead>
               <TableHead class="w-[20%] border-r border-border">Тип значения</TableHead>
-              <TableHead class="w-[25%]">Единица измерения</TableHead>
+              <TableHead class="w-[24%]">Единица измерения</TableHead>
               <TableHead class="w-8" />
             </TableRow>
           </TableHeader>
-          <!-- Без force-fallback: JS-клон вне таблицы (fallback-режим) терял colgroup-контекст
-               table-layout: fixed и был источником "прыжков" ширины строки во время драга.
-               Нативный HTML5 DnD этого не делает — оригинальный <tr> остаётся на месте
-               (полупрозрачным через ghost-class), браузер сам рисует drag-image. -->
           <VueDraggable
             v-model="definitions"
             tag="tbody"
             class="[&_tr:last-child]:border-0"
             handle=".drag-handle"
             :animation="150"
+            :force-fallback="true"
             ghost-class="sortable-ghost"
             chosen-class="sortable-chosen"
             drag-class="sortable-drag"
-            :set-data="(dataTransfer: DataTransfer) => { dataTransfer.effectAllowed = 'move' }"
+            @choose="freezeRowCellWidths"
+            @unchoose="unfreezeRowCellWidths"
             @end="onDragEnd"
           >
+            <!-- Ручка и название — одна ячейка, не две с общей границей: расстояние между
+                 иконкой и текстом задаёт только gap-1.5 у внутреннего flex, не зависит от
+                 padding соседних table-колонок — так гарантированно "впритык", как в референсе. -->
             <TableRow v-for="d in definitions" :key="d.id" class="select-none">
-              <TableCell class="py-2 pl-2 pr-0">
-                <Tooltip>
-                  <TooltipTrigger as-child>
-                    <span class="drag-handle flex size-6 cursor-grab items-center justify-center text-primary active:cursor-grabbing">
-                      <GripVertical class="size-4" />
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>Перетащить</TooltipContent>
-                </Tooltip>
+              <TableCell class="border-r border-border">
+                <div class="flex items-center gap-1.5">
+                  <Tooltip>
+                    <TooltipTrigger as-child>
+                      <span class="drag-handle flex size-5 shrink-0 cursor-grab items-center justify-center text-primary active:cursor-grabbing">
+                        <GripVertical class="size-4" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>Перетащить</TooltipContent>
+                  </Tooltip>
+                  <span>{{ d.name }}</span>
+                </div>
               </TableCell>
-              <TableCell class="border-r border-border pl-2">{{ d.name }}</TableCell>
               <TableCell class="border-r border-border">{{ VALUE_TYPE_LABELS[d.valueType] }}</TableCell>
               <TableCell>{{ d.unit ?? '—' }}</TableCell>
               <TableCell class="py-2 pl-1 pr-3 text-right">
