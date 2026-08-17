@@ -77,6 +77,7 @@ model Individual {
   citizenships Citizenship[]
   passports    Passport[]
   contactInfos ContactInfo[]
+  users        User[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -164,6 +165,29 @@ model ContactInfo {
 
   @@index([fizicheskoyeLitsoUid])
   @@map("contact_infos")
+}
+
+// Привязка SSO-аккаунтов (rosnou-id/Azure) к физлицам — источник legacy БД (users +
+// users_binds), разово импортирована по выгрузке в JSON, только строки, у которых
+// univerId реально указывает на существующего физлица (см. импорт-скрипт, в репозитории
+// не хранится — разовый прогон, не постоянный синхрон). id — не autoincrement, а
+// исходный id аккаунта из источника (тот же id, что rosnou-id отдаёт в /api/user), как и
+// у Individual сохраняем внешний идентификатор как есть. Синхрона/логов для этой таблицы
+// пока нет, только сама таблица и разовый импорт — расширять по отдельной задаче.
+model User {
+  id       Int     @id
+  bindId   String? @map("bind_id")
+  azureId  String? @map("azure_id")
+  univerId String? @map("univer_id")
+  fullName String  @map("full_name")
+
+  individual Individual? @relation(fields: [univerId], references: [fizicheskoyeLitsoUid], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([univerId])
+  @@map("users")
 }
 
 // Однорядный лок на время выполнения синхронизации данного типа — защита от параллельного запуска.
