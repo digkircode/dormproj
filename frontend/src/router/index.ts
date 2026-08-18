@@ -10,6 +10,9 @@ import Passport from '@/pages/Passport.vue'
 import ContactInfo from '@/pages/ContactInfo.vue'
 import Rooms from '@/pages/Rooms.vue'
 import RoomCharacteristics from '@/pages/RoomCharacteristics.vue'
+import Contracts from '@/pages/Contracts.vue'
+import ContractDetail from '@/pages/ContractDetail.vue'
+import Reports from '@/pages/Reports.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -27,6 +30,10 @@ const router = createRouter({
 
     { path: '/rooms', name: 'rooms', component: Rooms, meta: { title: 'Комнаты' } },
     { path: '/room-characteristics', name: 'room-characteristics', component: RoomCharacteristics, meta: { title: 'Характеристики комнат' } },
+
+    { path: '/contracts', name: 'contracts', component: Contracts, meta: { title: 'Договоры' } },
+    { path: '/contracts/:id', name: 'contract-detail', component: ContractDetail, meta: { title: 'Договор', parent: 'contracts' } },
+    { path: '/reports', name: 'reports', component: Reports, meta: { title: 'Отчёты' } },
   ],
 })
 

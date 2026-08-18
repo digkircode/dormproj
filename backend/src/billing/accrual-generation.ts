@@ -1,0 +1,117 @@
+import { Prisma } from '../../generated/prisma/client.js';
+import { addDays, addMonths, daysBetweenInclusive, endOfMonth, startOfMonth } from './period-utils';
+
+const { Decimal } = Prisma;
+export type DecimalLike = Prisma.Decimal;
+
+export interface AccrualPeriod {
+  periodStart: Date;
+  periodEnd: Date;
+  isFullMonth: boolean;
+}
+
+// Разбивает [startDate, endDate] на календарные месяцы — все периоды "полные", кроме,
+// возможно, первого (заселение не с 1-го числа) и последнего (выезд не по конец месяца).
+// Взимается плата за весь срок действия договора, включая каникулы (п. 4.5/5.6) — поэтому
+// периоды генерируются по датам договора, не по факту присутствия.
+export function generateMonthlyPeriods(startDate: Date, endDate: Date): AccrualPeriod[] {
+  if (startDate > endDate) return [];
+  const periods: AccrualPeriod[] = [];
+  let cursor = startOfMonth(startDate);
+  while (cursor <= endDate) {
+    const monthStart = cursor;
+    const monthEnd = endOfMonth(cursor);
+    const periodStart = monthStart < startDate ? startDate : monthStart;
+    const periodEnd = monthEnd > endDate ? endDate : monthEnd;
+    const isFullMonth = periodStart.getTime() === monthStart.getTime() && periodEnd.getTime() === monthEnd.getTime();
+    periods.push({ periodStart, periodEnd, isFullMonth });
+    cursor = addMonths(cursor, 1);
+  }
+  return periods;
+}
+
+export interface AccrualTerms {
+  rentAmount: DecimalLike;
+  utilitiesAmount: DecimalLike;
+  dailyRateAmount: DecimalLike;
+}
+
+// Полный месяц — берём условия договора как есть. Неполный (п. 4.2/5.2) — посуточно по
+// dailyRateAmount, но не больше полной месячной суммы найм+коммуналка. Договор не делит
+// суточную ставку на найм/коммуналку отдельно — делим пропорционально долям из полной
+// месячной суммы, чтобы у начисления всегда были оба компонента (нужно для отчётов
+// отдельно по найму/коммуналке).
+export function computeAccrualAmounts(
+  period: AccrualPeriod,
+  terms: AccrualTerms,
+): { rentAmount: DecimalLike; utilitiesAmount: DecimalLike } {
+  if (period.isFullMonth) {
+    return { rentAmount: terms.rentAmount, utilitiesAmount: terms.utilitiesAmount };
+  }
+
+  const days = daysBetweenInclusive(period.periodStart, period.periodEnd);
+  const fullMonthTotal = terms.rentAmount.plus(terms.utilitiesAmount);
+  const dailyTotal = terms.dailyRateAmount.times(days);
+  const total = dailyTotal.lessThan(fullMonthTotal) ? dailyTotal : fullMonthTotal;
+
+  if (fullMonthTotal.isZero()) {
+    return { rentAmount: new Decimal(0), utilitiesAmount: new Decimal(0) };
+  }
+  const rentShare = terms.rentAmount.div(fullMonthTotal);
+  const rentAmount = total.times(rentShare).toDecimalPlaces(2);
+  const utilitiesAmount = total.minus(rentAmount);
+  return { rentAmount, utilitiesAmount };
+}
+
+export interface MatCapitalWindow {
+  coveredFrom: Date | null;
+  coveredTo: Date | null;
+  deferredUntil: Date | null;
+}
+
+// Обычно — paymentDueDay число того же месяца, что и период (п. 4.4/5.4 — всегда 5, но
+// берём из условий договора). Если период попадает в диапазон, закрытый маткапиталом —
+// срок сдвигается на согласованную дату отсрочки (see Contract.matCapitalDeferredUntil).
+export function computeDueDate(period: AccrualPeriod, paymentDueDay: number, matCapital?: MatCapitalWindow): Date {
+  if (
+    matCapital?.coveredFrom &&
+    matCapital.coveredTo &&
+    matCapital.deferredUntil &&
+    period.periodStart >= matCapital.coveredFrom &&
+    period.periodStart <= matCapital.coveredTo
+  ) {
+    return matCapital.deferredUntil;
+  }
+  const y = period.periodStart.getUTCFullYear();
+  const m = period.periodStart.getUTCMonth();
+  return new Date(Date.UTC(y, m, paymentDueDay));
+}
+
+export interface GeneratedAccrual {
+  periodStart: Date;
+  periodEnd: Date;
+  dueDate: Date;
+  rentAmount: DecimalLike;
+  utilitiesAmount: DecimalLike;
+}
+
+export function buildAccrualsForContract(params: {
+  startDate: Date;
+  endDate: Date;
+  terms: AccrualTerms & { paymentDueDay: number };
+  matCapital?: MatCapitalWindow;
+}): GeneratedAccrual[] {
+  return generateMonthlyPeriods(params.startDate, params.endDate).map((period) => {
+    const { rentAmount, utilitiesAmount } = computeAccrualAmounts(period, params.terms);
+    const dueDate = computeDueDate(period, params.terms.paymentDueDay, params.matCapital);
+    return { periodStart: period.periodStart, periodEnd: period.periodEnd, dueDate, rentAmount, utilitiesAmount };
+  });
+}
+
+// Пеня начинает копиться через 5 дней после срока оплаты (due day 5 -> с 10 числа, п. 4.8/5.9).
+export const PENALTY_GRACE_DAYS = 5;
+export const PENALTY_DAILY_RATE = new Decimal('0.0014');
+
+export function penaltyStartsAt(dueDate: Date): Date {
+  return addDays(dueDate, PENALTY_GRACE_DAYS);
+}

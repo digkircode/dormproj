@@ -22,6 +22,9 @@ import { RoomsModule } from './rooms/rooms.module';
 import { RoomCharacteristicDefinitionsModule } from './room-characteristic-definitions/room-characteristic-definitions.module';
 import { DormitoryInfoModule } from './dormitory-info/dormitory-info.module';
 import { AuthModule } from './auth/auth.module';
+import { ContractsModule } from './contracts/contracts.module';
+import { BillingModule } from './billing/billing.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -49,6 +52,9 @@ import { AuthModule } from './auth/auth.module';
     RoomsModule,
     RoomCharacteristicDefinitionsModule,
     DormitoryInfoModule,
+    ContractsModule,
+    BillingModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
