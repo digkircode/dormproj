@@ -32,7 +32,7 @@ const router = createRouter({
     { path: '/room-characteristics', name: 'room-characteristics', component: RoomCharacteristics, meta: { title: 'Характеристики комнат' } },
 
     { path: '/contracts', name: 'contracts', component: Contracts, meta: { title: 'Договоры' } },
-    { path: '/contracts/:id', name: 'contract-detail', component: ContractDetail, meta: { title: 'Договор', parent: 'contracts' } },
+    { path: '/contracts/:id', name: 'contract-detail', component: ContractDetail, meta: { title: 'Информация о договоре', parent: 'contracts' } },
     { path: '/reports', name: 'reports', component: Reports, meta: { title: 'Отчёты' } },
   ],
 })

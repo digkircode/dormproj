@@ -1,18 +1,22 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, Search } from 'lucide-vue-next'
-import { Card } from '@/components/ui/card'
+import { ExternalLink, Plus } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
+import EntityTable from '@/components/EntityTable.vue'
+import ContractStatusCell from '@/components/ContractStatusCell.vue'
+import DatePickerField from '@/components/DatePickerField.vue'
+import SearchSelect from '@/components/SearchSelect.vue'
+import PhoneInput from '@/components/PhoneInput.vue'
+import { createAppColumnHelper } from '@/lib/table'
 import {
-  fetchContracts,
+  fetchContractsPage,
+  fetchContractFacets,
   createContract,
   type ContractListItem,
   type DailyRateCategory,
@@ -25,39 +29,44 @@ const router = useRouter()
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
-
-const STATUS_LABELS: Record<string, string> = { ACTIVE: 'Действует', TERMINATED: 'Расторгнут', EXPIRED: 'Истёк' }
-const STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive'> = {
-  ACTIVE: 'default',
-  TERMINATED: 'destructive',
-  EXPIRED: 'secondary',
+// Тот же fade, что и у переключения содержимого в RoomDetailPanel.vue — единообразная
+// анимация появления полей по всему приложению.
+const REVEAL_TRANSITION = {
+  enterActiveClass: 'animate-in fade-in-0 duration-200',
+  leaveActiveClass: 'animate-out fade-out-0 duration-150',
 }
 
-const contracts = ref<ContractListItem[]>([])
-const isLoading = ref(true)
-const loadError = ref('')
-const search = ref('')
+// --- Список договоров ---
+const columnLabels: Record<string, string> = {
+  number: '№ договора',
+  residentFullName: 'Проживающий',
+  room: 'Комната',
+  startDate: 'Начало',
+  endDate: 'Окончание',
+  status: 'Статус',
+}
+const filterableFields = ['status']
+const cellRenderers = { status: ContractStatusCell }
 
-async function load() {
-  isLoading.value = true
-  loadError.value = ''
-  try {
-    const page = await fetchContracts({ page: 1, pageSize: 100, search: search.value })
-    contracts.value = page.data
-  } catch (error) {
-    loadError.value = error instanceof Error ? error.message : String(error)
-  } finally {
-    isLoading.value = false
+function cellText(columnId: string, value: unknown): string {
+  if ((columnId === 'startDate' || columnId === 'endDate') && typeof value === 'string') {
+    const date = new Date(value)
+    const pad = (n: number) => n.toString().padStart(2, '0')
+    return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
   }
+  return String(value ?? '')
 }
 
-let searchTimeout: ReturnType<typeof setTimeout> | undefined
-watch(search, () => {
-  clearTimeout(searchTimeout)
-  searchTimeout = setTimeout(load, 300)
-})
+const columnHelper = createAppColumnHelper<ContractListItem>()
 
-onMounted(load)
+const columns = columnHelper.columns([
+  columnHelper.accessor('number', { header: columnLabels.number, enableHiding: false, size: 128, minSize: 100 }),
+  columnHelper.accessor('residentFullName', { header: columnLabels.residentFullName, size: 240, minSize: 160 }),
+  columnHelper.accessor('room', { header: columnLabels.room, size: 112, minSize: 90 }),
+  columnHelper.accessor('startDate', { header: columnLabels.startDate, size: 128, minSize: 100 }),
+  columnHelper.accessor('endDate', { header: columnLabels.endDate, size: 128, minSize: 100 }),
+  columnHelper.accessor('status', { header: columnLabels.status, size: 128, minSize: 100 }),
+])
 
 // --- Диалог создания договора ---
 const isDialogOpen = ref(false)
@@ -70,6 +79,9 @@ const startDate = ref('')
 const endDate = ref('')
 const roomId = ref<number | null>(null)
 const rentAmount = ref<number | undefined>(undefined)
+// Коммуналка и суточная ставка больше не показываются в форме (цена комнаты уже
+// включает коммунальные услуги), но остаются во внутренней логике — бэкенд и расчёт
+// начислений/пени по-прежнему хранят их отдельными полями (см. billing/accrual-generation.ts).
 const utilitiesAmount = ref<number | undefined>(undefined)
 const dailyRateCategory = ref<DailyRateCategory>('OWN_UNIVERSITY')
 const dailyRateAmount = ref<number | undefined>(undefined)
@@ -89,13 +101,15 @@ const matCapitalCoveredFrom = ref('')
 const matCapitalCoveredTo = ref('')
 const matCapitalDeferredUntil = ref('')
 
+// --- Поиск проживающего (SearchSelect) ---
 const individualQuery = ref('')
 const individualResults = ref<Individual[]>([])
 const selectedIndividual = ref<Individual | null>(null)
 let individualSearchTimeout: ReturnType<typeof setTimeout> | undefined
 
-watch(individualQuery, (q) => {
+function onIndividualSearch(q: string) {
   clearTimeout(individualSearchTimeout)
+  selectedIndividual.value = null
   if (!q.trim()) {
     individualResults.value = []
     return
@@ -104,7 +118,7 @@ watch(individualQuery, (q) => {
     const page = await fetchIndividuals({ page: 1, pageSize: 10, search: q, sortBy: 'fullName', sortDir: 'asc', filters: {} })
     individualResults.value = page.data
   }, 250)
-})
+}
 
 function pickIndividual(ind: Individual) {
   selectedIndividual.value = ind
@@ -112,11 +126,37 @@ function pickIndividual(ind: Individual) {
   individualResults.value = []
 }
 
+// --- Поиск комнаты (SearchSelect, список уже загружен целиком — фильтр на клиенте) ---
 const rooms = ref<RoomTreeItem[]>([])
+const roomQuery = ref('')
+const roomResults = ref<RoomTreeItem[]>([])
+
+function onRoomSearch(q: string) {
+  const query = q.trim().toLowerCase()
+  roomResults.value = query ? rooms.value.filter((r) => r.room.toLowerCase().includes(query)) : rooms.value
+}
+
+function pickRoom(r: RoomTreeItem) {
+  roomId.value = r.id
+  roomQuery.value = r.room
+  roomResults.value = []
+}
+
 const dormInfo = ref<{ communalServicesCost: number | null; dailyPaymentInternal: number | null; dailyPaymentOther: number | null }>({
   communalServicesCost: null,
   dailyPaymentInternal: null,
   dailyPaymentOther: null,
+})
+
+function defaultEndDate(from: string): string {
+  const year = new Date(from).getFullYear()
+  return `${year + 1}-08-31`
+}
+
+// Дата окончания подставляется автоматически при каждом выборе даты начала —
+// по прямой просьбе, сотрудник может поправить её вручную после подстановки.
+watch(startDate, (value) => {
+  if (value) endDate.value = defaultEndDate(value)
 })
 
 async function openCreate() {
@@ -126,6 +166,8 @@ async function openCreate() {
   startDate.value = ''
   endDate.value = ''
   roomId.value = null
+  roomQuery.value = ''
+  roomResults.value = []
   rentAmount.value = undefined
   paymentDueDay.value = 5
   isMinor.value = false
@@ -147,6 +189,10 @@ async function openCreate() {
   if (rooms.value.length === 0) {
     rooms.value = await fetchRoomsTree()
   }
+  // Список комнат уже загружен целиком — сразу показываем его в дропдауне по фокусу,
+  // не дожидаясь первого ввода (см. SearchSelect: без начального items дропдаун
+  // по фокусу открывать нечего).
+  roomResults.value = rooms.value
   const info = await fetchDormitoryInfo()
   dormInfo.value = info
   utilitiesAmount.value = info.communalServicesCost ?? undefined
@@ -156,12 +202,13 @@ async function openCreate() {
 }
 
 // Категория определяет, какая суточная ставка по умолчанию (см. DormitoryInfo) — при
-// смене категории обновляем подстановку, если сотрудник ещё не поправил значение вручную.
+// смене категории обновляем подстановку (поле не показывается, но участвует в расчёте пени).
 watch(dailyRateCategory, (category) => {
   dailyRateAmount.value = (category === 'OWN_UNIVERSITY' ? dormInfo.value.dailyPaymentInternal : dormInfo.value.dailyPaymentOther) ?? undefined
 })
 
-// Подстановка текущей "Стоимости" комнаты как найма по умолчанию — редактируемо сотрудником.
+// Подстановка текущей "Стоимости" комнаты как найма по умолчанию (уже с учётом
+// коммунальных услуг) — редактируемо сотрудником.
 watch(roomId, async (id) => {
   if (id === null) return
   const detail = await fetchRoomDetail(id)
@@ -219,10 +266,6 @@ async function submitCreate() {
     isSaving.value = false
   }
 }
-
-function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString('ru-RU')
-}
 </script>
 
 <template>
@@ -235,46 +278,21 @@ function formatDate(value: string): string {
       </Button>
     </div>
 
-    <div class="relative max-w-sm">
-      <Search class="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
-      <Input v-model="search" placeholder="Поиск по номеру или ФИО" class="pl-8" />
-    </div>
-
-    <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-
-    <Card class="min-w-0 gap-0 py-0">
-      <div class="overflow-hidden rounded-lg border">
-        <p v-if="isLoading" class="p-6 text-sm text-muted-foreground">Загрузка…</p>
-        <p v-else-if="!contracts.length" class="p-6 text-sm text-muted-foreground">Договоров пока нет</p>
-        <Table v-else>
-          <TableHeader class="bg-muted">
-            <TableRow>
-              <TableHead>№ договора</TableHead>
-              <TableHead>Проживающий</TableHead>
-              <TableHead>Комната</TableHead>
-              <TableHead>Период</TableHead>
-              <TableHead>Статус</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow
-              v-for="c in contracts"
-              :key="c.id"
-              class="cursor-pointer"
-              @click="router.push({ name: 'contract-detail', params: { id: c.id } })"
-            >
-              <TableCell>{{ c.number }}</TableCell>
-              <TableCell>{{ c.residentFullName }}</TableCell>
-              <TableCell>{{ c.room ?? '—' }}</TableCell>
-              <TableCell>{{ formatDate(c.startDate) }} — {{ formatDate(c.actualEndDate ?? c.endDate) }}</TableCell>
-              <TableCell>
-                <Badge :variant="STATUS_VARIANTS[c.status]">{{ STATUS_LABELS[c.status] }}</Badge>
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-      </div>
-    </Card>
+    <EntityTable
+      :columns="columns"
+      :column-labels="columnLabels"
+      :filterable-fields="filterableFields"
+      :default-sort="{ id: 'startDate', desc: true }"
+      :fetch-page="fetchContractsPage"
+      :fetch-facet-values="fetchContractFacets"
+      :get-row-id="(c: ContractListItem) => String(c.id)"
+      total-label="договоров"
+      :cell-text="cellText"
+      :cell-renderers="cellRenderers"
+      storage-key="contracts"
+      accent-icons
+      :row-action="{ icon: ExternalLink, label: 'Открыть договор', getHref: (c: ContractListItem) => `/contracts/${c.id}` }"
+    />
 
     <Dialog :open="isDialogOpen" @update:open="(open) => (isDialogOpen = open)">
       <DialogScrollContent :class="['flex flex-col gap-4 sm:max-w-2xl', DIALOG_ANIMATE_CLASS]">
@@ -290,59 +308,50 @@ function formatDate(value: string): string {
             </div>
             <div class="flex flex-col gap-2">
               <Label>Дата договора</Label>
-              <Input v-model="contractDate" type="date" />
+              <DatePickerField v-model="contractDate" />
             </div>
           </div>
 
-          <div class="relative flex flex-col gap-2">
+          <div class="flex flex-col gap-2">
             <Label>Проживающий</Label>
-            <Input v-model="individualQuery" placeholder="Начните вводить ФИО…" />
-            <div
-              v-if="individualResults.length"
-              class="absolute top-full z-10 mt-1 w-full rounded-md border bg-popover shadow-md"
-            >
-              <button
-                v-for="ind in individualResults"
-                :key="ind.fizicheskoyeLitsoUid"
-                type="button"
-                class="block w-full px-3 py-2 text-left text-sm hover:bg-muted"
-                @click="pickIndividual(ind)"
-              >
-                {{ ind.fullName }}
-              </button>
-            </div>
+            <SearchSelect
+              v-model="individualQuery"
+              :items="individualResults"
+              :item-key="(i: Individual) => i.fizicheskoyeLitsoUid"
+              :item-label="(i: Individual) => i.fullName"
+              placeholder="Начните вводить ФИО…"
+              @search="onIndividualSearch"
+              @select="pickIndividual"
+            />
           </div>
 
           <div class="grid grid-cols-3 gap-4">
             <div class="flex flex-col gap-2">
               <Label>Комната</Label>
-              <Select :model-value="roomId ? String(roomId) : undefined" @update:model-value="(v) => (roomId = Number(v))">
-                <SelectTrigger>
-                  <SelectValue placeholder="Выберите" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem v-for="r in rooms" :key="r.id" :value="String(r.id)">{{ r.room }}</SelectItem>
-                </SelectContent>
-              </Select>
+              <SearchSelect
+                v-model="roomQuery"
+                :items="roomResults"
+                :item-key="(r: RoomTreeItem) => r.id"
+                :item-label="(r: RoomTreeItem) => r.room"
+                placeholder="Начните вводить номер…"
+                @search="onRoomSearch"
+                @select="pickRoom"
+              />
             </div>
             <div class="flex flex-col gap-2">
               <Label>Дата начала</Label>
-              <Input v-model="startDate" type="date" />
+              <DatePickerField v-model="startDate" />
             </div>
             <div class="flex flex-col gap-2">
               <Label>Дата окончания</Label>
-              <Input v-model="endDate" type="date" />
+              <DatePickerField v-model="endDate" />
             </div>
           </div>
 
-          <div class="grid grid-cols-3 gap-4">
+          <div class="grid grid-cols-2 gap-4">
             <div class="flex flex-col gap-2">
-              <Label>Найм, ₽/мес</Label>
+              <Label>Найм, ₽/мес <span class="font-normal text-muted-foreground">(с учётом коммунальных услуг)</span></Label>
               <Input v-model.number="rentAmount" type="number" />
-            </div>
-            <div class="flex flex-col gap-2">
-              <Label>Коммуналка, ₽/мес</Label>
-              <Input v-model.number="utilitiesAmount" type="number" />
             </div>
             <div class="flex flex-col gap-2">
               <Label>Срок оплаты, число месяца</Label>
@@ -350,28 +359,25 @@ function formatDate(value: string): string {
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-4">
-            <div class="flex flex-col gap-2">
-              <Label>Категория проживающего</Label>
-              <Select :model-value="dailyRateCategory" @update:model-value="(v) => (dailyRateCategory = v as DailyRateCategory)">
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="OWN_UNIVERSITY">Студент РосНОУ</SelectItem>
-                  <SelectItem value="OTHER_UNIVERSITY">Студент другого вуза</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div class="flex flex-col gap-2">
-              <Label>Суточная ставка, ₽</Label>
-              <Input v-model.number="dailyRateAmount" type="number" />
-            </div>
+          <div class="flex flex-col gap-2">
+            <Label>Категория проживающего</Label>
+            <Select :model-value="dailyRateCategory" @update:model-value="(v) => (dailyRateCategory = v as DailyRateCategory)">
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="OWN_UNIVERSITY">Студент РосНОУ</SelectItem>
+                <SelectItem value="OTHER_UNIVERSITY">Студент другого вуза</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
-          <div class="flex items-center gap-2">
-            <Checkbox :model-value="isMinor" @update:model-value="(v) => (isMinor = !!v)" />
-            <Label class="font-normal">Проживающий несовершеннолетний (родитель — сторона договора)</Label>
+          <div
+            class="flex cursor-pointer items-center gap-2 rounded-md border p-3 hover:bg-accent"
+            @click="isMinor = !isMinor"
+          >
+            <Checkbox :model-value="isMinor" />
+            <Label class="cursor-pointer font-normal">Проживающий несовершеннолетний (родитель — сторона договора)</Label>
           </div>
 
           <div class="grid grid-cols-2 gap-4">
@@ -381,50 +387,57 @@ function formatDate(value: string): string {
             </div>
             <div class="flex flex-col gap-2">
               <Label>Телефон родителя</Label>
-              <Input v-model="legalRepPhone" />
+              <PhoneInput v-model="legalRepPhone" />
             </div>
           </div>
-          <div v-if="isMinor" class="grid grid-cols-2 gap-4">
-            <div class="flex flex-col gap-2">
-              <Label>Паспорт родителя: серия</Label>
-              <Input v-model="legalRepPassportSeries" />
+          <Transition v-bind="REVEAL_TRANSITION">
+            <div v-if="isMinor" class="grid grid-cols-2 gap-4">
+              <div class="flex flex-col gap-2">
+                <Label>Паспорт родителя: серия</Label>
+                <Input v-model="legalRepPassportSeries" />
+              </div>
+              <div class="flex flex-col gap-2">
+                <Label>Паспорт родителя: номер</Label>
+                <Input v-model="legalRepPassportNumber" />
+              </div>
+              <div class="flex flex-col gap-2">
+                <Label>Кем и когда выдан</Label>
+                <Input v-model="legalRepPassportIssuedBy" />
+              </div>
+              <div class="flex flex-col gap-2">
+                <Label>Дата выдачи</Label>
+                <DatePickerField v-model="legalRepPassportIssuedAt" />
+              </div>
+              <div class="col-span-2 flex flex-col gap-2">
+                <Label>Адрес регистрации родителя</Label>
+                <Input v-model="legalRepAddress" />
+              </div>
             </div>
-            <div class="flex flex-col gap-2">
-              <Label>Паспорт родителя: номер</Label>
-              <Input v-model="legalRepPassportNumber" />
-            </div>
-            <div class="flex flex-col gap-2">
-              <Label>Кем и когда выдан</Label>
-              <Input v-model="legalRepPassportIssuedBy" />
-            </div>
-            <div class="flex flex-col gap-2">
-              <Label>Дата выдачи</Label>
-              <Input v-model="legalRepPassportIssuedAt" type="date" />
-            </div>
-            <div class="col-span-2 flex flex-col gap-2">
-              <Label>Адрес регистрации родителя</Label>
-              <Input v-model="legalRepAddress" />
-            </div>
-          </div>
+          </Transition>
 
-          <div class="flex items-center gap-2">
-            <Checkbox :model-value="useMatCapital" @update:model-value="(v) => (useMatCapital = !!v)" />
-            <Label class="font-normal">Оплата материнским капиталом</Label>
+          <div
+            class="flex cursor-pointer items-center gap-2 rounded-md border p-3 hover:bg-accent"
+            @click="useMatCapital = !useMatCapital"
+          >
+            <Checkbox :model-value="useMatCapital" />
+            <Label class="cursor-pointer font-normal">Оплата материнским капиталом</Label>
           </div>
-          <div v-if="useMatCapital" class="grid grid-cols-3 gap-4">
-            <div class="flex flex-col gap-2">
-              <Label>Период с</Label>
-              <Input v-model="matCapitalCoveredFrom" type="date" />
+          <Transition v-bind="REVEAL_TRANSITION">
+            <div v-if="useMatCapital" class="grid grid-cols-3 gap-4">
+              <div class="flex flex-col gap-2">
+                <Label>Период с</Label>
+                <DatePickerField v-model="matCapitalCoveredFrom" />
+              </div>
+              <div class="flex flex-col gap-2">
+                <Label>Период по</Label>
+                <DatePickerField v-model="matCapitalCoveredTo" />
+              </div>
+              <div class="flex flex-col gap-2">
+                <Label>Отсрочка оплаты до</Label>
+                <DatePickerField v-model="matCapitalDeferredUntil" />
+              </div>
             </div>
-            <div class="flex flex-col gap-2">
-              <Label>Период по</Label>
-              <Input v-model="matCapitalCoveredTo" type="date" />
-            </div>
-            <div class="flex flex-col gap-2">
-              <Label>Отсрочка оплаты до</Label>
-              <Input v-model="matCapitalDeferredUntil" type="date" />
-            </div>
-          </div>
+          </Transition>
 
           <p v-if="dialogError" class="text-sm text-red-500">{{ dialogError }}</p>
         </div>

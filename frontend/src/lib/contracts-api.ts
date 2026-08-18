@@ -1,4 +1,5 @@
 import { apiFetch } from './api-base'
+import { fetchListPage, fetchListFacets, type ListOptions, type ListPage, type FacetOption } from './list-api'
 
 export type ContractStatus = 'ACTIVE' | 'TERMINATED' | 'EXPIRED'
 export type DailyRateCategory = 'OWN_UNIVERSITY' | 'OTHER_UNIVERSITY'
@@ -15,12 +16,9 @@ export interface ContractListItem {
   room: string | null
 }
 
-export interface ContractsPage {
-  data: ContractListItem[]
-  total: number
-  page: number
-  pageSize: number
-}
+export type ContractsPage = ListPage<ContractListItem>
+export type FetchContractsOptions = ListOptions
+export type { FacetOption }
 
 export interface ContractTerms {
   id: number
@@ -111,15 +109,12 @@ export interface CreateContractInput {
   matCapitalDeferredUntil?: string | null
 }
 
-export async function fetchContracts(params: { page: number; pageSize: number; search?: string; status?: string }): Promise<ContractsPage> {
-  const query = new URLSearchParams({ page: String(params.page), pageSize: String(params.pageSize) })
-  if (params.search) query.set('search', params.search)
-  if (params.status) query.set('status', params.status)
-  const response = await apiFetch(`/contracts?${query}`)
-  if (!response.ok) {
-    throw new Error(`Не удалось получить список договоров (${response.status})`)
-  }
-  return response.json()
+export function fetchContractsPage(options: FetchContractsOptions): Promise<ContractsPage> {
+  return fetchListPage<ContractListItem>('/contracts', options)
+}
+
+export function fetchContractFacets(field: string): Promise<FacetOption[]> {
+  return fetchListFacets('/contracts', field)
 }
 
 export async function fetchContractDetail(id: number): Promise<ContractDetail> {

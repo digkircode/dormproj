@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Plus, RotateCcw } from 'lucide-vue-next'
+import { useRoute } from 'vue-router'
+import { ArrowLeft, Ban, Plus } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,19 +9,18 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { fetchContractDetail, terminateContract, type ContractDetail, type PaymentMethod } from '@/lib/contracts-api'
+import { Dialog, DialogScrollContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import DatePickerField from '@/components/DatePickerField.vue'
+import { fetchContractDetail, terminateContract, type ContractDetail, type PaymentMethod, type PaymentRow } from '@/lib/contracts-api'
+import { STATUS_LABELS, STATUS_VARIANTS } from '@/lib/contracts-format'
 import { createPayment, reversePayment } from '@/lib/billing-api'
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
+// Вертикальные разделители колонок — тот же приём, что и в общей таблице (EntityTable.vue),
+// для визуального единства всех таблиц в приложении.
+const CELL_BORDER_CLASS = 'border-r border-border last:border-r-0'
 
-const STATUS_LABELS: Record<string, string> = { ACTIVE: 'Действует', TERMINATED: 'Расторгнут', EXPIRED: 'Истёк' }
-const STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive'> = {
-  ACTIVE: 'default',
-  TERMINATED: 'destructive',
-  EXPIRED: 'secondary',
-}
 const METHOD_LABELS: Record<string, string> = {
   CASH: 'Наличные',
   CARD_ACQUIRING: 'Эквайринг',
@@ -31,7 +30,6 @@ const METHOD_LABELS: Record<string, string> = {
 }
 
 const route = useRoute()
-const router = useRouter()
 const contractId = computed(() => Number(route.params.id))
 
 const contract = ref<ContractDetail | null>(null)
@@ -53,6 +51,12 @@ async function load() {
 onMounted(load)
 
 const totalBalance = computed(() => (contract.value ? contract.value.accruals.reduce((sum, a) => sum + a.balance, 0) : 0))
+// Найм официально включает коммунальные услуги (см. Комнаты → характеристика
+// "Стоимость") — отдельного поля "коммуналка" пользователю не показываем нигде.
+const rentWithUtilities = computed(() => {
+  const terms = contract.value?.terms[0]
+  return terms ? terms.rentAmount + terms.utilitiesAmount : 0
+})
 
 function formatDate(value: string | null): string {
   if (!value) return '—'
@@ -128,34 +132,53 @@ async function submitPayment() {
   }
 }
 
-async function onReversePayment(paymentId: number) {
-  await reversePayment(paymentId)
-  await load()
+// --- Сторнирование платежа ---
+const reversingPayment = ref<PaymentRow | null>(null)
+const isReversing = ref(false)
+const reverseError = ref('')
+
+function openReverseConfirm(payment: PaymentRow) {
+  reversingPayment.value = payment
+  reverseError.value = ''
+}
+async function confirmReversePayment() {
+  if (!reversingPayment.value) return
+  isReversing.value = true
+  reverseError.value = ''
+  try {
+    await reversePayment(reversingPayment.value.id)
+    reversingPayment.value = null
+    await load()
+  } catch (error) {
+    reverseError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isReversing.value = false
+  }
 }
 </script>
 
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
-    <Button variant="ghost" size="sm" class="w-fit" @click="router.push({ name: 'contracts' })">
-      <ArrowLeft />
-      К списку договоров
-    </Button>
+    <div class="flex items-center gap-2">
+      <Button variant="ghost" size="icon" class="size-7" as-child>
+        <RouterLink to="/contracts">
+          <ArrowLeft class="text-primary" />
+          <span class="sr-only">К списку договоров</span>
+        </RouterLink>
+      </Button>
+      <h1 class="text-lg font-medium">{{ contract ? `Договор № ${contract.number}` : 'Договор' }}</h1>
+      <Badge v-if="contract" :variant="STATUS_VARIANTS[contract.status]">{{ STATUS_LABELS[contract.status] }}</Badge>
+    </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
     <p v-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
 
     <template v-if="contract">
       <div class="flex items-start justify-between">
-        <div>
-          <div class="flex items-center gap-2">
-            <h1 class="text-lg font-medium">Договор № {{ contract.number }}</h1>
-            <Badge :variant="STATUS_VARIANTS[contract.status]">{{ STATUS_LABELS[contract.status] }}</Badge>
-          </div>
-          <p class="text-sm text-muted-foreground">
-            {{ contract.residentFullName }} · комната {{ contract.currentRoom?.room ?? '—' }} ·
-            {{ formatDate(contract.startDate) }} — {{ formatDate(contract.actualEndDate ?? contract.endDate) }}
-          </p>
-        </div>
+        <p class="text-sm text-muted-foreground">
+          {{ contract.residentFullName }} · комната {{ contract.currentRoom?.room ?? '—' }} ·
+          {{ formatDate(contract.startDate) }} — {{ formatDate(contract.actualEndDate ?? contract.endDate) }}
+        </p>
         <div class="flex gap-2">
           <Button v-if="contract.status === 'ACTIVE'" variant="outline" @click="openTerminate">Расторгнуть</Button>
           <Button @click="openPayment">
@@ -173,8 +196,8 @@ async function onReversePayment(paymentId: number) {
           </p>
         </Card>
         <Card class="p-4">
-          <p class="text-sm text-muted-foreground">Найм / коммуналка</p>
-          <p class="text-lg">{{ formatMoney(contract.terms[0]?.rentAmount ?? 0) }} / {{ formatMoney(contract.terms[0]?.utilitiesAmount ?? 0) }}</p>
+          <p class="text-sm text-muted-foreground">Найм, ₽/мес <span class="text-xs">(с учётом коммунальных услуг)</span></p>
+          <p class="text-lg">{{ formatMoney(rentWithUtilities) }}</p>
         </Card>
         <Card class="p-4">
           <p class="text-sm text-muted-foreground">Суточная ставка</p>
@@ -188,25 +211,23 @@ async function onReversePayment(paymentId: number) {
           <Table>
             <TableHeader class="bg-muted">
               <TableRow>
-                <TableHead>Период</TableHead>
-                <TableHead>Срок оплаты</TableHead>
-                <TableHead>Найм</TableHead>
-                <TableHead>Коммуналка</TableHead>
-                <TableHead>Пеня</TableHead>
-                <TableHead>Корректировка</TableHead>
-                <TableHead>Оплачено</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Период</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Срок оплаты</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Найм</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Пеня</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Корректировка</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Оплачено</TableHead>
                 <TableHead>Остаток</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               <TableRow v-for="a in contract.accruals" :key="a.id" :class="a.voidedAt ? 'opacity-40' : ''">
-                <TableCell>{{ formatDate(a.periodStart) }} — {{ formatDate(a.periodEnd) }}</TableCell>
-                <TableCell>{{ formatDate(a.dueDate) }}</TableCell>
-                <TableCell>{{ formatMoney(a.rentAmount) }}</TableCell>
-                <TableCell>{{ formatMoney(a.utilitiesAmount) }}</TableCell>
-                <TableCell>{{ a.penaltyAmount ? formatMoney(a.penaltyAmount) : '—' }}</TableCell>
-                <TableCell>{{ a.adjustmentAmount ? formatMoney(a.adjustmentAmount) : '—' }}</TableCell>
-                <TableCell>{{ formatMoney(a.paid) }}</TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.periodStart) }} — {{ formatDate(a.periodEnd) }}</TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.dueDate) }}</TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.rentAmount + a.utilitiesAmount) }}</TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">{{ a.penaltyAmount ? formatMoney(a.penaltyAmount) : '—' }}</TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">{{ a.adjustmentAmount ? formatMoney(a.adjustmentAmount) : '—' }}</TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.paid) }}</TableCell>
                 <TableCell :class="a.balance > 0 ? 'text-red-500' : ''">
                   {{ a.voidedAt ? 'отменено' : formatMoney(a.balance) }}
                 </TableCell>
@@ -223,23 +244,23 @@ async function onReversePayment(paymentId: number) {
           <Table v-else>
             <TableHeader class="bg-muted">
               <TableRow>
-                <TableHead>Дата</TableHead>
-                <TableHead>Сумма</TableHead>
-                <TableHead>Способ</TableHead>
-                <TableHead>Комментарий</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Дата</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Сумма</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Способ</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Комментарий</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
               <TableRow v-for="p in contract.payments" :key="p.id" :class="p.reversedAt ? 'opacity-40' : ''">
-                <TableCell>{{ formatDate(p.paidAt) }}</TableCell>
-                <TableCell>{{ formatMoney(p.amount) }}</TableCell>
-                <TableCell>{{ METHOD_LABELS[p.method] ?? p.method }}</TableCell>
-                <TableCell>{{ p.rawComment ?? '—' }}</TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(p.paidAt) }}</TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(p.amount) }}</TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">{{ METHOD_LABELS[p.method] ?? p.method }}</TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">{{ p.rawComment ?? '—' }}</TableCell>
                 <TableCell class="text-right">
                   <span v-if="p.reversedAt" class="text-xs text-muted-foreground">сторнирован</span>
-                  <Button v-else variant="ghost" size="icon" class="size-7" @click="onReversePayment(p.id)">
-                    <RotateCcw class="text-muted-foreground" />
+                  <Button v-else variant="ghost" size="icon" class="size-7" @click="openReverseConfirm(p)">
+                    <Ban class="text-red-500" />
                     <span class="sr-only">Сторнировать</span>
                   </Button>
                 </TableCell>
@@ -257,7 +278,7 @@ async function onReversePayment(paymentId: number) {
         </DialogHeader>
         <div class="flex flex-col gap-2">
           <Label>Фактическая дата выезда</Label>
-          <Input v-model="actualEndDate" type="date" />
+          <DatePickerField v-model="actualEndDate" />
         </div>
         <p v-if="terminateError" class="text-sm text-red-500">{{ terminateError }}</p>
         <DialogFooter>
@@ -279,7 +300,7 @@ async function onReversePayment(paymentId: number) {
           </div>
           <div class="flex flex-col gap-2">
             <Label>Дата</Label>
-            <Input v-model="paymentDate" type="date" />
+            <DatePickerField v-model="paymentDate" />
           </div>
           <div class="flex flex-col gap-2">
             <Label>Способ оплаты</Label>
@@ -304,6 +325,31 @@ async function onReversePayment(paymentId: number) {
         <DialogFooter>
           <Button variant="outline" @click="isPaymentOpen = false">Отмена</Button>
           <Button :disabled="isSavingPayment" @click="submitPayment">Сохранить</Button>
+        </DialogFooter>
+      </DialogScrollContent>
+    </Dialog>
+
+    <Dialog :open="reversingPayment !== null" @update:open="(v) => { if (!v) reversingPayment = null }">
+      <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
+        <DialogHeader>
+          <DialogTitle>Сторнировать платёж?</DialogTitle>
+          <DialogDescription>
+            Платёж {{ reversingPayment ? formatMoney(reversingPayment.amount) : '' }} от
+            {{ reversingPayment ? formatDate(reversingPayment.paidAt) : '' }} будет отмечен как сторнированный,
+            начисления пересчитаются заново. Действие необратимо.
+          </DialogDescription>
+        </DialogHeader>
+        <p v-if="reverseError" class="text-sm text-red-500">{{ reverseError }}</p>
+        <DialogFooter>
+          <Button variant="outline" @click="reversingPayment = null">Отмена</Button>
+          <Button
+            variant="outline"
+            class="border-red-500 text-red-500 hover:text-red-500"
+            :disabled="isReversing"
+            @click="confirmReversePayment"
+          >
+            Да, сторнировать
+          </Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>

@@ -23,6 +23,27 @@ import { serializeAccrual, serializePayment, serializeTerms } from './serializer
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 
+// residentFullName — через связь resident, room намеренно не сортируем (текущая комната —
+// производная от roomAssignments, не прямая колонка, как и в остальных списках проекта не
+// всё отображаемое обязано быть сортируемым, см. passport.controller.ts).
+const SORTABLE_FIELDS = ['number', 'residentFullName', 'startDate', 'endDate', 'status'] as const;
+type SortableField = (typeof SORTABLE_FIELDS)[number];
+function isSortableField(field: string): field is SortableField {
+  return (SORTABLE_FIELDS as readonly string[]).includes(field);
+}
+
+const FILTERABLE_FIELDS = ['status'] as const;
+type FilterableField = (typeof FILTERABLE_FIELDS)[number];
+function isFilterableField(field: string): field is FilterableField {
+  return (FILTERABLE_FIELDS as readonly string[]).includes(field);
+}
+
+const STATUS_LABELS: Record<ContractStatus, string> = {
+  ACTIVE: 'Действует',
+  TERMINATED: 'Расторгнут',
+  EXPIRED: 'Истёк',
+};
+
 const legalRepFields = {
   legalRepName: z.string().trim().min(1).nullish(),
   legalRepPhone: z.string().trim().min(1).nullish(),
@@ -77,29 +98,54 @@ export class ContractsController {
     @Query('page') pageParam?: string,
     @Query('pageSize') pageSizeParam?: string,
     @Query('search') searchParam?: string,
-    @Query('status') statusParam?: string,
+    @Query('sortBy') sortByParam?: string,
+    @Query('sortDir') sortDirParam?: string,
+    @Query('filters') filtersParam?: string,
   ) {
     const page = Math.max(1, Number.parseInt(pageParam ?? '', 10) || 1);
     const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, Number.parseInt(pageSizeParam ?? '', 10) || DEFAULT_PAGE_SIZE));
     const search = searchParam?.trim();
+    const sortField = isSortableField(sortByParam ?? '') ? (sortByParam as SortableField) : 'startDate';
+    const sortDir: Prisma.SortOrder = sortDirParam === 'desc' ? 'desc' : 'asc';
 
-    const isValidStatus = (v: string): v is ContractStatus => Object.values(ContractStatus).includes(v as ContractStatus);
-    const where: Prisma.ContractWhereInput = {
-      ...(statusParam && isValidStatus(statusParam) ? { status: statusParam } : {}),
-      ...(search
-        ? {
-            OR: [
-              { number: { contains: search, mode: 'insensitive' } },
-              { resident: { fullName: { contains: search, mode: 'insensitive' } } },
-            ],
+    const filterClauses: Prisma.ContractWhereInput[] = [];
+    if (filtersParam) {
+      try {
+        const parsed: unknown = JSON.parse(filtersParam);
+        if (parsed && typeof parsed === 'object') {
+          for (const [field, values] of Object.entries(parsed as Record<string, unknown>)) {
+            if (!isFilterableField(field) || !Array.isArray(values) || values.length === 0) {
+              continue;
+            }
+            const stringValues = values.filter((v): v is string => typeof v === 'string');
+            if (stringValues.length === 0) continue;
+            filterClauses.push({ status: { in: stringValues as ContractStatus[] } });
           }
-        : {}),
-    };
+        }
+      } catch {
+        // Битый JSON в необязательном параметре — просто игнорируем фильтры, не 400'им весь запрос.
+      }
+    }
+
+    const searchClause: Prisma.ContractWhereInput | undefined = search
+      ? {
+          OR: [
+            { number: { contains: search, mode: 'insensitive' } },
+            { resident: { fullName: { contains: search, mode: 'insensitive' } } },
+          ],
+        }
+      : undefined;
+
+    const where: Prisma.ContractWhereInput | undefined =
+      searchClause || filterClauses.length > 0 ? { AND: [...(searchClause ? [searchClause] : []), ...filterClauses] } : undefined;
+
+    const orderBy: Prisma.ContractOrderByWithRelationInput =
+      sortField === 'residentFullName' ? { resident: { fullName: sortDir } } : { [sortField]: sortDir };
 
     const [data, total] = await Promise.all([
       this.prisma.contract.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: {
@@ -125,6 +171,14 @@ export class ContractsController {
       page,
       pageSize,
     };
+  }
+
+  @Get('facets/:field')
+  facetValues(@Param('field') field: string) {
+    if (!isFilterableField(field)) {
+      return [];
+    }
+    return Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }));
   }
 
   @Get(':id')
@@ -217,6 +271,21 @@ export class ContractsController {
             paymentDueDay: data.paymentDueDay,
           },
         });
+
+        // Пересечение по датам с уже существующим заселением в эту же комнату — двух
+        // активных договоров на одну комнату с перекрывающимися периодами быть не должно.
+        // toDate: null — заселение ещё не закрыто (действующий договор или неотслеженный
+        // EXPIRED, см. известную проблему в промпте проекта), считаем его открытым до бесконечности.
+        const overlapping = await tx.roomAssignment.findFirst({
+          where: {
+            roomId: data.roomId,
+            fromDate: { lte: data.endDate },
+            OR: [{ toDate: null }, { toDate: { gte: data.startDate } }],
+          },
+        });
+        if (overlapping) {
+          throw new BadRequestException('Комната уже занята по другому договору в эти даты');
+        }
 
         await tx.roomAssignment.create({
           data: { contractId: contract.id, roomId: data.roomId, fromDate: data.startDate },
