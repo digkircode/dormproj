@@ -9,6 +9,7 @@ import {
   User,
   Table2,
   DoorOpen,
+  FileText,
 } from 'lucide-vue-next'
 import NavMain from '@/components/NavMain.vue'
 import NavProjects from '@/components/NavProjects.vue'
@@ -80,6 +81,16 @@ const data = {
       title: 'Комнаты',
       url: '/rooms',
       icon: DoorOpen,
+    },
+    {
+      title: 'Договоры',
+      url: '/contracts',
+      icon: FileText,
+    },
+    {
+      title: 'Отчёты',
+      url: '/reports',
+      icon: BarChart3,
     },
   ],
   projects: [

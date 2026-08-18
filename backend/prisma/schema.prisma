@@ -78,6 +78,7 @@ model Individual {
   passports    Passport[]
   contactInfos ContactInfo[]
   users        User[]
+  contracts    Contract[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -183,6 +184,9 @@ model User {
 
   individual Individual? @relation(fields: [univerId], references: [fizicheskoyeLitsoUid], onDelete: SetNull)
 
+  contractsCreated Contract[] @relation("ContractCreatedBy")
+  paymentsCreated  Payment[]  @relation("PaymentCreatedBy")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -248,6 +252,7 @@ model Room {
   room String
 
   characteristicValues RoomCharacteristicValue[]
+  roomAssignments      RoomAssignment[]
 
   @@map("rooms")
 }
@@ -328,4 +333,276 @@ model DormitoryInfo {
   updatedAt            DateTime @updatedAt @map("updated_at")
 
   @@map("dormitory_info")
+}
+
+// ===== Договоры найма, начисления, оплаты =====
+// Начисления и оплаты — раздельные потоки данных (AR-леджер), не "остаток на договоре":
+// долг — не хранимое поле, а производная (начислено − оплачено), см. Accrual/Payment ниже.
+
+enum ContractStatus {
+  ACTIVE
+  TERMINATED
+  EXPIRED
+}
+
+enum DailyRateCategory {
+  OWN_UNIVERSITY
+  OTHER_UNIVERSITY
+}
+
+// Договор найма — сам факт и стороны. Финансовые условия — не здесь, а в ContractTerms
+// (могут пересматриваться в течение срока), комната — не здесь, а в RoomAssignment
+// (переезд между комнатами не должен рвать договор и терять историю "кто где жил на дату
+// X"). residentIndividualUid — всегда проживающий (чья зачётка, кто физически живёт), не
+// родитель. Для несовершеннолетних Наниматель — родитель, который как правило никогда не
+// появится в 1С и не должен заводиться как Individual(isManual) — это сделало бы isManual
+// нормой для целой категории договоров вместо редкого служебного случая, поэтому родитель
+// хранится простыми полями прямо здесь, не отдельной сущностью.
+model Contract {
+  id                    Int            @id @default(autoincrement())
+  number                String
+  contractDate          DateTime       @map("contract_date")
+  residentIndividualUid String         @map("resident_individual_uid")
+  resident              Individual     @relation(fields: [residentIndividualUid], references: [fizicheskoyeLitsoUid])
+  startDate             DateTime       @map("start_date")
+  endDate               DateTime       @map("end_date")
+  // Фактическая дата выезда, если раньше endDate (досрочное расторжение) — endDate при
+  // этом не переписывается, исходные условия договора не теряются.
+  actualEndDate         DateTime?      @map("actual_end_date")
+  status                ContractStatus @default(ACTIVE)
+
+  // Родитель/законный представитель — у взрослых заполнен только legalRepPhone (просто
+  // контакт по тексту договора), у несовершеннолетних весь блок (родитель — сторона
+  // договора, паспортные данные обязательны).
+  legalRepName             String?   @map("legal_rep_name")
+  legalRepPhone             String?   @map("legal_rep_phone")
+  legalRepPassportSeries    String?   @map("legal_rep_passport_series")
+  legalRepPassportNumber    String?   @map("legal_rep_passport_number")
+  legalRepPassportIssuedBy  String?   @map("legal_rep_passport_issued_by")
+  legalRepPassportIssuedAt  DateTime? @map("legal_rep_passport_issued_at")
+  legalRepAddress           String?   @map("legal_rep_address")
+
+  // Оплата материнским капиталом — единовременный платёж за явно заданный период с
+  // возможной отсрочкой (ПФР платит не сразу). Если период попадает под неё, крон пени
+  // (см. Accrual) не начисляет пеню, пока текущая дата <= matCapitalDeferredUntil.
+  matCapitalCoveredFrom   DateTime? @map("mat_capital_covered_from")
+  matCapitalCoveredTo     DateTime? @map("mat_capital_covered_to")
+  matCapitalDeferredUntil DateTime? @map("mat_capital_deferred_until")
+
+  // Необязательная связь для истории перезаключений — на бизнес-логику начислений не
+  // влияет, продление всегда новый Contract с новым номером и датами, не мутация старого.
+  renewedFromContractId Int?       @map("renewed_from_contract_id")
+  renewedFrom           Contract?  @relation("ContractRenewal", fields: [renewedFromContractId], references: [id])
+  renewals               Contract[] @relation("ContractRenewal")
+
+  createdByUserId Int?  @map("created_by_user_id")
+  createdBy       User? @relation("ContractCreatedBy", fields: [createdByUserId], references: [id])
+
+  terms                ContractTerms[]
+  roomAssignments      RoomAssignment[]
+  accruals             Accrual[]
+  payments             Payment[]
+  paymentImportRecords PaymentImportRecord[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([number])
+  @@index([residentIndividualUid])
+  @@index([status])
+  @@map("contracts")
+}
+
+// Финансовые условия договора — снимок на момент подписания/пересмотра, с историей (тот
+// же принцип, что у RoomCharacteristicValue: "текущее" = запись с максимальным validFrom).
+// Не мутируем существующую строку при пересмотре цены — закрываем validTo у старой,
+// создаём новую, чтобы уже сформированные начисления оставались объяснимыми задним числом.
+model ContractTerms {
+  id         Int       @id @default(autoincrement())
+  contractId Int       @map("contract_id")
+  contract   Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  validFrom  DateTime  @map("valid_from")
+  validTo    DateTime? @map("valid_to")
+
+  rentAmount        Decimal           @map("rent_amount") @db.Decimal(12, 2)
+  utilitiesAmount   Decimal           @map("utilities_amount") @db.Decimal(12, 2)
+  dailyRateCategory DailyRateCategory @map("daily_rate_category")
+  dailyRateAmount   Decimal           @map("daily_rate_amount") @db.Decimal(12, 2)
+  // Число месяца, до которого нужно оплатить конкретное месячное начисление (п. 4.4/5.4
+  // договора — всегда 5, но не хардкодим). Наниматель платит как ему удобно, не привязан
+  // к единой схеме на весь срок — это только срок начисления, не выбор периодичности.
+  paymentDueDay Int @default(5) @map("payment_due_day")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([contractId, validFrom])
+  @@map("contract_terms")
+}
+
+// История заселения в комнату — отдельно от финансовых условий, потому что переезд между
+// комнатами не меняет юридические условия найма, только помещение, и не должен рвать
+// договор или терять историю "кто где жил на дату X". Текущая комната = запись с toDate = null.
+model RoomAssignment {
+  id         Int       @id @default(autoincrement())
+  contractId Int       @map("contract_id")
+  contract   Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  roomId     Int       @map("room_id")
+  room       Room      @relation(fields: [roomId], references: [id])
+  fromDate   DateTime  @map("from_date")
+  toDate     DateTime? @map("to_date")
+  reason     String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([contractId, fromDate])
+  @@index([roomId, fromDate])
+  @@map("room_assignments")
+}
+
+// Начисление — одна строка на один расчётный период (обычно календарный месяц, кроме
+// первого/последнего — они могут быть неполными и считаются посуточно по dailyRateAmount
+// из действовавших на periodStart ContractTerms, с потолком в полную месячную сумму,
+// см. п. 4.2/5.2 договора). totalAmount/остаток не хранятся отдельным полем — считаются
+// на чтении (rentAmount + utilitiesAmount + penaltyAmount + adjustmentAmount минус сумма
+// PaymentAllocation), материализация в кеш — только если реально понадобится по нагрузке.
+model Accrual {
+  id         Int      @id @default(autoincrement())
+  contractId Int      @map("contract_id")
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  periodStart DateTime @map("period_start")
+  periodEnd   DateTime @map("period_end")
+  dueDate     DateTime @map("due_date")
+
+  rentAmount      Decimal @map("rent_amount") @db.Decimal(12, 2)
+  utilitiesAmount Decimal @map("utilities_amount") @db.Decimal(12, 2)
+
+  // Накопленная пеня по этому периоду — 0,14%/день от неоплаченного остатка именно этого
+  // начисления, считается ночным кроном начиная с dueDate + 5 дней (см. billing-penalty
+  // сервис). penaltyAccruedThrough — до какой даты уже посчитано, для идемпотентности крона.
+  penaltyAmount        Decimal   @default(0) @map("penalty_amount") @db.Decimal(12, 2)
+  penaltyAccruedThrough DateTime? @map("penalty_accrued_through")
+
+  // Ручная корректировка (плюс или минус) поверх исходно выставленной суммы — например,
+  // пересчёт последнего периода при досрочном выезде. Не переписываем rentAmount/
+  // utilitiesAmount напрямую, чтобы не терять то, что реально было выставлено человеку.
+  adjustmentAmount Decimal @default(0) @map("adjustment_amount") @db.Decimal(12, 2)
+  adjustmentReason String? @map("adjustment_reason")
+
+  // Начисление отменено (период стал ненужным при досрочном расторжении) — не удаляем
+  // физически, помечаем, чтобы не терять историю того, что вообще планировалось.
+  voidedAt DateTime? @map("voided_at")
+
+  allocations PaymentAllocation[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([contractId, periodStart, periodEnd])
+  @@index([dueDate])
+  @@map("accruals")
+}
+
+enum PaymentMethod {
+  CASH
+  CARD_ACQUIRING
+  BANK_TRANSFER
+  MAT_CAPITAL
+  WEBSITE
+}
+
+enum PaymentSource {
+  MANUAL
+  IMPORTED_1C
+  WEBSITE
+}
+
+// Платёж — факт поступления денег. contractId обязателен (в отличие от черновой идеи
+// делать его nullable под неопознанные 1С-платежи) — неоднозначные платежи из импорта
+// остаются в PaymentImportRecord и превращаются в Payment только после сопоставления
+// с договором, поэтому в самом леджере "подвешенных" записей не бывает.
+model Payment {
+  id         Int      @id @default(autoincrement())
+  contractId Int      @map("contract_id")
+  contract   Contract @relation(fields: [contractId], references: [id])
+
+  amount  Decimal       @db.Decimal(12, 2)
+  paidAt  DateTime      @map("paid_at")
+  method  PaymentMethod
+  source  PaymentSource
+
+  // id платёжного документа в 1С — для идемпотентности повторного импорта и связи с
+  // PaymentImportRecord. rawComment — исходное "Назначение платежа", на случай, если
+  // авто-сопоставление ошиблось и нужно разбираться руками.
+  externalRef String? @map("external_ref")
+  rawComment  String? @map("raw_comment")
+
+  // Платёж отменён/сторнирован (ошибочно внесён и т.п.) — не удаляем, помечаем.
+  reversedAt DateTime? @map("reversed_at")
+
+  createdByUserId Int?  @map("created_by_user_id")
+  createdBy       User? @relation("PaymentCreatedBy", fields: [createdByUserId], references: [id])
+
+  allocations PaymentAllocation[]
+  importRecord PaymentImportRecord?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([source, externalRef])
+  @@index([contractId, paidAt])
+  @@map("payments")
+}
+
+// Разнесение платежа по начислениям — таблица многие-ко-многим: один платёж может
+// закрыть несколько начислений (квартальная/годовая оплата разом), одно начисление может
+// закрываться несколькими платежами (частичная оплата). Долг — не отдельное поле, а
+// разница между Accrual.total и суммой этих строк, см. комментарий у Accrual.
+model PaymentAllocation {
+  id        Int     @id @default(autoincrement())
+  paymentId Int     @map("payment_id")
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  accrualId Int     @map("accrual_id")
+  accrual   Accrual @relation(fields: [accrualId], references: [id])
+
+  amount Decimal @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([paymentId])
+  @@index([accrualId])
+  @@map("payment_allocations")
+}
+
+enum PaymentImportStatus {
+  IMPORTED
+  MATCHED
+  NEEDS_REVIEW
+  REJECTED
+}
+
+// Стадия импорта из 1С — сырые данные попадают сюда первыми, целиком (rawPayload), и
+// только после однозначного сопоставления с договором (авто или вручную сотрудником)
+// создаётся настоящий Payment. Так в основном леджере (Payment) никогда не оказывается
+// неоднозначных/неподтверждённых записей — тот же принцип "храним сырое как есть", что
+// уже применён к ContactInfo.xml/json. Импорт как таковой (сам процесс выгрузки из 1С)
+// этой миграцией не реализуется — только место, куда он будет класть данные.
+model PaymentImportRecord {
+  id         Int                 @id @default(autoincrement())
+  source     String              @default("1C")
+  externalId String              @map("external_id")
+  rawPayload Json                @map("raw_payload")
+  importedAt DateTime            @default(now()) @map("imported_at")
+  status     PaymentImportStatus @default(IMPORTED)
+
+  matchedContractId Int?      @map("matched_contract_id")
+  matchedContract   Contract? @relation(fields: [matchedContractId], references: [id])
+
+  resultingPaymentId Int?     @unique @map("resulting_payment_id")
+  resultingPayment    Payment? @relation(fields: [resultingPaymentId], references: [id])
+
+  reviewedByUserId Int?      @map("reviewed_by_user_id")
+  reviewedAt       DateTime? @map("reviewed_at")
+
+  @@unique([source, externalId])
+  @@index([status])
+  @@map("payment_import_records")
 }
