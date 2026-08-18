@@ -9,6 +9,9 @@ const props = defineProps<{
   itemLabel: (item: T) => string
   placeholder?: string
   invalid?: boolean
+  // Пока идёт запрос (например debounce у серверного поиска) — не показываем
+  // "Ничего не найдено" по ещё не готовым items, иначе оно мелькает на каждый символ.
+  loading?: boolean
 }>()
 const emit = defineEmits<{ search: [query: string]; select: [item: T] }>()
 // Текст в поле — обычный v-model, значение выбирается через @select, а не выводится
@@ -56,7 +59,7 @@ onClickOutside(rootRef, () => {
       @focus="onFocus"
     />
     <div
-      v-if="isOpen && (items.length || query.trim())"
+      v-if="isOpen && !loading && (items.length || query.trim())"
       class="absolute top-full z-10 mt-1 max-h-64 w-full overflow-auto rounded-md border bg-popover shadow-md"
     >
       <button

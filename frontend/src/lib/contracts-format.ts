@@ -1,3 +1,4 @@
+import { CircleCheck, CircleMinus, CircleX } from 'lucide-vue-next'
 import type { ContractStatus } from './contracts-api'
 
 export const STATUS_LABELS: Record<ContractStatus, string> = {
@@ -10,4 +11,17 @@ export const STATUS_VARIANTS: Record<ContractStatus, 'default' | 'secondary' | '
   ACTIVE: 'default',
   TERMINATED: 'destructive',
   EXPIRED: 'secondary',
+}
+
+// Иконки статуса — тот же приём, что в sync-format.ts (галочка/крестик для логов синхронизации).
+export const STATUS_ICON = {
+  ACTIVE: CircleCheck,
+  TERMINATED: CircleX,
+  EXPIRED: CircleMinus,
+} as const satisfies Record<ContractStatus, unknown>
+
+export const STATUS_ICON_CLASS: Record<ContractStatus, string> = {
+  ACTIVE: 'fill-emerald-500 text-white',
+  TERMINATED: 'fill-red-500 text-white',
+  EXPIRED: 'fill-slate-400 text-white',
 }

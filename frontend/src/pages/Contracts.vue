@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import EntityTable from '@/components/EntityTable.vue'
 import ContractStatusCell from '@/components/ContractStatusCell.vue'
 import DatePickerField from '@/components/DatePickerField.vue'
@@ -29,6 +30,9 @@ const router = useRouter()
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
+// Скрывает нативные стрелочки +/- у <input type="number"> (Chrome/Safari + Firefox) —
+// та же константа, что в Rooms.vue/RoomDetailPanel.vue.
+const NO_SPINNER_CLASS = '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
 // Тот же fade, что и у переключения содержимого в RoomDetailPanel.vue — единообразная
 // анимация появления полей по всему приложению.
 const REVEAL_TRANSITION = {
@@ -110,11 +114,16 @@ const contractDateInvalid = computed(() => submitAttempted.value && !contractDat
 const roomInvalid = computed(() => submitAttempted.value && !roomId.value)
 const startDateInvalid = computed(() => submitAttempted.value && !startDate.value)
 const endDateInvalid = computed(() => submitAttempted.value && !endDate.value)
+const individualInvalid = computed(() => submitAttempted.value && !selectedIndividual.value)
+const rentAmountInvalid = computed(() => submitAttempted.value && rentAmount.value === undefined)
 
 // --- Поиск проживающего (SearchSelect) ---
 const individualQuery = ref('')
 const individualResults = ref<Individual[]>([])
 const selectedIndividual = ref<Individual | null>(null)
+// Пока запрос не отработал (в т.ч. во время debounce) — "Ничего не найдено" не
+// показываем, иначе оно мелькает при каждом нажатии клавиши ещё до самого поиска.
+const individualSearching = ref(false)
 let individualSearchTimeout: ReturnType<typeof setTimeout> | undefined
 
 function onIndividualSearch(q: string) {
@@ -122,11 +131,14 @@ function onIndividualSearch(q: string) {
   selectedIndividual.value = null
   if (!q.trim()) {
     individualResults.value = []
+    individualSearching.value = false
     return
   }
+  individualSearching.value = true
   individualSearchTimeout = setTimeout(async () => {
     const page = await fetchIndividuals({ page: 1, pageSize: 10, search: q, sortBy: 'fullName', sortDir: 'asc', filters: {} })
     individualResults.value = page.data
+    individualSearching.value = false
   }, 250)
 }
 
@@ -240,16 +252,18 @@ watch(roomId, async (id) => {
 async function submitCreate() {
   dialogError.value = ''
   submitAttempted.value = true
-  if (!selectedIndividual.value) {
-    dialogError.value = 'Выберите проживающего'
-    return
-  }
-  if (!roomId.value || !startDate.value || !endDate.value || !number.value.trim() || !contractDate.value) {
+  if (
+    !selectedIndividual.value ||
+    !roomId.value ||
+    !startDate.value ||
+    !endDate.value ||
+    !number.value.trim() ||
+    !contractDate.value ||
+    rentAmount.value === undefined ||
+    utilitiesAmount.value === undefined ||
+    dailyRateAmount.value === undefined
+  ) {
     dialogError.value = 'Заполните обязательные поля'
-    return
-  }
-  if (rentAmount.value === undefined || utilitiesAmount.value === undefined || dailyRateAmount.value === undefined) {
-    dialogError.value = 'Заполните финансовые условия'
     return
   }
 
@@ -308,10 +322,15 @@ async function submitCreate() {
       :row-action="{ icon: ExternalLink, label: 'Открыть договор', getHref: (c: ContractListItem) => `/contracts/${c.id}` }"
     >
       <template #actions>
-        <Button variant="outline" size="icon" title="Новый договор" @click="openCreate">
-          <Plus class="text-primary" />
-          <span class="sr-only">Новый договор</span>
-        </Button>
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button size="icon" @click="openCreate">
+              <Plus />
+              <span class="sr-only">Новый договор</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Новый договор</TooltipContent>
+        </Tooltip>
       </template>
     </EntityTable>
 
@@ -341,6 +360,8 @@ async function submitCreate() {
               :item-key="(i: Individual) => i.fizicheskoyeLitsoUid"
               :item-label="(i: Individual) => i.fullName"
               placeholder="Начните вводить ФИО…"
+              :invalid="individualInvalid"
+              :loading="individualSearching"
               @search="onIndividualSearch"
               @select="pickIndividual"
             />
@@ -373,11 +394,16 @@ async function submitCreate() {
           <div class="grid grid-cols-2 gap-4">
             <div class="flex flex-col gap-2">
               <Label>Найм, ₽/мес</Label>
-              <Input v-model.number="rentAmount" type="number" />
+              <Input
+                v-model.number="rentAmount"
+                type="number"
+                disabled
+                :class="[NO_SPINNER_CLASS, rentAmountInvalid ? 'border-red-500' : '']"
+              />
             </div>
             <div class="flex flex-col gap-2">
               <Label>Срок оплаты, число месяца</Label>
-              <Input v-model.number="paymentDueDay" type="number" min="1" max="28" />
+              <Input v-model.number="paymentDueDay" type="number" min="1" max="28" :class="NO_SPINNER_CLASS" />
             </div>
           </div>
 
