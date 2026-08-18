@@ -8,6 +8,7 @@ const props = defineProps<{
   itemKey: (item: T) => string | number
   itemLabel: (item: T) => string
   placeholder?: string
+  invalid?: boolean
 }>()
 const emit = defineEmits<{ search: [query: string]; select: [item: T] }>()
 // Текст в поле — обычный v-model, значение выбирается через @select, а не выводится
@@ -46,9 +47,16 @@ onClickOutside(rootRef, () => {
 
 <template>
   <div ref="rootRef" class="relative">
-    <Input :model-value="query" :placeholder="placeholder" autocomplete="off" @input="onInput" @focus="onFocus" />
+    <Input
+      :model-value="query"
+      :placeholder="placeholder"
+      autocomplete="off"
+      :class="invalid ? 'border-red-500' : ''"
+      @input="onInput"
+      @focus="onFocus"
+    />
     <div
-      v-if="isOpen && items.length"
+      v-if="isOpen && (items.length || query.trim())"
       class="absolute top-full z-10 mt-1 max-h-64 w-full overflow-auto rounded-md border bg-popover shadow-md"
     >
       <button
@@ -60,6 +68,7 @@ onClickOutside(rootRef, () => {
       >
         {{ itemLabel(item) }}
       </button>
+      <p v-if="!items.length" class="px-3 py-2 text-sm text-muted-foreground">Ничего не найдено</p>
     </div>
   </div>
 </template>

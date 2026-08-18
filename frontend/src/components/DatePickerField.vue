@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
-defineProps<{ placeholder?: string }>()
+defineProps<{ placeholder?: string; invalid?: boolean }>()
 // ISO-строка (YYYY-MM-DD), как везде в проекте — не Date, чтобы не тянуть за собой часовые пояса.
 const model = defineModel<string>({ required: true })
 
@@ -28,8 +28,12 @@ function onSelect(value: DateValue | undefined) {
 <template>
   <Popover :open="isOpen" @update:open="(v) => (isOpen = v)">
     <PopoverTrigger as-child>
-      <Button type="button" variant="outline" class="w-full justify-start text-left font-normal">
-        <CalendarIcon class="mr-2 size-4 text-primary" />
+      <Button
+        type="button"
+        variant="outline"
+        :class="['w-full justify-start text-left font-normal', invalid ? 'border-red-500 text-red-500' : '']"
+      >
+        <CalendarIcon class="mr-2 size-4" :class="invalid ? 'text-red-500' : 'text-primary'" />
         {{ model ? formatDate(model) : (placeholder ?? 'Выберите дату') }}
       </Button>
     </PopoverTrigger>

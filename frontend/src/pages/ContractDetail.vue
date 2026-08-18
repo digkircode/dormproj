@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { ArrowLeft, Ban, Plus } from 'lucide-vue-next'
+import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpDown, Ban, Plus } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,7 +11,14 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogScrollContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import DatePickerField from '@/components/DatePickerField.vue'
-import { fetchContractDetail, terminateContract, type ContractDetail, type PaymentMethod, type PaymentRow } from '@/lib/contracts-api'
+import {
+  fetchContractDetail,
+  terminateContract,
+  type AccrualRow,
+  type ContractDetail,
+  type PaymentMethod,
+  type PaymentRow,
+} from '@/lib/contracts-api'
 import { STATUS_LABELS, STATUS_VARIANTS } from '@/lib/contracts-format'
 import { createPayment, reversePayment } from '@/lib/billing-api'
 
@@ -51,12 +58,61 @@ async function load() {
 onMounted(load)
 
 const totalBalance = computed(() => (contract.value ? contract.value.accruals.reduce((sum, a) => sum + a.balance, 0) : 0))
-// Найм официально включает коммунальные услуги (см. Комнаты → характеристика
-// "Стоимость") — отдельного поля "коммуналка" пользователю не показываем нигде.
-const rentWithUtilities = computed(() => {
-  const terms = contract.value?.terms[0]
-  return terms ? terms.rentAmount + terms.utilitiesAmount : 0
-})
+// Коммунальные услуги в БД уже включены в стоимость комнаты (Room → характеристика
+// "Стоимость"), которая и попадает в rentAmount при создании договора — отдельно
+// прибавлять utilitiesAmount не нужно, это задвоило бы сумму.
+const rentAmount = computed(() => contract.value?.terms[0]?.rentAmount ?? 0)
+
+// --- Сортировка таблиц (локальная, без похода на бэкенд — строк на договор мало) ---
+// Ключ сортировки — string, не keyof T: колонок мало и они описаны прямо тут же в
+// массиве ниже, полная дженерик-типизация была бы избыточна ради пары маленьких таблиц.
+function useLocalSort<T extends Record<string, unknown>>(rows: () => T[], initialId: string) {
+  const sort = ref({ id: initialId, desc: false })
+  const sorted = computed(() => {
+    const { id, desc } = sort.value
+    return [...rows()].sort((a, b) => {
+      const av = a[id]
+      const bv = b[id]
+      if (av === bv) return 0
+      const cmp = (av as string | number) > (bv as string | number) ? 1 : -1
+      return desc ? -cmp : cmp
+    })
+  })
+  function toggle(id: string) {
+    sort.value = sort.value.id === id ? { id, desc: !sort.value.desc } : { id, desc: false }
+  }
+  return { sort, sorted, toggle }
+}
+
+function sortIcon(sort: { id: string; desc: boolean }, id: string) {
+  if (sort.id !== id) return ArrowUpDown
+  return sort.desc ? ArrowDown : ArrowUp
+}
+
+const ACCRUAL_COLUMNS: { id: keyof AccrualRow; label: string }[] = [
+  { id: 'periodStart', label: 'Период' },
+  { id: 'dueDate', label: 'Срок оплаты' },
+  { id: 'rentAmount', label: 'Найм' },
+  { id: 'penaltyAmount', label: 'Пеня' },
+  { id: 'adjustmentAmount', label: 'Корректировка' },
+  { id: 'paid', label: 'Оплачено' },
+  { id: 'balance', label: 'Остаток' },
+]
+const { sort: accrualSort, sorted: sortedAccruals, toggle: toggleAccrualSort } = useLocalSort(
+  () => contract.value?.accruals ?? [],
+  'periodStart' satisfies keyof AccrualRow,
+)
+
+const PAYMENT_COLUMNS: { id: keyof PaymentRow; label: string }[] = [
+  { id: 'paidAt', label: 'Дата' },
+  { id: 'amount', label: 'Сумма' },
+  { id: 'method', label: 'Способ' },
+  { id: 'rawComment', label: 'Комментарий' },
+]
+const { sort: paymentSort, sorted: sortedPayments, toggle: togglePaymentSort } = useLocalSort(
+  () => contract.value?.payments ?? [],
+  'paidAt' satisfies keyof PaymentRow,
+)
 
 function formatDate(value: string | null): string {
   if (!value) return '—'
@@ -197,7 +253,7 @@ async function confirmReversePayment() {
         </Card>
         <Card class="p-4">
           <p class="text-sm text-muted-foreground">Найм, ₽/мес <span class="text-xs">(с учётом коммунальных услуг)</span></p>
-          <p class="text-lg">{{ formatMoney(rentWithUtilities) }}</p>
+          <p class="text-lg">{{ formatMoney(rentAmount) }}</p>
         </Card>
         <Card class="p-4">
           <p class="text-sm text-muted-foreground">Суточная ставка</p>
@@ -211,20 +267,31 @@ async function confirmReversePayment() {
           <Table>
             <TableHeader class="bg-muted">
               <TableRow>
-                <TableHead :class="CELL_BORDER_CLASS">Период</TableHead>
-                <TableHead :class="CELL_BORDER_CLASS">Срок оплаты</TableHead>
-                <TableHead :class="CELL_BORDER_CLASS">Найм</TableHead>
-                <TableHead :class="CELL_BORDER_CLASS">Пеня</TableHead>
-                <TableHead :class="CELL_BORDER_CLASS">Корректировка</TableHead>
-                <TableHead :class="CELL_BORDER_CLASS">Оплачено</TableHead>
-                <TableHead>Остаток</TableHead>
+                <TableHead
+                  v-for="(col, i) in ACCRUAL_COLUMNS"
+                  :key="col.id"
+                  :class="i < ACCRUAL_COLUMNS.length - 1 ? CELL_BORDER_CLASS : ''"
+                >
+                  <button
+                    type="button"
+                    class="flex w-full items-center gap-1.5 hover:text-foreground/80"
+                    @click="toggleAccrualSort(col.id)"
+                  >
+                    {{ col.label }}
+                    <component
+                      :is="sortIcon(accrualSort, col.id)"
+                      class="size-3.5 shrink-0"
+                      :class="accrualSort.id === col.id ? '' : 'text-muted-foreground/50'"
+                    />
+                  </button>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow v-for="a in contract.accruals" :key="a.id" :class="a.voidedAt ? 'opacity-40' : ''">
+              <TableRow v-for="a in sortedAccruals" :key="a.id" :class="a.voidedAt ? 'opacity-40' : ''">
                 <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.periodStart) }} — {{ formatDate(a.periodEnd) }}</TableCell>
                 <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.dueDate) }}</TableCell>
-                <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.rentAmount + a.utilitiesAmount) }}</TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.rentAmount) }}</TableCell>
                 <TableCell :class="CELL_BORDER_CLASS">{{ a.penaltyAmount ? formatMoney(a.penaltyAmount) : '—' }}</TableCell>
                 <TableCell :class="CELL_BORDER_CLASS">{{ a.adjustmentAmount ? formatMoney(a.adjustmentAmount) : '—' }}</TableCell>
                 <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.paid) }}</TableCell>
@@ -244,15 +311,25 @@ async function confirmReversePayment() {
           <Table v-else>
             <TableHeader class="bg-muted">
               <TableRow>
-                <TableHead :class="CELL_BORDER_CLASS">Дата</TableHead>
-                <TableHead :class="CELL_BORDER_CLASS">Сумма</TableHead>
-                <TableHead :class="CELL_BORDER_CLASS">Способ</TableHead>
-                <TableHead :class="CELL_BORDER_CLASS">Комментарий</TableHead>
+                <TableHead v-for="col in PAYMENT_COLUMNS" :key="col.id" :class="CELL_BORDER_CLASS">
+                  <button
+                    type="button"
+                    class="flex w-full items-center gap-1.5 hover:text-foreground/80"
+                    @click="togglePaymentSort(col.id)"
+                  >
+                    {{ col.label }}
+                    <component
+                      :is="sortIcon(paymentSort, col.id)"
+                      class="size-3.5 shrink-0"
+                      :class="paymentSort.id === col.id ? '' : 'text-muted-foreground/50'"
+                    />
+                  </button>
+                </TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow v-for="p in contract.payments" :key="p.id" :class="p.reversedAt ? 'opacity-40' : ''">
+              <TableRow v-for="p in sortedPayments" :key="p.id" :class="p.reversedAt ? 'opacity-40' : ''">
                 <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(p.paidAt) }}</TableCell>
                 <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(p.amount) }}</TableCell>
                 <TableCell :class="CELL_BORDER_CLASS">{{ METHOD_LABELS[p.method] ?? p.method }}</TableCell>

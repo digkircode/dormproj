@@ -10,6 +10,7 @@ const props = defineProps<{ placeholder?: string }>()
 // input.value самого "+7" не содержит, а в БД должен уйти номер целиком.
 const model = defineModel<string>({ default: '' })
 
+const wrapperRef = ref<HTMLElement | null>(null)
 const inputRef = ref<HTMLInputElement | null>(null)
 const touched = ref(false)
 const isValid = ref(true)
@@ -39,7 +40,13 @@ function onInput() {
   if (touched.value) isValid.value = checkValidity()
 }
 
-function onBlur() {
+// focusout на всём виджете (а не blur на самом инпуте) — клик по кнопке флага/списку
+// стран сам по себе снимает фокус с инпута, и на голом blur ошибка выскакивала прямо
+// в момент выбора страны, а не когда пользователь реально закончил с полем. relatedTarget
+// внутри враппера (флаг, поиск по странам, сам список) — это ещё не уход с поля.
+function onWrapperFocusOut(event: FocusEvent) {
+  const next = event.relatedTarget as Node | null
+  if (wrapperRef.value && next && wrapperRef.value.contains(next)) return
   touched.value = true
   isValid.value = checkValidity()
 }
@@ -49,9 +56,10 @@ onMounted(() => {
   iti = intlTelInput(inputRef.value, {
     initialCountry: 'ru',
     separateDialCode: true,
-    // Список стран рендерим в body, а не внутри модалки — иначе overflow-y-auto
-    // у DialogScrollContent обрезает длинный дропдаун.
-    dropdownParent: document.body,
+    // Без dropdownParent — список стран остаётся внутри .iti (внутри модалки).
+    // Вынос в document.body ломает выбор страны: фокус-трап/pointer-events Dialog
+    // (см. известную ловушку с вложенными Reka-порталами в промпте проекта) блокирует
+    // клики по элементам, оказавшимся вне DOM самого диалога.
     loadUtils: () => import('intl-tel-input/utils'),
   })
   if (model.value) iti.setNumber(model.value)
@@ -63,7 +71,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="phone-input">
+  <div ref="wrapperRef" class="phone-input" @focusout="onWrapperFocusOut">
     <input
       ref="inputRef"
       type="tel"
@@ -74,7 +82,6 @@ onBeforeUnmount(() => {
         touched && !isValid ? 'border-red-500 focus-visible:ring-red-500' : 'border-input focus-visible:ring-ring',
       ]"
       @input="onInput"
-      @blur="onBlur"
     />
     <p v-if="touched && !isValid" class="mt-1 text-sm text-red-500">Похоже, номер телефона неполный или некорректный</p>
   </div>
@@ -100,8 +107,6 @@ onBeforeUnmount(() => {
 .phone-input .iti__selected-dial-code {
   color: var(--foreground);
 }
-/* dropdownParent="body" (см. скрипт) — список стран рендерится вне DOM модалки,
-   иначе overflow-y-auto у DialogScrollContent обрезал бы длинный список. */
 .phone-input .iti__country-list {
   background: var(--popover);
   color: var(--popover-foreground);
@@ -110,7 +115,7 @@ onBeforeUnmount(() => {
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   margin-top: 4px;
   font-size: 0.875rem;
-  z-index: 9999;
+  z-index: 20;
 }
 .phone-input .iti__country:hover,
 .phone-input .iti__country.iti__highlight {

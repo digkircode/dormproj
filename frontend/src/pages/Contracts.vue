@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ExternalLink, Plus } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -72,6 +72,9 @@ const columns = columnHelper.columns([
 const isDialogOpen = ref(false)
 const isSaving = ref(false)
 const dialogError = ref('')
+// Ставится в true при первой неудачной попытке сохранить — до этого поля не подсвечиваем
+// красным, чтобы не встречать пользователя ошибками на ещё не тронутой форме.
+const submitAttempted = ref(false)
 
 const number = ref('')
 const contractDate = ref('')
@@ -79,10 +82,11 @@ const startDate = ref('')
 const endDate = ref('')
 const roomId = ref<number | null>(null)
 const rentAmount = ref<number | undefined>(undefined)
-// Коммуналка и суточная ставка больше не показываются в форме (цена комнаты уже
-// включает коммунальные услуги), но остаются во внутренней логике — бэкенд и расчёт
-// начислений/пени по-прежнему хранят их отдельными полями (см. billing/accrual-generation.ts).
-const utilitiesAmount = ref<number | undefined>(undefined)
+// Коммуналка и суточная ставка больше не показываются в форме — коммунальные услуги
+// в БД уже включены в "Стоимость" комнаты (см. rentAmount ниже), отдельно их не
+// начисляем, поэтому utilitiesAmount всегда 0 (поле в леджере остаётся под будущий
+// раздельный учёт, см. billing/accrual-generation.ts, но сейчас не используется).
+const utilitiesAmount = ref<number | undefined>(0)
 const dailyRateCategory = ref<DailyRateCategory>('OWN_UNIVERSITY')
 const dailyRateAmount = ref<number | undefined>(undefined)
 const paymentDueDay = ref(5)
@@ -100,6 +104,12 @@ const useMatCapital = ref(false)
 const matCapitalCoveredFrom = ref('')
 const matCapitalCoveredTo = ref('')
 const matCapitalDeferredUntil = ref('')
+
+const numberInvalid = computed(() => submitAttempted.value && !number.value.trim())
+const contractDateInvalid = computed(() => submitAttempted.value && !contractDate.value)
+const roomInvalid = computed(() => submitAttempted.value && !roomId.value)
+const startDateInvalid = computed(() => submitAttempted.value && !startDate.value)
+const endDateInvalid = computed(() => submitAttempted.value && !endDate.value)
 
 // --- Поиск проживающего (SearchSelect) ---
 const individualQuery = ref('')
@@ -132,6 +142,9 @@ const roomQuery = ref('')
 const roomResults = ref<RoomTreeItem[]>([])
 
 function onRoomSearch(q: string) {
+  // Как и у ФИО — редактирование текста сбрасывает уже выбранную комнату, пока не
+  // выбрали заново из списка (см. watch(roomId) ниже — вместе с ней сбросится и цена).
+  roomId.value = null
   const query = q.trim().toLowerCase()
   roomResults.value = query ? rooms.value.filter((r) => r.room.toLowerCase().includes(query)) : rooms.value
 }
@@ -161,6 +174,7 @@ watch(startDate, (value) => {
 
 async function openCreate() {
   dialogError.value = ''
+  submitAttempted.value = false
   number.value = ''
   contractDate.value = new Date().toISOString().slice(0, 10)
   startDate.value = ''
@@ -195,7 +209,7 @@ async function openCreate() {
   roomResults.value = rooms.value
   const info = await fetchDormitoryInfo()
   dormInfo.value = info
-  utilitiesAmount.value = info.communalServicesCost ?? undefined
+  utilitiesAmount.value = 0
   dailyRateAmount.value = info.dailyPaymentInternal ?? undefined
 
   isDialogOpen.value = true
@@ -210,7 +224,12 @@ watch(dailyRateCategory, (category) => {
 // Подстановка текущей "Стоимости" комнаты как найма по умолчанию (уже с учётом
 // коммунальных услуг) — редактируемо сотрудником.
 watch(roomId, async (id) => {
-  if (id === null) return
+  if (id === null) {
+    // Комнату убрали (очистили поле поиска) — подставленная по ней цена больше не
+    // относится к делу, оставлять её как есть было бы обманчиво.
+    rentAmount.value = undefined
+    return
+  }
   const detail = await fetchRoomDetail(id)
   const costCharacteristic = detail.characteristics.find((c) => c.name === 'Стоимость')
   if (costCharacteristic && typeof costCharacteristic.value === 'number') {
@@ -220,6 +239,7 @@ watch(roomId, async (id) => {
 
 async function submitCreate() {
   dialogError.value = ''
+  submitAttempted.value = true
   if (!selectedIndividual.value) {
     dialogError.value = 'Выберите проживающего'
     return
@@ -270,13 +290,7 @@ async function submitCreate() {
 
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
-    <div class="flex items-center justify-between">
-      <h1 class="text-lg font-medium">Договоры найма</h1>
-      <Button @click="openCreate">
-        <Plus />
-        Новый договор
-      </Button>
-    </div>
+    <h1 class="text-lg font-medium">Договоры найма</h1>
 
     <EntityTable
       :columns="columns"
@@ -292,7 +306,14 @@ async function submitCreate() {
       storage-key="contracts"
       accent-icons
       :row-action="{ icon: ExternalLink, label: 'Открыть договор', getHref: (c: ContractListItem) => `/contracts/${c.id}` }"
-    />
+    >
+      <template #actions>
+        <Button variant="outline" size="icon" title="Новый договор" @click="openCreate">
+          <Plus class="text-primary" />
+          <span class="sr-only">Новый договор</span>
+        </Button>
+      </template>
+    </EntityTable>
 
     <Dialog :open="isDialogOpen" @update:open="(open) => (isDialogOpen = open)">
       <DialogScrollContent :class="['flex flex-col gap-4 sm:max-w-2xl', DIALOG_ANIMATE_CLASS]">
@@ -304,11 +325,11 @@ async function submitCreate() {
           <div class="grid grid-cols-2 gap-4">
             <div class="flex flex-col gap-2">
               <Label>Номер договора</Label>
-              <Input v-model="number" />
+              <Input v-model="number" :class="numberInvalid ? 'border-red-500' : ''" />
             </div>
             <div class="flex flex-col gap-2">
               <Label>Дата договора</Label>
-              <DatePickerField v-model="contractDate" />
+              <DatePickerField v-model="contractDate" :invalid="contractDateInvalid" />
             </div>
           </div>
 
@@ -334,23 +355,24 @@ async function submitCreate() {
                 :item-key="(r: RoomTreeItem) => r.id"
                 :item-label="(r: RoomTreeItem) => r.room"
                 placeholder="Начните вводить номер…"
+                :invalid="roomInvalid"
                 @search="onRoomSearch"
                 @select="pickRoom"
               />
             </div>
             <div class="flex flex-col gap-2">
               <Label>Дата начала</Label>
-              <DatePickerField v-model="startDate" />
+              <DatePickerField v-model="startDate" :invalid="startDateInvalid" />
             </div>
             <div class="flex flex-col gap-2">
               <Label>Дата окончания</Label>
-              <DatePickerField v-model="endDate" />
+              <DatePickerField v-model="endDate" :invalid="endDateInvalid" />
             </div>
           </div>
 
           <div class="grid grid-cols-2 gap-4">
             <div class="flex flex-col gap-2">
-              <Label>Найм, ₽/мес <span class="font-normal text-muted-foreground">(с учётом коммунальных услуг)</span></Label>
+              <Label>Найм, ₽/мес</Label>
               <Input v-model.number="rentAmount" type="number" />
             </div>
             <div class="flex flex-col gap-2">
@@ -373,7 +395,7 @@ async function submitCreate() {
           </div>
 
           <div
-            class="flex cursor-pointer items-center gap-2 rounded-md border p-3 hover:bg-accent"
+            class="flex cursor-pointer items-center gap-2 rounded-md p-3 hover:bg-accent"
             @click="isMinor = !isMinor"
           >
             <Checkbox :model-value="isMinor" />
@@ -416,7 +438,7 @@ async function submitCreate() {
           </Transition>
 
           <div
-            class="flex cursor-pointer items-center gap-2 rounded-md border p-3 hover:bg-accent"
+            class="flex cursor-pointer items-center gap-2 rounded-md p-3 hover:bg-accent"
             @click="useMatCapital = !useMatCapital"
           >
             <Checkbox :model-value="useMatCapital" />
@@ -439,10 +461,10 @@ async function submitCreate() {
             </div>
           </Transition>
 
-          <p v-if="dialogError" class="text-sm text-red-500">{{ dialogError }}</p>
         </div>
 
         <DialogFooter>
+          <p v-if="dialogError" class="mr-auto self-center text-sm text-red-500">{{ dialogError }}</p>
           <Button variant="outline" @click="isDialogOpen = false">Отмена</Button>
           <Button :disabled="isSaving" @click="submitCreate">Создать договор</Button>
         </DialogFooter>
