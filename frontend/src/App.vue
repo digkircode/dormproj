@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { useRoute, useRouter, type RouteRecordNormalized } from 'vue-router'
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
@@ -8,31 +7,16 @@ import AppSidebar from './components/AppSidebar.vue'
 import AppFooter from './components/AppFooter.vue'
 import { currentUser, isAuthLoading, loadCurrentUser } from '@/lib/auth-state'
 import { rosnouLoginUrl } from '@/lib/auth-api'
-import { breadcrumbOverride } from '@/lib/breadcrumb-state'
+import { breadcrumbOverride, breadcrumbTrail as trackedTrail } from '@/lib/breadcrumb-state'
 
-const route = useRoute()
-const router = useRouter()
-
-// Родитель страницы объявляется через meta.parent (см. router/index.ts) — так путь
-// в хлебных крошках всегда показывает всю цепочку, а не только текущую страницу.
-// Последняя крошка (текущая страница) — либо статичный meta.title, либо, если детальная
-// страница выставила breadcrumbOverride (номер договора, имя физлица и т.п.), то он —
-// иначе крошка показывала бы общее название вида "Информация о договоре" для любой карточки.
-const breadcrumbTrail = computed(() => {
-  const trail: { title: string; path: string }[] = []
-  let current: RouteRecordNormalized | undefined = route.matched[route.matched.length - 1]
-  let isLast = true
-  while (current) {
-    if (current.meta.title) {
-      const title = isLast && breadcrumbOverride.value ? breadcrumbOverride.value : (current.meta.title as string)
-      trail.unshift({ title, path: current.path })
-      isLast = false
-    }
-    const parentName = current.meta.parent as string | undefined
-    current = parentName ? router.getRoutes().find((r) => r.name === parentName) : undefined
-  }
-  return trail
-})
+// Реальный пройденный путь (см. trackBreadcrumbs в router/index.ts), а не статичная
+// иерархия роутов — последняя крошка ещё и переопределяется на конкретное значение
+// (номер договора, имя физлица), если детальная страница его выставила.
+const breadcrumbTrail = computed(() =>
+  trackedTrail.value.map((crumb, i) =>
+    i === trackedTrail.value.length - 1 && breadcrumbOverride.value ? { ...crumb, title: breadcrumbOverride.value } : crumb,
+  ),
+)
 
 onMounted(async () => {
   await loadCurrentUser()
@@ -57,15 +41,7 @@ onMounted(async () => {
         <Separator orientation="vertical" class="mr-2 h-4" />
         <Breadcrumb>
           <BreadcrumbList>
-            <template v-if="route.name !== 'home'">
-              <BreadcrumbItem>
-                <BreadcrumbLink as-child>
-                  <RouterLink to="/">Главная</RouterLink>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-            </template>
-            <template v-for="(crumb, i) in breadcrumbTrail" :key="crumb.path">
+            <template v-for="(crumb, i) in breadcrumbTrail" :key="crumb.name">
               <BreadcrumbItem>
                 <BreadcrumbLink v-if="i < breadcrumbTrail.length - 1" as-child>
                   <RouterLink :to="crumb.path">{{ crumb.title }}</RouterLink>

@@ -9,7 +9,7 @@ import {
   Ban,
   CalendarClock,
   CalendarRange,
-  ChevronDown,
+  ChevronRight,
   Download,
   Droplet,
   FileSignature,
@@ -27,7 +27,6 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import ContractStatusPill from '@/components/ContractStatusPill.vue'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
@@ -285,7 +284,7 @@ async function confirmReversePayment() {
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
               <Button variant="outline" size="icon" class="size-7 shrink-0">
-                <MoreVertical />
+                <MoreVertical class="text-primary" />
                 <span class="sr-only">Действия с договором</span>
               </Button>
             </DropdownMenuTrigger>
@@ -326,8 +325,8 @@ async function confirmReversePayment() {
               <CalendarRange class="size-4 shrink-0 text-primary" />
               {{ formatDate(contract.startDate) }} — {{ formatDate(contract.actualEndDate ?? contract.endDate) }}
             </span>
-            <span class="flex items-center gap-1.5 text-muted-foreground">
-              <History class="size-4 shrink-0" />
+            <span class="ml-auto flex items-center gap-1.5 text-muted-foreground">
+              <History class="size-4 shrink-0 text-primary" />
               Создан {{ formatDate(contract.createdAt) }}
             </span>
           </div>
@@ -375,21 +374,25 @@ async function confirmReversePayment() {
             </div>
           </div>
 
-          <div class="border-t pt-4">
+          <div class="flex items-center border-t pt-4">
             <button
               type="button"
-              class="flex w-fit items-center gap-1.5 rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground"
+              class="flex w-fit shrink-0 items-center gap-1.5 rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground"
               @click="showParentInfo = !showParentInfo"
             >
               <Users class="size-4 text-primary" />
               Информация о родителе
-              <ChevronDown class="size-3.5 transition-transform" :class="showParentInfo ? 'rotate-180' : ''" />
+              <ChevronRight class="size-3.5 transition-transform" :class="showParentInfo ? 'rotate-90' : ''" />
             </button>
-            <!-- Плавное раскрытие через grid-template-rows 0fr→1fr вместо модалки — высота
-                 содержимого заранее неизвестна, а этот приём анимирует её без замера в JS. -->
-            <div class="grid transition-[grid-template-rows] duration-200 ease-out" :class="showParentInfo ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'">
+            <!-- Раскрывается вбок, а не вниз — grid-template-columns 0fr→1fr, тот же приём,
+                 что и для вертикального раскрытия (grid-template-rows), только по другой оси:
+                 высота содержимого не важна, а ширину неоткуда взять заранее без замера в JS. -->
+            <div
+              class="grid transition-[grid-template-columns] duration-200 ease-out"
+              :class="showParentInfo ? 'grid-cols-[1fr]' : 'grid-cols-[0fr]'"
+            >
               <div class="overflow-hidden">
-                <div class="flex flex-wrap gap-x-6 gap-y-1 pt-1 text-sm">
+                <div class="flex items-center gap-x-6 whitespace-nowrap pl-4 text-sm">
                   <span><span class="text-muted-foreground">ФИО:</span> {{ contract.legalRepName ?? '—' }}</span>
                   <span><span class="text-muted-foreground">Телефон:</span> {{ contract.legalRepPhone ?? '—' }}</span>
                 </div>
@@ -446,21 +449,10 @@ async function confirmReversePayment() {
       </div>
 
       <div class="flex flex-col gap-3">
-        <div class="flex items-center justify-between">
-          <p class="flex items-center gap-1.5 text-sm font-medium">
-            <Wallet class="size-4 text-primary" />
-            Платежи
-          </p>
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <Button size="icon" class="size-7" @click="openPayment">
-                <Plus />
-                <span class="sr-only">Внести платёж</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Внести платёж</TooltipContent>
-          </Tooltip>
-        </div>
+        <p class="flex items-center gap-1.5 text-sm font-medium">
+          <Wallet class="size-4 text-primary" />
+          Платежи
+        </p>
         <Card class="min-w-0 gap-0 overflow-hidden py-0">
           <p v-if="!contract.payments.length" class="p-6 text-sm text-muted-foreground">Платежей пока нет</p>
           <Table v-else>

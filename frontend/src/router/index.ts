@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { trackBreadcrumbs } from '@/lib/breadcrumb-state'
 import Home from '@/pages/Home.vue'
 import Sync from '@/pages/Sync.vue'
 import SyncLogs from '@/pages/SyncLogs.vue'
@@ -36,5 +37,7 @@ const router = createRouter({
     { path: '/reports', name: 'reports', component: Reports, meta: { title: 'Отчёты' } },
   ],
 })
+
+trackBreadcrumbs(router)
 
 export default router
