@@ -226,8 +226,9 @@ async function confirmDelete() {
       <div class="overflow-hidden rounded-lg border [transform:translateZ(0)]">
         <p v-if="isLoading" class="p-6 text-sm text-muted-foreground">Загрузка…</p>
         <p v-else-if="!definitions.length" class="p-6 text-sm text-muted-foreground">Характеристик пока нет</p>
-        <Table v-else class="table-fixed">
-          <TableHeader class="bg-muted">
+        <div v-else class="max-h-[65vh] overflow-auto">
+        <Table class="table-fixed">
+          <TableHeader class="sticky top-0 z-10 bg-muted">
             <TableRow>
               <TableHead class="w-[38%] border-r border-border">Название</TableHead>
               <TableHead class="w-[20%] border-r border-border">Тип значения</TableHead>
@@ -292,6 +293,7 @@ async function confirmDelete() {
             </TableRow>
           </VueDraggable>
         </Table>
+        </div>
       </div>
     </Card>
 
