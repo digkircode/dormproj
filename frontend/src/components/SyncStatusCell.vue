@@ -1,16 +1,10 @@
 <script setup lang="ts">
-import { statusLabel, statusIcon, statusIconClass } from '@/lib/sync-format'
+import { statusLabel } from '@/lib/sync-format'
+import SyncStatusPill from '@/components/SyncStatusPill.vue'
 
 defineProps<{ value: unknown; row?: unknown }>()
 </script>
 
 <template>
-  <span class="flex items-center gap-2">
-    <component
-      :is="statusIcon[statusLabel[value as keyof typeof statusLabel]]"
-      class="size-4"
-      :class="statusIconClass[statusLabel[value as keyof typeof statusLabel]]"
-    />
-    {{ statusLabel[value as keyof typeof statusLabel] }}
-  </span>
+  <SyncStatusPill :status="statusLabel[value as keyof typeof statusLabel]" />
 </template>

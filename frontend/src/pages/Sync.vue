@@ -14,7 +14,7 @@ import {
   TableCell,
 } from '@/components/ui/table'
 import { useSyncRow } from '@/composables/useSyncRow'
-import { statusIcon, statusIconClass } from '@/lib/sync-format'
+import SyncStatusPill from '@/components/SyncStatusPill.vue'
 
 const studentSync = useSyncRow('Контингент студентов', '/sync/students')
 const individualsSync = useSyncRow('Физические лица', '/sync/individuals')
@@ -80,10 +80,7 @@ onMounted(async () => {
           <TableRow v-for="(row, i) in rows" :key="i">
             <TableCell class="font-medium">{{ row.name }}</TableCell>
             <TableCell>
-              <span class="flex items-center gap-2">
-                <component :is="statusIcon[row.status as keyof typeof statusIcon]" class="size-4" :class="statusIconClass[row.status]" />
-                {{ row.status }}
-              </span>
+              <SyncStatusPill :status="row.status" />
             </TableCell>
             <TableCell class="text-muted-foreground">{{ row.time }}</TableCell>
             <TableCell class="whitespace-nowrap text-muted-foreground">{{ row.duration }}</TableCell>

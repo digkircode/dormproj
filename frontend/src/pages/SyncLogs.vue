@@ -118,7 +118,7 @@ onUnmounted(() => clearTimeout(pollTimeout))
 </script>
 
 <template>
-  <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
+  <div class="flex min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/sync')">
         <ArrowLeft class="text-primary" />

@@ -412,7 +412,7 @@ async function submitCreate() {
 </script>
 
 <template>
-  <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
+  <div class="flex min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
     <h1 class="text-lg font-medium">Договоры найма</h1>
 
     <EntityTable
