@@ -91,8 +91,10 @@ onBeforeUnmount(() => {
       :placeholder="props.placeholder"
       autocomplete="off"
       :class="[
-        'flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
-        touched && !isValid ? 'border-red-500 focus-visible:ring-red-500' : 'border-input focus-visible:ring-ring',
+        'flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground transition-shadow focus-visible:outline-none focus-visible:ring-4 focus-visible:shadow-sm disabled:cursor-not-allowed disabled:opacity-50',
+        touched && !isValid
+          ? 'border-red-500 focus-visible:border-red-500/50 focus-visible:ring-red-500/20'
+          : 'border-input focus-visible:border-ring/50 focus-visible:ring-ring/20',
       ]"
       @input="onInput"
     />

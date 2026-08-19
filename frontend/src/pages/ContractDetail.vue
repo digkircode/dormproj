@@ -405,13 +405,17 @@ async function confirmReversePayment() {
 
       <Tabs default-value="accruals">
         <TabsList>
-          <TabsTrigger value="accruals" class="gap-1.5">
-            <Receipt class="size-4" />
-            Начисления
+          <TabsTrigger value="accruals">
+            <span class="flex items-center gap-1.5">
+              <Receipt class="size-4 text-primary" />
+              Начисления
+            </span>
           </TabsTrigger>
-          <TabsTrigger value="payments" class="gap-1.5">
-            <Wallet class="size-4" />
-            Платежи
+          <TabsTrigger value="payments">
+            <span class="flex items-center gap-1.5">
+              <Wallet class="size-4 text-primary" />
+              Платежи
+            </span>
           </TabsTrigger>
         </TabsList>
 
