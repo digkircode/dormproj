@@ -7,6 +7,8 @@ const props = defineProps<{
   items: T[]
   itemKey: (item: T) => string | number
   itemLabel: (item: T) => string
+  // Необязательная вторая строка справа в пункте списка (например дата рождения у ФИО).
+  itemSubLabel?: (item: T) => string
   placeholder?: string
   invalid?: boolean
   // Пока идёт запрос (например debounce у серверного поиска) — не показываем
@@ -66,10 +68,11 @@ onClickOutside(rootRef, () => {
         v-for="item in items"
         :key="itemKey(item)"
         type="button"
-        class="block w-full px-3 py-2 text-left text-sm hover:bg-muted"
+        class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
         @click="choose(item)"
       >
-        {{ itemLabel(item) }}
+        <span class="truncate">{{ itemLabel(item) }}</span>
+        <span v-if="itemSubLabel" class="shrink-0 text-xs text-muted-foreground">{{ itemSubLabel(item) }}</span>
       </button>
       <p v-if="!items.length" class="px-3 py-2 text-sm text-muted-foreground">Ничего не найдено</p>
     </div>

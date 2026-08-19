@@ -8,12 +8,14 @@ export type PaymentMethod = 'CASH' | 'CARD_ACQUIRING' | 'BANK_TRANSFER' | 'MAT_C
 export interface ContractListItem {
   id: number
   number: string
+  contractDate: string
   status: ContractStatus
   startDate: string
   endDate: string
   actualEndDate: string | null
   residentFullName: string
   room: string | null
+  roomId: number | null
 }
 
 export type ContractsPage = ListPage<ContractListItem>
@@ -72,13 +74,18 @@ export interface ContractDetail {
   currentRoom: { id: number; room: string } | null
   legalRepName: string | null
   legalRepPhone: string | null
+  legalRepBirthDate: string | null
   legalRepPassportSeries: string | null
   legalRepPassportNumber: string | null
   legalRepPassportIssuedBy: string | null
+  legalRepPassportIssuedCode: string | null
   legalRepPassportIssuedAt: string | null
+  legalRepSnils: string | null
+  legalRepInn: string | null
   legalRepAddress: string | null
   matCapitalCoveredFrom: string | null
   matCapitalCoveredTo: string | null
+  matCapitalAmount: number | null
   matCapitalDeferredUntil: string | null
   terms: ContractTerms[]
   accruals: AccrualRow[]
@@ -99,13 +106,18 @@ export interface CreateContractInput {
   paymentDueDay?: number
   legalRepName?: string | null
   legalRepPhone?: string | null
+  legalRepBirthDate?: string | null
   legalRepPassportSeries?: string | null
   legalRepPassportNumber?: string | null
   legalRepPassportIssuedBy?: string | null
+  legalRepPassportIssuedCode?: string | null
   legalRepPassportIssuedAt?: string | null
+  legalRepSnils?: string | null
+  legalRepInn?: string | null
   legalRepAddress?: string | null
   matCapitalCoveredFrom?: string | null
   matCapitalCoveredTo?: string | null
+  matCapitalAmount?: number | null
   matCapitalDeferredUntil?: string | null
 }
 

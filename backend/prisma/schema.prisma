@@ -376,17 +376,24 @@ model Contract {
   // договора, паспортные данные обязательны).
   legalRepName             String?   @map("legal_rep_name")
   legalRepPhone             String?   @map("legal_rep_phone")
+  legalRepBirthDate         DateTime? @map("legal_rep_birth_date")
   legalRepPassportSeries    String?   @map("legal_rep_passport_series")
   legalRepPassportNumber    String?   @map("legal_rep_passport_number")
   legalRepPassportIssuedBy  String?   @map("legal_rep_passport_issued_by")
+  legalRepPassportIssuedCode String?  @map("legal_rep_passport_issued_code")
   legalRepPassportIssuedAt  DateTime? @map("legal_rep_passport_issued_at")
+  legalRepSnils             String?   @map("legal_rep_snils")
+  legalRepInn               String?   @map("legal_rep_inn")
   legalRepAddress           String?   @map("legal_rep_address")
 
   // Оплата материнским капиталом — единовременный платёж за явно заданный период с
   // возможной отсрочкой (ПФР платит не сразу). Если период попадает под неё, крон пени
   // (см. Accrual) не начисляет пеню, пока текущая дата <= matCapitalDeferredUntil.
+  // matCapitalAmount — справочно (сумма к получению от ПФР), в леджер начислений/оплат
+  // не заводится напрямую, реальная оплата по-прежнему через обычный Payment.
   matCapitalCoveredFrom   DateTime? @map("mat_capital_covered_from")
   matCapitalCoveredTo     DateTime? @map("mat_capital_covered_to")
+  matCapitalAmount        Decimal?  @map("mat_capital_amount") @db.Decimal(12, 2)
   matCapitalDeferredUntil DateTime? @map("mat_capital_deferred_until")
 
   // Необязательная связь для истории перезаключений — на бизнес-логику начислений не

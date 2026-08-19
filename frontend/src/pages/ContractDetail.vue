@@ -6,11 +6,12 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
+import ContractStatusPill from '@/components/ContractStatusPill.vue'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogScrollContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import DatePickerField from '@/components/DatePickerField.vue'
+import RoomInfoTrigger from '@/components/RoomInfoTrigger.vue'
 import {
   fetchContractDetail,
   terminateContract,
@@ -19,7 +20,6 @@ import {
   type PaymentMethod,
   type PaymentRow,
 } from '@/lib/contracts-api'
-import { STATUS_LABELS, STATUS_VARIANTS } from '@/lib/contracts-format'
 import { createPayment, reversePayment } from '@/lib/billing-api'
 
 const DIALOG_ANIMATE_CLASS =
@@ -223,7 +223,7 @@ async function confirmReversePayment() {
         </RouterLink>
       </Button>
       <h1 class="text-lg font-medium">{{ contract ? `Договор № ${contract.number}` : 'Договор' }}</h1>
-      <Badge v-if="contract" :variant="STATUS_VARIANTS[contract.status]">{{ STATUS_LABELS[contract.status] }}</Badge>
+      <ContractStatusPill v-if="contract" :status="contract.status" />
     </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
@@ -231,9 +231,10 @@ async function confirmReversePayment() {
 
     <template v-if="contract">
       <div class="flex items-start justify-between">
-        <p class="text-sm text-muted-foreground">
-          {{ contract.residentFullName }} · комната {{ contract.currentRoom?.room ?? '—' }} ·
-          {{ formatDate(contract.startDate) }} — {{ formatDate(contract.actualEndDate ?? contract.endDate) }}
+        <p class="flex items-center gap-1 text-sm text-muted-foreground">
+          {{ contract.residentFullName }} ·
+          <RoomInfoTrigger :room-id="contract.currentRoom?.id ?? null" :room-name="contract.currentRoom?.room ?? '—'" />
+          · {{ formatDate(contract.startDate) }} — {{ formatDate(contract.actualEndDate ?? contract.endDate) }}
         </p>
         <div class="flex gap-2">
           <Button v-if="contract.status === 'ACTIVE'" variant="outline" @click="openTerminate">Расторгнуть</Button>

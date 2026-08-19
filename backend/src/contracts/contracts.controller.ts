@@ -26,7 +26,7 @@ const MAX_PAGE_SIZE = 100;
 // residentFullName — через связь resident, room намеренно не сортируем (текущая комната —
 // производная от roomAssignments, не прямая колонка, как и в остальных списках проекта не
 // всё отображаемое обязано быть сортируемым, см. passport.controller.ts).
-const SORTABLE_FIELDS = ['number', 'residentFullName', 'startDate', 'endDate', 'status'] as const;
+const SORTABLE_FIELDS = ['number', 'contractDate', 'residentFullName', 'startDate', 'endDate', 'status'] as const;
 type SortableField = (typeof SORTABLE_FIELDS)[number];
 function isSortableField(field: string): field is SortableField {
   return (SORTABLE_FIELDS as readonly string[]).includes(field);
@@ -47,16 +47,21 @@ const STATUS_LABELS: Record<ContractStatus, string> = {
 const legalRepFields = {
   legalRepName: z.string().trim().min(1).nullish(),
   legalRepPhone: z.string().trim().min(1).nullish(),
+  legalRepBirthDate: z.coerce.date().nullish(),
   legalRepPassportSeries: z.string().trim().min(1).nullish(),
   legalRepPassportNumber: z.string().trim().min(1).nullish(),
   legalRepPassportIssuedBy: z.string().trim().min(1).nullish(),
+  legalRepPassportIssuedCode: z.string().trim().min(1).nullish(),
   legalRepPassportIssuedAt: z.coerce.date().nullish(),
+  legalRepSnils: z.string().trim().min(1).nullish(),
+  legalRepInn: z.string().trim().min(1).nullish(),
   legalRepAddress: z.string().trim().min(1).nullish(),
 };
 
 const matCapitalFields = {
   matCapitalCoveredFrom: z.coerce.date().nullish(),
   matCapitalCoveredTo: z.coerce.date().nullish(),
+  matCapitalAmount: z.number().finite().nonnegative().nullish(),
   matCapitalDeferredUntil: z.coerce.date().nullish(),
 };
 
@@ -150,7 +155,7 @@ export class ContractsController {
         take: pageSize,
         include: {
           resident: { select: { fullName: true } },
-          roomAssignments: { where: { toDate: null }, include: { room: { select: { room: true } } } },
+          roomAssignments: { where: { toDate: null }, include: { room: { select: { id: true, room: true } } } },
         },
       }),
       this.prisma.contract.count({ where }),
@@ -160,12 +165,14 @@ export class ContractsController {
       data: data.map((c) => ({
         id: c.id,
         number: c.number,
+        contractDate: c.contractDate,
         status: c.status,
         startDate: c.startDate,
         endDate: c.endDate,
         actualEndDate: c.actualEndDate,
         residentFullName: c.resident.fullName,
         room: c.roomAssignments[0]?.room.room ?? null,
+        roomId: c.roomAssignments[0]?.room.id ?? null,
       })),
       total,
       page,
@@ -198,9 +205,12 @@ export class ContractsController {
       throw new NotFoundException('Договор не найден');
     }
 
-    const { terms, roomAssignments, accruals, payments, resident, ...contractFields } = contract;
+    const { terms, roomAssignments, accruals, payments, resident, matCapitalAmount, ...contractFields } = contract;
     return {
       ...contractFields,
+      // Decimal не сериализуется в JSON как обычное число сам по себе — тот же приём, что
+      // и в serializeTerms/serializeAccrual, явный Number(...) вместо спреда как есть.
+      matCapitalAmount: matCapitalAmount !== null ? Number(matCapitalAmount) : null,
       residentFullName: resident.fullName,
       residentIndividualUid: resident.fizicheskoyeLitsoUid,
       currentRoom: roomAssignments.find((a) => a.toDate === null)?.room ?? null,
@@ -248,13 +258,18 @@ export class ContractsController {
             endDate: data.endDate,
             legalRepName: data.legalRepName ?? null,
             legalRepPhone: data.legalRepPhone ?? null,
+            legalRepBirthDate: data.legalRepBirthDate ?? null,
             legalRepPassportSeries: data.legalRepPassportSeries ?? null,
             legalRepPassportNumber: data.legalRepPassportNumber ?? null,
             legalRepPassportIssuedBy: data.legalRepPassportIssuedBy ?? null,
+            legalRepPassportIssuedCode: data.legalRepPassportIssuedCode ?? null,
             legalRepPassportIssuedAt: data.legalRepPassportIssuedAt ?? null,
+            legalRepSnils: data.legalRepSnils ?? null,
+            legalRepInn: data.legalRepInn ?? null,
             legalRepAddress: data.legalRepAddress ?? null,
             matCapitalCoveredFrom: data.matCapitalCoveredFrom ?? null,
             matCapitalCoveredTo: data.matCapitalCoveredTo ?? null,
+            matCapitalAmount: data.matCapitalAmount != null ? new Prisma.Decimal(data.matCapitalAmount) : null,
             matCapitalDeferredUntil: data.matCapitalDeferredUntil ?? null,
             createdByUserId,
           },

@@ -6,12 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import EntityTable from '@/components/EntityTable.vue'
 import ContractStatusCell from '@/components/ContractStatusCell.vue'
+import RoomCell from '@/components/RoomCell.vue'
 import DatePickerField from '@/components/DatePickerField.vue'
+import DateRangePickerField from '@/components/DateRangePickerField.vue'
 import SearchSelect from '@/components/SearchSelect.vue'
 import PhoneInput from '@/components/PhoneInput.vue'
 import { createAppColumnHelper } from '@/lib/table'
@@ -22,7 +23,7 @@ import {
   type ContractListItem,
   type DailyRateCategory,
 } from '@/lib/contracts-api'
-import { fetchIndividuals, type Individual } from '@/lib/individuals-api'
+import { fetchIndividuals, fetchIndividualDetail, type Individual } from '@/lib/individuals-api'
 import { fetchRoomsTree, fetchRoomDetail, type RoomTreeItem } from '@/lib/rooms-api'
 import { fetchDormitoryInfo } from '@/lib/dormitory-info-api'
 
@@ -40,8 +41,15 @@ const REVEAL_TRANSITION = {
   leaveActiveClass: 'animate-out fade-out-0 duration-150',
 }
 
+function formatDateIso(iso: string): string {
+  const date = new Date(iso)
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
+}
+
 // --- Список договоров ---
 const columnLabels: Record<string, string> = {
+  contractDate: 'Дата договора',
   number: '№ договора',
   residentFullName: 'Проживающий',
   room: 'Комната',
@@ -50,13 +58,11 @@ const columnLabels: Record<string, string> = {
   status: 'Статус',
 }
 const filterableFields = ['status']
-const cellRenderers = { status: ContractStatusCell }
+const cellRenderers = { status: ContractStatusCell, room: RoomCell }
 
 function cellText(columnId: string, value: unknown): string {
-  if ((columnId === 'startDate' || columnId === 'endDate') && typeof value === 'string') {
-    const date = new Date(value)
-    const pad = (n: number) => n.toString().padStart(2, '0')
-    return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
+  if ((columnId === 'contractDate' || columnId === 'startDate' || columnId === 'endDate') && typeof value === 'string') {
+    return formatDateIso(value)
   }
   return String(value ?? '')
 }
@@ -64,9 +70,10 @@ function cellText(columnId: string, value: unknown): string {
 const columnHelper = createAppColumnHelper<ContractListItem>()
 
 const columns = columnHelper.columns([
+  columnHelper.accessor('contractDate', { header: columnLabels.contractDate, size: 140, minSize: 110 }),
   columnHelper.accessor('number', { header: columnLabels.number, enableHiding: false, size: 128, minSize: 100 }),
   columnHelper.accessor('residentFullName', { header: columnLabels.residentFullName, size: 240, minSize: 160 }),
-  columnHelper.accessor('room', { header: columnLabels.room, size: 112, minSize: 90 }),
+  columnHelper.accessor('room', { header: columnLabels.room, size: 128, minSize: 100 }),
   columnHelper.accessor('startDate', { header: columnLabels.startDate, size: 128, minSize: 100 }),
   columnHelper.accessor('endDate', { header: columnLabels.endDate, size: 128, minSize: 100 }),
   columnHelper.accessor('status', { header: columnLabels.status, size: 128, minSize: 100 }),
@@ -86,28 +93,54 @@ const startDate = ref('')
 const endDate = ref('')
 const roomId = ref<number | null>(null)
 const rentAmount = ref<number | undefined>(undefined)
-// Коммуналка и суточная ставка больше не показываются в форме — коммунальные услуги
-// в БД уже включены в "Стоимость" комнаты (см. rentAmount ниже), отдельно их не
-// начисляем, поэтому utilitiesAmount всегда 0 (поле в леджере остаётся под будущий
-// раздельный учёт, см. billing/accrual-generation.ts, но сейчас не используется).
+// Коммуналка больше не показывается в форме — коммунальные услуги в БД уже включены в
+// "Стоимость" комнаты (см. rentAmount ниже), отдельно их не начисляем, поэтому
+// utilitiesAmount всегда 0 (поле в леджере остаётся под будущий раздельный учёт,
+// см. billing/accrual-generation.ts, но сейчас не используется).
 const utilitiesAmount = ref<number | undefined>(0)
-const dailyRateCategory = ref<DailyRateCategory>('OWN_UNIVERSITY')
+// Категория определяет суточную ставку (см. watch ниже) — теперь не выбирается вручную,
+// а определяется автоматически по тому, есть ли физлицо в Контингенте (см. pickIndividual).
+const dailyRateCategory = ref<DailyRateCategory>('OTHER_UNIVERSITY')
 const dailyRateAmount = ref<number | undefined>(undefined)
+// Срок оплаты в форме не показываем и не даём менять — всегда 5 число месяца.
 const paymentDueDay = ref(5)
 
-const isMinor = ref(false)
 const legalRepName = ref('')
 const legalRepPhone = ref('')
+const legalRepBirthDate = ref('')
 const legalRepPassportSeries = ref('')
 const legalRepPassportNumber = ref('')
 const legalRepPassportIssuedBy = ref('')
+const legalRepPassportIssuedCode = ref('')
 const legalRepPassportIssuedAt = ref('')
-const legalRepAddress = ref('')
+const legalRepSnils = ref('')
+const legalRepInn = ref('')
 
 const useMatCapital = ref(false)
 const matCapitalCoveredFrom = ref('')
 const matCapitalCoveredTo = ref('')
+const matCapitalAmount = ref<number | undefined>(undefined)
 const matCapitalDeferredUntil = ref('')
+
+const phoneInputRef = ref<InstanceType<typeof PhoneInput> | null>(null)
+
+function calculateAge(birthDateIso: string, referenceIso: string): number {
+  const birth = new Date(birthDateIso)
+  const reference = new Date(referenceIso)
+  let age = reference.getFullYear() - birth.getFullYear()
+  const hadBirthdayThisYear =
+    reference.getMonth() > birth.getMonth() || (reference.getMonth() === birth.getMonth() && reference.getDate() >= birth.getDate())
+  if (!hadBirthdayThisYear) age--
+  return age
+}
+
+// Несовершеннолетие — не чекбокс, а автоматический расчёт по дате рождения выбранного
+// проживающего на дату договора (а не "сегодня" — юридически значим момент подписания).
+const isMinor = computed(() => {
+  const birthDate = selectedIndividual.value?.birthDate
+  if (!birthDate) return false
+  return calculateAge(birthDate, contractDate.value || new Date().toISOString().slice(0, 10)) < 18
+})
 
 const numberInvalid = computed(() => submitAttempted.value && !number.value.trim())
 const contractDateInvalid = computed(() => submitAttempted.value && !contractDate.value)
@@ -116,6 +149,7 @@ const startDateInvalid = computed(() => submitAttempted.value && !startDate.valu
 const endDateInvalid = computed(() => submitAttempted.value && !endDate.value)
 const individualInvalid = computed(() => submitAttempted.value && !selectedIndividual.value)
 const rentAmountInvalid = computed(() => submitAttempted.value && rentAmount.value === undefined)
+const legalRepNameInvalid = computed(() => submitAttempted.value && isMinor.value && !legalRepName.value.trim())
 
 // --- Поиск проживающего (SearchSelect) ---
 const individualQuery = ref('')
@@ -142,10 +176,18 @@ function onIndividualSearch(q: string) {
   }, 250)
 }
 
-function pickIndividual(ind: Individual) {
+async function pickIndividual(ind: Individual) {
   selectedIndividual.value = ind
   individualQuery.value = ind.fullName
   individualResults.value = []
+  // Категория проживающего — автоматически по наличию в Контингенте (таблица Student,
+  // синхронизируется из 1С только для студентов РосНОУ), а не ручным выбором.
+  try {
+    const detail = await fetchIndividualDetail(ind.fizicheskoyeLitsoUid)
+    dailyRateCategory.value = detail.students.length > 0 ? 'OWN_UNIVERSITY' : 'OTHER_UNIVERSITY'
+  } catch {
+    dailyRateCategory.value = 'OTHER_UNIVERSITY'
+  }
 }
 
 // --- Поиск комнаты (SearchSelect, список уже загружен целиком — фильтр на клиенте) ---
@@ -154,11 +196,11 @@ const roomQuery = ref('')
 const roomResults = ref<RoomTreeItem[]>([])
 
 function onRoomSearch(q: string) {
-  // Как и у ФИО — редактирование текста сбрасывает уже выбранную комнату, пока не
-  // выбрали заново из списка (см. watch(roomId) ниже — вместе с ней сбросится и цена).
+  // Как и у ФИО — не показываем список, пока не начали печатать, и редактирование текста
+  // сбрасывает уже выбранную комнату (см. watch(roomId) ниже — вместе с ней сбросится и цена).
   roomId.value = null
   const query = q.trim().toLowerCase()
-  roomResults.value = query ? rooms.value.filter((r) => r.room.toLowerCase().includes(query)) : rooms.value
+  roomResults.value = query ? rooms.value.filter((r) => r.room.toLowerCase().includes(query)) : []
 }
 
 function pickRoom(r: RoomTreeItem) {
@@ -195,18 +237,20 @@ async function openCreate() {
   roomQuery.value = ''
   roomResults.value = []
   rentAmount.value = undefined
-  paymentDueDay.value = 5
-  isMinor.value = false
   legalRepName.value = ''
   legalRepPhone.value = ''
+  legalRepBirthDate.value = ''
   legalRepPassportSeries.value = ''
   legalRepPassportNumber.value = ''
   legalRepPassportIssuedBy.value = ''
+  legalRepPassportIssuedCode.value = ''
   legalRepPassportIssuedAt.value = ''
-  legalRepAddress.value = ''
+  legalRepSnils.value = ''
+  legalRepInn.value = ''
   useMatCapital.value = false
   matCapitalCoveredFrom.value = ''
   matCapitalCoveredTo.value = ''
+  matCapitalAmount.value = undefined
   matCapitalDeferredUntil.value = ''
   individualQuery.value = ''
   selectedIndividual.value = null
@@ -215,10 +259,6 @@ async function openCreate() {
   if (rooms.value.length === 0) {
     rooms.value = await fetchRoomsTree()
   }
-  // Список комнат уже загружен целиком — сразу показываем его в дропдауне по фокусу,
-  // не дожидаясь первого ввода (см. SearchSelect: без начального items дропдаун
-  // по фокусу открывать нечего).
-  roomResults.value = rooms.value
   const info = await fetchDormitoryInfo()
   dormInfo.value = info
   utilitiesAmount.value = 0
@@ -234,7 +274,7 @@ watch(dailyRateCategory, (category) => {
 })
 
 // Подстановка текущей "Стоимости" комнаты как найма по умолчанию (уже с учётом
-// коммунальных услуг) — редактируемо сотрудником.
+// коммунальных услуг) — редактируемо сотрудником, при сохранении обратно в комнату не пишется.
 watch(roomId, async (id) => {
   if (id === null) {
     // Комнату убрали (очистили поле поиска) — подставленная по ней цена больше не
@@ -252,6 +292,9 @@ watch(roomId, async (id) => {
 async function submitCreate() {
   dialogError.value = ''
   submitAttempted.value = true
+  // validate() у телефона — сайд-эффект (подсвечивает сам виджет), поэтому вызывается
+  // безусловно при несовершеннолетнем, а не только внутри && (short-circuit пропустил бы его).
+  const phoneValid = !isMinor.value || (phoneInputRef.value?.validate() ?? true)
   if (
     !selectedIndividual.value ||
     !roomId.value ||
@@ -261,7 +304,9 @@ async function submitCreate() {
     !contractDate.value ||
     rentAmount.value === undefined ||
     utilitiesAmount.value === undefined ||
-    dailyRateAmount.value === undefined
+    dailyRateAmount.value === undefined ||
+    (isMinor.value && !legalRepName.value.trim()) ||
+    !phoneValid
   ) {
     dialogError.value = 'Заполните обязательные поля'
     return
@@ -283,14 +328,19 @@ async function submitCreate() {
       paymentDueDay: paymentDueDay.value,
       legalRepName: legalRepName.value.trim() || null,
       legalRepPhone: legalRepPhone.value.trim() || null,
+      legalRepBirthDate: isMinor.value && legalRepBirthDate.value ? legalRepBirthDate.value : null,
       legalRepPassportSeries: isMinor.value ? legalRepPassportSeries.value.trim() || null : null,
       legalRepPassportNumber: isMinor.value ? legalRepPassportNumber.value.trim() || null : null,
       legalRepPassportIssuedBy: isMinor.value ? legalRepPassportIssuedBy.value.trim() || null : null,
+      legalRepPassportIssuedCode: isMinor.value ? legalRepPassportIssuedCode.value.trim() || null : null,
       legalRepPassportIssuedAt: isMinor.value && legalRepPassportIssuedAt.value ? legalRepPassportIssuedAt.value : null,
-      legalRepAddress: isMinor.value ? legalRepAddress.value.trim() || null : null,
-      matCapitalCoveredFrom: useMatCapital.value && matCapitalCoveredFrom.value ? matCapitalCoveredFrom.value : null,
-      matCapitalCoveredTo: useMatCapital.value && matCapitalCoveredTo.value ? matCapitalCoveredTo.value : null,
-      matCapitalDeferredUntil: useMatCapital.value && matCapitalDeferredUntil.value ? matCapitalDeferredUntil.value : null,
+      legalRepSnils: isMinor.value ? legalRepSnils.value.trim() || null : null,
+      legalRepInn: isMinor.value ? legalRepInn.value.trim() || null : null,
+      matCapitalCoveredFrom: isMinor.value && useMatCapital.value && matCapitalCoveredFrom.value ? matCapitalCoveredFrom.value : null,
+      matCapitalCoveredTo: isMinor.value && useMatCapital.value && matCapitalCoveredTo.value ? matCapitalCoveredTo.value : null,
+      matCapitalAmount: isMinor.value && useMatCapital.value && matCapitalAmount.value !== undefined ? matCapitalAmount.value : null,
+      matCapitalDeferredUntil:
+        isMinor.value && useMatCapital.value && matCapitalDeferredUntil.value ? matCapitalDeferredUntil.value : null,
     })
     isDialogOpen.value = false
     await router.push({ name: 'contract-detail', params: { id: created.id } })
@@ -310,7 +360,7 @@ async function submitCreate() {
       :columns="columns"
       :column-labels="columnLabels"
       :filterable-fields="filterableFields"
-      :default-sort="{ id: 'startDate', desc: true }"
+      :default-sort="{ id: 'contractDate', desc: true }"
       :fetch-page="fetchContractsPage"
       :fetch-facet-values="fetchContractFacets"
       :get-row-id="(c: ContractListItem) => String(c.id)"
@@ -359,7 +409,8 @@ async function submitCreate() {
               :items="individualResults"
               :item-key="(i: Individual) => i.fizicheskoyeLitsoUid"
               :item-label="(i: Individual) => i.fullName"
-              placeholder="Начните вводить ФИО…"
+              :item-sub-label="(i: Individual) => (i.birthDate ? formatDateIso(i.birthDate) : '')"
+              placeholder="Введите ФИО"
               :invalid="individualInvalid"
               :loading="individualSearching"
               @search="onIndividualSearch"
@@ -375,7 +426,7 @@ async function submitCreate() {
                 :items="roomResults"
                 :item-key="(r: RoomTreeItem) => r.id"
                 :item-label="(r: RoomTreeItem) => r.room"
-                placeholder="Начните вводить номер…"
+                placeholder="Введите номер"
                 :invalid="roomInvalid"
                 @search="onRoomSearch"
                 @select="pickRoom"
@@ -391,102 +442,88 @@ async function submitCreate() {
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-4">
-            <div class="flex flex-col gap-2">
-              <Label>Найм, ₽/мес</Label>
-              <Input
-                v-model.number="rentAmount"
-                type="number"
-                disabled
-                :class="[NO_SPINNER_CLASS, rentAmountInvalid ? 'border-red-500' : '']"
-              />
-            </div>
-            <div class="flex flex-col gap-2">
-              <Label>Срок оплаты, число месяца</Label>
-              <Input v-model.number="paymentDueDay" type="number" min="1" max="28" :class="NO_SPINNER_CLASS" />
-            </div>
-          </div>
-
           <div class="flex flex-col gap-2">
-            <Label>Категория проживающего</Label>
-            <Select :model-value="dailyRateCategory" @update:model-value="(v) => (dailyRateCategory = v as DailyRateCategory)">
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="OWN_UNIVERSITY">Студент РосНОУ</SelectItem>
-                <SelectItem value="OTHER_UNIVERSITY">Студент другого вуза</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label>Найм, ₽/мес</Label>
+            <Input
+              v-model.number="rentAmount"
+              type="number"
+              :class="[NO_SPINNER_CLASS, rentAmountInvalid ? 'border-red-500' : '']"
+            />
           </div>
 
-          <div
-            class="flex cursor-pointer items-center gap-2 rounded-md p-3 hover:bg-accent"
-            @click="isMinor = !isMinor"
-          >
-            <Checkbox :model-value="isMinor" />
-            <Label class="cursor-pointer font-normal">Проживающий несовершеннолетний (родитель — сторона договора)</Label>
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <div class="flex flex-col gap-2">
-              <Label>{{ isMinor ? 'ФИО родителя' : 'ФИО родителя (необязательно)' }}</Label>
-              <Input v-model="legalRepName" />
-            </div>
-            <div class="flex flex-col gap-2">
-              <Label>Телефон родителя</Label>
-              <PhoneInput v-model="legalRepPhone" />
-            </div>
-          </div>
+          <!-- Блок родителя — целиком по автоматически вычисленному несовершеннолетию, без
+               отдельного чекбокса (см. isMinor выше). Визуально отделён рамкой и заголовком. -->
           <Transition v-bind="REVEAL_TRANSITION">
-            <div v-if="isMinor" class="grid grid-cols-2 gap-4">
-              <div class="flex flex-col gap-2">
-                <Label>Паспорт родителя: серия</Label>
-                <Input v-model="legalRepPassportSeries" />
+            <div v-if="isMinor" class="flex flex-col gap-4 rounded-md border p-4">
+              <p class="text-sm font-medium">Информация о родителе</p>
+              <div class="grid grid-cols-2 gap-4">
+                <div class="flex flex-col gap-2">
+                  <Label>ФИО</Label>
+                  <Input v-model="legalRepName" :class="legalRepNameInvalid ? 'border-red-500' : ''" />
+                </div>
+                <div class="flex flex-col gap-2">
+                  <Label>Номер телефона</Label>
+                  <PhoneInput ref="phoneInputRef" v-model="legalRepPhone" required />
+                </div>
+                <div class="flex flex-col gap-2">
+                  <Label>Дата рождения</Label>
+                  <DatePickerField v-model="legalRepBirthDate" />
+                </div>
+                <div class="flex flex-col gap-2">
+                  <Label>СНИЛС</Label>
+                  <Input v-model="legalRepSnils" />
+                </div>
+                <div class="flex flex-col gap-2">
+                  <Label>Паспорт: серия</Label>
+                  <Input v-model="legalRepPassportSeries" />
+                </div>
+                <div class="flex flex-col gap-2">
+                  <Label>Паспорт: номер</Label>
+                  <Input v-model="legalRepPassportNumber" />
+                </div>
+                <div class="flex flex-col gap-2">
+                  <Label>Кем выдан</Label>
+                  <Input v-model="legalRepPassportIssuedBy" />
+                </div>
+                <div class="flex flex-col gap-2">
+                  <Label>Код подразделения</Label>
+                  <Input v-model="legalRepPassportIssuedCode" />
+                </div>
+                <div class="flex flex-col gap-2">
+                  <Label>Дата выдачи</Label>
+                  <DatePickerField v-model="legalRepPassportIssuedAt" />
+                </div>
+                <div class="flex flex-col gap-2">
+                  <Label>ИНН</Label>
+                  <Input v-model="legalRepInn" />
+                </div>
               </div>
-              <div class="flex flex-col gap-2">
-                <Label>Паспорт родителя: номер</Label>
-                <Input v-model="legalRepPassportNumber" />
+
+              <div
+                class="flex cursor-pointer items-center gap-2 rounded-md p-3 hover:bg-accent"
+                @click="useMatCapital = !useMatCapital"
+              >
+                <Checkbox :model-value="useMatCapital" />
+                <Label class="cursor-pointer font-normal">Оплата материнским капиталом</Label>
               </div>
-              <div class="flex flex-col gap-2">
-                <Label>Кем и когда выдан</Label>
-                <Input v-model="legalRepPassportIssuedBy" />
-              </div>
-              <div class="flex flex-col gap-2">
-                <Label>Дата выдачи</Label>
-                <DatePickerField v-model="legalRepPassportIssuedAt" />
-              </div>
-              <div class="col-span-2 flex flex-col gap-2">
-                <Label>Адрес регистрации родителя</Label>
-                <Input v-model="legalRepAddress" />
-              </div>
+              <Transition v-bind="REVEAL_TRANSITION">
+                <div v-if="useMatCapital" class="grid grid-cols-3 gap-4">
+                  <div class="flex flex-col gap-2">
+                    <Label>Период</Label>
+                    <DateRangePickerField v-model:from="matCapitalCoveredFrom" v-model:to="matCapitalCoveredTo" />
+                  </div>
+                  <div class="flex flex-col gap-2">
+                    <Label>Сумма, ₽</Label>
+                    <Input v-model.number="matCapitalAmount" type="number" :class="NO_SPINNER_CLASS" />
+                  </div>
+                  <div class="flex flex-col gap-2">
+                    <Label>Отсрочка оплаты до</Label>
+                    <DatePickerField v-model="matCapitalDeferredUntil" />
+                  </div>
+                </div>
+              </Transition>
             </div>
           </Transition>
-
-          <div
-            class="flex cursor-pointer items-center gap-2 rounded-md p-3 hover:bg-accent"
-            @click="useMatCapital = !useMatCapital"
-          >
-            <Checkbox :model-value="useMatCapital" />
-            <Label class="cursor-pointer font-normal">Оплата материнским капиталом</Label>
-          </div>
-          <Transition v-bind="REVEAL_TRANSITION">
-            <div v-if="useMatCapital" class="grid grid-cols-3 gap-4">
-              <div class="flex flex-col gap-2">
-                <Label>Период с</Label>
-                <DatePickerField v-model="matCapitalCoveredFrom" />
-              </div>
-              <div class="flex flex-col gap-2">
-                <Label>Период по</Label>
-                <DatePickerField v-model="matCapitalCoveredTo" />
-              </div>
-              <div class="flex flex-col gap-2">
-                <Label>Отсрочка оплаты до</Label>
-                <DatePickerField v-model="matCapitalDeferredUntil" />
-              </div>
-            </div>
-          </Transition>
-
         </div>
 
         <DialogFooter>

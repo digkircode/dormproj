@@ -4,14 +4,27 @@ import intlTelInput, { NUMBER_FORMAT, type Iti } from 'intl-tel-input'
 import 'intl-tel-input/styles'
 import { PhoneNumberUtil } from 'google-libphonenumber'
 
-const props = defineProps<{ placeholder?: string }>()
+// Локаль ru у intl-tel-input поставляется только с типами общего "бандла" (все языки
+// сразу), не конкретного файла — импорт default оттуда не совпадает с рантаймом
+// (несоответствие в типах пакета). Проще и надёжнее взять реально нужные строки вручную.
+const RU_UI_TRANSLATIONS = {
+  selectedCountryAriaLabel: 'Изменить страну для номера телефона',
+  noCountrySelected: 'Выберите страну для номера телефона',
+  countryListAriaLabel: 'Список стран',
+  searchPlaceholder: 'Поиск',
+  clearSearchAriaLabel: 'Очистить поиск',
+}
+
+const props = defineProps<{ placeholder?: string; required?: boolean }>()
 // Храним не сырой текст поля, а нормализованный номер (getNumber) — при
 // separateDialCode код страны показывается отдельно от инпута, поэтому raw
 // input.value самого "+7" не содержит, а в БД должен уйти номер целиком.
 const model = defineModel<string>({ default: '' })
 
-const wrapperRef = ref<HTMLElement | null>(null)
 const inputRef = ref<HTMLInputElement | null>(null)
+// Ошибка показывается только по явному validate() (родитель вызывает его при нажатии
+// "Сохранить"), не на blur — поле обязательно только для части договоров (несовершеннолетний),
+// и мешать бы мигало ошибкой ещё до того, как стало понятно, что оно вообще нужно.
 const touched = ref(false)
 const isValid = ref(true)
 let iti: Iti | null = null
@@ -24,8 +37,9 @@ function syncModelFromInput() {
 
 // Валидность — через google-libphonenumber (не через встроенный в intl-tel-input
 // isValidNumber): парсим E164-представление и проверяем его же валидатором Google.
+// Пустое поле — валидно, если только оно не required (тогда пустота сама по себе ошибка).
 function checkValidity(): boolean {
-  if (!iti || !inputRef.value?.value.trim()) return true
+  if (!iti || !inputRef.value?.value.trim()) return !props.required
   const e164 = iti.getNumber(NUMBER_FORMAT.E164)
   if (!e164) return false
   try {
@@ -40,22 +54,21 @@ function onInput() {
   if (touched.value) isValid.value = checkValidity()
 }
 
-// focusout на всём виджете (а не blur на самом инпуте) — клик по кнопке флага/списку
-// стран сам по себе снимает фокус с инпута, и на голом blur ошибка выскакивала прямо
-// в момент выбора страны, а не когда пользователь реально закончил с полем. relatedTarget
-// внутри враппера (флаг, поиск по странам, сам список) — это ещё не уход с поля.
-function onWrapperFocusOut(event: FocusEvent) {
-  const next = event.relatedTarget as Node | null
-  if (wrapperRef.value && next && wrapperRef.value.contains(next)) return
+// Вызывается родителем при попытке сохранить форму.
+function validate(): boolean {
   touched.value = true
   isValid.value = checkValidity()
+  return isValid.value
 }
+defineExpose({ validate })
 
 onMounted(() => {
   if (!inputRef.value) return
   iti = intlTelInput(inputRef.value, {
     initialCountry: 'ru',
     separateDialCode: true,
+    countryNameLocale: 'ru',
+    uiTranslations: RU_UI_TRANSLATIONS,
     // Без dropdownParent — список стран остаётся внутри .iti (внутри модалки).
     // Вынос в document.body ломает выбор страны: фокус-трап/pointer-events Dialog
     // (см. известную ловушку с вложенными Reka-порталами в промпте проекта) блокирует
@@ -71,7 +84,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="wrapperRef" class="phone-input" @focusout="onWrapperFocusOut">
+  <div class="phone-input">
     <input
       ref="inputRef"
       type="tel"

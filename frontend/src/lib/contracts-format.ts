@@ -25,3 +25,10 @@ export const STATUS_ICON_CLASS: Record<ContractStatus, string> = {
   TERMINATED: 'fill-red-500 text-white',
   EXPIRED: 'fill-slate-400 text-white',
 }
+
+// Pill-стиль статуса (светлый фон в цвет статуса + текст того же оттенка) — по референсу.
+export const STATUS_PILL_CLASS: Record<ContractStatus, string> = {
+  ACTIVE: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400',
+  TERMINATED: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400',
+  EXPIRED: 'bg-slate-100 text-slate-600 dark:bg-slate-500/15 dark:text-slate-400',
+}
