@@ -58,7 +58,7 @@ watch(isOpen, async (open) => {
     class="inline-flex items-center gap-1.5 hover:underline"
     @click="isOpen = true"
   >
-    <DoorOpen class="size-4 shrink-0 text-muted-foreground" />
+    <DoorOpen class="size-4 shrink-0 text-primary" />
     {{ roomName ?? '—' }}
   </button>
   <span v-else>{{ roomName ?? '—' }}</span>
@@ -66,23 +66,25 @@ watch(isOpen, async (open) => {
   <Dialog :open="isOpen" @update:open="(v) => (isOpen = v)">
     <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
       <DialogHeader>
-        <DialogTitle>Комната {{ roomName }}</DialogTitle>
+        <DialogTitle class="flex items-center gap-1.5">
+          <DoorOpen class="size-4 shrink-0 text-primary" />
+          Комната {{ roomName }}
+        </DialogTitle>
       </DialogHeader>
       <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
       <p v-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
       <!-- Только просмотр — та же сетка характеристик, что в RoomDetailPanel.vue, но без
            кнопок добавления/редактирования/истории: здесь нужна быстрая справка по комнате
-           прямо из карточки договора, а не полноценное управление ей. -->
-      <div v-if="detail" class="grid grid-cols-1 gap-0 overflow-hidden rounded-md border sm:grid-cols-2">
+           прямо из карточки договора, а не полноценное управление ей.
+           gap-px + bg-border на контейнере + bg-background на ячейках — классический приём
+           "решётки" на CSS grid: линии между всеми ячейками по обеим осям гарантированно
+           видны при любом количестве строк/чётности индекса, в отличие от прежнего варианта
+           с точечными border-t/border-l по индексу. -->
+      <div v-if="detail" class="grid grid-cols-1 gap-px overflow-hidden rounded-md border bg-border sm:grid-cols-2">
         <div
-          v-for="(c, index) in sortedCharacteristics(detail.characteristics)"
+          v-for="c in sortedCharacteristics(detail.characteristics)"
           :key="c.id"
-          class="flex items-center justify-between gap-2 px-3 py-2 text-sm"
-          :class="[
-            index % 2 === 1 ? 'sm:border-l sm:border-border' : '',
-            index > 0 ? 'border-t border-border' : '',
-            index === 1 ? 'sm:border-t-0' : '',
-          ]"
+          class="flex items-center justify-between gap-2 bg-background px-3 py-2 text-sm"
         >
           <span class="text-muted-foreground">{{ c.name }}</span>
           <span class="font-medium">{{ formatValue(c) }}</span>

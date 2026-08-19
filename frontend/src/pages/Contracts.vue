@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ExternalLink, Plus } from 'lucide-vue-next'
+import { ExternalLink, FileSignature, Plus, UserRound } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -26,6 +26,7 @@ import {
 import { fetchIndividuals, fetchIndividualDetail, type Individual } from '@/lib/individuals-api'
 import { fetchRoomsTree, fetchRoomDetail, type RoomTreeItem } from '@/lib/rooms-api'
 import { fetchDormitoryInfo } from '@/lib/dormitory-info-api'
+import { blockNonNumericKeys } from '@/lib/utils'
 
 const router = useRouter()
 
@@ -124,24 +125,6 @@ const matCapitalDeferredUntil = ref('')
 
 const phoneInputRef = ref<InstanceType<typeof PhoneInput> | null>(null)
 
-function calculateAge(birthDateIso: string, referenceIso: string): number {
-  const birth = new Date(birthDateIso)
-  const reference = new Date(referenceIso)
-  let age = reference.getFullYear() - birth.getFullYear()
-  const hadBirthdayThisYear =
-    reference.getMonth() > birth.getMonth() || (reference.getMonth() === birth.getMonth() && reference.getDate() >= birth.getDate())
-  if (!hadBirthdayThisYear) age--
-  return age
-}
-
-// Несовершеннолетие — не чекбокс, а автоматический расчёт по дате рождения выбранного
-// проживающего на дату договора (а не "сегодня" — юридически значим момент подписания).
-const isMinor = computed(() => {
-  const birthDate = selectedIndividual.value?.birthDate
-  if (!birthDate) return false
-  return calculateAge(birthDate, contractDate.value || new Date().toISOString().slice(0, 10)) < 18
-})
-
 const numberInvalid = computed(() => submitAttempted.value && !number.value.trim())
 const contractDateInvalid = computed(() => submitAttempted.value && !contractDate.value)
 const roomInvalid = computed(() => submitAttempted.value && !roomId.value)
@@ -149,7 +132,15 @@ const startDateInvalid = computed(() => submitAttempted.value && !startDate.valu
 const endDateInvalid = computed(() => submitAttempted.value && !endDate.value)
 const individualInvalid = computed(() => submitAttempted.value && !selectedIndividual.value)
 const rentAmountInvalid = computed(() => submitAttempted.value && rentAmount.value === undefined)
-const legalRepNameInvalid = computed(() => submitAttempted.value && isMinor.value && !legalRepName.value.trim())
+// Блок родителя — обязателен для любого договора вне зависимости от возраста
+// проживающего (по прямой просьбе, раньше был обязателен только для несовершеннолетних).
+const legalRepNameInvalid = computed(() => submitAttempted.value && !legalRepName.value.trim())
+const legalRepBirthDateInvalid = computed(() => submitAttempted.value && !legalRepBirthDate.value)
+const legalRepPassportSeriesInvalid = computed(() => submitAttempted.value && !legalRepPassportSeries.value.trim())
+const legalRepPassportNumberInvalid = computed(() => submitAttempted.value && !legalRepPassportNumber.value.trim())
+const legalRepPassportIssuedByInvalid = computed(() => submitAttempted.value && !legalRepPassportIssuedBy.value.trim())
+const legalRepPassportIssuedCodeInvalid = computed(() => submitAttempted.value && !legalRepPassportIssuedCode.value.trim())
+const legalRepPassportIssuedAtInvalid = computed(() => submitAttempted.value && !legalRepPassportIssuedAt.value)
 
 // --- Поиск проживающего (SearchSelect) ---
 const individualQuery = ref('')
@@ -293,8 +284,8 @@ async function submitCreate() {
   dialogError.value = ''
   submitAttempted.value = true
   // validate() у телефона — сайд-эффект (подсвечивает сам виджет), поэтому вызывается
-  // безусловно при несовершеннолетнем, а не только внутри && (short-circuit пропустил бы его).
-  const phoneValid = !isMinor.value || (phoneInputRef.value?.validate() ?? true)
+  // безусловно, а не только внутри && (short-circuit пропустил бы его).
+  const phoneValid = phoneInputRef.value?.validate() ?? true
   if (
     !selectedIndividual.value ||
     !roomId.value ||
@@ -305,7 +296,13 @@ async function submitCreate() {
     rentAmount.value === undefined ||
     utilitiesAmount.value === undefined ||
     dailyRateAmount.value === undefined ||
-    (isMinor.value && !legalRepName.value.trim()) ||
+    !legalRepName.value.trim() ||
+    !legalRepBirthDate.value ||
+    !legalRepPassportSeries.value.trim() ||
+    !legalRepPassportNumber.value.trim() ||
+    !legalRepPassportIssuedBy.value.trim() ||
+    !legalRepPassportIssuedCode.value.trim() ||
+    !legalRepPassportIssuedAt.value ||
     !phoneValid
   ) {
     dialogError.value = 'Заполните обязательные поля'
@@ -328,19 +325,18 @@ async function submitCreate() {
       paymentDueDay: paymentDueDay.value,
       legalRepName: legalRepName.value.trim() || null,
       legalRepPhone: legalRepPhone.value.trim() || null,
-      legalRepBirthDate: isMinor.value && legalRepBirthDate.value ? legalRepBirthDate.value : null,
-      legalRepPassportSeries: isMinor.value ? legalRepPassportSeries.value.trim() || null : null,
-      legalRepPassportNumber: isMinor.value ? legalRepPassportNumber.value.trim() || null : null,
-      legalRepPassportIssuedBy: isMinor.value ? legalRepPassportIssuedBy.value.trim() || null : null,
-      legalRepPassportIssuedCode: isMinor.value ? legalRepPassportIssuedCode.value.trim() || null : null,
-      legalRepPassportIssuedAt: isMinor.value && legalRepPassportIssuedAt.value ? legalRepPassportIssuedAt.value : null,
-      legalRepSnils: isMinor.value ? legalRepSnils.value.trim() || null : null,
-      legalRepInn: isMinor.value ? legalRepInn.value.trim() || null : null,
-      matCapitalCoveredFrom: isMinor.value && useMatCapital.value && matCapitalCoveredFrom.value ? matCapitalCoveredFrom.value : null,
-      matCapitalCoveredTo: isMinor.value && useMatCapital.value && matCapitalCoveredTo.value ? matCapitalCoveredTo.value : null,
-      matCapitalAmount: isMinor.value && useMatCapital.value && matCapitalAmount.value !== undefined ? matCapitalAmount.value : null,
-      matCapitalDeferredUntil:
-        isMinor.value && useMatCapital.value && matCapitalDeferredUntil.value ? matCapitalDeferredUntil.value : null,
+      legalRepBirthDate: legalRepBirthDate.value || null,
+      legalRepPassportSeries: legalRepPassportSeries.value.trim() || null,
+      legalRepPassportNumber: legalRepPassportNumber.value.trim() || null,
+      legalRepPassportIssuedBy: legalRepPassportIssuedBy.value.trim() || null,
+      legalRepPassportIssuedCode: legalRepPassportIssuedCode.value.trim() || null,
+      legalRepPassportIssuedAt: legalRepPassportIssuedAt.value || null,
+      legalRepSnils: legalRepSnils.value.trim() || null,
+      legalRepInn: legalRepInn.value.trim() || null,
+      matCapitalCoveredFrom: useMatCapital.value && matCapitalCoveredFrom.value ? matCapitalCoveredFrom.value : null,
+      matCapitalCoveredTo: useMatCapital.value && matCapitalCoveredTo.value ? matCapitalCoveredTo.value : null,
+      matCapitalAmount: useMatCapital.value && matCapitalAmount.value !== undefined ? matCapitalAmount.value : null,
+      matCapitalDeferredUntil: useMatCapital.value && matCapitalDeferredUntil.value ? matCapitalDeferredUntil.value : null,
     })
     isDialogOpen.value = false
     await router.push({ name: 'contract-detail', params: { id: created.id } })
@@ -391,139 +387,156 @@ async function submitCreate() {
         </DialogHeader>
 
         <div class="flex flex-col gap-4">
-          <div class="grid grid-cols-2 gap-4">
-            <div class="flex flex-col gap-2">
-              <Label>Номер договора</Label>
-              <Input v-model="number" :class="numberInvalid ? 'border-red-500' : ''" />
-            </div>
-            <div class="flex flex-col gap-2">
-              <Label>Дата договора</Label>
-              <DatePickerField v-model="contractDate" :invalid="contractDateInvalid" />
-            </div>
-          </div>
+          <div class="flex flex-col gap-4 rounded-md border p-4">
+            <p class="flex items-center gap-1.5 text-sm font-medium">
+              <FileSignature class="size-4 text-primary" />
+              Договор найма
+            </p>
 
-          <div class="flex flex-col gap-2">
-            <Label>Проживающий</Label>
-            <SearchSelect
-              v-model="individualQuery"
-              :items="individualResults"
-              :item-key="(i: Individual) => i.fizicheskoyeLitsoUid"
-              :item-label="(i: Individual) => i.fullName"
-              :item-sub-label="(i: Individual) => (i.birthDate ? formatDateIso(i.birthDate) : '')"
-              placeholder="Введите ФИО"
-              :invalid="individualInvalid"
-              :loading="individualSearching"
-              @search="onIndividualSearch"
-              @select="pickIndividual"
-            />
-          </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="flex flex-col gap-2">
+                <Label>Номер договора</Label>
+                <Input v-model="number" :class="numberInvalid ? 'border-red-500' : ''" />
+              </div>
+              <div class="flex flex-col gap-2">
+                <Label>Дата договора</Label>
+                <DatePickerField v-model="contractDate" :invalid="contractDateInvalid" />
+              </div>
+            </div>
 
-          <div class="grid grid-cols-3 gap-4">
             <div class="flex flex-col gap-2">
-              <Label>Комната</Label>
+              <Label>Проживающий</Label>
               <SearchSelect
-                v-model="roomQuery"
-                :items="roomResults"
-                :item-key="(r: RoomTreeItem) => r.id"
-                :item-label="(r: RoomTreeItem) => r.room"
-                placeholder="Введите номер"
-                :invalid="roomInvalid"
-                @search="onRoomSearch"
-                @select="pickRoom"
+                v-model="individualQuery"
+                :items="individualResults"
+                :item-key="(i: Individual) => i.fizicheskoyeLitsoUid"
+                :item-label="(i: Individual) => i.fullName"
+                :item-sub-label="(i: Individual) => (i.birthDate ? formatDateIso(i.birthDate) : '')"
+                placeholder="Введите ФИО"
+                :invalid="individualInvalid"
+                :loading="individualSearching"
+                @search="onIndividualSearch"
+                @select="pickIndividual"
               />
             </div>
-            <div class="flex flex-col gap-2">
-              <Label>Дата начала</Label>
-              <DatePickerField v-model="startDate" :invalid="startDateInvalid" />
+
+            <div class="grid grid-cols-3 gap-4">
+              <div class="flex flex-col gap-2">
+                <Label>Комната</Label>
+                <SearchSelect
+                  v-model="roomQuery"
+                  :items="roomResults"
+                  :item-key="(r: RoomTreeItem) => r.id"
+                  :item-label="(r: RoomTreeItem) => r.room"
+                  placeholder="Введите номер"
+                  :invalid="roomInvalid"
+                  @search="onRoomSearch"
+                  @select="pickRoom"
+                />
+              </div>
+              <div class="flex flex-col gap-2">
+                <Label>Дата начала</Label>
+                <DatePickerField v-model="startDate" :invalid="startDateInvalid" />
+              </div>
+              <div class="flex flex-col gap-2">
+                <Label>Дата окончания</Label>
+                <DatePickerField v-model="endDate" :invalid="endDateInvalid" />
+              </div>
             </div>
+
             <div class="flex flex-col gap-2">
-              <Label>Дата окончания</Label>
-              <DatePickerField v-model="endDate" :invalid="endDateInvalid" />
+              <Label>Найм, ₽/мес</Label>
+              <Input
+                v-model.number="rentAmount"
+                type="number"
+                :class="[NO_SPINNER_CLASS, rentAmountInvalid ? 'border-red-500' : '']"
+                @keydown="blockNonNumericKeys"
+              />
             </div>
           </div>
 
-          <div class="flex flex-col gap-2">
-            <Label>Найм, ₽/мес</Label>
-            <Input
-              v-model.number="rentAmount"
-              type="number"
-              :class="[NO_SPINNER_CLASS, rentAmountInvalid ? 'border-red-500' : '']"
-            />
-          </div>
-
-          <!-- Блок родителя — целиком по автоматически вычисленному несовершеннолетию, без
-               отдельного чекбокса (см. isMinor выше). Визуально отделён рамкой и заголовком. -->
-          <Transition v-bind="REVEAL_TRANSITION">
-            <div v-if="isMinor" class="flex flex-col gap-4 rounded-md border p-4">
-              <p class="text-sm font-medium">Информация о родителе</p>
-              <div class="grid grid-cols-2 gap-4">
-                <div class="flex flex-col gap-2">
-                  <Label>ФИО</Label>
-                  <Input v-model="legalRepName" :class="legalRepNameInvalid ? 'border-red-500' : ''" />
-                </div>
-                <div class="flex flex-col gap-2">
-                  <Label>Номер телефона</Label>
-                  <PhoneInput ref="phoneInputRef" v-model="legalRepPhone" required />
-                </div>
-                <div class="flex flex-col gap-2">
-                  <Label>Дата рождения</Label>
-                  <DatePickerField v-model="legalRepBirthDate" />
-                </div>
-                <div class="flex flex-col gap-2">
-                  <Label>СНИЛС</Label>
-                  <Input v-model="legalRepSnils" />
-                </div>
-                <div class="flex flex-col gap-2">
-                  <Label>Паспорт: серия</Label>
-                  <Input v-model="legalRepPassportSeries" />
-                </div>
-                <div class="flex flex-col gap-2">
-                  <Label>Паспорт: номер</Label>
-                  <Input v-model="legalRepPassportNumber" />
-                </div>
-                <div class="flex flex-col gap-2">
-                  <Label>Кем выдан</Label>
-                  <Input v-model="legalRepPassportIssuedBy" />
-                </div>
-                <div class="flex flex-col gap-2">
-                  <Label>Код подразделения</Label>
-                  <Input v-model="legalRepPassportIssuedCode" />
-                </div>
-                <div class="flex flex-col gap-2">
-                  <Label>Дата выдачи</Label>
-                  <DatePickerField v-model="legalRepPassportIssuedAt" />
-                </div>
-                <div class="flex flex-col gap-2">
-                  <Label>ИНН</Label>
-                  <Input v-model="legalRepInn" />
-                </div>
+          <!-- Блок родителя — обязателен для любого договора вне зависимости от возраста
+               проживающего (по прямой просьбе, раньше показывался только для
+               несовершеннолетних). Визуально отделён рамкой и заголовком. -->
+          <div class="flex flex-col gap-4 rounded-md border p-4">
+            <p class="flex items-center gap-1.5 text-sm font-medium">
+              <UserRound class="size-4 text-primary" />
+              Информация о родителе
+            </p>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="flex flex-col gap-2">
+                <Label>ФИО</Label>
+                <Input v-model="legalRepName" :class="legalRepNameInvalid ? 'border-red-500' : ''" />
               </div>
-
-              <div
-                class="flex cursor-pointer items-center gap-2 rounded-md p-3 hover:bg-accent"
-                @click="useMatCapital = !useMatCapital"
-              >
-                <Checkbox :model-value="useMatCapital" />
-                <Label class="cursor-pointer font-normal">Оплата материнским капиталом</Label>
+              <div class="flex flex-col gap-2">
+                <Label>Номер телефона</Label>
+                <PhoneInput ref="phoneInputRef" v-model="legalRepPhone" required />
               </div>
-              <Transition v-bind="REVEAL_TRANSITION">
-                <div v-if="useMatCapital" class="grid grid-cols-3 gap-4">
-                  <div class="flex flex-col gap-2">
-                    <Label>Период</Label>
-                    <DateRangePickerField v-model:from="matCapitalCoveredFrom" v-model:to="matCapitalCoveredTo" />
-                  </div>
+              <div class="flex flex-col gap-2">
+                <Label>Дата рождения</Label>
+                <DatePickerField v-model="legalRepBirthDate" :invalid="legalRepBirthDateInvalid" />
+              </div>
+              <div class="flex flex-col gap-2">
+                <Label>СНИЛС</Label>
+                <Input v-model="legalRepSnils" />
+              </div>
+              <div class="flex flex-col gap-2">
+                <Label>Паспорт: серия</Label>
+                <Input v-model="legalRepPassportSeries" :class="legalRepPassportSeriesInvalid ? 'border-red-500' : ''" />
+              </div>
+              <div class="flex flex-col gap-2">
+                <Label>Паспорт: номер</Label>
+                <Input v-model="legalRepPassportNumber" :class="legalRepPassportNumberInvalid ? 'border-red-500' : ''" />
+              </div>
+              <div class="flex flex-col gap-2">
+                <Label>Кем выдан</Label>
+                <Input v-model="legalRepPassportIssuedBy" :class="legalRepPassportIssuedByInvalid ? 'border-red-500' : ''" />
+              </div>
+              <div class="flex flex-col gap-2">
+                <Label>Код подразделения</Label>
+                <Input v-model="legalRepPassportIssuedCode" :class="legalRepPassportIssuedCodeInvalid ? 'border-red-500' : ''" />
+              </div>
+              <div class="flex flex-col gap-2">
+                <Label>Дата выдачи</Label>
+                <DatePickerField v-model="legalRepPassportIssuedAt" :invalid="legalRepPassportIssuedAtInvalid" />
+              </div>
+              <div class="flex flex-col gap-2">
+                <Label>ИНН</Label>
+                <Input v-model="legalRepInn" />
+              </div>
+            </div>
+
+            <div
+              class="flex cursor-pointer items-center gap-2 rounded-md p-3 hover:bg-accent"
+              @click="useMatCapital = !useMatCapital"
+            >
+              <Checkbox :model-value="useMatCapital" />
+              <Label class="cursor-pointer font-normal">Оплата материнским капиталом</Label>
+            </div>
+            <Transition v-bind="REVEAL_TRANSITION">
+              <div v-if="useMatCapital" class="flex flex-col gap-4">
+                <div class="flex flex-col gap-2">
+                  <Label>Период</Label>
+                  <DateRangePickerField v-model:from="matCapitalCoveredFrom" v-model:to="matCapitalCoveredTo" />
+                </div>
+                <div class="grid grid-cols-2 gap-4">
                   <div class="flex flex-col gap-2">
                     <Label>Сумма, ₽</Label>
-                    <Input v-model.number="matCapitalAmount" type="number" :class="NO_SPINNER_CLASS" />
+                    <Input
+                      v-model.number="matCapitalAmount"
+                      type="number"
+                      :class="NO_SPINNER_CLASS"
+                      @keydown="blockNonNumericKeys"
+                    />
                   </div>
                   <div class="flex flex-col gap-2">
-                    <Label>Отсрочка оплаты до</Label>
+                    <Label>Отсрочка оплаты</Label>
                     <DatePickerField v-model="matCapitalDeferredUntil" />
                   </div>
                 </div>
-              </Transition>
-            </div>
-          </Transition>
+              </div>
+            </Transition>
+          </div>
         </div>
 
         <DialogFooter>

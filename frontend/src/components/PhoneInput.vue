@@ -96,7 +96,6 @@ onBeforeUnmount(() => {
       ]"
       @input="onInput"
     />
-    <p v-if="touched && !isValid" class="mt-1 text-sm text-red-500">Похоже, номер телефона неполный или некорректный</p>
   </div>
 </template>
 

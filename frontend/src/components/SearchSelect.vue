@@ -26,11 +26,16 @@ const isOpen = ref(false)
 // это тоже триггерит @input, и без флага список тут же выскакивал бы again с тем же
 // результатом (баг: выбор применялся, но дропдаун сразу открывался заново).
 const suppressNextOpen = ref(false)
+// Печать сбрасывает "выбранность" сразу, choose() её ставит — на blur без выбора
+// (ушли с поля, ничего не выбрав из списка) текст сбрасываем, чтобы в инпуте не
+// оставалось значение, которое выглядит как выбор, но им не является.
+const hasSelection = ref(false)
 
 function onInput(event: Event) {
   const value = (event.target as HTMLInputElement).value
   query.value = value
   suppressNextOpen.value = false
+  hasSelection.value = false
   isOpen.value = true
   emit('search', value)
 }
@@ -41,8 +46,17 @@ function onFocus() {
 
 function choose(item: T) {
   suppressNextOpen.value = true
+  hasSelection.value = true
   isOpen.value = false
   emit('select', item)
+}
+
+function onBlur() {
+  // Клик по пункту списка сначала вызывает mousedown/blur и только потом click —
+  // choose() успевает отработать синхронно раньше таймаута и выставить hasSelection.
+  setTimeout(() => {
+    if (!hasSelection.value) query.value = ''
+  }, 150)
 }
 
 onClickOutside(rootRef, () => {
@@ -59,6 +73,7 @@ onClickOutside(rootRef, () => {
       :class="invalid ? 'border-red-500' : ''"
       @input="onInput"
       @focus="onFocus"
+      @blur="onBlur"
     />
     <div
       v-if="isOpen && !loading && (items.length || query.trim())"
