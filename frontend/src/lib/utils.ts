@@ -28,6 +28,26 @@ export function blockNonNumericKeys(event: KeyboardEvent) {
   event.preventDefault()
 }
 
+// Маска даты дд.мм.гггг для текстовых полей DatePickerField/DateRangePickerField —
+// пользователь вводит только цифры, точки расставляются сами. blockNonDigitKeys не
+// пускает в поле вообще ничего, кроме цифр (даже точку — её пользователь не печатает),
+// applyDateMask на @input перестраивает строку из "сырых" цифр текущего значения.
+export function blockNonDigitKeys(event: KeyboardEvent) {
+  if (event.key.length !== 1) return
+  if (!/[0-9]/.test(event.key)) event.preventDefault()
+}
+
+export function applyDateMask(rawValue: string): string {
+  const digits = rawValue.replace(/\D/g, '').slice(0, 8)
+  const day = digits.slice(0, 2)
+  const month = digits.slice(2, 4)
+  const year = digits.slice(4, 8)
+  let result = day
+  if (month) result += '.' + month
+  if (year) result += '.' + year
+  return result
+}
+
 // navigator.clipboard требует secure context (HTTPS или localhost) — сайт пока на
 // обычном HTTP (см. CONTEXT_HANDOFF.md, "Secure=false — пока нет HTTPS), там его либо
 // нет вовсе, либо writeText молча не срабатывает. Фолбэк — скрытая textarea +

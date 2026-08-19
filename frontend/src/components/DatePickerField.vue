@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { applyDateMask, blockNonDigitKeys } from '@/lib/utils'
 
 defineProps<{ placeholder?: string; invalid?: boolean }>()
 // ISO-строка (YYYY-MM-DD), как везде в проекте — не Date, чтобы не тянуть за собой часовые пояса.
@@ -46,7 +47,7 @@ watch(model, (value) => {
 })
 
 function onTextInput(event: Event) {
-  text.value = (event.target as HTMLInputElement).value
+  text.value = applyDateMask((event.target as HTMLInputElement).value)
 }
 
 function commitText() {
@@ -78,6 +79,7 @@ function onSelect(value: DateValue | undefined) {
       @input="onTextInput"
       @blur="commitText"
       @keydown.enter="commitText"
+      @keydown="blockNonDigitKeys"
     />
     <Popover :open="isOpen" @update:open="(v) => (isOpen = v)">
       <PopoverTrigger as-child>

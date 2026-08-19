@@ -19,9 +19,9 @@ import {
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { cn } from '@/lib/utils'
+import { applyDateMask, blockNonDigitKeys, cn } from '@/lib/utils'
 
-defineProps<{ placeholder?: string }>()
+defineProps<{ placeholder?: string; invalid?: boolean }>()
 // Два ISO-поля (YYYY-MM-DD), как везде в проекте, а не Date/DateRange — компонент
 // снаружи выглядит как два обычных v-model-поля, только UI один period-пикер.
 const from = defineModel<string>('from', { default: '' })
@@ -112,13 +112,29 @@ const CELL_TRIGGER_CLASS = cn(
 
 <template>
   <div class="flex items-center gap-2">
-    <Input :model-value="fromText" placeholder="дд.мм.гггг" class="min-w-0" @input="(e: Event) => (fromText = (e.target as HTMLInputElement).value)" @blur="commitFrom" @keydown.enter="commitFrom" />
+    <Input
+      :model-value="fromText"
+      placeholder="дд.мм.гггг"
+      :class="['min-w-0', invalid ? 'border-red-500' : '']"
+      @input="(e: Event) => (fromText = applyDateMask((e.target as HTMLInputElement).value))"
+      @blur="commitFrom"
+      @keydown.enter="commitFrom"
+      @keydown="blockNonDigitKeys"
+    />
     <span class="shrink-0 text-muted-foreground">–</span>
-    <Input :model-value="toText" placeholder="дд.мм.гггг" class="min-w-0" @input="(e: Event) => (toText = (e.target as HTMLInputElement).value)" @blur="commitTo" @keydown.enter="commitTo" />
+    <Input
+      :model-value="toText"
+      placeholder="дд.мм.гггг"
+      :class="['min-w-0', invalid ? 'border-red-500' : '']"
+      @input="(e: Event) => (toText = applyDateMask((e.target as HTMLInputElement).value))"
+      @blur="commitTo"
+      @keydown.enter="commitTo"
+      @keydown="blockNonDigitKeys"
+    />
     <Popover :open="isOpen" @update:open="(v) => (isOpen = v)">
       <PopoverTrigger as-child>
         <Button type="button" variant="outline" size="icon" class="shrink-0">
-          <CalendarIcon class="size-4 text-primary" />
+          <CalendarIcon class="size-4" :class="invalid ? 'text-red-500' : 'text-primary'" />
           <span class="sr-only">Открыть календарь</span>
         </Button>
       </PopoverTrigger>
