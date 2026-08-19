@@ -31,6 +31,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import ContractStatusPill from '@/components/ContractStatusPill.vue'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Dialog, DialogScrollContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import DatePickerField from '@/components/DatePickerField.vue'
 import RoomInfoTrigger from '@/components/RoomInfoTrigger.vue'
@@ -382,7 +383,7 @@ async function confirmReversePayment() {
             >
               <Users class="size-4 text-primary" />
               Информация о родителе
-              <ChevronRight class="size-3.5 transition-transform" :class="showParentInfo ? 'rotate-90' : ''" />
+              <ChevronRight class="size-3.5 transition-transform" :class="showParentInfo ? '' : 'rotate-90'" />
             </button>
             <!-- Раскрывается вбок, а не вниз — grid-template-columns 0fr→1fr, тот же приём,
                  что и для вертикального раскрытия (grid-template-rows), только по другой оси:
@@ -402,97 +403,106 @@ async function confirmReversePayment() {
         </Card>
       </div>
 
-      <div class="flex flex-col gap-3">
-        <p class="flex items-center gap-1.5 text-sm font-medium">
-          <Receipt class="size-4 text-primary" />
-          Начисления
-        </p>
-        <Card class="min-w-0 gap-0 overflow-hidden py-0">
-          <Table>
-            <TableHeader class="bg-muted">
-              <TableRow>
-                <TableHead
-                  v-for="(col, i) in ACCRUAL_COLUMNS"
-                  :key="col.id"
-                  :class="i < ACCRUAL_COLUMNS.length - 1 ? CELL_BORDER_CLASS : ''"
-                >
-                  <button
-                    type="button"
-                    class="flex w-full items-center gap-1.5 hover:text-foreground/80"
-                    @click="toggleAccrualSort(col.id)"
-                  >
-                    {{ col.label }}
-                    <component
-                      :is="sortIcon(accrualSort, col.id)"
-                      class="size-3.5 shrink-0"
-                      :class="accrualSort.id === col.id ? '' : 'text-muted-foreground/50'"
-                    />
-                  </button>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow v-for="a in sortedAccruals" :key="a.id" :class="a.voidedAt ? 'opacity-40' : ''">
-                <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.periodStart) }} — {{ formatDate(a.periodEnd) }}</TableCell>
-                <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.dueDate) }}</TableCell>
-                <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.rentAmount) }}</TableCell>
-                <TableCell :class="CELL_BORDER_CLASS">{{ a.penaltyAmount ? formatMoney(a.penaltyAmount) : '—' }}</TableCell>
-                <TableCell :class="CELL_BORDER_CLASS">{{ a.adjustmentAmount ? formatMoney(a.adjustmentAmount) : '—' }}</TableCell>
-                <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.paid) }}</TableCell>
-                <TableCell :class="a.balance > 0 ? 'text-red-500' : ''">
-                  {{ a.voidedAt ? 'отменено' : formatMoney(a.balance) }}
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </Card>
-      </div>
+      <Tabs default-value="accruals">
+        <TabsList>
+          <TabsTrigger value="accruals" class="gap-1.5">
+            <Receipt class="size-4" />
+            Начисления
+          </TabsTrigger>
+          <TabsTrigger value="payments" class="gap-1.5">
+            <Wallet class="size-4" />
+            Платежи
+          </TabsTrigger>
+        </TabsList>
 
-      <div class="flex flex-col gap-3">
-        <p class="flex items-center gap-1.5 text-sm font-medium">
-          <Wallet class="size-4 text-primary" />
-          Платежи
-        </p>
-        <Card class="min-w-0 gap-0 overflow-hidden py-0">
-          <p v-if="!contract.payments.length" class="p-6 text-sm text-muted-foreground">Платежей пока нет</p>
-          <Table v-else>
-            <TableHeader class="bg-muted">
-              <TableRow>
-                <TableHead v-for="col in PAYMENT_COLUMNS" :key="col.id" :class="CELL_BORDER_CLASS">
-                  <button
-                    type="button"
-                    class="flex w-full items-center gap-1.5 hover:text-foreground/80"
-                    @click="togglePaymentSort(col.id)"
-                  >
-                    {{ col.label }}
-                    <component
-                      :is="sortIcon(paymentSort, col.id)"
-                      class="size-3.5 shrink-0"
-                      :class="paymentSort.id === col.id ? '' : 'text-muted-foreground/50'"
-                    />
-                  </button>
-                </TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow v-for="p in sortedPayments" :key="p.id" :class="p.reversedAt ? 'opacity-40' : ''">
-                <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(p.paidAt) }}</TableCell>
-                <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(p.amount) }}</TableCell>
-                <TableCell :class="CELL_BORDER_CLASS">{{ METHOD_LABELS[p.method] ?? p.method }}</TableCell>
-                <TableCell :class="CELL_BORDER_CLASS">{{ p.rawComment ?? '—' }}</TableCell>
-                <TableCell class="text-right">
-                  <span v-if="p.reversedAt" class="text-xs text-muted-foreground">сторнирован</span>
-                  <Button v-else variant="ghost" size="icon" class="size-7" @click="openReverseConfirm(p)">
-                    <Ban class="text-red-500" />
-                    <span class="sr-only">Сторнировать</span>
-                  </Button>
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </Card>
-      </div>
+        <TabsContent value="accruals">
+          <Card class="min-w-0 gap-0 overflow-hidden py-0">
+            <div class="max-h-[420px] overflow-auto">
+              <Table>
+                <TableHeader class="sticky top-0 z-10 bg-muted">
+                  <TableRow>
+                    <TableHead
+                      v-for="(col, i) in ACCRUAL_COLUMNS"
+                      :key="col.id"
+                      :class="i < ACCRUAL_COLUMNS.length - 1 ? CELL_BORDER_CLASS : ''"
+                    >
+                      <button
+                        type="button"
+                        class="flex w-full items-center gap-1.5 hover:text-foreground/80"
+                        @click="toggleAccrualSort(col.id)"
+                      >
+                        {{ col.label }}
+                        <component
+                          :is="sortIcon(accrualSort, col.id)"
+                          class="size-3.5 shrink-0"
+                          :class="accrualSort.id === col.id ? '' : 'text-muted-foreground/50'"
+                        />
+                      </button>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow v-for="a in sortedAccruals" :key="a.id" :class="a.voidedAt ? 'opacity-40' : ''">
+                    <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.periodStart) }} — {{ formatDate(a.periodEnd) }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.dueDate) }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.rentAmount) }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ a.penaltyAmount ? formatMoney(a.penaltyAmount) : '—' }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ a.adjustmentAmount ? formatMoney(a.adjustmentAmount) : '—' }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.paid) }}</TableCell>
+                    <TableCell :class="a.balance > 0 ? 'text-red-500' : ''">
+                      {{ a.voidedAt ? 'отменено' : formatMoney(a.balance) }}
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="payments">
+          <Card class="min-w-0 gap-0 overflow-hidden py-0">
+            <p v-if="!contract.payments.length" class="p-6 text-sm text-muted-foreground">Платежей пока нет</p>
+            <div v-else class="max-h-[420px] overflow-auto">
+              <Table>
+                <TableHeader class="sticky top-0 z-10 bg-muted">
+                  <TableRow>
+                    <TableHead v-for="col in PAYMENT_COLUMNS" :key="col.id" :class="CELL_BORDER_CLASS">
+                      <button
+                        type="button"
+                        class="flex w-full items-center gap-1.5 hover:text-foreground/80"
+                        @click="togglePaymentSort(col.id)"
+                      >
+                        {{ col.label }}
+                        <component
+                          :is="sortIcon(paymentSort, col.id)"
+                          class="size-3.5 shrink-0"
+                          :class="paymentSort.id === col.id ? '' : 'text-muted-foreground/50'"
+                        />
+                      </button>
+                    </TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow v-for="p in sortedPayments" :key="p.id" :class="p.reversedAt ? 'opacity-40' : ''">
+                    <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(p.paidAt) }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(p.amount) }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ METHOD_LABELS[p.method] ?? p.method }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ p.rawComment ?? '—' }}</TableCell>
+                    <TableCell class="text-right">
+                      <span v-if="p.reversedAt" class="text-xs text-muted-foreground">сторнирован</span>
+                      <Button v-else variant="ghost" size="icon" class="size-7" @click="openReverseConfirm(p)">
+                        <Ban class="text-red-500" />
+                        <span class="sr-only">Сторнировать</span>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </template>
 
     <Dialog :open="isTerminateOpen" @update:open="(open) => (isTerminateOpen = open)">
