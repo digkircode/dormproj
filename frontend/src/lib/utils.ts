@@ -52,11 +52,13 @@ function daysInMonth(month: number, year?: number): number {
   return DAYS_IN_MONTH[month - 1] ?? 31
 }
 
+const MAX_YEAR = 2050
+
 export function applyDateMask(rawValue: string): string {
   const digits = rawValue.replace(/\D/g, '').slice(0, 8)
   let day = digits.slice(0, 2)
   let month = digits.slice(2, 4)
-  const year = digits.slice(4, 8)
+  let year = digits.slice(4, 8)
 
   if (month.length === 2) {
     if (Number(month) === 0) month = '01'
@@ -67,11 +69,25 @@ export function applyDateMask(rawValue: string): string {
     if (Number(day) === 0) day = '01'
     else if (Number(day) > maxDay) day = String(maxDay).padStart(2, '0')
   }
+  if (year.length === 4 && Number(year) > MAX_YEAR) year = String(MAX_YEAR)
 
   let result = day
   if (month) result += '.' + month
   if (year) result += '.' + year
   return result
+}
+
+// "Назад" на карточках — раньше вели на жёстко зашитый роут списка (RouterLink to="/x"),
+// что уводило не туда, если на карточку попали иначе (например с другой страницы, не из
+// списка). history.state.back — служебное поле самого vue-router (createWebHistory),
+// заполнено, только если есть реальная предыдущая запись в истории SPA-навигации; если
+// его нет (прямой заход по ссылке/обновление страницы), откатываемся на fallback.
+export function goBack(router: { back: () => void; push: (path: string) => void }, fallback: string) {
+  if (window.history.state?.back) {
+    router.back()
+  } else {
+    router.push(fallback)
+  }
 }
 
 // navigator.clipboard требует secure context (HTTPS или localhost) — сайт пока на

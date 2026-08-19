@@ -53,7 +53,13 @@ watch(model, (value) => {
 })
 
 function onTextInput(event: Event) {
-  text.value = applyDateMask((event.target as HTMLInputElement).value)
+  const input = event.target as HTMLInputElement
+  const masked = applyDateMask(input.value)
+  // Пишем в DOM синхронно, а не только через реактивный :value — иначе при быстром
+  // вводе/автоповторе клавиши браузер успевает вставить следующий символ раньше, чем
+  // долетит реактивный ререндер, и лишние цифры (например в годе) проскакивают мимо маски.
+  input.value = masked
+  text.value = masked
 }
 
 function commitText() {

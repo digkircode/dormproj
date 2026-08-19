@@ -8,18 +8,25 @@ import AppSidebar from './components/AppSidebar.vue'
 import AppFooter from './components/AppFooter.vue'
 import { currentUser, isAuthLoading, loadCurrentUser } from '@/lib/auth-state'
 import { rosnouLoginUrl } from '@/lib/auth-api'
+import { breadcrumbOverride } from '@/lib/breadcrumb-state'
 
 const route = useRoute()
 const router = useRouter()
 
 // Родитель страницы объявляется через meta.parent (см. router/index.ts) — так путь
 // в хлебных крошках всегда показывает всю цепочку, а не только текущую страницу.
+// Последняя крошка (текущая страница) — либо статичный meta.title, либо, если детальная
+// страница выставила breadcrumbOverride (номер договора, имя физлица и т.п.), то он —
+// иначе крошка показывала бы общее название вида "Информация о договоре" для любой карточки.
 const breadcrumbTrail = computed(() => {
   const trail: { title: string; path: string }[] = []
   let current: RouteRecordNormalized | undefined = route.matched[route.matched.length - 1]
+  let isLast = true
   while (current) {
     if (current.meta.title) {
-      trail.unshift({ title: current.meta.title as string, path: current.path })
+      const title = isLast && breadcrumbOverride.value ? breadcrumbOverride.value : (current.meta.title as string)
+      trail.unshift({ title, path: current.path })
+      isLast = false
     }
     const parentName = current.meta.parent as string | undefined
     current = parentName ? router.getRoutes().find((r) => r.name === parentName) : undefined

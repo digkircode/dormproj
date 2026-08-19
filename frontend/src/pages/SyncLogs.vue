@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, ChevronRight, Info } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import {
@@ -18,8 +18,10 @@ import { fetchSyncLogsPage, fetchSyncLogFacets, type SyncLogEntry } from '@/lib/
 import { SYNC_ENTITIES } from '@/lib/sync-entities'
 import { triggerLabel, formatDateTimeWithSeconds } from '@/lib/sync-format'
 import type { ListOptions } from '@/lib/list-api'
+import { goBack } from '@/lib/utils'
 
 const route = useRoute()
+const router = useRouter()
 const entity = computed(() => SYNC_ENTITIES.find((e) => e.slug === route.params.slug))
 const storageKey = computed(() => `sync-logs:${entity.value?.slug ?? 'unknown'}`)
 
@@ -118,11 +120,9 @@ onUnmounted(() => clearTimeout(pollTimeout))
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
     <div class="flex items-center gap-2">
-      <Button variant="ghost" size="icon" class="size-7" as-child>
-        <RouterLink to="/sync">
-          <ArrowLeft class="text-primary" />
-          <span class="sr-only">К синхронизации</span>
-        </RouterLink>
+      <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/sync')">
+        <ArrowLeft class="text-primary" />
+        <span class="sr-only">Назад</span>
       </Button>
       <h1 class="text-lg font-medium">Логи: {{ entity?.name ?? '—' }}</h1>
     </div>

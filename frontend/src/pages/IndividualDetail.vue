@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft,
   Check,
@@ -23,9 +23,11 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import PassportTable from '@/components/PassportTable.vue'
 import StudentFields from '@/components/StudentFields.vue'
 import { fetchIndividualDetail, syncIndividual, type IndividualDetail } from '@/lib/individuals-api'
-import { copyToClipboard } from '@/lib/utils'
+import { copyToClipboard, goBack } from '@/lib/utils'
+import { breadcrumbOverride } from '@/lib/breadcrumb-state'
 
 const route = useRoute()
+const router = useRouter()
 const uid = computed(() => String(route.params.uid))
 
 const detail = ref<IndividualDetail | null>(null)
@@ -132,22 +134,24 @@ async function copyValue(field: 'uid' | 'code', value: string | null | undefined
 onMounted(async () => {
   try {
     detail.value = await fetchIndividualDetail(uid.value)
+    breadcrumbOverride.value = detail.value.fullName
   } catch {
     notFound.value = true
   } finally {
     isLoading.value = false
   }
 })
+onUnmounted(() => {
+  breadcrumbOverride.value = null
+})
 </script>
 
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
     <div class="flex items-center gap-2">
-      <Button variant="ghost" size="icon" class="size-7" as-child>
-        <RouterLink to="/individuals">
-          <ArrowLeft class="text-primary" />
-          <span class="sr-only">К физическим лицам</span>
-        </RouterLink>
+      <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/individuals')">
+        <ArrowLeft class="text-primary" />
+        <span class="sr-only">Назад</span>
       </Button>
       <h1 class="text-lg font-medium">Информация о физическом лице</h1>
     </div>

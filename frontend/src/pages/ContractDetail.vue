@@ -1,19 +1,26 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
   ArrowUpDown,
   Ban,
+  CalendarClock,
   CalendarRange,
   ChevronDown,
+  Download,
+  Droplet,
   FileSignature,
+  History,
+  Home,
+  MoreVertical,
+  Pencil,
   Plus,
   Receipt,
   User,
-  UserRound,
+  Users,
   Wallet,
 } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
@@ -21,6 +28,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import ContractStatusPill from '@/components/ContractStatusPill.vue'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -37,12 +45,18 @@ import {
 } from '@/lib/contracts-api'
 import { createPayment, reversePayment } from '@/lib/billing-api'
 import { fetchDormitoryInfo, type DormitoryInfo } from '@/lib/dormitory-info-api'
+import { blockNonNumericKeys, goBack } from '@/lib/utils'
+import { breadcrumbOverride } from '@/lib/breadcrumb-state'
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
 // Вертикальные разделители колонок — тот же приём, что и в общей таблице (EntityTable.vue),
 // для визуального единства всех таблиц в приложении.
 const CELL_BORDER_CLASS = 'border-r border-border last:border-r-0'
+// Скрывает нативные стрелочки +/- у <input type="number"> — та же константа, что в
+// Rooms.vue/RoomDetailPanel.vue/Contracts.vue (не выносили в общий модуль и там, см. промпт
+// проекта — этот повтор по той же причине).
+const NO_SPINNER_CLASS = '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
 
 const METHOD_LABELS: Record<string, string> = {
   CASH: 'Наличные',
@@ -53,6 +67,7 @@ const METHOD_LABELS: Record<string, string> = {
 }
 
 const route = useRoute()
+const router = useRouter()
 const contractId = computed(() => Number(route.params.id))
 
 const contract = ref<ContractDetail | null>(null)
@@ -64,6 +79,7 @@ async function load() {
   loadError.value = ''
   try {
     contract.value = await fetchContractDetail(contractId.value)
+    breadcrumbOverride.value = `Договор № ${contract.value.number}`
   } catch (error) {
     loadError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -72,6 +88,9 @@ async function load() {
 }
 
 onMounted(load)
+onUnmounted(() => {
+  breadcrumbOverride.value = null
+})
 
 // Коммунальные услуги — не сумма по договору (в rentAmount уже включены, отдельно от
 // начислений не хранятся, см. rentAmount ниже), а справочная общежитская величина —
@@ -185,7 +204,9 @@ const paymentError = ref('')
 const isSavingPayment = ref(false)
 
 function openPayment() {
-  paymentAmount.value = totalBalance.value > 0 ? Math.round(totalBalance.value * 100) / 100 : undefined
+  // Подставляем месячную сумму (стоимость комнаты), а не весь накопленный долг —
+  // по умолчанию вносят обычный ежемесячный платёж, а не гасят всё сразу.
+  paymentAmount.value = rentAmount.value > 0 ? rentAmount.value : undefined
   paymentDate.value = new Date().toISOString().slice(0, 10)
   paymentMethod.value = 'CASH'
   paymentComment.value = ''
@@ -243,11 +264,9 @@ async function confirmReversePayment() {
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
     <div class="flex items-center gap-2">
-      <Button variant="ghost" size="icon" class="size-7" as-child>
-        <RouterLink to="/contracts">
-          <ArrowLeft class="text-primary" />
-          <span class="sr-only">К списку договоров</span>
-        </RouterLink>
+      <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/contracts')">
+        <ArrowLeft class="text-primary" />
+        <span class="sr-only">Назад</span>
       </Button>
       <h1 class="text-lg font-medium">{{ contract ? `Договор № ${contract.number}` : 'Договор' }}</h1>
       <ContractStatusPill v-if="contract" :status="contract.status" />
@@ -263,49 +282,96 @@ async function confirmReversePayment() {
             <FileSignature class="size-4 text-primary" />
             Информация о договоре
           </p>
-          <Tooltip v-if="contract.status === 'ACTIVE'">
-            <TooltipTrigger as-child>
-              <Button variant="outline" size="icon" class="size-7 shrink-0" @click="openTerminate">
-                <Ban class="text-red-500" />
-                <span class="sr-only">Расторгнуть</span>
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button variant="outline" size="icon" class="size-7 shrink-0">
+                <MoreVertical />
+                <span class="sr-only">Действия с договором</span>
               </Button>
-            </TooltipTrigger>
-            <TooltipContent>Расторгнуть</TooltipContent>
-          </Tooltip>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <!-- Печать/скачивание договора и редактирование — ещё не реализованы на бэке
+                   (см. промпт проекта, roadmap), пункты видны, но неактивны, чтобы не
+                   притворяться рабочей функцией. -->
+              <DropdownMenuItem disabled>
+                <Download class="text-muted-foreground" />
+                Скачать договор (скоро)
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled>
+                <Pencil class="text-muted-foreground" />
+                Редактировать (скоро)
+              </DropdownMenuItem>
+              <DropdownMenuItem @click="openPayment">
+                <Plus class="text-primary" />
+                Внести платёж
+              </DropdownMenuItem>
+              <DropdownMenuItem :disabled="contract.status !== 'ACTIVE'" @click="openTerminate">
+                <Ban class="text-red-500" />
+                Расторгнуть договор
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <Card class="flex flex-col gap-4 p-4">
           <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-            <span class="flex items-center gap-1.5">
-              <User class="size-4 shrink-0 text-muted-foreground" />
+            <RouterLink
+              :to="{ name: 'individual-detail', params: { uid: contract.residentIndividualUid } }"
+              class="-mx-1.5 -my-0.5 flex items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-accent hover:text-accent-foreground"
+            >
+              <User class="size-4 shrink-0 text-primary" />
               {{ contract.residentFullName }}
-            </span>
+            </RouterLink>
             <RoomInfoTrigger :room-id="contract.currentRoom?.id ?? null" :room-name="contract.currentRoom?.room ?? '—'" />
             <span class="flex items-center gap-1.5">
-              <CalendarRange class="size-4 shrink-0 text-muted-foreground" />
+              <CalendarRange class="size-4 shrink-0 text-primary" />
               {{ formatDate(contract.startDate) }} — {{ formatDate(contract.actualEndDate ?? contract.endDate) }}
+            </span>
+            <span class="flex items-center gap-1.5 text-muted-foreground">
+              <History class="size-4 shrink-0" />
+              Создан {{ formatDate(contract.createdAt) }}
             </span>
           </div>
 
           <div class="grid grid-cols-4 gap-4 border-t pt-4">
-            <div>
-              <p class="text-xs text-muted-foreground">Общий баланс</p>
-              <p class="text-lg font-semibold" :class="totalBalance > 0 ? 'text-red-500' : 'text-green-600'">
-                {{ formatMoney(totalBalance) }}
-              </p>
+            <div class="flex items-center gap-3">
+              <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-500/15">
+                <Wallet class="size-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p class="text-xs text-muted-foreground">Общий баланс</p>
+                <p class="text-lg font-semibold" :class="totalBalance > 0 ? 'text-red-500' : 'text-green-600'">
+                  {{ formatMoney(totalBalance) }}
+                </p>
+              </div>
             </div>
-            <div>
-              <p class="text-xs text-muted-foreground">Стоимость комнаты</p>
-              <p class="text-lg font-medium">{{ formatMoney(rentAmount) }}</p>
+            <div class="flex items-center gap-3">
+              <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-500/15">
+                <Home class="size-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <p class="text-xs text-muted-foreground">Стоимость комнаты</p>
+                <p class="text-lg font-medium">{{ formatMoney(rentAmount) }}</p>
+              </div>
             </div>
-            <div>
-              <p class="text-xs text-muted-foreground">Коммунальные услуги</p>
-              <p class="text-lg font-medium">
-                {{ dormInfo?.communalServicesCost != null ? formatMoney(dormInfo.communalServicesCost) : '—' }}
-              </p>
+            <div class="flex items-center gap-3">
+              <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-500/15">
+                <Droplet class="size-5 text-orange-600 dark:text-orange-400" />
+              </div>
+              <div>
+                <p class="text-xs text-muted-foreground">Коммунальные услуги</p>
+                <p class="text-lg font-medium">
+                  {{ dormInfo?.communalServicesCost != null ? formatMoney(dormInfo.communalServicesCost) : '—' }}
+                </p>
+              </div>
             </div>
-            <div>
-              <p class="text-xs text-muted-foreground">Суточная ставка</p>
-              <p class="text-lg font-medium">{{ formatMoney(contract.terms[0]?.dailyRateAmount ?? 0) }}</p>
+            <div class="flex items-center gap-3">
+              <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-500/15">
+                <CalendarClock class="size-5 text-violet-600 dark:text-violet-400" />
+              </div>
+              <div>
+                <p class="text-xs text-muted-foreground">Суточная ставка</p>
+                <p class="text-lg font-medium">{{ formatMoney(contract.terms[0]?.dailyRateAmount ?? 0) }}</p>
+              </div>
             </div>
           </div>
 
@@ -315,7 +381,7 @@ async function confirmReversePayment() {
               class="flex w-fit items-center gap-1.5 rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground"
               @click="showParentInfo = !showParentInfo"
             >
-              <UserRound class="size-4 text-primary" />
+              <Users class="size-4 text-primary" />
               Информация о родителе
               <ChevronDown class="size-3.5 transition-transform" :class="showParentInfo ? 'rotate-180' : ''" />
             </button>
@@ -462,7 +528,7 @@ async function confirmReversePayment() {
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-2">
             <Label>Сумма</Label>
-            <Input v-model.number="paymentAmount" type="number" />
+            <Input v-model.number="paymentAmount" type="number" :class="NO_SPINNER_CLASS" @keydown="blockNonNumericKeys" />
           </div>
           <div class="flex flex-col gap-2">
             <Label>Дата</Label>

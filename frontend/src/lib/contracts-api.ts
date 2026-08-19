@@ -69,6 +69,7 @@ export interface ContractDetail {
   endDate: string
   actualEndDate: string | null
   status: ContractStatus
+  createdAt: string
   residentFullName: string
   residentIndividualUid: string
   currentRoom: { id: number; room: string } | null

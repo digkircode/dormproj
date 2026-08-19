@@ -69,6 +69,23 @@ watch(to, (value) => {
   toText.value = value ? formatDate(value) : ''
 })
 
+// Пишем в DOM синхронно, а не только через реактивный :value — иначе при быстром
+// вводе/автоповторе клавиши браузер успевает вставить следующий символ раньше, чем
+// долетит реактивный ререндер, и лишние цифры (например в годе) проскакивают мимо маски
+// (см. подробности в DatePickerField.vue).
+function onFromInput(event: Event) {
+  const input = event.target as HTMLInputElement
+  const masked = applyDateMask(input.value)
+  input.value = masked
+  fromText.value = masked
+}
+function onToInput(event: Event) {
+  const input = event.target as HTMLInputElement
+  const masked = applyDateMask(input.value)
+  input.value = masked
+  toText.value = masked
+}
+
 function commitFrom() {
   if (!fromText.value.trim()) {
     from.value = ''
@@ -127,7 +144,7 @@ const CELL_TRIGGER_CLASS = cn(
       :value="fromText"
       placeholder="дд.мм.гггг"
       :class="cn(INPUT_CLASS, invalid ? 'border-red-500' : '')"
-      @input="(e: Event) => (fromText = applyDateMask((e.target as HTMLInputElement).value))"
+      @input="onFromInput"
       @blur="commitFrom"
       @keydown.enter="commitFrom"
       @keydown="blockNonDigitKeys"
@@ -138,7 +155,7 @@ const CELL_TRIGGER_CLASS = cn(
         :value="toText"
         placeholder="дд.мм.гггг"
         :class="cn(INPUT_CLASS, 'pr-9', invalid ? 'border-red-500' : '')"
-        @input="(e: Event) => (toText = applyDateMask((e.target as HTMLInputElement).value))"
+        @input="onToInput"
         @blur="commitTo"
         @keydown.enter="commitTo"
         @keydown="blockNonDigitKeys"
