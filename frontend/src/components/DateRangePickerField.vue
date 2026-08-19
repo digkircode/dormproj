@@ -17,9 +17,13 @@ import {
   RangeCalendarRoot,
 } from 'reka-ui'
 import { Button, buttonVariants } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { applyDateMask, blockNonDigitKeys, cn } from '@/lib/utils'
+
+// Голый <input>, не обёртка Input.vue — см. подробное объяснение в DatePickerField.vue
+// (гонка между внутренним v-model обёртки и внешним @input-обработчиком маски).
+const INPUT_CLASS =
+  'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
 
 defineProps<{ placeholder?: string; invalid?: boolean }>()
 // Два ISO-поля (YYYY-MM-DD), как везде в проекте, а не Date/DateRange — компонент
@@ -112,24 +116,28 @@ const CELL_TRIGGER_CLASS = cn(
 
 <template>
   <!-- Ровно два столбца, как и у полей "Сумма"/"Отсрочка оплаты" под этим полем в
-       Contracts.vue — без отдельной колонки под "–" или кнопку календаря (иконка календаря
-       наложена абсолютно внутри правого поля, тем же приёмом, что в DatePickerField.vue),
-       иначе разбивка "от – до [📅]" не совпадает по ширине с 50/50 сеткой снизу. -->
-  <div class="grid grid-cols-2 gap-4">
-    <Input
-      :model-value="fromText"
-      placeholder="с дд.мм.гггг"
-      :class="invalid ? 'border-red-500' : ''"
+       Contracts.vue — без отдельной колонки под кнопку календаря (иконка наложена
+       абсолютно внутри правого поля, тем же приёмом, что в DatePickerField.vue), иначе
+       разбивка "от – до [📅]" не совпадает по ширине с 50/50 сеткой снизу. Тире между
+       полями — тоже абсолютно спозиционировано поверх зазора, а не отдельная колонка,
+       чтобы не портить это выравнивание; чуть увеличенный gap (5 вместо 4) освобождает
+       ему место, не наезжая на текст в полях. -->
+  <div class="relative grid grid-cols-2 gap-5">
+    <input
+      :value="fromText"
+      placeholder="дд.мм.гггг"
+      :class="cn(INPUT_CLASS, invalid ? 'border-red-500' : '')"
       @input="(e: Event) => (fromText = applyDateMask((e.target as HTMLInputElement).value))"
       @blur="commitFrom"
       @keydown.enter="commitFrom"
       @keydown="blockNonDigitKeys"
     />
+    <span class="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground">–</span>
     <div class="relative flex items-center">
-      <Input
-        :model-value="toText"
-        placeholder="по дд.мм.гггг"
-        :class="['pr-9', invalid ? 'border-red-500' : '']"
+      <input
+        :value="toText"
+        placeholder="дд.мм.гггг"
+        :class="cn(INPUT_CLASS, 'pr-9', invalid ? 'border-red-500' : '')"
         @input="(e: Event) => (toText = applyDateMask((e.target as HTMLInputElement).value))"
         @blur="commitTo"
         @keydown.enter="commitTo"

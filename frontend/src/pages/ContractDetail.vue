@@ -258,74 +258,78 @@ async function confirmReversePayment() {
 
     <template v-if="contract">
       <div class="flex flex-col gap-3">
-        <p class="flex items-center gap-1.5 text-sm font-medium">
-          <FileSignature class="size-4 text-primary" />
-          Информация о договоре
-        </p>
-        <Card class="flex flex-col gap-3 p-4">
-          <div class="flex items-start justify-between gap-4">
-            <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-              <span class="flex items-center gap-1.5">
-                <User class="size-4 shrink-0 text-muted-foreground" />
-                {{ contract.residentFullName }}
-              </span>
-              <RoomInfoTrigger :room-id="contract.currentRoom?.id ?? null" :room-name="contract.currentRoom?.room ?? '—'" />
-              <span class="flex items-center gap-1.5">
-                <CalendarRange class="size-4 shrink-0 text-muted-foreground" />
-                {{ formatDate(contract.startDate) }} — {{ formatDate(contract.actualEndDate ?? contract.endDate) }}
-              </span>
-            </div>
-            <Tooltip v-if="contract.status === 'ACTIVE'">
-              <TooltipTrigger as-child>
-                <Button variant="outline" size="icon" class="shrink-0" @click="openTerminate">
-                  <Ban class="text-red-500" />
-                  <span class="sr-only">Расторгнуть</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Расторгнуть</TooltipContent>
-            </Tooltip>
+        <div class="flex items-center justify-between gap-4">
+          <p class="flex items-center gap-1.5 text-sm font-medium">
+            <FileSignature class="size-4 text-primary" />
+            Информация о договоре
+          </p>
+          <Tooltip v-if="contract.status === 'ACTIVE'">
+            <TooltipTrigger as-child>
+              <Button variant="outline" size="icon" class="size-7 shrink-0" @click="openTerminate">
+                <Ban class="text-red-500" />
+                <span class="sr-only">Расторгнуть</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Расторгнуть</TooltipContent>
+          </Tooltip>
+        </div>
+        <Card class="flex flex-col gap-4 p-4">
+          <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+            <span class="flex items-center gap-1.5">
+              <User class="size-4 shrink-0 text-muted-foreground" />
+              {{ contract.residentFullName }}
+            </span>
+            <RoomInfoTrigger :room-id="contract.currentRoom?.id ?? null" :room-name="contract.currentRoom?.room ?? '—'" />
+            <span class="flex items-center gap-1.5">
+              <CalendarRange class="size-4 shrink-0 text-muted-foreground" />
+              {{ formatDate(contract.startDate) }} — {{ formatDate(contract.actualEndDate ?? contract.endDate) }}
+            </span>
           </div>
 
-          <button
-            type="button"
-            class="flex w-fit items-center gap-1.5 rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground"
-            @click="showParentInfo = !showParentInfo"
-          >
-            <UserRound class="size-4 text-primary" />
-            Информация о родителе
-            <ChevronDown class="size-3.5 transition-transform" :class="showParentInfo ? 'rotate-180' : ''" />
-          </button>
-          <!-- Плавное раскрытие через grid-template-rows 0fr→1fr вместо модалки — высота
-               содержимого заранее неизвестна, а этот приём анимирует её без замера в JS. -->
-          <div class="grid transition-[grid-template-rows] duration-200 ease-out" :class="showParentInfo ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'">
-            <div class="overflow-hidden">
-              <div class="flex flex-wrap gap-x-6 gap-y-1 pt-1 text-sm">
-                <span><span class="text-muted-foreground">ФИО:</span> {{ contract.legalRepName ?? '—' }}</span>
-                <span><span class="text-muted-foreground">Телефон:</span> {{ contract.legalRepPhone ?? '—' }}</span>
+          <div class="grid grid-cols-4 gap-4 border-t pt-4">
+            <div>
+              <p class="text-xs text-muted-foreground">Общий баланс</p>
+              <p class="text-lg font-semibold" :class="totalBalance > 0 ? 'text-red-500' : 'text-green-600'">
+                {{ formatMoney(totalBalance) }}
+              </p>
+            </div>
+            <div>
+              <p class="text-xs text-muted-foreground">Стоимость комнаты</p>
+              <p class="text-lg font-medium">{{ formatMoney(rentAmount) }}</p>
+            </div>
+            <div>
+              <p class="text-xs text-muted-foreground">Коммунальные услуги</p>
+              <p class="text-lg font-medium">
+                {{ dormInfo?.communalServicesCost != null ? formatMoney(dormInfo.communalServicesCost) : '—' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-xs text-muted-foreground">Суточная ставка</p>
+              <p class="text-lg font-medium">{{ formatMoney(contract.terms[0]?.dailyRateAmount ?? 0) }}</p>
+            </div>
+          </div>
+
+          <div class="border-t pt-4">
+            <button
+              type="button"
+              class="flex w-fit items-center gap-1.5 rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground"
+              @click="showParentInfo = !showParentInfo"
+            >
+              <UserRound class="size-4 text-primary" />
+              Информация о родителе
+              <ChevronDown class="size-3.5 transition-transform" :class="showParentInfo ? 'rotate-180' : ''" />
+            </button>
+            <!-- Плавное раскрытие через grid-template-rows 0fr→1fr вместо модалки — высота
+                 содержимого заранее неизвестна, а этот приём анимирует её без замера в JS. -->
+            <div class="grid transition-[grid-template-rows] duration-200 ease-out" :class="showParentInfo ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'">
+              <div class="overflow-hidden">
+                <div class="flex flex-wrap gap-x-6 gap-y-1 pt-1 text-sm">
+                  <span><span class="text-muted-foreground">ФИО:</span> {{ contract.legalRepName ?? '—' }}</span>
+                  <span><span class="text-muted-foreground">Телефон:</span> {{ contract.legalRepPhone ?? '—' }}</span>
+                </div>
               </div>
             </div>
           </div>
-        </Card>
-      </div>
-
-      <div class="grid grid-cols-4 gap-4">
-        <Card class="p-4">
-          <p class="text-sm text-muted-foreground">Общий баланс</p>
-          <p class="text-2xl font-semibold" :class="totalBalance > 0 ? 'text-red-500' : 'text-green-600'">
-            {{ formatMoney(totalBalance) }}
-          </p>
-        </Card>
-        <Card class="p-4">
-          <p class="text-sm text-muted-foreground">Стоимость комнаты</p>
-          <p class="text-lg">{{ formatMoney(rentAmount) }}</p>
-        </Card>
-        <Card class="p-4">
-          <p class="text-sm text-muted-foreground">Коммунальные услуги</p>
-          <p class="text-lg">{{ dormInfo?.communalServicesCost != null ? formatMoney(dormInfo.communalServicesCost) : '—' }}</p>
-        </Card>
-        <Card class="p-4">
-          <p class="text-sm text-muted-foreground">Суточная ставка</p>
-          <p class="text-lg">{{ formatMoney(contract.terms[0]?.dailyRateAmount ?? 0) }}</p>
         </Card>
       </div>
 

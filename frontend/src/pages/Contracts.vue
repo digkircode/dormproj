@@ -592,7 +592,7 @@ async function submitCreate() {
                           :invalid="matCapitalCoveredFromInvalid || matCapitalCoveredToInvalid"
                         />
                       </div>
-                      <div class="grid grid-cols-2 gap-4">
+                      <div class="grid grid-cols-2 gap-5">
                         <div class="flex flex-col gap-2">
                           <Label>Сумма, ₽</Label>
                           <Input

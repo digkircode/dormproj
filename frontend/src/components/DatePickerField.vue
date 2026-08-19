@@ -4,9 +4,15 @@ import { CalendarIcon } from 'lucide-vue-next'
 import { parseDate, type DateValue } from '@internationalized/date'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
-import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { applyDateMask, blockNonDigitKeys } from '@/lib/utils'
+import { applyDateMask, blockNonDigitKeys, cn } from '@/lib/utils'
+
+// Голый <input>, не обёртка Input.vue — у нашего @input-обработчика (applyDateMask)
+// и внутреннего v-model самой Input.vue происходит гонка за то, что реально показать в
+// DOM (тот же класс бага, что задокументирован в промпте проекта для type="number":
+// два независимых источника правды на одном элементе). Один явный источник — надёжно.
+const INPUT_CLASS =
+  'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
 
 defineProps<{ placeholder?: string; invalid?: boolean }>()
 // ISO-строка (YYYY-MM-DD), как везде в проекте — не Date, чтобы не тянуть за собой часовые пояса.
@@ -72,10 +78,10 @@ function onSelect(value: DateValue | undefined) {
 
 <template>
   <div class="relative flex items-center">
-    <Input
-      :model-value="text"
+    <input
+      :value="text"
       :placeholder="placeholder ?? 'дд.мм.гггг'"
-      :class="['pr-9', invalid ? 'border-red-500' : '']"
+      :class="cn(INPUT_CLASS, 'pr-9', invalid ? 'border-red-500' : '')"
       @input="onTextInput"
       @blur="commitText"
       @keydown.enter="commitText"
