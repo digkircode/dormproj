@@ -16,7 +16,7 @@ function formatDate(iso: string | null | undefined): string {
   <div v-if="passports.length" class="overflow-hidden rounded-lg border">
     <!-- table-fixed + явные ширины в % — иначе table-layout: auto пересчитывает
          ширину колонок по контенту, и она "прыгает" между вкладками (1 строка vs все). -->
-    <div class="max-h-[65vh] overflow-auto">
+    <div class="[&>div]:max-h-[65vh]">
       <Table class="table-fixed">
         <TableHeader class="sticky top-0 z-10 bg-muted">
           <TableRow>

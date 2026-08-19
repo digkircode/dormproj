@@ -421,7 +421,7 @@ async function confirmReversePayment() {
 
         <TabsContent value="accruals">
           <Card class="min-w-0 gap-0 overflow-hidden py-0">
-            <div class="max-h-[420px] overflow-auto">
+            <div class="[&>div]:max-h-[420px]">
               <Table>
                 <TableHeader class="sticky top-0 z-10 bg-muted">
                   <TableRow>
@@ -466,7 +466,7 @@ async function confirmReversePayment() {
         <TabsContent value="payments">
           <Card class="min-w-0 gap-0 overflow-hidden py-0">
             <p v-if="!contract.payments.length" class="p-6 text-sm text-muted-foreground">Платежей пока нет</p>
-            <div v-else class="max-h-[420px] overflow-auto">
+            <div v-else class="[&>div]:max-h-[420px]">
               <Table>
                 <TableHeader class="sticky top-0 z-10 bg-muted">
                   <TableRow>

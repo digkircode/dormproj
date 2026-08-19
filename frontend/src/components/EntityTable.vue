@@ -442,7 +442,7 @@ defineExpose({ refresh: loadPage })
 
     <Card class="min-w-0 gap-0 py-0">
       <div class="overflow-hidden rounded-lg border">
-        <div class="max-h-[65vh] overflow-auto transition-opacity" :class="{ 'opacity-60': isLoading }">
+        <div class="transition-opacity [&>div]:max-h-[65vh]" :class="{ 'opacity-60': isLoading }">
           <Table class="table-fixed" :style="columnSizeVars">
             <!-- table-layout: fixed по спецификации должен брать ширины колонок из первой
                  строки, но во время загрузки тело — один <td colspan> без индивидуальных

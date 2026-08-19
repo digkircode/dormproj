@@ -226,7 +226,7 @@ async function confirmDelete() {
       <div class="overflow-hidden rounded-lg border [transform:translateZ(0)]">
         <p v-if="isLoading" class="p-6 text-sm text-muted-foreground">Загрузка…</p>
         <p v-else-if="!definitions.length" class="p-6 text-sm text-muted-foreground">Характеристик пока нет</p>
-        <div v-else class="max-h-[65vh] overflow-auto">
+        <div v-else class="[&>div]:max-h-[65vh]">
         <Table class="table-fixed">
           <TableHeader class="sticky top-0 z-10 bg-muted">
             <TableRow>

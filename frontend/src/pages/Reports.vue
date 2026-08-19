@@ -68,7 +68,7 @@ function formatDate(value: string): string {
         <Card class="min-w-0 gap-0 py-0">
           <div class="overflow-hidden rounded-lg border">
             <p v-if="!debtors.length" class="p-6 text-sm text-muted-foreground">Должников нет</p>
-            <div v-else class="max-h-[65vh] overflow-auto">
+            <div v-else class="[&>div]:max-h-[65vh]">
               <Table>
                 <TableHeader class="sticky top-0 z-10 bg-muted">
                   <TableRow>
@@ -109,7 +109,7 @@ function formatDate(value: string): string {
         <Card class="min-w-0 gap-0 py-0">
           <div class="overflow-hidden rounded-lg border">
             <p v-if="!residents.length" class="p-6 text-sm text-muted-foreground">Никто не проживает</p>
-            <div v-else class="max-h-[65vh] overflow-auto">
+            <div v-else class="[&>div]:max-h-[65vh]">
               <Table>
                 <TableHeader class="sticky top-0 z-10 bg-muted">
                   <TableRow>
