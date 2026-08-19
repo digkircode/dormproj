@@ -37,11 +37,37 @@ export function blockNonDigitKeys(event: KeyboardEvent) {
   if (!/[0-9]/.test(event.key)) event.preventDefault()
 }
 
+const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+function isLeapYear(year: number): boolean {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0
+}
+
+// Пока год не введён — не режем 29 февраля заранее (год печатается последним в
+// дд.мм.гггг, но applyDateMask пересчитывает результат заново на каждый ввод, так что
+// как только год дописан, day.length===2 && month.length===2 условие ниже пересчитает
+// максимум уже с известным годом и обрежет 29 задним числом, если год не високосный).
+function daysInMonth(month: number, year?: number): number {
+  if (month === 2) return year === undefined || isLeapYear(year) ? 29 : 28
+  return DAYS_IN_MONTH[month - 1] ?? 31
+}
+
 export function applyDateMask(rawValue: string): string {
   const digits = rawValue.replace(/\D/g, '').slice(0, 8)
-  const day = digits.slice(0, 2)
-  const month = digits.slice(2, 4)
+  let day = digits.slice(0, 2)
+  let month = digits.slice(2, 4)
   const year = digits.slice(4, 8)
+
+  if (month.length === 2) {
+    if (Number(month) === 0) month = '01'
+    else if (Number(month) > 12) month = '12'
+  }
+  if (day.length === 2) {
+    const maxDay = month.length === 2 ? daysInMonth(Number(month), year.length === 4 ? Number(year) : undefined) : 31
+    if (Number(day) === 0) day = '01'
+    else if (Number(day) > maxDay) day = String(maxDay).padStart(2, '0')
+  }
+
   let result = day
   if (month) result += '.' + month
   if (year) result += '.' + year

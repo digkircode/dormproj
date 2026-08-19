@@ -111,34 +111,38 @@ const CELL_TRIGGER_CLASS = cn(
 </script>
 
 <template>
-  <div class="flex items-center gap-2">
+  <!-- Ровно два столбца, как и у полей "Сумма"/"Отсрочка оплаты" под этим полем в
+       Contracts.vue — без отдельной колонки под "–" или кнопку календаря (иконка календаря
+       наложена абсолютно внутри правого поля, тем же приёмом, что в DatePickerField.vue),
+       иначе разбивка "от – до [📅]" не совпадает по ширине с 50/50 сеткой снизу. -->
+  <div class="grid grid-cols-2 gap-4">
     <Input
       :model-value="fromText"
-      placeholder="дд.мм.гггг"
-      :class="['min-w-0', invalid ? 'border-red-500' : '']"
+      placeholder="с дд.мм.гггг"
+      :class="invalid ? 'border-red-500' : ''"
       @input="(e: Event) => (fromText = applyDateMask((e.target as HTMLInputElement).value))"
       @blur="commitFrom"
       @keydown.enter="commitFrom"
       @keydown="blockNonDigitKeys"
     />
-    <span class="shrink-0 text-muted-foreground">–</span>
-    <Input
-      :model-value="toText"
-      placeholder="дд.мм.гггг"
-      :class="['min-w-0', invalid ? 'border-red-500' : '']"
-      @input="(e: Event) => (toText = applyDateMask((e.target as HTMLInputElement).value))"
-      @blur="commitTo"
-      @keydown.enter="commitTo"
-      @keydown="blockNonDigitKeys"
-    />
-    <Popover :open="isOpen" @update:open="(v) => (isOpen = v)">
-      <PopoverTrigger as-child>
-        <Button type="button" variant="outline" size="icon" class="shrink-0">
-          <CalendarIcon class="size-4" :class="invalid ? 'text-red-500' : 'text-primary'" />
-          <span class="sr-only">Открыть календарь</span>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent class="w-auto p-0">
+    <div class="relative flex items-center">
+      <Input
+        :model-value="toText"
+        placeholder="по дд.мм.гггг"
+        :class="['pr-9', invalid ? 'border-red-500' : '']"
+        @input="(e: Event) => (toText = applyDateMask((e.target as HTMLInputElement).value))"
+        @blur="commitTo"
+        @keydown.enter="commitTo"
+        @keydown="blockNonDigitKeys"
+      />
+      <Popover :open="isOpen" @update:open="(v) => (isOpen = v)">
+        <PopoverTrigger as-child>
+          <Button type="button" variant="ghost" size="icon" class="absolute right-0 size-10 shrink-0 hover:bg-transparent">
+            <CalendarIcon class="size-4" :class="invalid ? 'text-red-500' : 'text-primary'" />
+            <span class="sr-only">Открыть календарь</span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent class="w-auto p-0">
         <RangeCalendarRoot
           v-slot="{ grid, weekDays }"
           class="p-3"
@@ -184,6 +188,7 @@ const CELL_TRIGGER_CLASS = cn(
           </div>
         </RangeCalendarRoot>
       </PopoverContent>
-    </Popover>
+      </Popover>
+    </div>
   </div>
 </template>

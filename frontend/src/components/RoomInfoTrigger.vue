@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import { DoorOpen } from 'lucide-vue-next'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { fetchRoomDetail, type RoomDetail } from '@/lib/rooms-api'
 
 const DIALOG_ANIMATE_CLASS =
@@ -52,15 +53,19 @@ watch(isOpen, async (open) => {
 </script>
 
 <template>
-  <button
-    v-if="roomId"
-    type="button"
-    class="-mx-1.5 -my-0.5 inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-accent hover:text-accent-foreground"
-    @click="isOpen = true"
-  >
-    <DoorOpen class="size-4 shrink-0 text-primary" />
-    {{ roomName ?? '—' }}
-  </button>
+  <Tooltip v-if="roomId">
+    <TooltipTrigger as-child>
+      <button
+        type="button"
+        class="-mx-1.5 -my-0.5 inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-accent hover:text-accent-foreground"
+        @click="isOpen = true"
+      >
+        <DoorOpen class="size-4 shrink-0 text-primary" />
+        {{ roomName ?? '—' }}
+      </button>
+    </TooltipTrigger>
+    <TooltipContent>Информация о комнате</TooltipContent>
+  </Tooltip>
   <span v-else>{{ roomName ?? '—' }}</span>
 
   <Dialog :open="isOpen" @update:open="(v) => (isOpen = v)">

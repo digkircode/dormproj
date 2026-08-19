@@ -1,11 +1,26 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpDown, Ban, Plus } from 'lucide-vue-next'
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowUp,
+  ArrowUpDown,
+  Ban,
+  CalendarRange,
+  ChevronDown,
+  FileSignature,
+  Plus,
+  Receipt,
+  User,
+  UserRound,
+  Wallet,
+} from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import ContractStatusPill from '@/components/ContractStatusPill.vue'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -21,6 +36,7 @@ import {
   type PaymentRow,
 } from '@/lib/contracts-api'
 import { createPayment, reversePayment } from '@/lib/billing-api'
+import { fetchDormitoryInfo, type DormitoryInfo } from '@/lib/dormitory-info-api'
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
@@ -57,11 +73,22 @@ async function load() {
 
 onMounted(load)
 
+// Коммунальные услуги — не сумма по договору (в rentAmount уже включены, отдельно от
+// начислений не хранятся, см. rentAmount ниже), а справочная общежитская величина —
+// просто показать текущую стоимость, ничего никуда не прибавляя.
+const dormInfo = ref<DormitoryInfo | null>(null)
+onMounted(async () => {
+  dormInfo.value = await fetchDormitoryInfo()
+})
+
 const totalBalance = computed(() => (contract.value ? contract.value.accruals.reduce((sum, a) => sum + a.balance, 0) : 0))
 // Коммунальные услуги в БД уже включены в стоимость комнаты (Room → характеристика
 // "Стоимость"), которая и попадает в rentAmount при создании договора — отдельно
 // прибавлять utilitiesAmount не нужно, это задвоило бы сумму.
 const rentAmount = computed(() => contract.value?.terms[0]?.rentAmount ?? 0)
+
+// Блок родителя на карточке договора — плавно раскрывается по клику, не модалка.
+const showParentInfo = ref(false)
 
 // --- Сортировка таблиц (локальная, без похода на бэкенд — строк на договор мало) ---
 // Ключ сортировки — string, не keyof T: колонок мало и они описаны прямо тут же в
@@ -230,22 +257,58 @@ async function confirmReversePayment() {
     <p v-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
 
     <template v-if="contract">
-      <div class="flex items-start justify-between">
-        <p class="flex items-center gap-1 text-sm text-muted-foreground">
-          {{ contract.residentFullName }} ·
-          <RoomInfoTrigger :room-id="contract.currentRoom?.id ?? null" :room-name="contract.currentRoom?.room ?? '—'" />
-          · {{ formatDate(contract.startDate) }} — {{ formatDate(contract.actualEndDate ?? contract.endDate) }}
+      <div class="flex flex-col gap-3">
+        <p class="flex items-center gap-1.5 text-sm font-medium">
+          <FileSignature class="size-4 text-primary" />
+          Информация о договоре
         </p>
-        <div class="flex gap-2">
-          <Button v-if="contract.status === 'ACTIVE'" variant="outline" @click="openTerminate">Расторгнуть</Button>
-          <Button @click="openPayment">
-            <Plus />
-            Внести платёж
-          </Button>
-        </div>
+        <Card class="flex flex-col gap-3 p-4">
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+              <span class="flex items-center gap-1.5">
+                <User class="size-4 shrink-0 text-muted-foreground" />
+                {{ contract.residentFullName }}
+              </span>
+              <RoomInfoTrigger :room-id="contract.currentRoom?.id ?? null" :room-name="contract.currentRoom?.room ?? '—'" />
+              <span class="flex items-center gap-1.5">
+                <CalendarRange class="size-4 shrink-0 text-muted-foreground" />
+                {{ formatDate(contract.startDate) }} — {{ formatDate(contract.actualEndDate ?? contract.endDate) }}
+              </span>
+            </div>
+            <Tooltip v-if="contract.status === 'ACTIVE'">
+              <TooltipTrigger as-child>
+                <Button variant="outline" size="icon" class="shrink-0" @click="openTerminate">
+                  <Ban class="text-red-500" />
+                  <span class="sr-only">Расторгнуть</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Расторгнуть</TooltipContent>
+            </Tooltip>
+          </div>
+
+          <button
+            type="button"
+            class="flex w-fit items-center gap-1.5 rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground"
+            @click="showParentInfo = !showParentInfo"
+          >
+            <UserRound class="size-4 text-primary" />
+            Информация о родителе
+            <ChevronDown class="size-3.5 transition-transform" :class="showParentInfo ? 'rotate-180' : ''" />
+          </button>
+          <!-- Плавное раскрытие через grid-template-rows 0fr→1fr вместо модалки — высота
+               содержимого заранее неизвестна, а этот приём анимирует её без замера в JS. -->
+          <div class="grid transition-[grid-template-rows] duration-200 ease-out" :class="showParentInfo ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'">
+            <div class="overflow-hidden">
+              <div class="flex flex-wrap gap-x-6 gap-y-1 pt-1 text-sm">
+                <span><span class="text-muted-foreground">ФИО:</span> {{ contract.legalRepName ?? '—' }}</span>
+                <span><span class="text-muted-foreground">Телефон:</span> {{ contract.legalRepPhone ?? '—' }}</span>
+              </div>
+            </div>
+          </div>
+        </Card>
       </div>
 
-      <div class="grid grid-cols-3 gap-4">
+      <div class="grid grid-cols-4 gap-4">
         <Card class="p-4">
           <p class="text-sm text-muted-foreground">Общий баланс</p>
           <p class="text-2xl font-semibold" :class="totalBalance > 0 ? 'text-red-500' : 'text-green-600'">
@@ -253,8 +316,12 @@ async function confirmReversePayment() {
           </p>
         </Card>
         <Card class="p-4">
-          <p class="text-sm text-muted-foreground">Найм, ₽/мес <span class="text-xs">(с учётом коммунальных услуг)</span></p>
+          <p class="text-sm text-muted-foreground">Стоимость комнаты</p>
           <p class="text-lg">{{ formatMoney(rentAmount) }}</p>
+        </Card>
+        <Card class="p-4">
+          <p class="text-sm text-muted-foreground">Коммунальные услуги</p>
+          <p class="text-lg">{{ dormInfo?.communalServicesCost != null ? formatMoney(dormInfo.communalServicesCost) : '—' }}</p>
         </Card>
         <Card class="p-4">
           <p class="text-sm text-muted-foreground">Суточная ставка</p>
@@ -262,9 +329,12 @@ async function confirmReversePayment() {
         </Card>
       </div>
 
-      <Card class="min-w-0 gap-0 py-0">
-        <div class="border-b p-3 text-sm font-medium">Начисления</div>
-        <div class="overflow-hidden rounded-b-lg">
+      <div class="flex flex-col gap-3">
+        <p class="flex items-center gap-1.5 text-sm font-medium">
+          <Receipt class="size-4 text-primary" />
+          Начисления
+        </p>
+        <Card class="min-w-0 gap-0 overflow-hidden py-0">
           <Table>
             <TableHeader class="bg-muted">
               <TableRow>
@@ -302,12 +372,26 @@ async function confirmReversePayment() {
               </TableRow>
             </TableBody>
           </Table>
-        </div>
-      </Card>
+        </Card>
+      </div>
 
-      <Card class="min-w-0 gap-0 py-0">
-        <div class="border-b p-3 text-sm font-medium">Платежи</div>
-        <div class="overflow-hidden rounded-b-lg">
+      <div class="flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <p class="flex items-center gap-1.5 text-sm font-medium">
+            <Wallet class="size-4 text-primary" />
+            Платежи
+          </p>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button size="icon" class="size-7" @click="openPayment">
+                <Plus />
+                <span class="sr-only">Внести платёж</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Внести платёж</TooltipContent>
+          </Tooltip>
+        </div>
+        <Card class="min-w-0 gap-0 overflow-hidden py-0">
           <p v-if="!contract.payments.length" class="p-6 text-sm text-muted-foreground">Платежей пока нет</p>
           <Table v-else>
             <TableHeader class="bg-muted">
@@ -345,8 +429,8 @@ async function confirmReversePayment() {
               </TableRow>
             </TableBody>
           </Table>
-        </div>
-      </Card>
+        </Card>
+      </div>
     </template>
 
     <Dialog :open="isTerminateOpen" @update:open="(open) => (isTerminateOpen = open)">

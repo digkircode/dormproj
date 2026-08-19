@@ -26,10 +26,11 @@ export const STATUS_ICON_CLASS: Record<ContractStatus, string> = {
   EXPIRED: 'fill-slate-400 text-white',
 }
 
-// Pill-стиль статуса — только обводка в цвет статуса, без заливки (по референсу, залитый
-// фон убрали), текст обычным цветом, иконка остаётся цветной.
+// Pill-стиль статуса — по референсу нейтральная тонкая обводка и приглушённый текст
+// одинаковые у всех статусов (не в цвет статуса — это была первая, неверная попытка),
+// статус читается по цветной иконке, а не по цвету рамки/текста.
 export const STATUS_PILL_CLASS: Record<ContractStatus, string> = {
-  ACTIVE: 'border border-emerald-300 bg-background text-foreground dark:border-emerald-500/40',
-  TERMINATED: 'border border-red-300 bg-background text-foreground dark:border-red-500/40',
-  EXPIRED: 'border border-slate-300 bg-background text-foreground dark:border-slate-500/40',
+  ACTIVE: 'border border-border bg-background text-muted-foreground',
+  TERMINATED: 'border border-border bg-background text-muted-foreground',
+  EXPIRED: 'border border-border bg-background text-muted-foreground',
 }
