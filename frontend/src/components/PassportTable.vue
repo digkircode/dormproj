@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { getScrollbarWidth } from '@/lib/utils'
 import type { IndividualPassport } from '@/lib/individuals-api'
 
 defineProps<{ passports: IndividualPassport[] }>()
+const scrollbarWidth = getScrollbarWidth()
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—'
@@ -19,6 +21,7 @@ function formatDate(iso: string | null | undefined): string {
 
 <template>
   <div v-if="passports.length" class="overflow-hidden rounded-lg border">
+    <div :style="{ paddingRight: `${scrollbarWidth}px` }">
     <table class="w-full table-fixed caption-bottom text-sm">
       <colgroup>
         <col class="w-[15%]" />
@@ -39,7 +42,8 @@ function formatDate(iso: string | null | undefined): string {
         </TableRow>
       </TableHeader>
     </table>
-    <div class="max-h-[65vh] overflow-auto">
+    </div>
+    <div class="max-h-[65vh] overflow-y-scroll overflow-x-hidden">
       <table class="w-full table-fixed caption-bottom text-sm">
         <colgroup>
           <col class="w-[15%]" />

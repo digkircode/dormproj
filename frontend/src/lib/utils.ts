@@ -5,6 +5,25 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+// Для таблиц с шапкой, вынесенной в отдельную нескроллящуюся <table> (чтобы скроллбар
+// тела не проходил по шапке — см. промпт проекта) — тело теряет полосу под нативный
+// скроллбар, а шапка нет, колонки двух независимых таблиц расходятся вправо. Меряем
+// реальную ширину скроллбара один раз (0 на macOS/мобильных с overlay-скроллбарами —
+// там резервировать нечего) и резервируем её под шапкой через padding-right.
+let scrollbarWidthCache: number | null = null
+export function getScrollbarWidth(): number {
+  if (scrollbarWidthCache !== null) return scrollbarWidthCache
+  const outer = document.createElement('div')
+  outer.style.cssText = 'visibility:hidden;overflow:scroll;position:absolute;top:-9999px;width:100px;height:100px'
+  const inner = document.createElement('div')
+  inner.style.width = '100%'
+  outer.appendChild(inner)
+  document.body.appendChild(outer)
+  scrollbarWidthCache = outer.offsetWidth - inner.offsetWidth
+  document.body.removeChild(outer)
+  return scrollbarWidthCache
+}
+
 // <input type="number"> нативно разрешает "e"/"E"/"+" (научная нотация вида 1e5) —
 // единственные буквы/символы, которые проходят в поле, где ожидается обычное число.
 // Визуально выглядит как "нажал букву — а она возьми и появись". Вешать на @keydown.

@@ -21,6 +21,9 @@ import {
 } from '@/lib/room-characteristic-definitions-api'
 import { DORMITORY_INFO_FIELDS } from '@/lib/dormitory-info-api'
 import type { CharacteristicValueType } from '@/lib/rooms-api'
+import { getScrollbarWidth } from '@/lib/utils'
+
+const scrollbarWidth = getScrollbarWidth()
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
@@ -228,8 +231,10 @@ async function confirmDelete() {
         <p v-else-if="!definitions.length" class="p-6 text-sm text-muted-foreground">Характеристик пока нет</p>
         <!-- Шапка вынесена в отдельную нескроллящуюся таблицу — иначе скроллбар тела
              тянется мимо неё же (см. промпт проекта). colgroup общий по позиции колонки,
-             держит одинаковые ширины в обеих таблицах. -->
-        <table v-else class="w-full table-fixed caption-bottom text-sm">
+             держит одинаковые ширины в обеих таблицах. padding-right на обёртке —
+             компенсация ширины скроллбара тела, иначе колонки расходятся. -->
+        <div v-else :style="{ paddingRight: `${scrollbarWidth}px` }">
+        <table class="w-full table-fixed caption-bottom text-sm">
           <colgroup>
             <col class="w-[38%]" />
             <col class="w-[20%]" />
@@ -245,7 +250,8 @@ async function confirmDelete() {
             </TableRow>
           </TableHeader>
         </table>
-        <div v-if="definitions.length" class="max-h-[65vh] overflow-auto">
+        </div>
+        <div v-if="definitions.length" class="max-h-[65vh] overflow-y-scroll overflow-x-hidden">
         <table class="w-full table-fixed caption-bottom text-sm">
           <colgroup>
             <col class="w-[38%]" />

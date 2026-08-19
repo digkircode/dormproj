@@ -41,9 +41,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import TruncatedCell from '@/components/TruncatedCell.vue'
 import { useAppTable, type AppFeatures } from '@/lib/table'
+import { getScrollbarWidth } from '@/lib/utils'
 import type { FacetOption, ListOptions, ListPage } from '@/lib/list-api'
 
 const SEARCH_DEBOUNCE_MS = 350
+const scrollbarWidth = getScrollbarWidth()
 
 const props = withDefaults(
   defineProps<{
@@ -447,7 +449,10 @@ defineExpose({ refresh: loadPage })
              высоту контейнера (проходит мимо шапки, просто визуально перекрываясь ей),
              а тут скроллится только контейнер тела ниже — скроллбар физически начинается
              под шапкой. Ширины колонок общие через --col-*-size (columnSizeVars), поэтому
-             колонки в обеих таблицах всегда совпадают, включая live-ресайз. -->
+             колонки в обеих таблицах всегда совпадают, включая live-ресайз. padding-right
+             на обёртке — компенсация ширины скроллбара тела (getScrollbarWidth), иначе
+             колонки шапки и тела расходятся на эту разницу. -->
+        <div :style="{ paddingRight: `${scrollbarWidth}px` }">
         <table class="w-full table-fixed caption-bottom text-sm" :style="columnSizeVars">
           <colgroup>
             <col v-for="header in table.getFlatHeaders()" :key="header.id" :style="{ width: `var(--col-${header.column.id}-size)` }" />
@@ -489,7 +494,8 @@ defineExpose({ refresh: loadPage })
             </TableRow>
           </TableHeader>
         </table>
-        <div class="min-h-0 flex-1 overflow-auto transition-opacity" :class="{ 'opacity-60': isLoading }">
+        </div>
+        <div class="min-h-0 flex-1 overflow-y-scroll overflow-x-hidden transition-opacity" :class="{ 'opacity-60': isLoading }">
           <table class="w-full table-fixed caption-bottom text-sm" :style="columnSizeVars">
             <!-- table-layout: fixed по спецификации должен брать ширины колонок из первой
                  строки, но во время загрузки тело — один <td colspan> без индивидуальных

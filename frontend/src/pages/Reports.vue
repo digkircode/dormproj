@@ -6,8 +6,10 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { fetchDebtors, fetchCurrentResidents, type DebtorRow, type CurrentResidentRow, type AgingBucket } from '@/lib/reports-api'
+import { getScrollbarWidth } from '@/lib/utils'
 
 const router = useRouter()
+const scrollbarWidth = getScrollbarWidth()
 
 const AGING_LABELS: Record<AgingBucket, string> = {
   CURRENT: 'В срок',
@@ -69,6 +71,7 @@ function formatDate(value: string): string {
           <div class="overflow-hidden rounded-lg border">
             <p v-if="!debtors.length" class="p-6 text-sm text-muted-foreground">Должников нет</p>
             <template v-else>
+              <div :style="{ paddingRight: `${scrollbarWidth}px` }">
               <table class="w-full table-fixed caption-bottom text-sm">
                 <colgroup>
                   <col class="w-[12%]" /><col class="w-[24%]" /><col class="w-[12%]" />
@@ -86,7 +89,8 @@ function formatDate(value: string): string {
                   </TableRow>
                 </TableHeader>
               </table>
-              <div class="max-h-[65vh] overflow-auto">
+              </div>
+              <div class="max-h-[65vh] overflow-y-scroll overflow-x-hidden">
                 <table class="w-full table-fixed caption-bottom text-sm">
                   <colgroup>
                     <col class="w-[12%]" /><col class="w-[24%]" /><col class="w-[12%]" />
@@ -122,6 +126,7 @@ function formatDate(value: string): string {
           <div class="overflow-hidden rounded-lg border">
             <p v-if="!residents.length" class="p-6 text-sm text-muted-foreground">Никто не проживает</p>
             <template v-else>
+              <div :style="{ paddingRight: `${scrollbarWidth}px` }">
               <table class="w-full table-fixed caption-bottom text-sm">
                 <colgroup>
                   <col class="w-[18%]" /><col class="w-[40%]" /><col class="w-[20%]" /><col class="w-[22%]" />
@@ -135,7 +140,8 @@ function formatDate(value: string): string {
                   </TableRow>
                 </TableHeader>
               </table>
-              <div class="max-h-[65vh] overflow-auto">
+              </div>
+              <div class="max-h-[65vh] overflow-y-scroll overflow-x-hidden">
                 <table class="w-full table-fixed caption-bottom text-sm">
                   <colgroup>
                     <col class="w-[18%]" /><col class="w-[40%]" /><col class="w-[20%]" /><col class="w-[22%]" />

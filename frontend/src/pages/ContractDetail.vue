@@ -45,9 +45,10 @@ import {
 } from '@/lib/contracts-api'
 import { createPayment, reversePayment } from '@/lib/billing-api'
 import { fetchDormitoryInfo, type DormitoryInfo } from '@/lib/dormitory-info-api'
-import { blockNonNumericKeys, goBack } from '@/lib/utils'
+import { blockNonNumericKeys, getScrollbarWidth, goBack } from '@/lib/utils'
 import { breadcrumbOverride } from '@/lib/breadcrumb-state'
 
+const scrollbarWidth = getScrollbarWidth()
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
 // Вертикальные разделители колонок — тот же приём, что и в общей таблице (EntityTable.vue),
@@ -421,6 +422,7 @@ async function confirmReversePayment() {
 
         <TabsContent value="accruals">
           <Card class="min-w-0 gap-0 overflow-hidden py-0">
+            <div :style="{ paddingRight: `${scrollbarWidth}px` }">
             <table class="w-full table-fixed caption-bottom text-sm">
               <colgroup>
                 <col v-for="col in ACCRUAL_COLUMNS" :key="col.id" :style="{ width: col.width }" />
@@ -448,7 +450,8 @@ async function confirmReversePayment() {
                 </TableRow>
               </TableHeader>
             </table>
-            <div class="max-h-[420px] overflow-auto">
+            </div>
+            <div class="max-h-[420px] overflow-y-scroll overflow-x-hidden">
               <table class="w-full table-fixed caption-bottom text-sm">
                 <colgroup>
                   <col v-for="col in ACCRUAL_COLUMNS" :key="col.id" :style="{ width: col.width }" />
@@ -475,6 +478,7 @@ async function confirmReversePayment() {
           <Card class="min-w-0 gap-0 overflow-hidden py-0">
             <p v-if="!contract.payments.length" class="p-6 text-sm text-muted-foreground">Платежей пока нет</p>
             <template v-else>
+              <div :style="{ paddingRight: `${scrollbarWidth}px` }">
               <table class="w-full table-fixed caption-bottom text-sm">
                 <colgroup>
                   <col v-for="col in PAYMENT_COLUMNS" :key="col.id" :style="{ width: col.width }" />
@@ -500,7 +504,8 @@ async function confirmReversePayment() {
                   </TableRow>
                 </TableHeader>
               </table>
-              <div class="max-h-[420px] overflow-auto">
+              </div>
+              <div class="max-h-[420px] overflow-y-scroll overflow-x-hidden">
                 <table class="w-full table-fixed caption-bottom text-sm">
                   <colgroup>
                     <col v-for="col in PAYMENT_COLUMNS" :key="col.id" :style="{ width: col.width }" />
