@@ -38,14 +38,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import TruncatedCell from '@/components/TruncatedCell.vue'
 import { useAppTable, type AppFeatures } from '@/lib/table'
-import { getScrollbarWidth } from '@/lib/utils'
 import type { FacetOption, ListOptions, ListPage } from '@/lib/list-api'
 
 const SEARCH_DEBOUNCE_MS = 350
-const scrollbarWidth = getScrollbarWidth()
 
 const props = withDefaults(
   defineProps<{
@@ -326,7 +324,7 @@ defineExpose({ refresh: loadPage })
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-1 flex-col gap-4">
+  <div class="flex flex-1 flex-col gap-4">
     <p v-if="errorText" class="text-sm text-red-500">{{ errorText }}</p>
 
     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -442,61 +440,10 @@ defineExpose({ refresh: loadPage })
       </DialogScrollContent>
     </Dialog>
 
-    <Card class="flex min-h-0 min-w-0 flex-1 flex-col gap-0 py-0">
-      <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
-        <!-- Шапка — отдельная от тела таблица, не участвующая в скролле, а не sticky
-             внутри общего скролл-контейнера: у sticky скроллбар всё равно тянется на всю
-             высоту контейнера (проходит мимо шапки, просто визуально перекрываясь ей),
-             а тут скроллится только контейнер тела ниже — скроллбар физически начинается
-             под шапкой. Ширины колонок общие через --col-*-size (columnSizeVars), поэтому
-             колонки в обеих таблицах всегда совпадают, включая live-ресайз. padding-right
-             на обёртке — компенсация ширины скроллбара тела (getScrollbarWidth), иначе
-             колонки шапки и тела расходятся на эту разницу. -->
-        <div :style="{ paddingRight: `${scrollbarWidth}px` }">
-        <table class="w-full table-fixed caption-bottom text-sm" :style="columnSizeVars">
-          <colgroup>
-            <col v-for="header in table.getFlatHeaders()" :key="header.id" :style="{ width: `var(--col-${header.column.id}-size)` }" />
-            <col v-if="rowAction" :style="{ width: 'var(--col-row-action-size)' }" />
-          </colgroup>
-          <TableHeader class="bg-muted">
-            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-              <TableHead
-                v-for="header in headerGroup.headers"
-                :key="header.id"
-                :colspan="header.colSpan"
-                class="relative select-none border-r border-border last:border-r-0"
-                :style="{ width: `var(--col-${header.column.id}-size)` }"
-              >
-                <button
-                  v-if="!header.isPlaceholder"
-                  type="button"
-                  class="flex w-full min-w-0 items-center gap-1.5 hover:text-foreground/80"
-                  @click="header.column.toggleSorting(header.column.getIsSorted() === 'asc')"
-                >
-                  <span class="truncate"><FlexRender :header="header" /></span>
-                  <ArrowUp v-if="header.column.getIsSorted() === 'asc'" class="size-3.5 shrink-0" />
-                  <ArrowDown v-else-if="header.column.getIsSorted() === 'desc'" class="size-3.5 shrink-0" />
-                  <ArrowUpDown v-else class="size-3.5 shrink-0 text-muted-foreground/50" />
-                </button>
-                <div
-                  v-if="header.column.getCanResize()"
-                  class="group absolute -right-1.5 top-0 z-10 h-full w-3 cursor-col-resize touch-none select-none"
-                  @mousedown="header.getResizeHandler()($event)"
-                  @touchstart="header.getResizeHandler()($event)"
-                >
-                  <div
-                    class="mx-auto h-full w-0.5 bg-transparent transition-colors group-hover:bg-primary"
-                    :class="{ 'bg-primary': header.column.getIsResizing() }"
-                  />
-                </div>
-              </TableHead>
-              <TableHead v-if="rowAction" :style="{ width: 'var(--col-row-action-size)' }" />
-            </TableRow>
-          </TableHeader>
-        </table>
-        </div>
-        <div class="min-h-0 flex-1 overflow-y-scroll overflow-x-hidden transition-opacity" :class="{ 'opacity-60': isLoading }">
-          <table class="w-full table-fixed caption-bottom text-sm" :style="columnSizeVars">
+    <Card class="min-w-0 gap-0 py-0">
+      <div class="overflow-hidden rounded-lg border">
+        <div class="transition-opacity [&>div]:max-h-[65vh]" :class="{ 'opacity-60': isLoading }">
+          <Table class="table-fixed" :style="columnSizeVars">
             <!-- table-layout: fixed по спецификации должен брать ширины колонок из первой
                  строки, но во время загрузки тело — один <td colspan> без индивидуальных
                  ширин, и часть браузеров в этот момент пересчитывает ширины иначе, чем когда
@@ -506,6 +453,41 @@ defineExpose({ refresh: loadPage })
               <col v-for="header in table.getFlatHeaders()" :key="header.id" :style="{ width: `var(--col-${header.column.id}-size)` }" />
               <col v-if="rowAction" :style="{ width: 'var(--col-row-action-size)' }" />
             </colgroup>
+            <TableHeader class="bg-muted sticky top-0 z-10">
+              <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+                <TableHead
+                  v-for="header in headerGroup.headers"
+                  :key="header.id"
+                  :colspan="header.colSpan"
+                  class="relative select-none border-r border-border last:border-r-0"
+                  :style="{ width: `var(--col-${header.column.id}-size)` }"
+                >
+                  <button
+                    v-if="!header.isPlaceholder"
+                    type="button"
+                    class="flex w-full min-w-0 items-center gap-1.5 hover:text-foreground/80"
+                    @click="header.column.toggleSorting(header.column.getIsSorted() === 'asc')"
+                  >
+                    <span class="truncate"><FlexRender :header="header" /></span>
+                    <ArrowUp v-if="header.column.getIsSorted() === 'asc'" class="size-3.5 shrink-0" />
+                    <ArrowDown v-else-if="header.column.getIsSorted() === 'desc'" class="size-3.5 shrink-0" />
+                    <ArrowUpDown v-else class="size-3.5 shrink-0 text-muted-foreground/50" />
+                  </button>
+                  <div
+                    v-if="header.column.getCanResize()"
+                    class="group absolute -right-1.5 top-0 z-10 h-full w-3 cursor-col-resize touch-none select-none"
+                    @mousedown="header.getResizeHandler()($event)"
+                    @touchstart="header.getResizeHandler()($event)"
+                  >
+                    <div
+                      class="mx-auto h-full w-0.5 bg-transparent transition-colors group-hover:bg-primary"
+                      :class="{ 'bg-primary': header.column.getIsResizing() }"
+                    />
+                  </div>
+                </TableHead>
+                <TableHead v-if="rowAction" :style="{ width: 'var(--col-row-action-size)' }" />
+              </TableRow>
+            </TableHeader>
             <TableBody>
               <template v-if="table.getRowModel().rows.length">
                 <TableRow v-for="row in table.getRowModel().rows" :key="row.id">
@@ -548,7 +530,7 @@ defineExpose({ refresh: loadPage })
                 </TableCell>
               </TableRow>
             </TableBody>
-          </table>
+          </Table>
         </div>
       </div>
     </Card>

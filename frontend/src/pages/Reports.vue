@@ -4,12 +4,10 @@ import { useRouter } from 'vue-router'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { fetchDebtors, fetchCurrentResidents, type DebtorRow, type CurrentResidentRow, type AgingBucket } from '@/lib/reports-api'
-import { getScrollbarWidth } from '@/lib/utils'
 
 const router = useRouter()
-const scrollbarWidth = getScrollbarWidth()
 
 const AGING_LABELS: Record<AgingBucket, string> = {
   CURRENT: 'В срок',
@@ -70,14 +68,9 @@ function formatDate(value: string): string {
         <Card class="min-w-0 gap-0 py-0">
           <div class="overflow-hidden rounded-lg border">
             <p v-if="!debtors.length" class="p-6 text-sm text-muted-foreground">Должников нет</p>
-            <template v-else>
-              <div :style="{ paddingRight: `${scrollbarWidth}px` }">
-              <table class="w-full table-fixed caption-bottom text-sm">
-                <colgroup>
-                  <col class="w-[12%]" /><col class="w-[24%]" /><col class="w-[12%]" />
-                  <col class="w-[14%]" /><col class="w-[12%]" /><col class="w-[14%]" /><col class="w-[12%]" />
-                </colgroup>
-                <TableHeader class="bg-muted">
+            <div v-else class="[&>div]:max-h-[65vh]">
+              <Table>
+                <TableHeader class="sticky top-0 z-10 bg-muted">
                   <TableRow>
                     <TableHead>№ договора</TableHead>
                     <TableHead>Проживающий</TableHead>
@@ -88,35 +81,26 @@ function formatDate(value: string): string {
                     <TableHead>Просрочка</TableHead>
                   </TableRow>
                 </TableHeader>
-              </table>
-              </div>
-              <div class="max-h-[65vh] overflow-y-scroll overflow-x-hidden">
-                <table class="w-full table-fixed caption-bottom text-sm">
-                  <colgroup>
-                    <col class="w-[12%]" /><col class="w-[24%]" /><col class="w-[12%]" />
-                    <col class="w-[14%]" /><col class="w-[12%]" /><col class="w-[14%]" /><col class="w-[12%]" />
-                  </colgroup>
-                  <TableBody>
-                    <TableRow
-                      v-for="d in debtors"
-                      :key="d.contractId"
-                      class="cursor-pointer"
-                      @click="router.push({ name: 'contract-detail', params: { id: d.contractId } })"
-                    >
-                      <TableCell>{{ d.contractNumber }}</TableCell>
-                      <TableCell>{{ d.residentFullName }}</TableCell>
-                      <TableCell>{{ d.room ?? '—' }}</TableCell>
-                      <TableCell>{{ formatMoney(d.principalBalance) }}</TableCell>
-                      <TableCell>{{ formatMoney(d.penaltyBalance) }}</TableCell>
-                      <TableCell class="font-medium">{{ formatMoney(d.totalBalance) }}</TableCell>
-                      <TableCell>
-                        <Badge :variant="AGING_VARIANTS[d.agingBucket]">{{ AGING_LABELS[d.agingBucket] }}</Badge>
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </table>
-              </div>
-            </template>
+                <TableBody>
+                  <TableRow
+                    v-for="d in debtors"
+                    :key="d.contractId"
+                    class="cursor-pointer"
+                    @click="router.push({ name: 'contract-detail', params: { id: d.contractId } })"
+                  >
+                    <TableCell>{{ d.contractNumber }}</TableCell>
+                    <TableCell>{{ d.residentFullName }}</TableCell>
+                    <TableCell>{{ d.room ?? '—' }}</TableCell>
+                    <TableCell>{{ formatMoney(d.principalBalance) }}</TableCell>
+                    <TableCell>{{ formatMoney(d.penaltyBalance) }}</TableCell>
+                    <TableCell class="font-medium">{{ formatMoney(d.totalBalance) }}</TableCell>
+                    <TableCell>
+                      <Badge :variant="AGING_VARIANTS[d.agingBucket]">{{ AGING_LABELS[d.agingBucket] }}</Badge>
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
           </div>
         </Card>
       </TabsContent>
@@ -125,13 +109,9 @@ function formatDate(value: string): string {
         <Card class="min-w-0 gap-0 py-0">
           <div class="overflow-hidden rounded-lg border">
             <p v-if="!residents.length" class="p-6 text-sm text-muted-foreground">Никто не проживает</p>
-            <template v-else>
-              <div :style="{ paddingRight: `${scrollbarWidth}px` }">
-              <table class="w-full table-fixed caption-bottom text-sm">
-                <colgroup>
-                  <col class="w-[18%]" /><col class="w-[40%]" /><col class="w-[20%]" /><col class="w-[22%]" />
-                </colgroup>
-                <TableHeader class="bg-muted">
+            <div v-else class="[&>div]:max-h-[65vh]">
+              <Table>
+                <TableHeader class="sticky top-0 z-10 bg-muted">
                   <TableRow>
                     <TableHead>№ договора</TableHead>
                     <TableHead>Проживающий</TableHead>
@@ -139,29 +119,21 @@ function formatDate(value: string): string {
                     <TableHead>Заселён с</TableHead>
                   </TableRow>
                 </TableHeader>
-              </table>
-              </div>
-              <div class="max-h-[65vh] overflow-y-scroll overflow-x-hidden">
-                <table class="w-full table-fixed caption-bottom text-sm">
-                  <colgroup>
-                    <col class="w-[18%]" /><col class="w-[40%]" /><col class="w-[20%]" /><col class="w-[22%]" />
-                  </colgroup>
-                  <TableBody>
-                    <TableRow
-                      v-for="r in residents"
-                      :key="r.contractId"
-                      class="cursor-pointer"
-                      @click="router.push({ name: 'contract-detail', params: { id: r.contractId } })"
-                    >
-                      <TableCell>{{ r.contractNumber }}</TableCell>
-                      <TableCell>{{ r.residentFullName }}</TableCell>
-                      <TableCell>{{ r.room }}</TableCell>
-                      <TableCell>{{ formatDate(r.fromDate) }}</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </table>
-              </div>
-            </template>
+                <TableBody>
+                  <TableRow
+                    v-for="r in residents"
+                    :key="r.contractId"
+                    class="cursor-pointer"
+                    @click="router.push({ name: 'contract-detail', params: { id: r.contractId } })"
+                  >
+                    <TableCell>{{ r.contractNumber }}</TableCell>
+                    <TableCell>{{ r.residentFullName }}</TableCell>
+                    <TableCell>{{ r.room }}</TableCell>
+                    <TableCell>{{ formatDate(r.fromDate) }}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
           </div>
         </Card>
       </TabsContent>

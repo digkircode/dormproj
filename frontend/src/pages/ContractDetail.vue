@@ -29,7 +29,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import ContractStatusPill from '@/components/ContractStatusPill.vue'
-import { TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Dialog, DialogScrollContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -45,10 +45,9 @@ import {
 } from '@/lib/contracts-api'
 import { createPayment, reversePayment } from '@/lib/billing-api'
 import { fetchDormitoryInfo, type DormitoryInfo } from '@/lib/dormitory-info-api'
-import { blockNonNumericKeys, getScrollbarWidth, goBack } from '@/lib/utils'
+import { blockNonNumericKeys, goBack } from '@/lib/utils'
 import { breadcrumbOverride } from '@/lib/breadcrumb-state'
 
-const scrollbarWidth = getScrollbarWidth()
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
 // Вертикальные разделители колонок — тот же приём, что и в общей таблице (EntityTable.vue),
@@ -136,25 +135,25 @@ function sortIcon(sort: { id: string; desc: boolean }, id: string) {
   return sort.desc ? ArrowDown : ArrowUp
 }
 
-const ACCRUAL_COLUMNS: { id: keyof AccrualRow; label: string; width: string }[] = [
-  { id: 'periodStart', label: 'Период', width: '22%' },
-  { id: 'dueDate', label: 'Срок оплаты', width: '14%' },
-  { id: 'rentAmount', label: 'Найм', width: '12%' },
-  { id: 'penaltyAmount', label: 'Пеня', width: '12%' },
-  { id: 'adjustmentAmount', label: 'Корректировка', width: '14%' },
-  { id: 'paid', label: 'Оплачено', width: '13%' },
-  { id: 'balance', label: 'Остаток', width: '13%' },
+const ACCRUAL_COLUMNS: { id: keyof AccrualRow; label: string }[] = [
+  { id: 'periodStart', label: 'Период' },
+  { id: 'dueDate', label: 'Срок оплаты' },
+  { id: 'rentAmount', label: 'Найм' },
+  { id: 'penaltyAmount', label: 'Пеня' },
+  { id: 'adjustmentAmount', label: 'Корректировка' },
+  { id: 'paid', label: 'Оплачено' },
+  { id: 'balance', label: 'Остаток' },
 ]
 const { sort: accrualSort, sorted: sortedAccruals, toggle: toggleAccrualSort } = useLocalSort(
   () => contract.value?.accruals ?? [],
   'periodStart' satisfies keyof AccrualRow,
 )
 
-const PAYMENT_COLUMNS: { id: keyof PaymentRow; label: string; width: string }[] = [
-  { id: 'paidAt', label: 'Дата', width: '16%' },
-  { id: 'amount', label: 'Сумма', width: '14%' },
-  { id: 'method', label: 'Способ', width: '20%' },
-  { id: 'rawComment', label: 'Комментарий', width: '38%' },
+const PAYMENT_COLUMNS: { id: keyof PaymentRow; label: string }[] = [
+  { id: 'paidAt', label: 'Дата' },
+  { id: 'amount', label: 'Сумма' },
+  { id: 'method', label: 'Способ' },
+  { id: 'rawComment', label: 'Комментарий' },
 ]
 const { sort: paymentSort, sorted: sortedPayments, toggle: togglePaymentSort } = useLocalSort(
   () => contract.value?.payments ?? [],
@@ -422,40 +421,30 @@ async function confirmReversePayment() {
 
         <TabsContent value="accruals">
           <Card class="min-w-0 gap-0 overflow-hidden py-0">
-            <div :style="{ paddingRight: `${scrollbarWidth}px` }">
-            <table class="w-full table-fixed caption-bottom text-sm">
-              <colgroup>
-                <col v-for="col in ACCRUAL_COLUMNS" :key="col.id" :style="{ width: col.width }" />
-              </colgroup>
-              <TableHeader class="bg-muted">
-                <TableRow>
-                  <TableHead
-                    v-for="(col, i) in ACCRUAL_COLUMNS"
-                    :key="col.id"
-                    :class="i < ACCRUAL_COLUMNS.length - 1 ? CELL_BORDER_CLASS : ''"
-                  >
-                    <button
-                      type="button"
-                      class="flex w-full items-center gap-1.5 hover:text-foreground/80"
-                      @click="toggleAccrualSort(col.id)"
+            <div class="[&>div]:max-h-[420px]">
+              <Table>
+                <TableHeader class="sticky top-0 z-10 bg-muted">
+                  <TableRow>
+                    <TableHead
+                      v-for="(col, i) in ACCRUAL_COLUMNS"
+                      :key="col.id"
+                      :class="i < ACCRUAL_COLUMNS.length - 1 ? CELL_BORDER_CLASS : ''"
                     >
-                      {{ col.label }}
-                      <component
-                        :is="sortIcon(accrualSort, col.id)"
-                        class="size-3.5 shrink-0"
-                        :class="accrualSort.id === col.id ? '' : 'text-muted-foreground/50'"
-                      />
-                    </button>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-            </table>
-            </div>
-            <div class="max-h-[420px] overflow-y-scroll overflow-x-hidden">
-              <table class="w-full table-fixed caption-bottom text-sm">
-                <colgroup>
-                  <col v-for="col in ACCRUAL_COLUMNS" :key="col.id" :style="{ width: col.width }" />
-                </colgroup>
+                      <button
+                        type="button"
+                        class="flex w-full items-center gap-1.5 hover:text-foreground/80"
+                        @click="toggleAccrualSort(col.id)"
+                      >
+                        {{ col.label }}
+                        <component
+                          :is="sortIcon(accrualSort, col.id)"
+                          class="size-3.5 shrink-0"
+                          :class="accrualSort.id === col.id ? '' : 'text-muted-foreground/50'"
+                        />
+                      </button>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
                   <TableRow v-for="a in sortedAccruals" :key="a.id" :class="a.voidedAt ? 'opacity-40' : ''">
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.periodStart) }} — {{ formatDate(a.periodEnd) }}</TableCell>
@@ -469,7 +458,7 @@ async function confirmReversePayment() {
                     </TableCell>
                   </TableRow>
                 </TableBody>
-              </table>
+              </Table>
             </div>
           </Card>
         </TabsContent>
@@ -477,14 +466,9 @@ async function confirmReversePayment() {
         <TabsContent value="payments">
           <Card class="min-w-0 gap-0 overflow-hidden py-0">
             <p v-if="!contract.payments.length" class="p-6 text-sm text-muted-foreground">Платежей пока нет</p>
-            <template v-else>
-              <div :style="{ paddingRight: `${scrollbarWidth}px` }">
-              <table class="w-full table-fixed caption-bottom text-sm">
-                <colgroup>
-                  <col v-for="col in PAYMENT_COLUMNS" :key="col.id" :style="{ width: col.width }" />
-                  <col style="width: 12%" />
-                </colgroup>
-                <TableHeader class="bg-muted">
+            <div v-else class="[&>div]:max-h-[420px]">
+              <Table>
+                <TableHeader class="sticky top-0 z-10 bg-muted">
                   <TableRow>
                     <TableHead v-for="col in PAYMENT_COLUMNS" :key="col.id" :class="CELL_BORDER_CLASS">
                       <button
@@ -503,32 +487,23 @@ async function confirmReversePayment() {
                     <TableHead />
                   </TableRow>
                 </TableHeader>
-              </table>
-              </div>
-              <div class="max-h-[420px] overflow-y-scroll overflow-x-hidden">
-                <table class="w-full table-fixed caption-bottom text-sm">
-                  <colgroup>
-                    <col v-for="col in PAYMENT_COLUMNS" :key="col.id" :style="{ width: col.width }" />
-                    <col style="width: 12%" />
-                  </colgroup>
-                  <TableBody>
-                    <TableRow v-for="p in sortedPayments" :key="p.id" :class="p.reversedAt ? 'opacity-40' : ''">
-                      <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(p.paidAt) }}</TableCell>
-                      <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(p.amount) }}</TableCell>
-                      <TableCell :class="CELL_BORDER_CLASS">{{ METHOD_LABELS[p.method] ?? p.method }}</TableCell>
-                      <TableCell :class="CELL_BORDER_CLASS">{{ p.rawComment ?? '—' }}</TableCell>
-                      <TableCell class="text-right">
-                        <span v-if="p.reversedAt" class="text-xs text-muted-foreground">сторнирован</span>
-                        <Button v-else variant="ghost" size="icon" class="size-7" @click="openReverseConfirm(p)">
-                          <Ban class="text-red-500" />
-                          <span class="sr-only">Сторнировать</span>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </table>
-              </div>
-            </template>
+                <TableBody>
+                  <TableRow v-for="p in sortedPayments" :key="p.id" :class="p.reversedAt ? 'opacity-40' : ''">
+                    <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(p.paidAt) }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(p.amount) }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ METHOD_LABELS[p.method] ?? p.method }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ p.rawComment ?? '—' }}</TableCell>
+                    <TableCell class="text-right">
+                      <span v-if="p.reversedAt" class="text-xs text-muted-foreground">сторнирован</span>
+                      <Button v-else variant="ghost" size="icon" class="size-7" @click="openReverseConfirm(p)">
+                        <Ban class="text-red-500" />
+                        <span class="sr-only">Сторнировать</span>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
           </Card>
         </TabsContent>
       </Tabs>

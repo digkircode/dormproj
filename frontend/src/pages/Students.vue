@@ -60,7 +60,7 @@ const columns = columnHelper.columns([
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-1 flex-col p-4 md:p-6">
+  <div class="flex flex-1 flex-col p-4 md:p-6">
     <EntityTable
       :columns="columns"
       :column-labels="columnLabels"

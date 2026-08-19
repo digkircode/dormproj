@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { TableHeader, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { Table, TableHeader, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogScrollContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -21,9 +21,6 @@ import {
 } from '@/lib/room-characteristic-definitions-api'
 import { DORMITORY_INFO_FIELDS } from '@/lib/dormitory-info-api'
 import type { CharacteristicValueType } from '@/lib/rooms-api'
-import { getScrollbarWidth } from '@/lib/utils'
-
-const scrollbarWidth = getScrollbarWidth()
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
@@ -229,36 +226,16 @@ async function confirmDelete() {
       <div class="overflow-hidden rounded-lg border [transform:translateZ(0)]">
         <p v-if="isLoading" class="p-6 text-sm text-muted-foreground">Загрузка…</p>
         <p v-else-if="!definitions.length" class="p-6 text-sm text-muted-foreground">Характеристик пока нет</p>
-        <!-- Шапка вынесена в отдельную нескроллящуюся таблицу — иначе скроллбар тела
-             тянется мимо неё же (см. промпт проекта). colgroup общий по позиции колонки,
-             держит одинаковые ширины в обеих таблицах. padding-right на обёртке —
-             компенсация ширины скроллбара тела, иначе колонки расходятся. -->
-        <div v-else :style="{ paddingRight: `${scrollbarWidth}px` }">
-        <table class="w-full table-fixed caption-bottom text-sm">
-          <colgroup>
-            <col class="w-[38%]" />
-            <col class="w-[20%]" />
-            <col class="w-[24%]" />
-            <col class="w-8" />
-          </colgroup>
-          <TableHeader class="bg-muted">
+        <div v-else class="[&>div]:max-h-[65vh]">
+        <Table class="table-fixed">
+          <TableHeader class="sticky top-0 z-10 bg-muted">
             <TableRow>
-              <TableHead class="border-r border-border">Название</TableHead>
-              <TableHead class="border-r border-border">Тип значения</TableHead>
-              <TableHead>Единица измерения</TableHead>
-              <TableHead />
+              <TableHead class="w-[38%] border-r border-border">Название</TableHead>
+              <TableHead class="w-[20%] border-r border-border">Тип значения</TableHead>
+              <TableHead class="w-[24%]">Единица измерения</TableHead>
+              <TableHead class="w-8" />
             </TableRow>
           </TableHeader>
-        </table>
-        </div>
-        <div v-if="definitions.length" class="max-h-[65vh] overflow-y-scroll overflow-x-hidden">
-        <table class="w-full table-fixed caption-bottom text-sm">
-          <colgroup>
-            <col class="w-[38%]" />
-            <col class="w-[20%]" />
-            <col class="w-[24%]" />
-            <col class="w-8" />
-          </colgroup>
           <VueDraggable
             v-model="definitions"
             tag="tbody"
@@ -315,7 +292,7 @@ async function confirmDelete() {
               </TableCell>
             </TableRow>
           </VueDraggable>
-        </table>
+        </Table>
         </div>
       </div>
     </Card>
