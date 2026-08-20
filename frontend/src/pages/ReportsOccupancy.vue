@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { ChevronRight, DoorClosed, DoorOpen, Home, Layers, Percent } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import { ArrowLeft, ChevronRight, DoorClosed, DoorOpen, FileText, Home, Layers, Percent } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import ReportKpiTile from '@/components/ReportKpiTile.vue'
 import { fetchOccupancy, type OccupancyReport, type OccupancyRoom } from '@/lib/reports-api'
+import { goBack } from '@/lib/utils'
+
+const router = useRouter()
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
@@ -68,7 +73,13 @@ function formatPercent(value: number): string {
 
 <template>
   <div class="flex min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
-    <h1 class="text-lg font-medium">Занятость общежития</h1>
+    <div class="flex items-center gap-2">
+      <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
+        <ArrowLeft class="text-primary" />
+        <span class="sr-only">Назад</span>
+      </Button>
+      <h1 class="text-lg font-medium">Занятость общежития</h1>
+    </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
     <p v-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
@@ -132,7 +143,9 @@ function formatPercent(value: number): string {
               <div class="h-2 overflow-hidden rounded-full bg-muted">
                 <div class="h-full rounded-full transition-all" :class="barClass(room)" :style="{ width: `${occupancyRatio(room) * 100}%` }" />
               </div>
-              <span class="text-xs text-muted-foreground">{{ room.occupied }} / {{ room.capacity ?? '—' }}</span>
+              <span class="text-xs text-muted-foreground">
+                (<span class="text-red-500">{{ room.occupied }}</span> / <span class="text-emerald-500">{{ room.free ?? '—' }}</span>)
+              </span>
             </button>
           </div>
         </div>
@@ -152,7 +165,11 @@ function formatPercent(value: number): string {
           <ul v-if="selectedRoom.occupants.length" class="flex flex-col gap-2">
             <li v-for="o in selectedRoom.occupants" :key="o.contractId" class="flex items-center justify-between rounded-md border px-3 py-2">
               <span>{{ o.residentFullName }}</span>
-              <RouterLink :to="{ name: 'contract-detail', params: { id: o.contractId } }" class="text-xs text-primary hover:underline">
+              <RouterLink
+                :to="{ name: 'contract-detail', params: { id: o.contractId } }"
+                class="flex items-center gap-1 text-xs text-primary hover:underline"
+              >
+                <FileText class="size-3.5 shrink-0" />
                 Договор № {{ o.contractNumber }}
               </RouterLink>
             </li>

@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { daysBetweenInclusive, dateOnly, addDays, startOfMonth } from '../billing/period-utils';
 import { fromStoredValue } from '../rooms/characteristic-value';
 import { serializeAccrual } from '../contracts/serializers';
+import { parseListOptions, paginateInMemory, facetsFromValues, type FacetOption } from './list-helpers';
 
 const { Decimal } = Prisma;
 
@@ -17,6 +18,23 @@ function agingBucket(daysOverdue: number): AgingBucket {
   if (daysOverdue <= 90) return 'D61_90';
   return 'D90_PLUS';
 }
+
+const AGING_LABELS: Record<AgingBucket, string> = {
+  CURRENT: 'В срок',
+  D1_30: '1–30 дней',
+  D31_60: '31–60 дней',
+  D61_90: '61–90 дней',
+  D90_PLUS: '90+ дней',
+};
+
+type ContractRegistryBucket = 'ACTIVE' | 'EXPIRING' | 'OVERDUE' | 'TERMINATED';
+
+const BUCKET_LABELS: Record<ContractRegistryBucket, string> = {
+  ACTIVE: 'Активен',
+  EXPIRING: 'Истекает',
+  OVERDUE: 'Просрочен',
+  TERMINATED: 'Расторгнут',
+};
 
 // Название характеристик комнаты, от которых зависят отчёты "Занятость" — заведены сидом
 // 1С-выгрузки (см. миграции seed_room_characteristics/floor_as_characteristic), не менялись.
@@ -31,6 +49,48 @@ interface OccupancyRoomRow {
   occupied: number;
   free: number | null;
   occupants: { contractId: number; contractNumber: string; residentFullName: string }[];
+}
+
+interface DebtorRow {
+  contractId: number;
+  contractNumber: string;
+  residentIndividualUid: string;
+  residentFullName: string;
+  room: string | null;
+  totalAccrued: number;
+  totalPaid: number;
+  principalBalance: number;
+  penaltyBalance: number;
+  totalBalance: number;
+  daysOverdue: number;
+  agingBucket: AgingBucket;
+}
+
+interface ContingentRow {
+  contractId: number;
+  contractNumber: string;
+  residentIndividualUid: string;
+  residentFullName: string;
+  room: string;
+  facultet: string | null;
+  kursNumber: number | null;
+  birthDate: Date | null;
+  citizenship: string | null;
+  movedInDate: Date;
+}
+
+interface ContractRegistryRow {
+  contractId: number;
+  contractNumber: string;
+  residentIndividualUid: string;
+  residentFullName: string;
+  room: string | null;
+  createdAt: Date;
+  startDate: Date;
+  endDate: Date;
+  actualEndDate: Date | null;
+  daysUntilEnd: number;
+  bucket: ContractRegistryBucket;
 }
 
 interface MovementEvent {
@@ -52,6 +112,10 @@ function parseIdParam(idParam: string): number {
   return id;
 }
 
+function resolveAsOf(asOfParam?: string): Date {
+  return asOfParam ? dateOnly(new Date(asOfParam)) : dateOnly(new Date());
+}
+
 @Controller('reports')
 @UseGuards(AuthGuard)
 export class ReportsController {
@@ -60,15 +124,18 @@ export class ReportsController {
   // ===== Отчёт "Задолженность" =====
   // Должники на дату asOf (по умолчанию сегодня) — по каждому договору с непогашенным
   // остатком: основной долг отдельно от пени (платежи по начислению считаем сначала
-  // гасящими тело долга, остаток сверху — пеню, тот же принцип, что в billing/penalty.scheduler.ts),
-  // плюс totalAccrued/totalPaid — накопленные суммы по ВСЕМ наступившим начислениям (не
-  // только неоплаченным), для колонок "Начислено"/"Оплачено" в реестре.
-  @Get('debtors')
-  async debtors(@Query('asOf') asOfParam?: string) {
-    const asOf = asOfParam ? dateOnly(new Date(asOfParam)) : dateOnly(new Date());
-
+  // гасящими тело долга, остаток сверху — пеню, тот же принцип, что в billing/penalty.scheduler.ts).
+  // totalAccrued/totalPaid — по ВСЕМ начислениям договора (весь срок, все начисления
+  // создаются сразу при создании договора — см. accrual-generation.ts), не только по
+  // уже наступившим: раньше здесь тоже стоял фильтр dueDate<=asOf и "Начислено" в
+  // реестре по факту показывало только 1-2 наступивших месяца вместо суммы по всему
+  // договору — баг, найден и исправлен 2026-08-20. principalBalance/penaltyBalance/
+  // maxDaysOverdue (по ним отбираются должники и считается просрочка) по-прежнему
+  // копятся только по НАСТУПИВШИМ начислениям (isMatured) — будущие ещё не наступившие
+  // платежи не делают договор "просроченным", даже если формально уже выставлены.
+  private async buildDebtorRows(asOf: Date): Promise<DebtorRow[]> {
     const accruals = await this.prisma.accrual.findMany({
-      where: { voidedAt: null, dueDate: { lte: asOf } },
+      where: { voidedAt: null },
       include: {
         allocations: true,
         contract: {
@@ -80,7 +147,7 @@ export class ReportsController {
       },
     });
 
-    interface Row {
+    interface Acc {
       contractId: number;
       contractNumber: string;
       residentIndividualUid: string;
@@ -92,22 +159,31 @@ export class ReportsController {
       totalPaid: Prisma.Decimal;
       maxDaysOverdue: number;
     }
-    const byContract = new Map<number, Row>();
+    const byContract = new Map<number, Acc>();
 
     for (const accrual of accruals) {
       const principal = accrual.rentAmount.plus(accrual.utilitiesAmount).plus(accrual.adjustmentAmount);
       const periodTotal = principal.plus(accrual.penaltyAmount);
       const paid = accrual.allocations.reduce((sum, a) => sum.plus(a.amount), new Decimal(0));
-      const unpaidPrincipal = principal.minus(paid).lessThan(0) ? new Decimal(0) : principal.minus(paid);
-      const paidTowardPenalty = paid.minus(principal).lessThan(0) ? new Decimal(0) : paid.minus(principal);
-      const unpaidPenalty = accrual.penaltyAmount.minus(paidTowardPenalty).lessThan(0)
-        ? new Decimal(0)
-        : accrual.penaltyAmount.minus(paidTowardPenalty);
       // На отдельное начисление FIFO-разнесение не может выделить больше, чем в нём
       // осталось долга (см. allocatePaymentFifo) — cap здесь чисто защитный.
       const paidCapped = paid.greaterThan(periodTotal) ? periodTotal : paid;
 
-      const daysOverdue = Math.max(0, daysBetweenInclusive(accrual.dueDate, asOf) - 1);
+      // Долг/пеня/просрочка — только по уже наступившим начислениям (иначе будущие,
+      // ещё не наступившие месяцы делали бы договор "просроченным" в день заключения).
+      const isMatured = accrual.dueDate <= asOf;
+      let unpaidPrincipal = new Decimal(0);
+      let unpaidPenalty = new Decimal(0);
+      let daysOverdue = 0;
+      if (isMatured) {
+        unpaidPrincipal = principal.minus(paid).lessThan(0) ? new Decimal(0) : principal.minus(paid);
+        const paidTowardPenalty = paid.minus(principal).lessThan(0) ? new Decimal(0) : paid.minus(principal);
+        unpaidPenalty = accrual.penaltyAmount.minus(paidTowardPenalty).lessThan(0)
+          ? new Decimal(0)
+          : accrual.penaltyAmount.minus(paidTowardPenalty);
+        daysOverdue = Math.max(0, daysBetweenInclusive(accrual.dueDate, asOf) - 1);
+      }
+
       const { contract } = accrual;
 
       const existing = byContract.get(contract.id);
@@ -148,8 +224,42 @@ export class ReportsController {
         totalBalance: Number(row.principalBalance.plus(row.penaltyBalance)),
         daysOverdue: row.maxDaysOverdue,
         agingBucket: agingBucket(row.maxDaysOverdue),
-      }))
-      .sort((a, b) => b.totalBalance - a.totalBalance);
+      }));
+  }
+
+  @Get('debtors')
+  async debtors(
+    @Query('page') pageParam?: string,
+    @Query('pageSize') pageSizeParam?: string,
+    @Query('search') searchParam?: string,
+    @Query('sortBy') sortByParam?: string,
+    @Query('sortDir') sortDirParam?: string,
+    @Query('filters') filtersParam?: string,
+    @Query('asOf') asOfParam?: string,
+  ) {
+    const rows = await this.buildDebtorRows(resolveAsOf(asOfParam));
+    const options = parseListOptions(pageParam, pageSizeParam, searchParam, sortByParam, sortDirParam, filtersParam, 'totalBalance');
+    return paginateInMemory(rows, options, {
+      searchFields: ['contractNumber', 'residentFullName', 'room'],
+      sortableFields: ['contractNumber', 'residentFullName', 'room', 'totalAccrued', 'totalPaid', 'totalBalance', 'daysOverdue'],
+      filterFields: ['agingBucket'],
+    });
+  }
+
+  @Get('debtors/summary')
+  async debtorsSummary(@Query('asOf') asOfParam?: string) {
+    const rows = await this.buildDebtorRows(resolveAsOf(asOfParam));
+    return {
+      debtorsCount: rows.length,
+      totalDebt: rows.reduce((sum, r) => sum + r.totalBalance, 0),
+      overdueDebt: rows.filter((r) => r.daysOverdue > 0).reduce((sum, r) => sum + r.totalBalance, 0),
+    };
+  }
+
+  @Get('debtors/facets/:field')
+  debtorsFacets(@Param('field') field: string): FacetOption[] {
+    if (field !== 'agingBucket') return [];
+    return (Object.keys(AGING_LABELS) as AgingBucket[]).map((value) => ({ value, label: AGING_LABELS[value] }));
   }
 
   // Структура долга одного договора по периодам (клик на должника в реестре) — те же
@@ -158,7 +268,7 @@ export class ReportsController {
   @Get('debtors/:contractId/breakdown')
   async debtorBreakdown(@Param('contractId') contractIdParam: string, @Query('asOf') asOfParam?: string) {
     const contractId = parseIdParam(contractIdParam);
-    const asOf = asOfParam ? dateOnly(new Date(asOfParam)) : dateOnly(new Date());
+    const asOf = resolveAsOf(asOfParam);
 
     const contract = await this.prisma.contract.findUnique({
       where: { id: contractId },
@@ -181,8 +291,7 @@ export class ReportsController {
 
     const periods = accruals.map((accrual) => {
       const serialized = serializeAccrual(accrual);
-      const daysOverdue =
-        serialized.balance > 0 ? Math.max(0, daysBetweenInclusive(accrual.dueDate, asOf) - 1) : 0;
+      const daysOverdue = serialized.balance > 0 ? Math.max(0, daysBetweenInclusive(accrual.dueDate, asOf) - 1) : 0;
       return { ...serialized, daysOverdue };
     });
 
@@ -231,10 +340,12 @@ export class ReportsController {
   // ===== Отчёт "Занятость и свободные места" =====
   // Вместимость/этаж — характеристики комнаты (см. CAPACITY_DEFINITION_NAME/FLOOR_DEFINITION_NAME),
   // "занято" — число активных на asOf RoomAssignment (тот же признак "текущего" проживания,
-  // что и everywhere в проекте: fromDate<=asOf и (toDate null или >=asOf)).
+  // что и everywhere в проекте: fromDate<=asOf и (toDate null или >=asOf)). Карта комнат —
+  // не список/таблица, а сетка карточек, поэтому под общий вид таблиц (поиск/фильтры/
+  // сортировка) не подпадает — этот эндпоинт как был, так и остался нестраничным.
   @Get('occupancy')
   async occupancy(@Query('asOf') asOfParam?: string) {
-    const asOf = asOfParam ? dateOnly(new Date(asOfParam)) : dateOnly(new Date());
+    const asOf = resolveAsOf(asOfParam);
 
     const [floorDef, capacityDef] = await Promise.all([
       this.prisma.roomCharacteristicDefinition.findUnique({ where: { name: FLOOR_DEFINITION_NAME } }),
@@ -308,10 +419,7 @@ export class ReportsController {
   // Кто проживает на дату asOf, с привязкой к Контингенту (факультет/курс) — если у
   // физлица несколько зачёток (Student.fizicheskoyeLitsoUid не уникален), берём любую
   // первую попавшуюся, отдельного правила выбора "главной" зачётки в проекте нет.
-  @Get('contingent')
-  async contingent(@Query('asOf') asOfParam?: string) {
-    const asOf = asOfParam ? dateOnly(new Date(asOfParam)) : dateOnly(new Date());
-
+  private async buildContingentRows(asOf: Date): Promise<ContingentRow[]> {
     const assignments = await this.prisma.roomAssignment.findMany({
       where: { fromDate: { lte: asOf }, OR: [{ toDate: null }, { toDate: { gte: asOf } }] },
       include: {
@@ -364,17 +472,39 @@ export class ReportsController {
     });
   }
 
+  @Get('contingent')
+  async contingent(
+    @Query('page') pageParam?: string,
+    @Query('pageSize') pageSizeParam?: string,
+    @Query('search') searchParam?: string,
+    @Query('sortBy') sortByParam?: string,
+    @Query('sortDir') sortDirParam?: string,
+    @Query('filters') filtersParam?: string,
+    @Query('asOf') asOfParam?: string,
+  ) {
+    const rows = await this.buildContingentRows(resolveAsOf(asOfParam));
+    const options = parseListOptions(pageParam, pageSizeParam, searchParam, sortByParam, sortDirParam, filtersParam, 'movedInDate');
+    return paginateInMemory(rows, options, {
+      searchFields: ['residentFullName', 'contractNumber', 'room', 'facultet', 'citizenship'],
+      sortableFields: ['movedInDate', 'residentFullName', 'contractNumber', 'room', 'facultet', 'kursNumber', 'birthDate', 'citizenship'],
+      filterFields: ['facultet', 'kursNumber'],
+    });
+  }
+
+  @Get('contingent/facets/:field')
+  async contingentFacets(@Param('field') field: string): Promise<FacetOption[]> {
+    if (field !== 'facultet' && field !== 'kursNumber') return [];
+    const rows = await this.buildContingentRows(dateOnly(new Date()));
+    return facetsFromValues(rows.map((r) => r[field]));
+  }
+
   // ===== Отчёт "Реестр договоров" =====
-  // bucket — не хранимое поле, а классификация на лету по датам: EXPIRED здесь
+  // bucket — не хранимое поле, а классификация на лету по датам: OVERDUE здесь
   // возникает для договоров, у которых endDate уже прошёл, а сотрудник ещё не расторг
   // (см. известный гэп "автоматического перехода в EXPIRED нет" в промпте проекта) —
   // этот отчёт как раз и есть способ его увидеть, ничего в БД при этом не меняя.
-  @Get('contracts-registry')
-  async contractsRegistry(@Query('asOf') asOfParam?: string) {
-    const asOf = asOfParam ? dateOnly(new Date(asOfParam)) : dateOnly(new Date());
-
+  private async buildContractRegistryRows(asOf: Date): Promise<ContractRegistryRow[]> {
     const contracts = await this.prisma.contract.findMany({
-      orderBy: { endDate: 'asc' },
       include: {
         resident: { select: { fullName: true } },
         roomAssignments: { where: { toDate: null }, include: { room: { select: { room: true } } } },
@@ -382,9 +512,9 @@ export class ReportsController {
     });
 
     const MS_PER_DAY = 24 * 60 * 60 * 1000;
-    const rows = contracts.map((c) => {
+    return contracts.map((c) => {
       const daysUntilEnd = Math.round((c.endDate.getTime() - asOf.getTime()) / MS_PER_DAY);
-      let bucket: 'ACTIVE' | 'EXPIRING' | 'OVERDUE' | 'TERMINATED';
+      let bucket: ContractRegistryBucket;
       if (c.status === ContractStatus.TERMINATED) bucket = 'TERMINATED';
       else if (daysUntilEnd < 0) bucket = 'OVERDUE';
       else if (daysUntilEnd <= 30) bucket = 'EXPIRING';
@@ -404,15 +534,41 @@ export class ReportsController {
         bucket,
       };
     });
+  }
 
+  @Get('contracts-registry')
+  async contractsRegistry(
+    @Query('page') pageParam?: string,
+    @Query('pageSize') pageSizeParam?: string,
+    @Query('search') searchParam?: string,
+    @Query('sortBy') sortByParam?: string,
+    @Query('sortDir') sortDirParam?: string,
+    @Query('filters') filtersParam?: string,
+    @Query('asOf') asOfParam?: string,
+  ) {
+    const rows = await this.buildContractRegistryRows(resolveAsOf(asOfParam));
+    const options = parseListOptions(pageParam, pageSizeParam, searchParam, sortByParam, sortDirParam, filtersParam, 'endDate');
+    return paginateInMemory(rows, options, {
+      searchFields: ['contractNumber', 'residentFullName', 'room'],
+      sortableFields: ['contractNumber', 'residentFullName', 'room', 'createdAt', 'startDate', 'endDate', 'bucket'],
+      filterFields: ['bucket'],
+    });
+  }
+
+  @Get('contracts-registry/summary')
+  async contractsRegistrySummary(@Query('asOf') asOfParam?: string) {
+    const rows = await this.buildContractRegistryRows(resolveAsOf(asOfParam));
     return {
-      summary: {
-        active: rows.filter((r) => r.bucket === 'ACTIVE').length,
-        expiring30: rows.filter((r) => r.bucket === 'EXPIRING').length,
-        ended: rows.filter((r) => r.bucket === 'OVERDUE' || r.bucket === 'TERMINATED').length,
-      },
-      contracts: rows,
+      active: rows.filter((r) => r.bucket === 'ACTIVE').length,
+      expiring30: rows.filter((r) => r.bucket === 'EXPIRING').length,
+      ended: rows.filter((r) => r.bucket === 'OVERDUE' || r.bucket === 'TERMINATED').length,
     };
+  }
+
+  @Get('contracts-registry/facets/:field')
+  contractsRegistryFacets(@Param('field') field: string): FacetOption[] {
+    if (field !== 'bucket') return [];
+    return (Object.keys(BUCKET_LABELS) as ContractRegistryBucket[]).map((value) => ({ value, label: BUCKET_LABELS[value] }));
   }
 
   // ===== Отчёт "Заселение / выселение / переселение" =====
@@ -420,12 +576,7 @@ export class ReportsController {
   // договора: первая запись = заселение, разрыв между соседними (toDate одной ==
   // fromDate следующей) = переселение одним событием (а не выселение+заселение по
   // отдельности), незакрытый хвост последней записи (toDate задан, следующей нет) = выселение.
-  @Get('movements')
-  async movements(@Query('from') fromParam?: string, @Query('to') toParam?: string) {
-    const today = dateOnly(new Date());
-    const from = fromParam ? dateOnly(new Date(fromParam)) : startOfMonth(today);
-    const to = toParam ? dateOnly(new Date(toParam)) : today;
-
+  private async buildMovementEvents(from: Date, to: Date): Promise<MovementEvent[]> {
     const assignments = await this.prisma.roomAssignment.findMany({
       include: {
         room: { select: { room: true } },
@@ -464,15 +615,55 @@ export class ReportsController {
       });
     }
 
-    const filtered = events.filter((e) => e.date >= from && e.date <= to).sort((a, b) => b.date.getTime() - a.date.getTime());
+    return events.filter((e) => e.date >= from && e.date <= to).sort((a, b) => b.date.getTime() - a.date.getTime());
+  }
 
+  private resolveMovementsRange(fromParam?: string, toParam?: string): { from: Date; to: Date } {
+    const today = dateOnly(new Date());
+    const from = fromParam ? dateOnly(new Date(fromParam)) : startOfMonth(today);
+    const to = toParam ? dateOnly(new Date(toParam)) : today;
+    return { from, to };
+  }
+
+  @Get('movements')
+  async movements(
+    @Query('page') pageParam?: string,
+    @Query('pageSize') pageSizeParam?: string,
+    @Query('search') searchParam?: string,
+    @Query('sortBy') sortByParam?: string,
+    @Query('sortDir') sortDirParam?: string,
+    @Query('filters') filtersParam?: string,
+    @Query('from') fromParam?: string,
+    @Query('to') toParam?: string,
+  ) {
+    const { from, to } = this.resolveMovementsRange(fromParam, toParam);
+    const events = await this.buildMovementEvents(from, to);
+    const options = parseListOptions(pageParam, pageSizeParam, searchParam, sortByParam, sortDirParam, filtersParam, 'date');
+    return paginateInMemory(events, options, {
+      searchFields: ['contractNumber', 'residentFullName', 'from', 'to'],
+      sortableFields: ['date', 'contractNumber', 'residentFullName', 'operation', 'from', 'to'],
+      filterFields: ['operation'],
+    });
+  }
+
+  @Get('movements/summary')
+  async movementsSummary(@Query('from') fromParam?: string, @Query('to') toParam?: string) {
+    const { from, to } = this.resolveMovementsRange(fromParam, toParam);
+    const events = await this.buildMovementEvents(from, to);
     return {
-      summary: {
-        movedIn: filtered.filter((e) => e.operation === 'IN').length,
-        movedOut: filtered.filter((e) => e.operation === 'OUT').length,
-        relocated: filtered.filter((e) => e.operation === 'MOVE').length,
-      },
-      events: filtered,
+      movedIn: events.filter((e) => e.operation === 'IN').length,
+      movedOut: events.filter((e) => e.operation === 'OUT').length,
+      relocated: events.filter((e) => e.operation === 'MOVE').length,
     };
+  }
+
+  @Get('movements/facets/:field')
+  movementsFacets(@Param('field') field: string): FacetOption[] {
+    if (field !== 'operation') return [];
+    return [
+      { value: 'IN', label: 'Заселение' },
+      { value: 'OUT', label: 'Выселение' },
+      { value: 'MOVE', label: 'Переселение' },
+    ];
   }
 }

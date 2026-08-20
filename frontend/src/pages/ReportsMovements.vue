@@ -1,31 +1,59 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
-import { ArrowRightLeft, FileText, LogIn, LogOut, User } from 'lucide-vue-next'
+import { onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { ArrowLeft, ArrowRightLeft, LogIn, LogOut } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Button } from '@/components/ui/button'
+import EntityTable from '@/components/EntityTable.vue'
+import ContractLinkCell from '@/components/ContractLinkCell.vue'
+import ResidentLinkCell from '@/components/ResidentLinkCell.vue'
+import MovementOperationCell from '@/components/MovementOperationCell.vue'
 import DateRangePickerField from '@/components/DateRangePickerField.vue'
 import ReportKpiTile from '@/components/ReportKpiTile.vue'
-import { fetchMovements, type MovementsReport, type MovementOperation } from '@/lib/reports-api'
+import { createAppColumnHelper } from '@/lib/table'
+import {
+  fetchMovementsPage,
+  fetchMovementsFacets,
+  fetchMovementsSummary,
+  type MovementEvent,
+  type MovementsSummary,
+  type ListOptions,
+} from '@/lib/reports-api'
+import { goBack } from '@/lib/utils'
 
-// Вертикальные разделители колонок — тот же приём, что и в остальных таблицах
-// приложения (EntityTable.vue/ContractDetail.vue), для визуального единства.
-const CELL_BORDER_CLASS = 'border-r border-border last:border-r-0'
-// Ссылка-ячейка с иконкой (номер договора/ФИО) — тот же приём, что у ФИО на
-// ContractDetail.vue: -mx/-my компенсируют паддинг ячейки под hover-подложку.
-const CELL_LINK_CLASS =
-  '-mx-1.5 -my-0.5 flex w-fit items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-accent hover:text-accent-foreground'
+const router = useRouter()
 
-const OPERATION_LABELS: Record<MovementOperation, string> = {
-  IN: 'Заселение',
-  OUT: 'Выселение',
-  MOVE: 'Переселение',
+const columnLabels: Record<string, string> = {
+  date: 'Дата',
+  contractNumber: '№ договора',
+  residentFullName: 'Проживающий',
+  operation: 'Операция',
+  from: 'Откуда',
+  to: 'Куда',
 }
-const OPERATION_DOT_CLASS: Record<MovementOperation, string> = {
-  IN: 'bg-emerald-500',
-  OUT: 'bg-red-500',
-  MOVE: 'bg-blue-500',
+const filterableFields = ['operation']
+const cellRenderers = { contractNumber: ContractLinkCell, residentFullName: ResidentLinkCell, operation: MovementOperationCell }
+
+function formatDateIso(iso: string): string {
+  const date = new Date(iso)
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
 }
+function cellText(columnId: string, value: unknown): string {
+  if (columnId === 'date' && typeof value === 'string') return formatDateIso(value)
+  if (columnId === 'from' || columnId === 'to') return typeof value === 'string' ? value : '—'
+  return String(value ?? '')
+}
+
+const columnHelper = createAppColumnHelper<MovementEvent>()
+const columns = columnHelper.columns([
+  columnHelper.accessor('date', { header: columnLabels.date, enableHiding: false, size: 110, minSize: 90 }),
+  columnHelper.accessor('contractNumber', { header: columnLabels.contractNumber, size: 128, minSize: 100 }),
+  columnHelper.accessor('residentFullName', { header: columnLabels.residentFullName, size: 220, minSize: 160 }),
+  columnHelper.accessor('operation', { header: columnLabels.operation, size: 140, minSize: 120 }),
+  columnHelper.accessor('from', { header: columnLabels.from, size: 110, minSize: 90 }),
+  columnHelper.accessor('to', { header: columnLabels.to, size: 110, minSize: 90 }),
+])
 
 function isoToday(): string {
   return new Date().toISOString().slice(0, 10)
@@ -38,128 +66,81 @@ function isoStartOfMonth(): string {
 const from = ref(isoStartOfMonth())
 const to = ref(isoToday())
 
-const report = ref<MovementsReport | null>(null)
-const isLoading = ref(true)
-const loadError = ref('')
+function fetchPage(options: ListOptions) {
+  return fetchMovementsPage(options, from.value, to.value)
+}
 
-async function load() {
+const summary = ref<MovementsSummary | null>(null)
+async function loadSummary() {
   if (!from.value || !to.value) return
-  isLoading.value = true
-  loadError.value = ''
-  try {
-    report.value = await fetchMovements(from.value, to.value)
-  } catch (error) {
-    loadError.value = error instanceof Error ? error.message : String(error)
-  } finally {
-    isLoading.value = false
-  }
+  summary.value = await fetchMovementsSummary(from.value, to.value)
 }
 
-onMounted(load)
-watch([from, to], load)
-
-const typeFilter = ref<'all' | MovementOperation>('all')
-const filteredEvents = computed(() => {
-  const events = report.value?.events ?? []
-  if (typeFilter.value === 'all') return events
-  return events.filter((e) => e.operation === typeFilter.value)
+// EntityTable сама не знает про внешние from/to — перезапрашиваем страницу и сводку
+// вручную через её exposed refresh() при смене периода. Тип ref — вручную (не
+// InstanceType<typeof EntityTable>), у generic-компонента (<script generic="TData">)
+// его конструкторный тип не разрешается для InstanceType, TS2344.
+const entityTable = ref<{ refresh: () => void } | null>(null)
+watch([from, to], () => {
+  loadSummary()
+  entityTable.value?.refresh()
 })
-
-function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString('ru-RU')
-}
+onMounted(loadSummary)
 </script>
 
 <template>
   <div class="flex min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
-    <h1 class="text-lg font-medium">Заселение / выселение</h1>
-
-    <div class="flex flex-wrap items-center gap-2">
-      <span class="text-sm text-muted-foreground">Период</span>
-      <DateRangePickerField v-model:from="from" v-model:to="to" />
-      <Select :model-value="typeFilter" @update:model-value="(v) => (typeFilter = v as 'all' | MovementOperation)">
-        <SelectTrigger class="w-40">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Все операции</SelectItem>
-          <SelectItem value="IN">Заселение</SelectItem>
-          <SelectItem value="OUT">Выселение</SelectItem>
-          <SelectItem value="MOVE">Переселение</SelectItem>
-        </SelectContent>
-      </Select>
+    <div class="flex items-center gap-2">
+      <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
+        <ArrowLeft class="text-primary" />
+        <span class="sr-only">Назад</span>
+      </Button>
+      <h1 class="text-lg font-medium">Заселение / выселение</h1>
     </div>
 
-    <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-    <p v-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
+    <Card v-if="summary" class="grid grid-cols-3 gap-4 p-4">
+      <ReportKpiTile
+        :icon="LogIn"
+        bg-class="bg-emerald-100 dark:bg-emerald-500/15"
+        icon-class="text-emerald-600 dark:text-emerald-400"
+        label="Заселено"
+        :value="String(summary.movedIn)"
+      />
+      <ReportKpiTile
+        :icon="LogOut"
+        bg-class="bg-red-100 dark:bg-red-500/15"
+        icon-class="text-red-600 dark:text-red-400"
+        label="Выселено"
+        :value="String(summary.movedOut)"
+      />
+      <ReportKpiTile
+        :icon="ArrowRightLeft"
+        bg-class="bg-blue-100 dark:bg-blue-500/15"
+        icon-class="text-blue-600 dark:text-blue-400"
+        label="Переселено"
+        :value="String(summary.relocated)"
+      />
+    </Card>
 
-    <template v-else-if="report">
-      <Card class="grid grid-cols-3 gap-4 p-4">
-        <ReportKpiTile
-          :icon="LogIn"
-          bg-class="bg-emerald-100 dark:bg-emerald-500/15"
-          icon-class="text-emerald-600 dark:text-emerald-400"
-          label="Заселено"
-          :value="String(report.summary.movedIn)"
-        />
-        <ReportKpiTile
-          :icon="LogOut"
-          bg-class="bg-red-100 dark:bg-red-500/15"
-          icon-class="text-red-600 dark:text-red-400"
-          label="Выселено"
-          :value="String(report.summary.movedOut)"
-        />
-        <ReportKpiTile
-          :icon="ArrowRightLeft"
-          bg-class="bg-blue-100 dark:bg-blue-500/15"
-          icon-class="text-blue-600 dark:text-blue-400"
-          label="Переселено"
-          :value="String(report.summary.relocated)"
-        />
-      </Card>
-
-      <Card class="flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden py-0">
-        <p v-if="!filteredEvents.length" class="p-6 text-sm text-muted-foreground">Событий за период нет</p>
-        <div v-else class="flex min-h-0 flex-1 flex-col">
-          <Table>
-            <TableHeader class="sticky top-0 z-10 bg-muted">
-              <TableRow>
-                <TableHead :class="CELL_BORDER_CLASS">Дата</TableHead>
-                <TableHead :class="CELL_BORDER_CLASS">№ договора</TableHead>
-                <TableHead :class="CELL_BORDER_CLASS">Проживающий</TableHead>
-                <TableHead :class="CELL_BORDER_CLASS">Операция</TableHead>
-                <TableHead :class="CELL_BORDER_CLASS">Откуда</TableHead>
-                <TableHead>Куда</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow v-for="(e, i) in filteredEvents" :key="`${e.contractId}-${e.operation}-${e.date}-${i}`">
-                <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(e.date) }}</TableCell>
-                <TableCell :class="CELL_BORDER_CLASS">
-                  <RouterLink :to="{ name: 'contract-detail', params: { id: e.contractId } }" :class="CELL_LINK_CLASS">
-                    <FileText class="size-4 shrink-0 text-primary" />
-                    {{ e.contractNumber }}
-                  </RouterLink>
-                </TableCell>
-                <TableCell :class="CELL_BORDER_CLASS">
-                  <RouterLink :to="{ name: 'individual-detail', params: { uid: e.residentIndividualUid } }" :class="CELL_LINK_CLASS">
-                    <User class="size-4 shrink-0 text-primary" />
-                    {{ e.residentFullName }}
-                  </RouterLink>
-                </TableCell>
-                <TableCell :class="CELL_BORDER_CLASS">
-                  <span class="inline-flex items-center gap-1.5">
-                    <span class="size-2 rounded-full" :class="OPERATION_DOT_CLASS[e.operation]" />
-                    {{ OPERATION_LABELS[e.operation] }}
-                  </span>
-                </TableCell>
-                <TableCell :class="CELL_BORDER_CLASS">{{ e.from ?? '—' }}</TableCell>
-                <TableCell>{{ e.to ?? '—' }}</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </div>
-      </Card>
-    </template>
+    <EntityTable
+      ref="entityTable"
+      :columns="columns"
+      :column-labels="columnLabels"
+      :filterable-fields="filterableFields"
+      :default-sort="{ id: 'date', desc: true }"
+      :fetch-page="fetchPage"
+      :fetch-facet-values="fetchMovementsFacets"
+      :get-row-id="(e: MovementEvent) => `${e.contractId}-${e.operation}-${e.date}`"
+      total-label="событий"
+      :cell-text="cellText"
+      :cell-renderers="cellRenderers"
+      storage-key="reports-movements"
+      accent-icons
+    >
+      <template #actions>
+        <span class="text-sm text-muted-foreground">Период</span>
+        <DateRangePickerField v-model:from="from" v-model:to="to" />
+      </template>
+    </EntityTable>
   </div>
 </template>
