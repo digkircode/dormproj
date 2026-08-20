@@ -104,6 +104,9 @@ const utilitiesAmount = ref<number | undefined>(0)
 // а определяется автоматически по тому, есть ли физлицо в Контингенте (см. pickIndividual).
 const dailyRateCategory = ref<DailyRateCategory>('OTHER_UNIVERSITY')
 const dailyRateAmount = ref<number | undefined>(undefined)
+// Причина проживания — печатается в п.1.2 бланка вместо "обучением в АНО ВО «РосНОУ»",
+// нужна только когда проживающий не из своего вуза (см. dailyRateCategory).
+const residenceReason = ref('')
 // Срок оплаты в форме не показываем и не даём менять — всегда 5 число месяца.
 const paymentDueDay = ref(5)
 
@@ -180,6 +183,9 @@ const endDateInvalid = computed(() => submitAttempted.value && !endDate.value)
 const individualInvalid = computed(() => submitAttempted.value && !selectedIndividual.value)
 const rentAmountInvalid = computed(
   () => submitAttempted.value && (rentAmount.value === undefined || serverFieldErrors.value.has('rentAmount')),
+)
+const residenceReasonInvalid = computed(
+  () => submitAttempted.value && dailyRateCategory.value === 'OTHER_UNIVERSITY' && !residenceReason.value.trim(),
 )
 // ФИО и телефон родителя — обязательны всегда, остальное только для несовершеннолетних.
 const legalRepNameInvalid = computed(() => submitAttempted.value && !legalRepName.value.trim())
@@ -302,6 +308,7 @@ async function openCreate() {
   roomQuery.value = ''
   roomResults.value = []
   rentAmount.value = undefined
+  residenceReason.value = ''
   legalRepName.value = ''
   legalRepPhone.value = ''
   legalRepBirthDate.value = ''
@@ -373,6 +380,7 @@ async function submitCreate() {
     dailyRateAmount.value === undefined ||
     !legalRepName.value.trim() ||
     !phoneValid ||
+    (dailyRateCategory.value === 'OTHER_UNIVERSITY' && !residenceReason.value.trim()) ||
     (isMinor.value && !legalRepBirthDate.value) ||
     (useMatCapital.value &&
       (!matCapitalCoveredFrom.value ||
@@ -398,6 +406,7 @@ async function submitCreate() {
       dailyRateCategory: dailyRateCategory.value,
       dailyRateAmount: dailyRateAmount.value,
       paymentDueDay: paymentDueDay.value,
+      residenceReason: dailyRateCategory.value === 'OTHER_UNIVERSITY' ? residenceReason.value.trim() || null : null,
       legalRepName: legalRepName.value.trim() || null,
       legalRepPhone: legalRepPhone.value.trim() || null,
       legalRepBirthDate: legalRepBirthDate.value || null,
@@ -531,6 +540,15 @@ async function submitCreate() {
                 />
               </div>
             </div>
+
+            <!-- Только для не-своего вуза — печатается в п.1.2 бланка вместо "обучением
+                 в АНО ВО «РосНОУ»" (см. dailyRateCategory, автоопределяется в pickIndividual). -->
+            <Transition v-bind="REVEAL_TRANSITION">
+              <div v-if="dailyRateCategory === 'OTHER_UNIVERSITY'" class="flex flex-col gap-2">
+                <Label>Причина проживания</Label>
+                <Input v-model="residenceReason" :class="residenceReasonInvalid ? 'border-red-500' : ''" />
+              </div>
+            </Transition>
           </div>
 
           <div class="flex flex-col gap-3">

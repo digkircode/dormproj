@@ -121,6 +121,7 @@ export interface CreateContractInput {
   dailyRateCategory: DailyRateCategory
   dailyRateAmount: number
   paymentDueDay?: number
+  residenceReason?: string | null
   legalRepName?: string | null
   legalRepPhone?: string | null
   legalRepBirthDate?: string | null

@@ -83,6 +83,7 @@ const createContractSchema = z
     utilitiesAmount: z.number().finite().nonnegative(),
     dailyRateCategory: z.enum(['OWN_UNIVERSITY', 'OTHER_UNIVERSITY']),
     dailyRateAmount: z.number().finite().nonnegative(),
+    residenceReason: z.string().trim().min(1).nullish(),
     paymentDueDay: z.number().int().min(1).max(28).default(5),
     ...legalRepFields,
     ...matCapitalFields,
@@ -286,6 +287,12 @@ export class ContractsController {
       }
     }
 
+    // Причина проживания печатается в п.1.2 бланка вместо "обучением в АНО ВО «РосНОУ»" —
+    // обязательна только для тех, кто не из своего вуза (см. contract-document-data.ts).
+    if (data.dailyRateCategory === 'OTHER_UNIVERSITY' && !data.residenceReason) {
+      throw new BadRequestException('Укажите причину проживания');
+    }
+
     const rentAmount = new Prisma.Decimal(data.rentAmount);
     const utilitiesAmount = new Prisma.Decimal(data.utilitiesAmount);
     const dailyRateAmount = new Prisma.Decimal(data.dailyRateAmount);
@@ -307,6 +314,7 @@ export class ContractsController {
             startDate: data.startDate,
             endDate: data.endDate,
             residentSnapshot: residentSnapshot as unknown as Prisma.InputJsonValue,
+            residenceReason: data.residenceReason ?? null,
             legalRepName: data.legalRepName ?? null,
             legalRepPhone: data.legalRepPhone ?? null,
             legalRepBirthDate: data.legalRepBirthDate ?? null,

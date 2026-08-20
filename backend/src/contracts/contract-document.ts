@@ -18,7 +18,7 @@ function templatePath(template: ContractDocumentTemplate): string {
   return path.join(process.cwd(), 'templates', TEMPLATE_FILES[template]);
 }
 
-export function renderContractDocument(template: ContractDocumentTemplate, data: Record<string, string>): Buffer {
+export function renderContractDocument(template: ContractDocumentTemplate, data: Record<string, string | boolean>): Buffer {
   const zip = new PizZip(readFileSync(templatePath(template)));
   const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true, delimiters: { start: '{', end: '}' } });
   doc.render(data);

@@ -372,6 +372,11 @@ model Contract {
   actualEndDate         DateTime?      @map("actual_end_date")
   status                ContractStatus @default(ACTIVE)
 
+  // Причина проживания для тех, кто не из АНО ВО «РосНОУ» (dailyRateCategory ==
+  // OTHER_UNIVERSITY) — печатается в п.1.2 бланка вместо стандартной формулировки
+  // "обучением в АНО ВО «РосНОУ»". Для своих студентов не используется (null).
+  residenceReason String? @map("residence_reason")
+
   // Родитель/законный представитель — у взрослых заполнен только legalRepPhone (просто
   // контакт по тексту договора), у несовершеннолетних весь блок (родитель — сторона
   // договора, паспортные данные обязательны).
