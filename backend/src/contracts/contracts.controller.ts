@@ -506,8 +506,13 @@ export class ContractsController {
 
     const buffer = renderContractDocument(isMinorContract ? 'minor' : 'standard', buildDocumentData(contract, resident, terms, room));
 
+    // Content-Disposition — только Latin1/ASCII в filename=, иначе Node бросает
+    // ERR_INVALID_CHAR (номер договора может содержать кириллицу/что угодно) —
+    // ASCII-заглушка в filename= + правильно закодированное имя в filename* (RFC 5987/6266).
+    const asciiFallback = `contract-${contract.number}.docx`.replace(/[^\x20-\x7E]/g, '_');
+    const utf8Name = encodeURIComponent(`Договор № ${contract.number}.docx`);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    res.setHeader('Content-Disposition', `attachment; filename="contract-${contract.number}.docx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${asciiFallback}"; filename*=UTF-8''${utf8Name}`);
     res.send(buffer);
   }
 }

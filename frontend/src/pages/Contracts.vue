@@ -146,26 +146,6 @@ const isMinor = computed(() => {
   return calculateAge(birthDate, contractDate.value || new Date().toISOString().slice(0, 10)) < 18
 })
 
-// Автоподстановка родителя — если у этого несовершеннолетнего родитель уже вводился на
-// предыдущем договоре (см. Individual(isManual) в contracts.controller.ts), заполняем
-// пустые поля блока родителя его данными. Не перетираем то, что сотрудник уже успел
-// ввести вручную.
-watch(isMinor, async (minor) => {
-  if (!minor || !selectedIndividual.value) return
-  const prefill = await fetchLegalRepPrefill(selectedIndividual.value.fizicheskoyeLitsoUid).catch(() => null)
-  if (!prefill) return
-  if (!legalRepName.value.trim() && prefill.legalRepName) legalRepName.value = prefill.legalRepName
-  if (!legalRepPhone.value.trim() && prefill.legalRepPhone) legalRepPhone.value = prefill.legalRepPhone
-  if (!legalRepBirthDate.value && prefill.legalRepBirthDate) legalRepBirthDate.value = prefill.legalRepBirthDate.slice(0, 10)
-  if (!legalRepPassportSeries.value.trim() && prefill.legalRepPassportSeries) legalRepPassportSeries.value = prefill.legalRepPassportSeries
-  if (!legalRepPassportNumber.value.trim() && prefill.legalRepPassportNumber) legalRepPassportNumber.value = prefill.legalRepPassportNumber
-  if (!legalRepPassportIssuedBy.value.trim() && prefill.legalRepPassportIssuedBy) legalRepPassportIssuedBy.value = prefill.legalRepPassportIssuedBy
-  if (!legalRepPassportIssuedCode.value.trim() && prefill.legalRepPassportIssuedCode) legalRepPassportIssuedCode.value = prefill.legalRepPassportIssuedCode
-  if (!legalRepPassportIssuedAt.value && prefill.legalRepPassportIssuedAt) legalRepPassportIssuedAt.value = prefill.legalRepPassportIssuedAt.slice(0, 10)
-  if (!legalRepSnils.value.trim() && prefill.legalRepSnils) legalRepSnils.value = prefill.legalRepSnils
-  if (!legalRepInn.value.trim() && prefill.legalRepInn) legalRepInn.value = prefill.legalRepInn
-})
-
 // Backend отдаёт ошибку невалидного тела как JSON-строку массива zod-issues (ZodError.message) —
 // например при рассинхроне типа (см. serverFieldErrors ниже). Сырой JSON пользователю показывать
 // незачем: если формат распознан, даём понятный текст и подсвечиваем конкретные поля;
@@ -253,6 +233,26 @@ async function pickIndividual(ind: Individual) {
     dailyRateCategory.value = 'OTHER_UNIVERSITY'
   }
 }
+
+// Автоподстановка родителя — если у этого несовершеннолетнего родитель уже вводился на
+// предыдущем договоре (см. Individual(isManual) в contracts.controller.ts), заполняем
+// пустые поля блока родителя его данными. Не перетираем то, что сотрудник уже успел
+// ввести вручную.
+watch(isMinor, async (minor) => {
+  if (!minor || !selectedIndividual.value) return
+  const prefill = await fetchLegalRepPrefill(selectedIndividual.value.fizicheskoyeLitsoUid).catch(() => null)
+  if (!prefill) return
+  if (!legalRepName.value.trim() && prefill.legalRepName) legalRepName.value = prefill.legalRepName
+  if (!legalRepPhone.value.trim() && prefill.legalRepPhone) legalRepPhone.value = prefill.legalRepPhone
+  if (!legalRepBirthDate.value && prefill.legalRepBirthDate) legalRepBirthDate.value = prefill.legalRepBirthDate.slice(0, 10)
+  if (!legalRepPassportSeries.value.trim() && prefill.legalRepPassportSeries) legalRepPassportSeries.value = prefill.legalRepPassportSeries
+  if (!legalRepPassportNumber.value.trim() && prefill.legalRepPassportNumber) legalRepPassportNumber.value = prefill.legalRepPassportNumber
+  if (!legalRepPassportIssuedBy.value.trim() && prefill.legalRepPassportIssuedBy) legalRepPassportIssuedBy.value = prefill.legalRepPassportIssuedBy
+  if (!legalRepPassportIssuedCode.value.trim() && prefill.legalRepPassportIssuedCode) legalRepPassportIssuedCode.value = prefill.legalRepPassportIssuedCode
+  if (!legalRepPassportIssuedAt.value && prefill.legalRepPassportIssuedAt) legalRepPassportIssuedAt.value = prefill.legalRepPassportIssuedAt.slice(0, 10)
+  if (!legalRepSnils.value.trim() && prefill.legalRepSnils) legalRepSnils.value = prefill.legalRepSnils
+  if (!legalRepInn.value.trim() && prefill.legalRepInn) legalRepInn.value = prefill.legalRepInn
+})
 
 // --- Поиск комнаты (SearchSelect, список уже загружен целиком — фильтр на клиенте) ---
 const rooms = ref<RoomTreeItem[]>([])
