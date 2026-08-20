@@ -13,7 +13,11 @@ import Rooms from '@/pages/Rooms.vue'
 import RoomCharacteristics from '@/pages/RoomCharacteristics.vue'
 import Contracts from '@/pages/Contracts.vue'
 import ContractDetail from '@/pages/ContractDetail.vue'
-import Reports from '@/pages/Reports.vue'
+import ReportsOccupancy from '@/pages/ReportsOccupancy.vue'
+import ReportsContingent from '@/pages/ReportsContingent.vue'
+import ReportsContractsRegistry from '@/pages/ReportsContractsRegistry.vue'
+import ReportsDebt from '@/pages/ReportsDebt.vue'
+import ReportsMovements from '@/pages/ReportsMovements.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -34,7 +38,33 @@ const router = createRouter({
 
     { path: '/contracts', name: 'contracts', component: Contracts, meta: { title: 'Договоры' } },
     { path: '/contracts/:id', name: 'contract-detail', component: ContractDetail, meta: { title: 'Информация о договоре', parent: 'contracts' } },
-    { path: '/reports', name: 'reports', component: Reports, meta: { title: 'Отчёты' } },
+
+    { path: '/reports', name: 'reports', redirect: '/reports/debt', meta: { title: 'Отчёты' } },
+    {
+      path: '/reports/occupancy',
+      name: 'reports-occupancy',
+      component: ReportsOccupancy,
+      meta: { title: 'Занятость общежития', parent: 'reports' },
+    },
+    {
+      path: '/reports/contingent',
+      name: 'reports-contingent',
+      component: ReportsContingent,
+      meta: { title: 'Реестр проживающих', parent: 'reports' },
+    },
+    {
+      path: '/reports/contracts',
+      name: 'reports-contracts',
+      component: ReportsContractsRegistry,
+      meta: { title: 'Реестр договоров', parent: 'reports' },
+    },
+    { path: '/reports/debt', name: 'reports-debt', component: ReportsDebt, meta: { title: 'Задолженность', parent: 'reports' } },
+    {
+      path: '/reports/move-in-out',
+      name: 'reports-move-in-out',
+      component: ReportsMovements,
+      meta: { title: 'Заселение / выселение', parent: 'reports' },
+    },
   ],
 })
 

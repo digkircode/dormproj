@@ -183,9 +183,6 @@ const rentAmountInvalid = computed(
 // ФИО и телефон родителя — обязательны всегда, остальное только для несовершеннолетних.
 const legalRepNameInvalid = computed(() => submitAttempted.value && !legalRepName.value.trim())
 const legalRepBirthDateInvalid = computed(() => submitAttempted.value && isMinor.value && !legalRepBirthDate.value)
-const legalRepPassportSeriesInvalid = computed(() => submitAttempted.value && isMinor.value && !legalRepPassportSeries.value.trim())
-const legalRepPassportNumberInvalid = computed(() => submitAttempted.value && isMinor.value && !legalRepPassportNumber.value.trim())
-const legalRepPassportIssuedAtInvalid = computed(() => submitAttempted.value && isMinor.value && !legalRepPassportIssuedAt.value)
 // Мат.капитал — поля обязательны, только если галочка "Оплата материнским капиталом" поставлена.
 const matCapitalCoveredFromInvalid = computed(() => submitAttempted.value && useMatCapital.value && !matCapitalCoveredFrom.value)
 const matCapitalCoveredToInvalid = computed(() => submitAttempted.value && useMatCapital.value && !matCapitalCoveredTo.value)
@@ -355,11 +352,7 @@ async function submitCreate() {
     dailyRateAmount.value === undefined ||
     !legalRepName.value.trim() ||
     !phoneValid ||
-    (isMinor.value &&
-      (!legalRepBirthDate.value ||
-        !legalRepPassportSeries.value.trim() ||
-        !legalRepPassportNumber.value.trim() ||
-        !legalRepPassportIssuedAt.value)) ||
+    (isMinor.value && !legalRepBirthDate.value) ||
     (useMatCapital.value &&
       (!matCapitalCoveredFrom.value ||
         !matCapitalCoveredTo.value ||
@@ -551,11 +544,11 @@ async function submitCreate() {
                     </div>
                     <div class="flex flex-col gap-2">
                       <Label>Паспорт: серия</Label>
-                      <Input v-model="legalRepPassportSeries" :class="legalRepPassportSeriesInvalid ? 'border-red-500' : ''" />
+                      <Input v-model="legalRepPassportSeries" />
                     </div>
                     <div class="flex flex-col gap-2">
                       <Label>Паспорт: номер</Label>
-                      <Input v-model="legalRepPassportNumber" :class="legalRepPassportNumberInvalid ? 'border-red-500' : ''" />
+                      <Input v-model="legalRepPassportNumber" />
                     </div>
                     <div class="flex flex-col gap-2">
                       <Label>Кем выдан</Label>
@@ -567,7 +560,7 @@ async function submitCreate() {
                     </div>
                     <div class="flex flex-col gap-2">
                       <Label>Дата выдачи</Label>
-                      <DatePickerField v-model="legalRepPassportIssuedAt" :invalid="legalRepPassportIssuedAtInvalid" />
+                      <DatePickerField v-model="legalRepPassportIssuedAt" />
                     </div>
                     <div class="flex flex-col gap-2">
                       <Label>ИНН</Label>

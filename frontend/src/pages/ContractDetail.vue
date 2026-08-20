@@ -262,7 +262,7 @@ async function confirmReversePayment() {
 </script>
 
 <template>
-  <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
+  <div class="flex min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/contracts')">
         <ArrowLeft class="text-primary" />
@@ -403,7 +403,7 @@ async function confirmReversePayment() {
         </Card>
       </div>
 
-      <Tabs default-value="accruals">
+      <Tabs default-value="accruals" class="flex min-h-0 flex-1 flex-col">
         <TabsList>
           <TabsTrigger value="accruals">
             <span class="flex items-center gap-1.5">
@@ -419,9 +419,9 @@ async function confirmReversePayment() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="accruals">
-          <Card class="min-w-0 gap-0 overflow-hidden py-0">
-            <div class="[&>div]:max-h-[420px]">
+        <TabsContent value="accruals" class="flex min-h-0 flex-1 flex-col">
+          <Card class="flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden py-0">
+            <div class="flex min-h-0 flex-1 flex-col">
               <Table>
                 <TableHeader class="sticky top-0 z-10 bg-muted">
                   <TableRow>
@@ -463,10 +463,10 @@ async function confirmReversePayment() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="payments">
-          <Card class="min-w-0 gap-0 overflow-hidden py-0">
+        <TabsContent value="payments" class="flex min-h-0 flex-1 flex-col">
+          <Card class="flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden py-0">
             <p v-if="!contract.payments.length" class="p-6 text-sm text-muted-foreground">Платежей пока нет</p>
-            <div v-else class="[&>div]:max-h-[420px]">
+            <div v-else class="flex min-h-0 flex-1 flex-col">
               <Table>
                 <TableHeader class="sticky top-0 z-10 bg-muted">
                   <TableRow>

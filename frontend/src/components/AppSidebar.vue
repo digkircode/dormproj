@@ -89,8 +89,14 @@ const data = {
     },
     {
       title: 'Отчёты',
-      url: '/reports',
       icon: BarChart3,
+      items: [
+        { title: 'Занятость общежития', url: '/reports/occupancy' },
+        { title: 'Контингент проживающих', url: '/reports/contingent' },
+        { title: 'Договоры', url: '/reports/contracts' },
+        { title: 'Задолженность', url: '/reports/debt' },
+        { title: 'Заселение / выселение', url: '/reports/move-in-out' },
+      ],
     },
   ],
   projects: [
