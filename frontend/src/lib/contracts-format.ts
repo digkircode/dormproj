@@ -21,9 +21,9 @@ export const STATUS_ICON = {
 } as const satisfies Record<ContractStatus, unknown>
 
 export const STATUS_ICON_CLASS: Record<ContractStatus, string> = {
-  ACTIVE: 'fill-emerald-500 text-white',
-  TERMINATED: 'fill-red-500 text-white',
-  EXPIRED: 'fill-slate-400 text-white',
+  ACTIVE: 'text-emerald-500',
+  TERMINATED: 'text-red-500',
+  EXPIRED: 'text-muted-foreground',
 }
 
 // Pill-стиль статуса — по референсу нейтральная тонкая обводка и приглушённый текст

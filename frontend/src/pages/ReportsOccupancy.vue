@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { Home, DoorOpen, DoorClosed, Percent } from 'lucide-vue-next'
+import { onMounted, reactive, ref } from 'vue'
+import { ChevronRight, DoorClosed, DoorOpen, Home, Layers, Percent } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import ReportKpiTile from '@/components/ReportKpiTile.vue'
 import { fetchOccupancy, type OccupancyReport, type OccupancyRoom } from '@/lib/reports-api'
 
@@ -28,14 +27,16 @@ async function load() {
 
 onMounted(load)
 
-const floorFilter = ref<string>('all')
-const floorOptions = computed(() => (report.value?.floors ?? []).map((f) => f.floor))
-const visibleFloors = computed(() => {
-  if (!report.value) return []
-  if (floorFilter.value === 'all') return report.value.floors
-  const target = floorFilter.value === 'none' ? null : Number(floorFilter.value)
-  return report.value.floors.filter((f) => f.floor === target)
-})
+// Этажи по умолчанию свёрнуты — раскрываются по клику на заголовок, состояние держим
+// по строковому ключу (номер этажа или 'none'), а не по индексу — устойчивее к перезагрузке данных.
+const expandedFloors = reactive<Record<string, boolean>>({})
+function floorKey(floor: number | null): string {
+  return floor === null ? 'none' : String(floor)
+}
+function toggleFloor(floor: number | null) {
+  const key = floorKey(floor)
+  expandedFloors[key] = !expandedFloors[key]
+}
 
 function occupancyRatio(room: OccupancyRoom): number {
   if (!room.capacity || room.capacity <= 0) return room.occupied > 0 ? 1 : 0
@@ -48,7 +49,17 @@ function barClass(room: OccupancyRoom): string {
   return 'bg-emerald-500'
 }
 
+// Диалог комнаты — открытость и данные разнесены по разным ref намеренно: если
+// обнулять selectedRoom прямо в обработчике закрытия, v-if внутри диалога схлопывает
+// содержимое мгновенно, ещё до того как доигрывает анимация исчезновения самого
+// диалога (см. тот же приём с isTerminateOpen/isPaymentOpen в ContractDetail.vue —
+// там данные тоже не обнуляются при закрытии, только флаг открытости).
+const roomDialogOpen = ref(false)
 const selectedRoom = ref<OccupancyRoom | null>(null)
+function openRoom(room: OccupancyRoom) {
+  selectedRoom.value = room
+  roomDialogOpen.value = true
+}
 
 function formatPercent(value: number): string {
   return `${Math.round(value * 100)}%`
@@ -66,22 +77,22 @@ function formatPercent(value: number): string {
       <Card class="grid grid-cols-4 gap-4 p-4">
         <ReportKpiTile
           :icon="Home"
-          bg-class="bg-emerald-100 dark:bg-emerald-500/15"
-          icon-class="text-emerald-600 dark:text-emerald-400"
+          bg-class="bg-blue-100 dark:bg-blue-500/15"
+          icon-class="text-blue-600 dark:text-blue-400"
           label="Всего мест"
           :value="String(report.totalPlaces)"
         />
         <ReportKpiTile
           :icon="DoorClosed"
-          bg-class="bg-blue-100 dark:bg-blue-500/15"
-          icon-class="text-blue-600 dark:text-blue-400"
+          bg-class="bg-red-100 dark:bg-red-500/15"
+          icon-class="text-red-600 dark:text-red-400"
           label="Занято"
           :value="String(report.occupied)"
         />
         <ReportKpiTile
           :icon="DoorOpen"
-          bg-class="bg-violet-100 dark:bg-violet-500/15"
-          icon-class="text-violet-600 dark:text-violet-400"
+          bg-class="bg-emerald-100 dark:bg-emerald-500/15"
+          icon-class="text-emerald-600 dark:text-emerald-400"
           label="Свободно"
           :value="String(report.free)"
         />
@@ -94,33 +105,30 @@ function formatPercent(value: number): string {
         />
       </Card>
 
-      <div class="flex items-center gap-2">
-        <span class="text-sm text-muted-foreground">Этаж</span>
-        <Select :model-value="floorFilter" @update:model-value="(v) => (floorFilter = String(v))">
-          <SelectTrigger class="w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Все</SelectItem>
-            <SelectItem v-for="floor in floorOptions" :key="floor ?? 'none'" :value="floor === null ? 'none' : String(floor)">
-              {{ floor === null ? 'Без этажа' : `Этаж ${floor}` }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto">
-        <div v-for="floorGroup in visibleFloors" :key="floorGroup.floor ?? 'none'" class="flex flex-col gap-2">
-          <p class="text-sm font-medium text-muted-foreground">{{ floorGroup.floor === null ? 'Без этажа' : `Этаж ${floorGroup.floor}` }}</p>
-          <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+      <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
+        <div v-for="floorGroup in report.floors" :key="floorKey(floorGroup.floor)" class="flex flex-col gap-2">
+          <button
+            type="button"
+            class="flex items-center gap-1.5 rounded-md py-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            @click="toggleFloor(floorGroup.floor)"
+          >
+            <ChevronRight class="size-3.5 transition-transform" :class="expandedFloors[floorKey(floorGroup.floor)] ? 'rotate-90' : ''" />
+            <Layers class="size-4 text-primary" />
+            {{ floorGroup.floor === null ? 'Без этажа' : `Этаж ${floorGroup.floor}` }}
+            <span class="text-xs text-muted-foreground">({{ floorGroup.rooms.length }})</span>
+          </button>
+          <div v-if="expandedFloors[floorKey(floorGroup.floor)]" class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             <button
               v-for="room in floorGroup.rooms"
               :key="room.id"
               type="button"
               class="flex flex-col gap-2 rounded-md border p-3 text-left transition-colors hover:border-primary/50 hover:bg-accent"
-              @click="selectedRoom = room"
+              @click="openRoom(room)"
             >
-              <span class="text-sm font-semibold">{{ room.room }}</span>
+              <span class="flex items-center gap-1.5 text-sm font-semibold">
+                <component :is="room.occupied > 0 ? DoorClosed : DoorOpen" class="size-4 shrink-0 text-primary" />
+                {{ room.room }}
+              </span>
               <div class="h-2 overflow-hidden rounded-full bg-muted">
                 <div class="h-full rounded-full transition-all" :class="barClass(room)" :style="{ width: `${occupancyRatio(room) * 100}%` }" />
               </div>
@@ -131,7 +139,7 @@ function formatPercent(value: number): string {
       </div>
     </template>
 
-    <Dialog :open="selectedRoom !== null" @update:open="(v) => { if (!v) selectedRoom = null }">
+    <Dialog :open="roomDialogOpen" @update:open="(v) => (roomDialogOpen = v)">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
           <DialogTitle>Комната {{ selectedRoom?.room }}</DialogTitle>

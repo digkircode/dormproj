@@ -1,44 +1,22 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { AlertTriangle, Banknote, CalendarClock, Users } from 'lucide-vue-next'
+import { AlertTriangle, Banknote, FileText, Info, User, Users } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import ReportKpiTile from '@/components/ReportKpiTile.vue'
-import {
-  fetchDebtors,
-  fetchDebtorBreakdown,
-  type DebtorRow,
-  type AgingBucket,
-  type DebtorBreakdown,
-} from '@/lib/reports-api'
+import { fetchDebtors, fetchDebtorBreakdown, type DebtorRow, type DebtorBreakdown } from '@/lib/reports-api'
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
-
-const router = useRouter()
-
-const AGING_VARIANTS: Record<AgingBucket, 'default' | 'secondary' | 'destructive'> = {
-  CURRENT: 'secondary',
-  D1_30: 'default',
-  D31_60: 'default',
-  D61_90: 'destructive',
-  D90_PLUS: 'destructive',
-}
-
-function overdueLabel(daysOverdue: number, agingBucket: AgingBucket): string {
-  if (agingBucket === 'CURRENT' || daysOverdue <= 0) return 'В срок'
-  const mod10 = daysOverdue % 10
-  const mod100 = daysOverdue % 100
-  let word = 'дней'
-  if (mod100 < 11 || mod100 > 14) {
-    if (mod10 === 1) word = 'день'
-    else if (mod10 >= 2 && mod10 <= 4) word = 'дня'
-  }
-  return `${daysOverdue} ${word} просрочки`
-}
+// Вертикальные разделители колонок — тот же приём, что и в остальных таблицах
+// приложения (EntityTable.vue/ContractDetail.vue), для визуального единства.
+const CELL_BORDER_CLASS = 'border-r border-border last:border-r-0'
+// Ссылка-ячейка с иконкой (номер договора/ФИО) — тот же приём, что у ФИО на
+// ContractDetail.vue: -mx/-my компенсируют паддинг ячейки под hover-подложку.
+const CELL_LINK_CLASS =
+  '-mx-1.5 -my-0.5 flex w-fit items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-accent hover:text-accent-foreground'
 
 const debtors = ref<DebtorRow[]>([])
 const isLoading = ref(true)
@@ -61,16 +39,23 @@ onMounted(load)
 const debtorsCount = computed(() => debtors.value.length)
 const totalDebt = computed(() => debtors.value.reduce((sum, d) => sum + d.totalBalance, 0))
 const overdueDebt = computed(() => debtors.value.filter((d) => d.daysOverdue > 0).reduce((sum, d) => sum + d.totalBalance, 0))
-const avgDebt = computed(() => (debtorsCount.value > 0 ? totalDebt.value / debtorsCount.value : 0))
 
 function formatMoney(value: number): string {
   return `${value.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
 }
-function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString('ru-RU')
+// "Месяц" — крупно название месяца, мелко и в скобках короткий диапазон дат под ним
+// (неполные месяцы на границах договора всё равно остаются понятны по датам).
+function monthLabel(iso: string): string {
+  const label = new Date(iso).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })
+  return label.charAt(0).toUpperCase() + label.slice(1)
+}
+function formatDateShort(iso: string): string {
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}`
 }
 
-// --- Структура долга по клику на должника ---
+// --- Структура долга по месяцам — открывается отдельной кнопкой-инфо, не кликом по строке ---
 const breakdownOpen = ref(false)
 const breakdown = ref<DebtorBreakdown | null>(null)
 const breakdownLoading = ref(false)
@@ -99,7 +84,7 @@ async function openBreakdown(contractId: number) {
     <p v-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
 
     <template v-else>
-      <Card class="grid grid-cols-4 gap-4 p-4">
+      <Card class="grid grid-cols-3 gap-4 p-4">
         <ReportKpiTile
           :icon="Users"
           bg-class="bg-blue-100 dark:bg-blue-500/15"
@@ -121,13 +106,6 @@ async function openBreakdown(contractId: number) {
           label="Просрочено"
           :value="formatMoney(overdueDebt)"
         />
-        <ReportKpiTile
-          :icon="CalendarClock"
-          bg-class="bg-violet-100 dark:bg-violet-500/15"
-          icon-class="text-violet-600 dark:text-violet-400"
-          label="Средний долг"
-          :value="formatMoney(avgDebt)"
-        />
       </Card>
 
       <Card class="flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden py-0">
@@ -136,27 +114,42 @@ async function openBreakdown(contractId: number) {
           <Table>
             <TableHeader class="sticky top-0 z-10 bg-muted">
               <TableRow>
-                <TableHead>№ договора</TableHead>
-                <TableHead>Проживающий</TableHead>
-                <TableHead>Комната</TableHead>
-                <TableHead>Начислено</TableHead>
-                <TableHead>Оплачено</TableHead>
-                <TableHead>Долг</TableHead>
-                <TableHead>Пеня</TableHead>
-                <TableHead>Просрочка</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">№ договора</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Проживающий</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Комната</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Начислено</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Оплачено</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Долг</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Дней просрочки</TableHead>
+                <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow v-for="d in debtors" :key="d.contractId" class="cursor-pointer" @click="openBreakdown(d.contractId)">
-                <TableCell>{{ d.contractNumber }}</TableCell>
-                <TableCell>{{ d.residentFullName }}</TableCell>
-                <TableCell>{{ d.room ?? '—' }}</TableCell>
-                <TableCell>{{ formatMoney(d.totalAccrued) }}</TableCell>
-                <TableCell>{{ formatMoney(d.totalPaid) }}</TableCell>
-                <TableCell class="font-medium text-red-500">{{ formatMoney(d.totalBalance) }}</TableCell>
-                <TableCell>{{ d.penaltyBalance ? formatMoney(d.penaltyBalance) : '—' }}</TableCell>
+              <TableRow v-for="d in debtors" :key="d.contractId">
+                <TableCell :class="CELL_BORDER_CLASS">
+                  <RouterLink :to="{ name: 'contract-detail', params: { id: d.contractId } }" :class="CELL_LINK_CLASS">
+                    <FileText class="size-4 shrink-0 text-primary" />
+                    {{ d.contractNumber }}
+                  </RouterLink>
+                </TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">
+                  <RouterLink :to="{ name: 'individual-detail', params: { uid: d.residentIndividualUid } }" :class="CELL_LINK_CLASS">
+                    <User class="size-4 shrink-0 text-primary" />
+                    {{ d.residentFullName }}
+                  </RouterLink>
+                </TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">{{ d.room ?? '—' }}</TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(d.totalAccrued) }}</TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(d.totalPaid) }}</TableCell>
+                <TableCell class="font-medium text-red-500" :class="CELL_BORDER_CLASS">{{ formatMoney(d.totalBalance) }}</TableCell>
+                <TableCell :class="[CELL_BORDER_CLASS, d.daysOverdue > 0 ? 'text-red-500' : 'text-muted-foreground']">
+                  {{ d.daysOverdue > 0 ? d.daysOverdue : '—' }}
+                </TableCell>
                 <TableCell>
-                  <Badge :variant="AGING_VARIANTS[d.agingBucket]">{{ overdueLabel(d.daysOverdue, d.agingBucket) }}</Badge>
+                  <Button variant="ghost" size="icon" class="size-7" @click="openBreakdown(d.contractId)">
+                    <Info class="text-primary" />
+                    <span class="sr-only">Структура долга по месяцам</span>
+                  </Button>
                 </TableCell>
               </TableRow>
             </TableBody>
@@ -166,7 +159,7 @@ async function openBreakdown(contractId: number) {
     </template>
 
     <Dialog :open="breakdownOpen" @update:open="(open) => (breakdownOpen = open)">
-      <DialogScrollContent :class="['flex flex-col gap-4 sm:max-w-2xl', DIALOG_ANIMATE_CLASS]">
+      <DialogScrollContent :class="['flex flex-col gap-4 sm:max-w-3xl', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
           <DialogTitle>
             {{ breakdown ? `${breakdown.residentFullName} — комн. ${breakdown.room ?? '—'}` : 'Структура долга' }}
@@ -181,26 +174,26 @@ async function openBreakdown(contractId: number) {
             <Table>
               <TableHeader class="bg-muted">
                 <TableRow>
-                  <TableHead>Период</TableHead>
-                  <TableHead>Начислено</TableHead>
-                  <TableHead>Оплачено</TableHead>
-                  <TableHead>Долг</TableHead>
+                  <TableHead :class="CELL_BORDER_CLASS">Месяц</TableHead>
+                  <TableHead :class="CELL_BORDER_CLASS">Начислено</TableHead>
+                  <TableHead :class="CELL_BORDER_CLASS">Оплачено</TableHead>
+                  <TableHead :class="CELL_BORDER_CLASS">Пеня</TableHead>
+                  <TableHead :class="CELL_BORDER_CLASS">Долг</TableHead>
                   <TableHead>Дней просрочки</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow
-                  v-for="p in breakdown.periods"
-                  :key="p.id"
-                  class="cursor-pointer"
-                  @click="router.push({ name: 'contract-detail', params: { id: breakdown!.contractId } })"
-                >
-                  <TableCell :class="p.voidedAt ? 'text-muted-foreground line-through' : ''">
-                    {{ formatDate(p.periodStart) }} — {{ formatDate(p.periodEnd) }}
+                <TableRow v-for="p in breakdown.periods" :key="p.id">
+                  <TableCell :class="[CELL_BORDER_CLASS, p.voidedAt ? 'text-muted-foreground line-through' : '']">
+                    <div class="flex flex-col">
+                      <span>{{ monthLabel(p.periodStart) }}</span>
+                      <span class="text-xs text-muted-foreground">({{ formatDateShort(p.periodStart) }}–{{ formatDateShort(p.periodEnd) }})</span>
+                    </div>
                   </TableCell>
-                  <TableCell>{{ formatMoney(p.total) }}</TableCell>
-                  <TableCell>{{ formatMoney(p.paid) }}</TableCell>
-                  <TableCell :class="p.balance > 0 ? 'text-red-500' : ''">{{ formatMoney(p.balance) }}</TableCell>
+                  <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(p.total) }}</TableCell>
+                  <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(p.paid) }}</TableCell>
+                  <TableCell :class="CELL_BORDER_CLASS">{{ p.penaltyAmount ? formatMoney(p.penaltyAmount) : '—' }}</TableCell>
+                  <TableCell :class="[CELL_BORDER_CLASS, p.balance > 0 ? 'text-red-500' : '']">{{ formatMoney(p.balance) }}</TableCell>
                   <TableCell>{{ p.daysOverdue > 0 ? p.daysOverdue : '—' }}</TableCell>
                 </TableRow>
               </TableBody>

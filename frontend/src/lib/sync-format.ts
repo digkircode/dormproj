@@ -18,8 +18,8 @@ export const statusIcon = {
 } as const
 
 export const statusIconClass: Record<string, string> = {
-  'Успешно': 'fill-emerald-500 text-white',
-  'Ошибка': 'fill-red-500 text-white',
+  'Успешно': 'text-emerald-500',
+  'Ошибка': 'text-red-500',
   'В процессе': 'animate-spin text-muted-foreground',
 }
 

@@ -404,7 +404,7 @@ async function confirmReversePayment() {
       </div>
 
       <Tabs default-value="accruals" class="flex min-h-0 flex-1 flex-col">
-        <TabsList>
+        <TabsList class="w-fit self-start">
           <TabsTrigger value="accruals">
             <span class="flex items-center gap-1.5">
               <Receipt class="size-4 text-primary" />

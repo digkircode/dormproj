@@ -5,6 +5,7 @@ export type AgingBucket = 'CURRENT' | 'D1_30' | 'D31_60' | 'D61_90' | 'D90_PLUS'
 export interface DebtorRow {
   contractId: number
   contractNumber: string
+  residentIndividualUid: string
   residentFullName: string
   room: string | null
   totalAccrued: number
@@ -76,6 +77,8 @@ export interface ContingentRow {
   room: string
   facultet: string | null
   kursNumber: number | null
+  birthDate: string | null
+  citizenship: string | null
   movedInDate: string
 }
 
@@ -84,8 +87,10 @@ export type ContractRegistryBucket = 'ACTIVE' | 'EXPIRING' | 'OVERDUE' | 'TERMIN
 export interface ContractRegistryRow {
   contractId: number
   contractNumber: string
+  residentIndividualUid: string
   residentFullName: string
   room: string | null
+  createdAt: string
   startDate: string
   endDate: string
   actualEndDate: string | null
@@ -104,6 +109,7 @@ export interface MovementEvent {
   date: string
   contractId: number
   contractNumber: string
+  residentIndividualUid: string
   residentFullName: string
   operation: MovementOperation
   from: string | null

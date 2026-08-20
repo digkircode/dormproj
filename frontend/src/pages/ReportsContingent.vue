@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Search } from 'lucide-vue-next'
+import { Search, User } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { fetchContingent, type ContingentRow } from '@/lib/reports-api'
+
+// Вертикальные разделители колонок — тот же приём, что и в остальных таблицах
+// приложения (EntityTable.vue/ContractDetail.vue), для визуального единства.
+const CELL_BORDER_CLASS = 'border-r border-border last:border-r-0'
 
 const rows = ref<ContingentRow[]>([])
 const isLoading = ref(true)
@@ -91,35 +95,38 @@ function formatDate(value: string): string {
           <Table>
             <TableHeader class="sticky top-0 z-10 bg-muted">
               <TableRow>
-                <TableHead>Дата заселения</TableHead>
-                <TableHead>ФИО</TableHead>
-                <TableHead>№ договора</TableHead>
-                <TableHead>Комната</TableHead>
-                <TableHead>Факультет</TableHead>
-                <TableHead>Курс</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Дата заселения</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">ФИО</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">№ договора</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Комната</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Факультет</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Курс</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Дата рождения</TableHead>
+                <TableHead>Гражданство</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow
-                v-for="r in filteredRows"
-                :key="r.contractId"
-                class="cursor-pointer"
-                @click="$router.push({ name: 'individual-detail', params: { uid: r.residentIndividualUid } })"
-              >
-                <TableCell>{{ formatDate(r.movedInDate) }}</TableCell>
-                <TableCell>{{ r.residentFullName }}</TableCell>
-                <TableCell>
+              <TableRow v-for="r in filteredRows" :key="r.contractId">
+                <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(r.movedInDate) }}</TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">
                   <RouterLink
-                    :to="{ name: 'contract-detail', params: { id: r.contractId } }"
-                    class="text-primary hover:underline"
-                    @click.stop
+                    :to="{ name: 'individual-detail', params: { uid: r.residentIndividualUid } }"
+                    class="-mx-1.5 -my-0.5 flex w-fit items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-accent hover:text-accent-foreground"
                   >
+                    <User class="size-4 shrink-0 text-primary" />
+                    {{ r.residentFullName }}
+                  </RouterLink>
+                </TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">
+                  <RouterLink :to="{ name: 'contract-detail', params: { id: r.contractId } }" class="text-primary hover:underline">
                     {{ r.contractNumber }}
                   </RouterLink>
                 </TableCell>
-                <TableCell>{{ r.room }}</TableCell>
-                <TableCell>{{ r.facultet ?? '—' }}</TableCell>
-                <TableCell>{{ r.kursNumber ?? '—' }}</TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">{{ r.room }}</TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">{{ r.facultet ?? '—' }}</TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">{{ r.kursNumber ?? '—' }}</TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">{{ r.birthDate ? formatDate(r.birthDate) : '—' }}</TableCell>
+                <TableCell>{{ r.citizenship ?? '—' }}</TableCell>
               </TableRow>
             </TableBody>
           </Table>

@@ -37,6 +37,7 @@ interface MovementEvent {
   date: Date;
   contractId: number;
   contractNumber: string;
+  residentIndividualUid: string;
   residentFullName: string;
   operation: 'IN' | 'OUT' | 'MOVE';
   from: string | null;
@@ -72,7 +73,7 @@ export class ReportsController {
         allocations: true,
         contract: {
           include: {
-            resident: { select: { fullName: true } },
+            resident: { select: { fullName: true, fizicheskoyeLitsoUid: true } },
             roomAssignments: { where: { toDate: null }, include: { room: { select: { room: true } } } },
           },
         },
@@ -82,6 +83,7 @@ export class ReportsController {
     interface Row {
       contractId: number;
       contractNumber: string;
+      residentIndividualUid: string;
       residentFullName: string;
       room: string | null;
       principalBalance: Prisma.Decimal;
@@ -119,6 +121,7 @@ export class ReportsController {
         byContract.set(contract.id, {
           contractId: contract.id,
           contractNumber: contract.number,
+          residentIndividualUid: contract.residentIndividualUid,
           residentFullName: contract.resident.fullName,
           room: contract.roomAssignments[0]?.room.room ?? null,
           principalBalance: unpaidPrincipal,
@@ -135,6 +138,7 @@ export class ReportsController {
       .map((row) => ({
         contractId: row.contractId,
         contractNumber: row.contractNumber,
+        residentIndividualUid: row.residentIndividualUid,
         residentFullName: row.residentFullName,
         room: row.room,
         totalAccrued: Number(row.totalAccrued),
@@ -317,7 +321,16 @@ export class ReportsController {
             id: true,
             number: true,
             residentIndividualUid: true,
-            resident: { select: { fullName: true } },
+            resident: {
+              select: {
+                fullName: true,
+                birthDate: true,
+                // "Текущее" гражданство — та же эвристика, что в individuals.controller.ts:
+                // просто последняя запись по period, без спецобработки 1С-сентинелов
+                // (та нужна только contactInfos, см. pickLatestContactInfo).
+                citizenships: { orderBy: { period: 'desc' }, take: 1, select: { country: true } },
+              },
+            },
           },
         },
       },
@@ -344,6 +357,8 @@ export class ReportsController {
         room: a.room.room,
         facultet: student?.facultet ?? null,
         kursNumber: student?.kursNumber ?? null,
+        birthDate: a.contract.resident.birthDate,
+        citizenship: a.contract.resident.citizenships[0]?.country ?? null,
         movedInDate: a.fromDate,
       };
     });
@@ -378,8 +393,10 @@ export class ReportsController {
       return {
         contractId: c.id,
         contractNumber: c.number,
+        residentIndividualUid: c.residentIndividualUid,
         residentFullName: c.resident.fullName,
         room: c.roomAssignments[0]?.room.room ?? null,
+        createdAt: c.createdAt,
         startDate: c.startDate,
         endDate: c.endDate,
         actualEndDate: c.actualEndDate,
@@ -412,7 +429,9 @@ export class ReportsController {
     const assignments = await this.prisma.roomAssignment.findMany({
       include: {
         room: { select: { room: true } },
-        contract: { select: { id: true, number: true, resident: { select: { fullName: true } } } },
+        contract: {
+          select: { id: true, number: true, residentIndividualUid: true, resident: { select: { fullName: true } } },
+        },
       },
       orderBy: [{ contractId: 'asc' }, { fromDate: 'asc' }],
     });
@@ -431,6 +450,7 @@ export class ReportsController {
         const meta = {
           contractId: a.contract.id,
           contractNumber: a.contract.number,
+          residentIndividualUid: a.contract.residentIndividualUid,
           residentFullName: a.contract.resident.fullName,
         };
         if (idx === 0) {

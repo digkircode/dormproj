@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { ArrowRightLeft, LogIn, LogOut } from 'lucide-vue-next'
+import { ArrowRightLeft, FileText, LogIn, LogOut, User } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -9,7 +8,13 @@ import DateRangePickerField from '@/components/DateRangePickerField.vue'
 import ReportKpiTile from '@/components/ReportKpiTile.vue'
 import { fetchMovements, type MovementsReport, type MovementOperation } from '@/lib/reports-api'
 
-const router = useRouter()
+// Вертикальные разделители колонок — тот же приём, что и в остальных таблицах
+// приложения (EntityTable.vue/ContractDetail.vue), для визуального единства.
+const CELL_BORDER_CLASS = 'border-r border-border last:border-r-0'
+// Ссылка-ячейка с иконкой (номер договора/ФИО) — тот же приём, что у ФИО на
+// ContractDetail.vue: -mx/-my компенсируют паддинг ячейки под hover-подложку.
+const CELL_LINK_CLASS =
+  '-mx-1.5 -my-0.5 flex w-fit items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-accent hover:text-accent-foreground'
 
 const OPERATION_LABELS: Record<MovementOperation, string> = {
   IN: 'Заселение',
@@ -119,29 +124,36 @@ function formatDate(value: string): string {
           <Table>
             <TableHeader class="sticky top-0 z-10 bg-muted">
               <TableRow>
-                <TableHead>Дата</TableHead>
-                <TableHead>Проживающий</TableHead>
-                <TableHead>Операция</TableHead>
-                <TableHead>Откуда</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Дата</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">№ договора</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Проживающий</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Операция</TableHead>
+                <TableHead :class="CELL_BORDER_CLASS">Откуда</TableHead>
                 <TableHead>Куда</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow
-                v-for="(e, i) in filteredEvents"
-                :key="`${e.contractId}-${e.operation}-${e.date}-${i}`"
-                class="cursor-pointer"
-                @click="router.push({ name: 'contract-detail', params: { id: e.contractId } })"
-              >
-                <TableCell>{{ formatDate(e.date) }}</TableCell>
-                <TableCell>{{ e.residentFullName }}</TableCell>
-                <TableCell>
+              <TableRow v-for="(e, i) in filteredEvents" :key="`${e.contractId}-${e.operation}-${e.date}-${i}`">
+                <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(e.date) }}</TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">
+                  <RouterLink :to="{ name: 'contract-detail', params: { id: e.contractId } }" :class="CELL_LINK_CLASS">
+                    <FileText class="size-4 shrink-0 text-primary" />
+                    {{ e.contractNumber }}
+                  </RouterLink>
+                </TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">
+                  <RouterLink :to="{ name: 'individual-detail', params: { uid: e.residentIndividualUid } }" :class="CELL_LINK_CLASS">
+                    <User class="size-4 shrink-0 text-primary" />
+                    {{ e.residentFullName }}
+                  </RouterLink>
+                </TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">
                   <span class="inline-flex items-center gap-1.5">
                     <span class="size-2 rounded-full" :class="OPERATION_DOT_CLASS[e.operation]" />
                     {{ OPERATION_LABELS[e.operation] }}
                   </span>
                 </TableCell>
-                <TableCell>{{ e.from ?? '—' }}</TableCell>
+                <TableCell :class="CELL_BORDER_CLASS">{{ e.from ?? '—' }}</TableCell>
                 <TableCell>{{ e.to ?? '—' }}</TableCell>
               </TableRow>
             </TableBody>

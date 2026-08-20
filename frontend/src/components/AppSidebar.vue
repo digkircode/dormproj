@@ -92,8 +92,8 @@ const data = {
       icon: BarChart3,
       items: [
         { title: 'Занятость общежития', url: '/reports/occupancy' },
-        { title: 'Контингент проживающих', url: '/reports/contingent' },
-        { title: 'Договоры', url: '/reports/contracts' },
+        { title: 'Реестр проживающих', url: '/reports/contingent' },
+        { title: 'Реестр договоров', url: '/reports/contracts' },
         { title: 'Задолженность', url: '/reports/debt' },
         { title: 'Заселение / выселение', url: '/reports/move-in-out' },
       ],
