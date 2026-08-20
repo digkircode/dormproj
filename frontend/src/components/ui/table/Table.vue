@@ -17,7 +17,7 @@ const props = defineProps<{
 </script>
 
 <template>
-  <div class="relative w-full overflow-auto">
+  <div class="relative min-h-0 w-full flex-1 overflow-auto">
     <table v-bind="$attrs" :class="cn('w-full caption-bottom text-sm', props.class)">
       <slot />
     </table>

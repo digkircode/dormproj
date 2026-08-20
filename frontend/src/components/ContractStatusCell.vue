@@ -6,5 +6,7 @@ defineProps<{ value: unknown; row?: unknown }>()
 </script>
 
 <template>
-  <ContractStatusPill :status="value as ContractStatus" />
+  <div class="flex justify-center">
+    <ContractStatusPill :status="value as ContractStatus" />
+  </div>
 </template>

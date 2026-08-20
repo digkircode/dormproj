@@ -324,7 +324,7 @@ defineExpose({ refresh: loadPage })
 </script>
 
 <template>
-  <div class="flex flex-1 flex-col gap-4">
+  <div class="flex min-h-0 flex-1 flex-col gap-4">
     <p v-if="errorText" class="text-sm text-red-500">{{ errorText }}</p>
 
     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -440,9 +440,9 @@ defineExpose({ refresh: loadPage })
       </DialogScrollContent>
     </Dialog>
 
-    <Card class="min-w-0 gap-0 py-0">
-      <div class="overflow-hidden rounded-lg border">
-        <div class="transition-opacity [&>div]:max-h-[65vh]" :class="{ 'opacity-60': isLoading }">
+    <Card class="flex min-h-0 min-w-0 flex-1 flex-col gap-0 py-0">
+      <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
+        <div class="flex min-h-0 flex-1 flex-col transition-opacity" :class="{ 'opacity-60': isLoading }">
           <Table class="table-fixed" :style="columnSizeVars">
             <!-- table-layout: fixed по спецификации должен брать ширины колонок из первой
                  строки, но во время загрузки тело — один <td colspan> без индивидуальных

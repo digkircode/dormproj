@@ -6,5 +6,7 @@ defineProps<{ value: unknown; row?: unknown }>()
 </script>
 
 <template>
-  <SyncStatusPill :status="statusLabel[value as keyof typeof statusLabel]" />
+  <div class="flex justify-center">
+    <SyncStatusPill :status="statusLabel[value as keyof typeof statusLabel]" />
+  </div>
 </template>

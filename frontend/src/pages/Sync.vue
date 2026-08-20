@@ -80,7 +80,9 @@ onMounted(async () => {
           <TableRow v-for="(row, i) in rows" :key="i">
             <TableCell class="font-medium">{{ row.name }}</TableCell>
             <TableCell>
-              <SyncStatusPill :status="row.status" />
+              <div class="flex justify-center">
+                <SyncStatusPill :status="row.status" />
+              </div>
             </TableCell>
             <TableCell class="text-muted-foreground">{{ row.time }}</TableCell>
             <TableCell class="whitespace-nowrap text-muted-foreground">{{ row.duration }}</TableCell>
