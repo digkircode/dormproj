@@ -6,7 +6,7 @@ import type { ContractRegistryBucket } from '@/lib/reports-api'
 const props = defineProps<{ value: unknown; row?: unknown }>()
 
 const BUCKET_LABELS: Record<ContractRegistryBucket, string> = {
-  ACTIVE: 'Активен',
+  ACTIVE: 'Действует',
   EXPIRING: 'Истекает',
   OVERDUE: 'Просрочен',
   TERMINATED: 'Расторгнут',
@@ -37,9 +37,9 @@ const label = computed(() => {
 
 <template>
   <span
-    class="inline-flex w-fit items-center gap-1 rounded-full border border-border bg-background px-2.5 py-0.5 text-xs font-normal text-muted-foreground"
+    class="inline-flex w-fit max-w-full items-center gap-1 rounded-full border border-border bg-background px-2.5 py-0.5 text-xs font-normal text-muted-foreground"
   >
-    <component :is="BUCKET_ICON[bucket]" class="size-3.5" :class="BUCKET_ICON_CLASS[bucket]" />
-    {{ label }}
+    <component :is="BUCKET_ICON[bucket]" class="size-3.5 shrink-0" :class="BUCKET_ICON_CLASS[bucket]" />
+    <span class="min-w-0 truncate">{{ label }}</span>
   </span>
 </template>

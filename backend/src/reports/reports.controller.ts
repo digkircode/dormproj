@@ -30,7 +30,7 @@ const AGING_LABELS: Record<AgingBucket, string> = {
 type ContractRegistryBucket = 'ACTIVE' | 'EXPIRING' | 'OVERDUE' | 'TERMINATED';
 
 const BUCKET_LABELS: Record<ContractRegistryBucket, string> = {
-  ACTIVE: 'Активен',
+  ACTIVE: 'Действует',
   EXPIRING: 'Истекает',
   OVERDUE: 'Просрочен',
   TERMINATED: 'Расторгнут',
@@ -125,14 +125,17 @@ export class ReportsController {
   // Должники на дату asOf (по умолчанию сегодня) — по каждому договору с непогашенным
   // остатком: основной долг отдельно от пени (платежи по начислению считаем сначала
   // гасящими тело долга, остаток сверху — пеню, тот же принцип, что в billing/penalty.scheduler.ts).
-  // totalAccrued/totalPaid — по ВСЕМ начислениям договора (весь срок, все начисления
-  // создаются сразу при создании договора — см. accrual-generation.ts), не только по
-  // уже наступившим: раньше здесь тоже стоял фильтр dueDate<=asOf и "Начислено" в
-  // реестре по факту показывало только 1-2 наступивших месяца вместо суммы по всему
-  // договору — баг, найден и исправлен 2026-08-20. principalBalance/penaltyBalance/
-  // maxDaysOverdue (по ним отбираются должники и считается просрочка) по-прежнему
-  // копятся только по НАСТУПИВШИМ начислениям (isMatured) — будущие ещё не наступившие
-  // платежи не делают договор "просроченным", даже если формально уже выставлены.
+  // totalAccrued/totalPaid/principalBalance/penaltyBalance/totalBalance — по ВСЕМ
+  // начислениям договора (весь срок, все начисления создаются сразу при создании
+  // договора — см. accrual-generation.ts), не только по уже наступившим: раньше здесь
+  // (2026-08-20) уже чинили totalAccrued/totalPaid таким же образом, но "Долг"
+  // (principalBalance+penaltyBalance) намеренно оставался только по наступившим —
+  // по прямой просьбе 2026-08-20 эта асимметрия убрана, теперь "Долг" тоже отражает
+  // полную непогашённую сумму по всему сроку, а не только уже просроченную часть.
+  // maturedBalance/maxDaysOverdue — ОТДЕЛЬНО и по-прежнему только по НАСТУПИВШИМ
+  // начислениям (isMatured): именно maturedBalance решает, кто вообще попадает в
+  // отчёт как должник — иначе любой свежий, ничего не просрочивший арендатор попадал
+  // бы в список из-за ещё не наступивших будущих месяцев.
   private async buildDebtorRows(asOf: Date): Promise<DebtorRow[]> {
     const accruals = await this.prisma.accrual.findMany({
       where: { voidedAt: null },
@@ -155,6 +158,7 @@ export class ReportsController {
       room: string | null;
       principalBalance: Prisma.Decimal;
       penaltyBalance: Prisma.Decimal;
+      maturedBalance: Prisma.Decimal;
       totalAccrued: Prisma.Decimal;
       totalPaid: Prisma.Decimal;
       maxDaysOverdue: number;
@@ -169,20 +173,20 @@ export class ReportsController {
       // осталось долга (см. allocatePaymentFifo) — cap здесь чисто защитный.
       const paidCapped = paid.greaterThan(periodTotal) ? periodTotal : paid;
 
-      // Долг/пеня/просрочка — только по уже наступившим начислениям (иначе будущие,
-      // ещё не наступившие месяцы делали бы договор "просроченным" в день заключения).
+      // Непогашенный остаток по начислению — считаем по ВСЕМУ сроку договора, включая
+      // ещё не наступившие месяцы (см. комментарий к buildDebtorRows выше).
+      const unpaidPrincipal = principal.minus(paid).lessThan(0) ? new Decimal(0) : principal.minus(paid);
+      const paidTowardPenalty = paid.minus(principal).lessThan(0) ? new Decimal(0) : paid.minus(principal);
+      const unpaidPenalty = accrual.penaltyAmount.minus(paidTowardPenalty).lessThan(0)
+        ? new Decimal(0)
+        : accrual.penaltyAmount.minus(paidTowardPenalty);
+
+      // maturedBalance/daysOverdue — только по уже наступившим начислениям (иначе
+      // будущие, ещё не наступившие месяцы делали бы договор "просроченным" в день
+      // заключения) — используется только для отбора должников и колонки "Дней просрочки".
       const isMatured = accrual.dueDate <= asOf;
-      let unpaidPrincipal = new Decimal(0);
-      let unpaidPenalty = new Decimal(0);
-      let daysOverdue = 0;
-      if (isMatured) {
-        unpaidPrincipal = principal.minus(paid).lessThan(0) ? new Decimal(0) : principal.minus(paid);
-        const paidTowardPenalty = paid.minus(principal).lessThan(0) ? new Decimal(0) : paid.minus(principal);
-        unpaidPenalty = accrual.penaltyAmount.minus(paidTowardPenalty).lessThan(0)
-          ? new Decimal(0)
-          : accrual.penaltyAmount.minus(paidTowardPenalty);
-        daysOverdue = Math.max(0, daysBetweenInclusive(accrual.dueDate, asOf) - 1);
-      }
+      const maturedUnpaid = isMatured ? unpaidPrincipal.plus(unpaidPenalty) : new Decimal(0);
+      const daysOverdue = isMatured ? Math.max(0, daysBetweenInclusive(accrual.dueDate, asOf) - 1) : 0;
 
       const { contract } = accrual;
 
@@ -190,6 +194,7 @@ export class ReportsController {
       if (existing) {
         existing.principalBalance = existing.principalBalance.plus(unpaidPrincipal);
         existing.penaltyBalance = existing.penaltyBalance.plus(unpaidPenalty);
+        existing.maturedBalance = existing.maturedBalance.plus(maturedUnpaid);
         existing.totalAccrued = existing.totalAccrued.plus(periodTotal);
         existing.totalPaid = existing.totalPaid.plus(paidCapped);
         existing.maxDaysOverdue = Math.max(existing.maxDaysOverdue, daysOverdue);
@@ -202,6 +207,7 @@ export class ReportsController {
           room: contract.roomAssignments[0]?.room.room ?? null,
           principalBalance: unpaidPrincipal,
           penaltyBalance: unpaidPenalty,
+          maturedBalance: maturedUnpaid,
           totalAccrued: periodTotal,
           totalPaid: paidCapped,
           maxDaysOverdue: daysOverdue,
@@ -210,7 +216,7 @@ export class ReportsController {
     }
 
     return Array.from(byContract.values())
-      .filter((row) => row.principalBalance.plus(row.penaltyBalance).greaterThan(0))
+      .filter((row) => row.maturedBalance.greaterThan(0))
       .map((row) => ({
         contractId: row.contractId,
         contractNumber: row.contractNumber,
@@ -252,6 +258,7 @@ export class ReportsController {
     return {
       debtorsCount: rows.length,
       totalDebt: rows.reduce((sum, r) => sum + r.totalBalance, 0),
+      totalPaid: rows.reduce((sum, r) => sum + r.totalPaid, 0),
       overdueDebt: rows.filter((r) => r.daysOverdue > 0).reduce((sum, r) => sum + r.totalBalance, 0),
     };
   }

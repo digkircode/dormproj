@@ -23,6 +23,7 @@ export interface DebtorRow {
 export interface DebtorsSummary {
   debtorsCount: number
   totalDebt: number
+  totalPaid: number
   overdueDebt: number
 }
 

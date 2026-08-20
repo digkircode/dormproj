@@ -4,7 +4,7 @@ import { User } from 'lucide-vue-next'
 defineProps<{ value: unknown; row?: unknown }>()
 
 const LINK_CLASS =
-  '-mx-1.5 -my-0.5 flex w-fit items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-accent hover:text-accent-foreground'
+  '-mx-1.5 -my-0.5 flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-accent hover:text-accent-foreground'
 </script>
 
 <template>
@@ -13,6 +13,6 @@ const LINK_CLASS =
     :class="LINK_CLASS"
   >
     <User class="size-4 shrink-0 text-primary" />
-    {{ value }}
+    <span class="min-w-0 truncate">{{ value }}</span>
   </RouterLink>
 </template>

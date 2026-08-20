@@ -7,5 +7,5 @@ const days = computed(() => Number(props.value ?? 0))
 </script>
 
 <template>
-  <span :class="days > 0 ? 'text-red-500' : 'text-muted-foreground'">{{ days > 0 ? days : '—' }}</span>
+  <span :class="days > 0 ? '' : 'text-muted-foreground'">{{ days > 0 ? days : '—' }}</span>
 </template>

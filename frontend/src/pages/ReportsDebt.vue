@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { AlertTriangle, ArrowLeft, Banknote, Info, Users } from 'lucide-vue-next'
+import { AlertTriangle, ArrowLeft, Banknote, Info, Users, Wallet } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
@@ -10,6 +10,7 @@ import EntityTable from '@/components/EntityTable.vue'
 import ContractLinkCell from '@/components/ContractLinkCell.vue'
 import ResidentLinkCell from '@/components/ResidentLinkCell.vue'
 import DaysOverdueCell from '@/components/DaysOverdueCell.vue'
+import DebtBalanceCell from '@/components/DebtBalanceCell.vue'
 import ReportKpiTile from '@/components/ReportKpiTile.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import {
@@ -43,7 +44,12 @@ const columnLabels: Record<string, string> = {
   agingBucket: 'Просрочка',
 }
 const filterableFields = ['agingBucket']
-const cellRenderers = { contractNumber: ContractLinkCell, residentFullName: ResidentLinkCell, daysOverdue: DaysOverdueCell }
+const cellRenderers = {
+  contractNumber: ContractLinkCell,
+  residentFullName: ResidentLinkCell,
+  totalBalance: DebtBalanceCell,
+  daysOverdue: DaysOverdueCell,
+}
 
 function formatMoney(value: number): string {
   return `${value.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
@@ -118,7 +124,7 @@ async function openBreakdown(contractId: number) {
       <h1 class="text-lg font-medium">Задолженность</h1>
     </div>
 
-    <Card v-if="summary" class="grid grid-cols-3 gap-4 p-4">
+    <Card v-if="summary" class="grid grid-cols-4 gap-4 p-4">
       <ReportKpiTile
         :icon="Users"
         bg-class="bg-blue-100 dark:bg-blue-500/15"
@@ -139,6 +145,13 @@ async function openBreakdown(contractId: number) {
         icon-class="text-orange-600 dark:text-orange-400"
         label="Просрочено"
         :value="formatMoney(summary.overdueDebt)"
+      />
+      <ReportKpiTile
+        :icon="Wallet"
+        bg-class="bg-emerald-100 dark:bg-emerald-500/15"
+        icon-class="text-emerald-600 dark:text-emerald-400"
+        label="Всего оплачено"
+        :value="formatMoney(summary.totalPaid)"
       />
     </Card>
 

@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import EntityTable from '@/components/EntityTable.vue'
 import ResidentLinkCell from '@/components/ResidentLinkCell.vue'
-import ContractNumberPlainCell from '@/components/ContractNumberPlainCell.vue'
+import ContractLinkCell from '@/components/ContractLinkCell.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import { fetchContingentPage, fetchContingentFacets, type ContingentRow } from '@/lib/reports-api'
 import { goBack } from '@/lib/utils'
@@ -22,7 +22,7 @@ const columnLabels: Record<string, string> = {
   citizenship: 'Гражданство',
 }
 const filterableFields = ['facultet', 'kursNumber']
-const cellRenderers = { residentFullName: ResidentLinkCell, contractNumber: ContractNumberPlainCell }
+const cellRenderers = { residentFullName: ResidentLinkCell, contractNumber: ContractLinkCell }
 
 function formatDateIso(iso: string): string {
   const date = new Date(iso)

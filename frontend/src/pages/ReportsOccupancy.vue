@@ -5,6 +5,7 @@ import { ArrowLeft, ChevronRight, DoorClosed, DoorOpen, FileText, Home, Layers, 
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import ReportKpiTile from '@/components/ReportKpiTile.vue'
 import { fetchOccupancy, type OccupancyReport, type OccupancyRoom } from '@/lib/reports-api'
 import { goBack } from '@/lib/utils'
@@ -69,6 +70,10 @@ function openRoom(room: OccupancyRoom) {
 function formatPercent(value: number): string {
   return `${Math.round(value * 100)}%`
 }
+
+// Переключатель "Новый/Старый" — пока чисто визуальный, ни на выборку комнат,
+// ни на запрос не влияет (добавлено по прямой просьбе, логика будет позже).
+const roomsView = ref<'new' | 'old'>('new')
 </script>
 
 <template>
@@ -116,6 +121,13 @@ function formatPercent(value: number): string {
         />
       </Card>
 
+      <Tabs v-model="roomsView">
+        <TabsList class="w-fit">
+          <TabsTrigger value="new">Новый</TabsTrigger>
+          <TabsTrigger value="old">Старый</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
         <div v-for="floorGroup in report.floors" :key="floorKey(floorGroup.floor)" class="flex flex-col gap-2">
           <button
@@ -143,9 +155,7 @@ function formatPercent(value: number): string {
               <div class="h-2 overflow-hidden rounded-full bg-muted">
                 <div class="h-full rounded-full transition-all" :class="barClass(room)" :style="{ width: `${occupancyRatio(room) * 100}%` }" />
               </div>
-              <span class="text-xs text-muted-foreground">
-                (<span class="text-red-500">{{ room.occupied }}</span> / <span class="text-emerald-500">{{ room.free ?? '—' }}</span>)
-              </span>
+              <span class="text-xs text-muted-foreground">({{ room.occupied }} / {{ room.free ?? '—' }})</span>
             </button>
           </div>
         </div>
