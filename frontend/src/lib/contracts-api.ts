@@ -91,6 +91,22 @@ export interface ContractDetail {
   terms: ContractTerms[]
   accruals: AccrualRow[]
   payments: PaymentRow[]
+  // Определяет доступность "Удалить договор" — после первой же оплаты (даже
+  // сторнированной) удаление блокируется навсегда, см. contracts.controller.ts.
+  hasPayments: boolean
+}
+
+export interface LegalRepPrefill {
+  legalRepName: string | null
+  legalRepPhone: string | null
+  legalRepBirthDate: string | null
+  legalRepPassportSeries: string | null
+  legalRepPassportNumber: string | null
+  legalRepPassportIssuedBy: string | null
+  legalRepPassportIssuedCode: string | null
+  legalRepPassportIssuedAt: string | null
+  legalRepSnils: string | null
+  legalRepInn: string | null
 }
 
 export interface CreateContractInput {
@@ -161,4 +177,41 @@ export async function terminateContract(id: number, actualEndDate: string): Prom
     const body: { message?: string } = await response.json().catch(() => ({}))
     throw new Error(body.message ?? `Не удалось расторгнуть договор (${response.status})`)
   }
+}
+
+export async function deleteContract(id: number): Promise<void> {
+  const response = await apiFetch(`/contracts/${id}`, { method: 'DELETE' })
+  if (!response.ok) {
+    const body: { message?: string } = await response.json().catch(() => ({}))
+    throw new Error(body.message ?? `Не удалось удалить договор (${response.status})`)
+  }
+}
+
+// Последний договор этого резидента с уже заведённым родителем (см. legal-rep/:residentUid
+// в contracts.controller.ts) — для автоподстановки в форму нового договора. null, если
+// у этого несовершеннолетнего родитель ещё ни разу не вводился.
+export async function fetchLegalRepPrefill(residentUid: string): Promise<LegalRepPrefill | null> {
+  const response = await apiFetch(`/contracts/legal-rep/${residentUid}`)
+  if (!response.ok) {
+    throw new Error(`Не удалось получить данные родителя (${response.status})`)
+  }
+  return response.json()
+}
+
+// Скачивание заполненного .docx — apiFetch не подходит для обычной ссылки (нужна кука
+// авторизации), поэтому сами получаем blob и эмулируем клик по <a download>.
+export async function downloadContractDocument(id: number, contractNumber: string): Promise<void> {
+  const response = await apiFetch(`/contracts/${id}/document`)
+  if (!response.ok) {
+    throw new Error(`Не удалось сформировать договор (${response.status})`)
+  }
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `Договор №${contractNumber}.docx`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
 }

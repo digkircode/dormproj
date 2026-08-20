@@ -2,15 +2,17 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   NotFoundException,
   Param,
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { ContractStatus, Prisma } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
@@ -19,6 +21,10 @@ import { ensureUserRecord } from '../users/ensure-user';
 import { buildAccrualsForContract } from '../billing/accrual-generation';
 import { recalcAccrualsForTermination } from '../billing/termination';
 import { serializeAccrual, serializePayment, serializeTerms } from './serializers';
+import { isMinorAt } from './minor';
+import { buildResidentSnapshot, type ResidentSnapshot } from './resident-snapshot';
+import { renderContractDocument } from './contract-document';
+import { buildDocumentData } from './contract-document-data';
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -188,6 +194,31 @@ export class ContractsController {
     return Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }));
   }
 
+  // Автоподстановка родителя на новом договоре того же несовершеннолетнего — последний
+  // договор этого резидента, где уже заводился Individual(isManual) для родителя (см.
+  // create() ниже). Печатные данные конкретного договора берутся из legalRep*-полей самого
+  // НАЙДЕННОГО договора (не из Individual) — та же логика, что и при печати.
+  @Get('legal-rep/:residentUid')
+  async legalRepPrefill(@Param('residentUid') residentUid: string) {
+    const previous = await this.prisma.contract.findFirst({
+      where: { residentIndividualUid: residentUid, legalRepIndividualUid: { not: null } },
+      orderBy: { contractDate: 'desc' },
+    });
+    if (!previous) return null;
+    return {
+      legalRepName: previous.legalRepName,
+      legalRepPhone: previous.legalRepPhone,
+      legalRepBirthDate: previous.legalRepBirthDate,
+      legalRepPassportSeries: previous.legalRepPassportSeries,
+      legalRepPassportNumber: previous.legalRepPassportNumber,
+      legalRepPassportIssuedBy: previous.legalRepPassportIssuedBy,
+      legalRepPassportIssuedCode: previous.legalRepPassportIssuedCode,
+      legalRepPassportIssuedAt: previous.legalRepPassportIssuedAt,
+      legalRepSnils: previous.legalRepSnils,
+      legalRepInn: previous.legalRepInn,
+    };
+  }
+
   @Get(':id')
   async detail(@Param('id') idParam: string) {
     const id = parseIdParam(idParam);
@@ -218,6 +249,9 @@ export class ContractsController {
       terms: terms.map(serializeTerms),
       accruals: accruals.map(serializeAccrual),
       payments: payments.map(serializePayment),
+      // Определяет, доступно ли "Удалить договор" в UI — после первой же оплаты (даже
+      // сторнированной) удаление блокируется навсегда, см. remove() ниже.
+      hasPayments: payments.length > 0,
     };
   }
 
@@ -241,6 +275,17 @@ export class ContractsController {
       throw new NotFoundException('Комната не найдена');
     }
 
+    // Несовершеннолетие — на дату ДОГОВОРА (contractDate), как и во фронтовом computed
+    // isMinor (Contracts.vue). Раньше здесь не было никакой серверной проверки блока
+    // родителя вообще (см. известную проблему в промпте проекта) — прямой запрос мимо
+    // формы мог завести договор на несовершеннолетнего без данных родителя.
+    const contractIsMinor = isMinorAt(individual.birthDate, data.contractDate);
+    if (contractIsMinor) {
+      if (!data.legalRepBirthDate || !data.legalRepPassportNumber || !data.legalRepPassportIssuedAt) {
+        throw new BadRequestException('Для несовершеннолетнего обязательны дата рождения, номер и дата выдачи паспорта родителя');
+      }
+    }
+
     const rentAmount = new Prisma.Decimal(data.rentAmount);
     const utilitiesAmount = new Prisma.Decimal(data.utilitiesAmount);
     const dailyRateAmount = new Prisma.Decimal(data.dailyRateAmount);
@@ -249,6 +294,11 @@ export class ContractsController {
       return await this.prisma.$transaction(async (tx) => {
         const createdByUserId = await ensureUserRecord(tx, req.user!);
 
+        // Снимок личных данных проживающего на момент подписания — печать договора
+        // всегда будет показывать именно это, даже если синхрон 1С перепишет паспорт/
+        // СНИЛС/адрес/телефон позже (см. resident-snapshot.ts).
+        const residentSnapshot = await buildResidentSnapshot(tx, data.residentIndividualUid);
+
         const contract = await tx.contract.create({
           data: {
             number: data.number,
@@ -256,6 +306,7 @@ export class ContractsController {
             residentIndividualUid: data.residentIndividualUid,
             startDate: data.startDate,
             endDate: data.endDate,
+            residentSnapshot: residentSnapshot as unknown as Prisma.InputJsonValue,
             legalRepName: data.legalRepName ?? null,
             legalRepPhone: data.legalRepPhone ?? null,
             legalRepBirthDate: data.legalRepBirthDate ?? null,
@@ -327,6 +378,34 @@ export class ContractsController {
           });
         }
 
+        // Родитель несовершеннолетнего — заводится как настоящий Individual(isManual=true),
+        // не только текстовыми legalRep*-полями на Contract (см. schema.prisma — это
+        // сознательный пересмотр прежнего решения, по прямой просьбе). uid детерминированный
+        // (один на резидента) — повторный договор того же несовершеннолетнего обновляет ту
+        // же запись, а не плодит дубли; печатные данные конкретно ЭТОГО договора всё равно
+        // берутся из legalRep*-полей выше, эта запись только для будущей автоподстановки.
+        if (contractIsMinor && data.legalRepName) {
+          const legalRepUid = `manual-parent-${data.residentIndividualUid}`;
+          await tx.individual.upsert({
+            where: { fizicheskoyeLitsoUid: legalRepUid },
+            create: {
+              fizicheskoyeLitsoUid: legalRepUid,
+              isManual: true,
+              fullName: data.legalRepName,
+              birthDate: data.legalRepBirthDate ?? null,
+              snils: data.legalRepSnils ?? null,
+              inn: data.legalRepInn ?? null,
+            },
+            update: {
+              fullName: data.legalRepName,
+              birthDate: data.legalRepBirthDate ?? null,
+              snils: data.legalRepSnils ?? null,
+              inn: data.legalRepInn ?? null,
+            },
+          });
+          return tx.contract.update({ where: { id: contract.id }, data: { legalRepIndividualUid: legalRepUid } });
+        }
+
         return contract;
       });
     } catch (error) {
@@ -368,5 +447,67 @@ export class ContractsController {
       await recalcAccrualsForTermination(tx, id, parsed.data.actualEndDate);
       return tx.contract.findUniqueOrThrow({ where: { id } });
     });
+  }
+
+  // Полное удаление договора со всеми связками (ContractTerms/RoomAssignment/Accrual —
+  // onDelete: Cascade в schema.prisma) — но ТОЛЬКО пока по нему не было ни одной оплаты
+  // (даже сторнированной, reversedAt не разбираем — раз платёж был, назад дороги нет).
+  // matchedContractId у PaymentImportRecord обнуляем на всякий случай — таблица пока
+  // пустая на практике (нет сервиса импорта), но если когда-то появится, FK не должен
+  // блокировать удаление осиротевшей ссылки.
+  @Delete(':id')
+  async remove(@Param('id') idParam: string) {
+    const id = parseIdParam(idParam);
+    const contract = await this.prisma.contract.findUnique({ where: { id } });
+    if (!contract) {
+      throw new NotFoundException('Договор не найден');
+    }
+    const paymentsCount = await this.prisma.payment.count({ where: { contractId: id } });
+    if (paymentsCount > 0) {
+      throw new BadRequestException('По договору уже проводились оплаты — удаление недоступно');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.paymentImportRecord.updateMany({ where: { matchedContractId: id }, data: { matchedContractId: null } });
+      await tx.contract.delete({ where: { id } });
+    });
+    return { ok: true };
+  }
+
+  // Печать договора — заполняет один из двух реальных бланков (обычный/для
+  // несовершеннолетних, выбор по наличию legalRepIndividualUid) данными на момент
+  // подписания. Для договоров, созданных до этой фичи (residentSnapshot ещё пуст) —
+  // best-effort снимок из ТЕКУЩИХ данных физлица строится один раз здесь же и сохраняется,
+  // дальше уже не пересчитывается (см. resident-snapshot.ts).
+  @Get(':id/document')
+  async document(@Param('id') idParam: string, @Res() res: Response) {
+    const id = parseIdParam(idParam);
+    let contract = await this.prisma.contract.findUnique({
+      where: { id },
+      include: { terms: { orderBy: { validFrom: 'asc' }, take: 1 }, roomAssignments: { orderBy: { fromDate: 'asc' }, take: 1, include: { room: true } } },
+    });
+    if (!contract) {
+      throw new NotFoundException('Договор не найден');
+    }
+
+    if (!contract.residentSnapshot) {
+      const snapshot = await buildResidentSnapshot(this.prisma, contract.residentIndividualUid);
+      await this.prisma.contract.update({
+        where: { id },
+        data: { residentSnapshot: snapshot as unknown as Prisma.InputJsonValue },
+      });
+      contract = { ...contract, residentSnapshot: snapshot as unknown as Prisma.JsonValue };
+    }
+
+    const resident = contract.residentSnapshot as unknown as ResidentSnapshot;
+    const terms = contract.terms[0];
+    const room = contract.roomAssignments[0]?.room ?? null;
+    const isMinorContract = contract.legalRepIndividualUid !== null;
+
+    const buffer = renderContractDocument(isMinorContract ? 'minor' : 'standard', buildDocumentData(contract, resident, terms, room));
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename="contract-${contract.number}.docx"`);
+    res.send(buffer);
   }
 }

@@ -79,6 +79,7 @@ model Individual {
   contactInfos ContactInfo[]
   users        User[]
   contracts    Contract[]
+  contractsAsLegalRep Contract[] @relation("ContractLegalRep")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -395,6 +396,19 @@ model Contract {
   matCapitalCoveredTo     DateTime? @map("mat_capital_covered_to")
   matCapitalAmount        Decimal?  @map("mat_capital_amount") @db.Decimal(12, 2)
   matCapitalDeferredUntil DateTime? @map("mat_capital_deferred_until")
+
+  // Снимок личных данных проживающего на момент подписания (паспорт/СНИЛС/адрес/телефон/
+  // институт-курс — то, что синхрон 1С может незаметно перезаписать позже). Заполняется
+  // один раз при создании договора; для договоров, созданных до этой фичи — лениво при
+  // первой печати (см. resident-snapshot.ts) и дальше уже не трогается.
+  residentSnapshot Json? @map("resident_snapshot")
+
+  // Родитель несовершеннолетнего как отдельный Individual(isManual=true) — только чтобы на
+  // следующем договоре того же несовершеннолетнего подставить уже введённые данные.
+  // Печатные данные конкретно ЭТОГО договора по-прежнему берутся из legalRep*-полей выше
+  // (они не меняются задним числом) — эта связь не источник печати, а только для автоподстановки.
+  legalRepIndividualUid String?     @map("legal_rep_individual_uid")
+  legalRepIndividual    Individual? @relation("ContractLegalRep", fields: [legalRepIndividualUid], references: [fizicheskoyeLitsoUid])
 
   // Необязательная связь для истории перезаключений — на бизнес-логику начислений не
   // влияет, продление всегда новый Contract с новым номером и датами, не мутация старого.

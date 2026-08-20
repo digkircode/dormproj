@@ -10,15 +10,15 @@ import {
   CalendarClock,
   CalendarRange,
   ChevronRight,
-  Download,
   Droplet,
   FileSignature,
   History,
   Home,
   MoreVertical,
-  Pencil,
   Plus,
+  Printer,
   Receipt,
+  Trash2,
   User,
   Users,
   Wallet,
@@ -38,6 +38,8 @@ import RoomInfoTrigger from '@/components/RoomInfoTrigger.vue'
 import {
   fetchContractDetail,
   terminateContract,
+  deleteContract,
+  downloadContractDocument,
   type AccrualRow,
   type ContractDetail,
   type PaymentMethod,
@@ -194,6 +196,46 @@ async function submitTerminate() {
   }
 }
 
+// --- Удаление договора ---
+// Доступно, только пока по договору не было ни одной оплаты (contract.hasPayments,
+// см. contracts.controller.ts) — после первой же оплаты кнопка блокируется навсегда.
+const isDeleteOpen = ref(false)
+const deleteError = ref('')
+const isDeleting = ref(false)
+
+function openDelete() {
+  deleteError.value = ''
+  isDeleteOpen.value = true
+}
+async function submitDelete() {
+  isDeleting.value = true
+  deleteError.value = ''
+  try {
+    await deleteContract(contractId.value)
+    router.push({ name: 'contracts' })
+  } catch (error) {
+    deleteError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isDeleting.value = false
+  }
+}
+
+// --- Печать договора ---
+const isDownloading = ref(false)
+const downloadError = ref('')
+async function downloadDocument() {
+  if (!contract.value) return
+  isDownloading.value = true
+  downloadError.value = ''
+  try {
+    await downloadContractDocument(contract.value.id, contract.value.number)
+  } catch (error) {
+    downloadError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isDownloading.value = false
+  }
+}
+
 // --- Внесение платежа ---
 const isPaymentOpen = ref(false)
 const paymentAmount = ref<number | undefined>(undefined)
@@ -273,6 +315,7 @@ async function confirmReversePayment() {
     </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
+    <p v-if="downloadError" class="text-sm text-red-500">{{ downloadError }}</p>
     <p v-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
 
     <template v-if="contract">
@@ -290,16 +333,9 @@ async function confirmReversePayment() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <!-- Печать/скачивание договора и редактирование — ещё не реализованы на бэке
-                   (см. промпт проекта, roadmap), пункты видны, но неактивны, чтобы не
-                   притворяться рабочей функцией. -->
-              <DropdownMenuItem disabled>
-                <Download class="text-muted-foreground" />
-                Скачать договор (скоро)
-              </DropdownMenuItem>
-              <DropdownMenuItem disabled>
-                <Pencil class="text-muted-foreground" />
-                Редактировать (скоро)
+              <DropdownMenuItem :disabled="isDownloading" @click="downloadDocument">
+                <Printer class="text-primary" />
+                Печать договора
               </DropdownMenuItem>
               <DropdownMenuItem @click="openPayment">
                 <Plus class="text-primary" />
@@ -308,6 +344,12 @@ async function confirmReversePayment() {
               <DropdownMenuItem :disabled="contract.status !== 'ACTIVE'" @click="openTerminate">
                 <Ban class="text-red-500" />
                 Расторгнуть договор
+              </DropdownMenuItem>
+              <!-- Удаление доступно, только пока по договору не было ни одной оплаты — см.
+                   contract.hasPayments (backend блокирует то же самое на DELETE /contracts/:id). -->
+              <DropdownMenuItem :disabled="contract.hasPayments" @click="openDelete">
+                <Trash2 class="text-red-500" />
+                Удалить договор
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -522,6 +564,23 @@ async function confirmReversePayment() {
         <DialogFooter>
           <Button variant="outline" @click="isTerminateOpen = false">Отмена</Button>
           <Button :disabled="isTerminating" @click="submitTerminate">Расторгнуть</Button>
+        </DialogFooter>
+      </DialogScrollContent>
+    </Dialog>
+
+    <Dialog :open="isDeleteOpen" @update:open="(open) => (isDeleteOpen = open)">
+      <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
+        <DialogHeader>
+          <DialogTitle>Удалить договор?</DialogTitle>
+          <DialogDescription>
+            Договор № {{ contract?.number }} будет удалён из базы безвозвратно вместе со всеми начислениями и историей
+            заселения. Отменить это действие нельзя.
+          </DialogDescription>
+        </DialogHeader>
+        <p v-if="deleteError" class="text-sm text-red-500">{{ deleteError }}</p>
+        <DialogFooter>
+          <Button variant="outline" @click="isDeleteOpen = false">Отмена</Button>
+          <Button variant="destructive" :disabled="isDeleting" @click="submitDelete">Удалить</Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>

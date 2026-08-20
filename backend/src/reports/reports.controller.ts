@@ -62,6 +62,10 @@ interface DebtorRow {
   principalBalance: number;
   penaltyBalance: number;
   totalBalance: number;
+  // Непогашённый остаток только по уже наступившим начислениям (дата платежа <= asOf) —
+  // используется для KPI "Просрочено" (см. debtorsSummary), не отдаётся отдельной
+  // колонкой в таблице (там "Долг" уже по всему сроку, см. totalBalance).
+  maturedBalance: number;
   daysOverdue: number;
   agingBucket: AgingBucket;
 }
@@ -228,6 +232,7 @@ export class ReportsController {
         principalBalance: Number(row.principalBalance),
         penaltyBalance: Number(row.penaltyBalance),
         totalBalance: Number(row.principalBalance.plus(row.penaltyBalance)),
+        maturedBalance: Number(row.maturedBalance),
         daysOverdue: row.maxDaysOverdue,
         agingBucket: agingBucket(row.maxDaysOverdue),
       }));
@@ -259,7 +264,7 @@ export class ReportsController {
       debtorsCount: rows.length,
       totalDebt: rows.reduce((sum, r) => sum + r.totalBalance, 0),
       totalPaid: rows.reduce((sum, r) => sum + r.totalPaid, 0),
-      overdueDebt: rows.filter((r) => r.daysOverdue > 0).reduce((sum, r) => sum + r.totalBalance, 0),
+      overdueDebt: rows.filter((r) => r.daysOverdue > 0).reduce((sum, r) => sum + r.maturedBalance, 0),
     };
   }
 
