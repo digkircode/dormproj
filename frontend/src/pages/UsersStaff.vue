@@ -18,7 +18,7 @@ const columnLabels: Record<string, string> = {
   email: 'Email',
   roles: 'Роли',
   // 'role' — фильтр, не колонка (сама колонка называется 'roles', см. выше) — та же
-  // схема, что agingBucket в ReportsDebt.vue.
+  // схема, что citizenshipGroup в ReportsContingent.vue.
   role: 'Роль',
 }
 const filterableFields = ['role']

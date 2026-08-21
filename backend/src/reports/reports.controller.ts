@@ -4,30 +4,14 @@ import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
-import { daysBetweenInclusive, dateOnly, addDays, startOfMonth } from '../billing/period-utils';
+import { dateOnly, addDays, startOfMonth } from '../billing/period-utils';
+import { computeOverdueDebt } from '../billing/accrual-generation';
+import { computePenaltyBalance } from '../billing/penalty-balance';
 import { fromStoredValue } from '../rooms/characteristic-value';
 import { serializeAccrual } from '../contracts/serializers';
 import { parseListOptions, paginateInMemory, facetsFromValues, type FacetOption } from './list-helpers';
 
 const { Decimal } = Prisma;
-
-type AgingBucket = 'CURRENT' | 'D1_30' | 'D31_60' | 'D61_90' | 'D90_PLUS';
-
-function agingBucket(daysOverdue: number): AgingBucket {
-  if (daysOverdue <= 0) return 'CURRENT';
-  if (daysOverdue <= 30) return 'D1_30';
-  if (daysOverdue <= 60) return 'D31_60';
-  if (daysOverdue <= 90) return 'D61_90';
-  return 'D90_PLUS';
-}
-
-const AGING_LABELS: Record<AgingBucket, string> = {
-  CURRENT: 'В срок',
-  D1_30: '1–30 дней',
-  D31_60: '31–60 дней',
-  D61_90: '61–90 дней',
-  D90_PLUS: '90+ дней',
-};
 
 type ContractRegistryBucket = 'ACTIVE' | 'EXPIRING' | 'OVERDUE' | 'TERMINATED';
 
@@ -65,11 +49,13 @@ interface DebtorRow {
   penaltyBalance: number;
   totalBalance: number;
   // Непогашённый остаток только по уже наступившим начислениям (дата платежа <= asOf) —
-  // используется для KPI "Просрочено" (см. debtorsSummary), не отдаётся отдельной
-  // колонкой в таблице (там "Долг" уже по всему сроку, см. totalBalance).
+  // решает, кто вообще попадает в отчёт как должник, не отдаётся отдельной колонкой
+  // в таблице (там "Долг" уже по всему сроку, см. totalBalance).
   maturedBalance: number;
-  daysOverdue: number;
-  agingBucket: AgingBucket;
+  // База пени (см. Contract.penaltyAmount/computeOverdueDebt) — сумма непогашенного
+  // остатка только по ПРОСРОЧЕННЫМ начислениям (10 число месяца, следующего за periodStart,
+  // прошло) — используется для KPI "Просрочено" (см. debtorsSummary).
+  overdueBalance: number;
 }
 
 interface ContingentRow {
@@ -143,106 +129,72 @@ export class ReportsController {
   // (principalBalance+penaltyBalance) намеренно оставался только по наступившим —
   // по прямой просьбе 2026-08-20 эта асимметрия убрана, теперь "Долг" тоже отражает
   // полную непогашённую сумму по всему сроку, а не только уже просроченную часть.
-  // maturedBalance/maxDaysOverdue — ОТДЕЛЬНО и по-прежнему только по НАСТУПИВШИМ
-  // начислениям (isMatured): именно maturedBalance решает, кто вообще попадает в
-  // отчёт как должник — иначе любой свежий, ничего не просрочивший арендатор попадал
-  // бы в список из-за ещё не наступивших будущих месяцев.
+  // maturedBalance — по-прежнему только по НАСТУПИВШИМ начислениям (isMatured, dueDate):
+  // именно она решает, кто вообще попадает в отчёт как должник — иначе любой свежий,
+  // ничего не просрочивший арендатор попадал бы в список из-за ещё не наступивших
+  // будущих месяцев. Пеня (penaltyBalance) — с 2026-08-22 единая на договор, а не на
+  // начисление (см. Contract.penaltyAmount) — должником считаем и того, у кого пеня ещё
+  // не погашена, даже если всё тело долга уже оплачено.
   private async buildDebtorRows(asOf: Date): Promise<DebtorRow[]> {
-    const accruals = await this.prisma.accrual.findMany({
-      where: { voidedAt: null },
+    const contracts = await this.prisma.contract.findMany({
+      where: { accruals: { some: { voidedAt: null } } },
       include: {
-        allocations: true,
-        contract: {
-          include: {
-            resident: { select: { fullName: true, fizicheskoyeLitsoUid: true } },
-            roomAssignments: { where: { toDate: null }, include: { room: { select: { room: true } } } },
-          },
-        },
+        resident: { select: { fullName: true, fizicheskoyeLitsoUid: true } },
+        roomAssignments: { where: { toDate: null }, include: { room: { select: { room: true } } } },
+        accruals: { where: { voidedAt: null }, include: { allocations: true } },
+        payments: true,
       },
     });
 
-    interface Acc {
-      contractId: number;
-      contractNumber: string;
-      residentIndividualUid: string;
-      residentFullName: string;
-      room: string | null;
-      principalBalance: Prisma.Decimal;
-      penaltyBalance: Prisma.Decimal;
-      maturedBalance: Prisma.Decimal;
-      totalAccrued: Prisma.Decimal;
-      totalPaid: Prisma.Decimal;
-      maxDaysOverdue: number;
-    }
-    const byContract = new Map<number, Acc>();
+    const rows: DebtorRow[] = [];
+    for (const contract of contracts) {
+      let totalAccrued = new Decimal(0);
+      let principalBalance = new Decimal(0);
+      let maturedBalance = new Decimal(0);
 
-    for (const accrual of accruals) {
-      const principal = accrual.rentAmount.plus(accrual.utilitiesAmount).plus(accrual.adjustmentAmount);
-      const periodTotal = principal.plus(accrual.penaltyAmount);
-      const paid = accrual.allocations.reduce((sum, a) => sum.plus(a.amount), new Decimal(0));
-      // На отдельное начисление FIFO-разнесение не может выделить больше, чем в нём
-      // осталось долга (см. allocatePaymentFifo) — cap здесь чисто защитный.
-      const paidCapped = paid.greaterThan(periodTotal) ? periodTotal : paid;
+      for (const accrual of contract.accruals) {
+        const principal = accrual.rentAmount.plus(accrual.utilitiesAmount).plus(accrual.adjustmentAmount);
+        const paid = accrual.allocations.reduce((sum, a) => sum.plus(a.amount), new Decimal(0));
+        // Непогашенный остаток по начислению — считаем по ВСЕМУ сроку договора, включая
+        // ещё не наступившие месяцы (см. комментарий к buildDebtorRows выше).
+        const unpaid = principal.minus(paid).lessThan(0) ? new Decimal(0) : principal.minus(paid);
 
-      // Непогашенный остаток по начислению — считаем по ВСЕМУ сроку договора, включая
-      // ещё не наступившие месяцы (см. комментарий к buildDebtorRows выше).
-      const unpaidPrincipal = principal.minus(paid).lessThan(0) ? new Decimal(0) : principal.minus(paid);
-      const paidTowardPenalty = paid.minus(principal).lessThan(0) ? new Decimal(0) : paid.minus(principal);
-      const unpaidPenalty = accrual.penaltyAmount.minus(paidTowardPenalty).lessThan(0)
-        ? new Decimal(0)
-        : accrual.penaltyAmount.minus(paidTowardPenalty);
-
-      // maturedBalance/daysOverdue — только по уже наступившим начислениям (иначе
-      // будущие, ещё не наступившие месяцы делали бы договор "просроченным" в день
-      // заключения) — используется только для отбора должников и колонки "Дней просрочки".
-      const isMatured = accrual.dueDate <= asOf;
-      const maturedUnpaid = isMatured ? unpaidPrincipal.plus(unpaidPenalty) : new Decimal(0);
-      const daysOverdue = isMatured ? Math.max(0, daysBetweenInclusive(accrual.dueDate, asOf) - 1) : 0;
-
-      const { contract } = accrual;
-
-      const existing = byContract.get(contract.id);
-      if (existing) {
-        existing.principalBalance = existing.principalBalance.plus(unpaidPrincipal);
-        existing.penaltyBalance = existing.penaltyBalance.plus(unpaidPenalty);
-        existing.maturedBalance = existing.maturedBalance.plus(maturedUnpaid);
-        existing.totalAccrued = existing.totalAccrued.plus(periodTotal);
-        existing.totalPaid = existing.totalPaid.plus(paidCapped);
-        existing.maxDaysOverdue = Math.max(existing.maxDaysOverdue, daysOverdue);
-      } else {
-        byContract.set(contract.id, {
-          contractId: contract.id,
-          contractNumber: contract.number,
-          residentIndividualUid: contract.residentIndividualUid,
-          residentFullName: contract.resident.fullName,
-          room: contract.roomAssignments[0]?.room.room ?? null,
-          principalBalance: unpaidPrincipal,
-          penaltyBalance: unpaidPenalty,
-          maturedBalance: maturedUnpaid,
-          totalAccrued: periodTotal,
-          totalPaid: paidCapped,
-          maxDaysOverdue: daysOverdue,
-        });
+        totalAccrued = totalAccrued.plus(principal);
+        principalBalance = principalBalance.plus(unpaid);
+        if (accrual.dueDate <= asOf) maturedBalance = maturedBalance.plus(unpaid);
       }
+
+      const overdueBalance = computeOverdueDebt(contract.accruals, asOf, {
+        coveredFrom: contract.matCapitalCoveredFrom,
+        coveredTo: contract.matCapitalCoveredTo,
+        deferredUntil: contract.matCapitalDeferredUntil,
+      });
+      const { penaltyBalance } = computePenaltyBalance({
+        penaltyAmount: contract.penaltyAmount,
+        accruals: contract.accruals,
+        payments: contract.payments,
+      });
+      const totalPaid = contract.payments.filter((p) => !p.reversedAt).reduce((sum, p) => sum.plus(p.amount), new Decimal(0));
+
+      if (maturedBalance.lessThanOrEqualTo(0) && penaltyBalance.lessThanOrEqualTo(0)) continue;
+
+      rows.push({
+        contractId: contract.id,
+        contractNumber: contract.number,
+        residentIndividualUid: contract.residentIndividualUid,
+        residentFullName: contract.resident.fullName,
+        room: contract.roomAssignments[0]?.room.room ?? null,
+        totalAccrued: Number(totalAccrued),
+        totalPaid: Number(totalPaid),
+        principalBalance: Number(principalBalance),
+        penaltyBalance: Number(penaltyBalance),
+        totalBalance: Number(principalBalance.plus(penaltyBalance)),
+        maturedBalance: Number(maturedBalance),
+        overdueBalance: Number(overdueBalance),
+      });
     }
 
-    return Array.from(byContract.values())
-      .filter((row) => row.maturedBalance.greaterThan(0))
-      .map((row) => ({
-        contractId: row.contractId,
-        contractNumber: row.contractNumber,
-        residentIndividualUid: row.residentIndividualUid,
-        residentFullName: row.residentFullName,
-        room: row.room,
-        totalAccrued: Number(row.totalAccrued),
-        totalPaid: Number(row.totalPaid),
-        principalBalance: Number(row.principalBalance),
-        penaltyBalance: Number(row.penaltyBalance),
-        totalBalance: Number(row.principalBalance.plus(row.penaltyBalance)),
-        maturedBalance: Number(row.maturedBalance),
-        daysOverdue: row.maxDaysOverdue,
-        agingBucket: agingBucket(row.maxDaysOverdue),
-      }));
+    return rows;
   }
 
   @Get('debtors')
@@ -259,8 +211,8 @@ export class ReportsController {
     const options = parseListOptions(pageParam, pageSizeParam, searchParam, sortByParam, sortDirParam, filtersParam, 'totalBalance');
     return paginateInMemory(rows, options, {
       searchFields: ['contractNumber', 'residentFullName', 'room'],
-      sortableFields: ['contractNumber', 'residentFullName', 'room', 'totalAccrued', 'totalPaid', 'totalBalance', 'daysOverdue'],
-      filterFields: ['agingBucket'],
+      sortableFields: ['contractNumber', 'residentFullName', 'room', 'totalAccrued', 'totalPaid', 'totalBalance'],
+      filterFields: [],
     });
   }
 
@@ -271,48 +223,43 @@ export class ReportsController {
       debtorsCount: rows.length,
       totalDebt: rows.reduce((sum, r) => sum + r.totalBalance, 0),
       totalPaid: rows.reduce((sum, r) => sum + r.totalPaid, 0),
-      overdueDebt: rows.filter((r) => r.daysOverdue > 0).reduce((sum, r) => sum + r.maturedBalance, 0),
+      overdueDebt: rows.reduce((sum, r) => sum + r.overdueBalance, 0),
     };
   }
 
   @Get('debtors/facets/:field')
-  debtorsFacets(@Param('field') field: string): FacetOption[] {
-    if (field !== 'agingBucket') return [];
-    return (Object.keys(AGING_LABELS) as AgingBucket[]).map((value) => ({ value, label: AGING_LABELS[value] }));
+  debtorsFacets(@Param('field') _field: string): FacetOption[] {
+    return [];
   }
 
   // Структура долга одного договора по периодам (клик на должника в реестре) — те же
   // цифры, что уже показывает карточка договора (см. ContractDetail.vue), но без ПДн
-  // (без родителя/паспорта) и с добавленным daysOverdue на каждый период.
+  // (без родителя/паспорта). Пеня — единая на договор (Contract.penaltyAmount), не по
+  // периодам, поэтому отдаётся отдельно от periods, не как их колонка.
   @Get('debtors/:contractId/breakdown')
-  async debtorBreakdown(@Param('contractId') contractIdParam: string, @Query('asOf') asOfParam?: string) {
+  async debtorBreakdown(@Param('contractId') contractIdParam: string) {
     const contractId = parseIdParam(contractIdParam);
-    const asOf = resolveAsOf(asOfParam);
 
     const contract = await this.prisma.contract.findUnique({
       where: { id: contractId },
-      select: {
-        id: true,
-        number: true,
+      include: {
         resident: { select: { fullName: true } },
         roomAssignments: { where: { toDate: null }, include: { room: { select: { room: true } } } },
+        accruals: { where: { voidedAt: null }, orderBy: { periodStart: 'asc' }, include: { allocations: true } },
+        payments: true,
       },
     });
     if (!contract) {
       throw new NotFoundException('Договор не найден');
     }
 
-    const accruals = await this.prisma.accrual.findMany({
-      where: { contractId, voidedAt: null },
-      include: { allocations: true },
-      orderBy: { periodStart: 'asc' },
+    const periods = contract.accruals.map((accrual) => serializeAccrual(accrual));
+    const { penaltyBalance } = computePenaltyBalance({
+      penaltyAmount: contract.penaltyAmount,
+      accruals: contract.accruals,
+      payments: contract.payments,
     });
-
-    const periods = accruals.map((accrual) => {
-      const serialized = serializeAccrual(accrual);
-      const daysOverdue = serialized.balance > 0 ? Math.max(0, daysBetweenInclusive(accrual.dueDate, asOf) - 1) : 0;
-      return { ...serialized, daysOverdue };
-    });
+    const principalDebt = periods.reduce((sum, p) => sum + p.balance, 0);
 
     return {
       contractId: contract.id,
@@ -320,7 +267,9 @@ export class ReportsController {
       residentFullName: contract.resident.fullName,
       room: contract.roomAssignments[0]?.room.room ?? null,
       periods,
-      totalDebt: periods.reduce((sum, p) => sum + p.balance, 0),
+      penaltyAmount: Number(contract.penaltyAmount),
+      penaltyBalance: Number(penaltyBalance),
+      totalDebt: principalDebt + Number(penaltyBalance),
     };
   }
 
@@ -343,7 +292,7 @@ export class ReportsController {
 
     return accruals
       .map((accrual) => {
-        const total = accrual.rentAmount.plus(accrual.utilitiesAmount).plus(accrual.penaltyAmount).plus(accrual.adjustmentAmount);
+        const total = accrual.rentAmount.plus(accrual.utilitiesAmount).plus(accrual.adjustmentAmount);
         const paid = accrual.allocations.reduce((sum, a) => sum.plus(a.amount), new Decimal(0));
         return {
           contractId: accrual.contract.id,

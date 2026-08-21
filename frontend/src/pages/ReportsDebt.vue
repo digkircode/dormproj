@@ -9,7 +9,6 @@ import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/compon
 import EntityTable from '@/components/EntityTable.vue'
 import ContractLinkCell from '@/components/ContractLinkCell.vue'
 import ResidentLinkCell from '@/components/ResidentLinkCell.vue'
-import DaysOverdueCell from '@/components/DaysOverdueCell.vue'
 import DebtBalanceCell from '@/components/DebtBalanceCell.vue'
 import ReportKpiTile from '@/components/ReportKpiTile.vue'
 import { createAppColumnHelper } from '@/lib/table'
@@ -40,15 +39,12 @@ const columnLabels: Record<string, string> = {
   totalPaid: 'Оплачено',
   penaltyBalance: 'Пеня',
   totalBalance: 'Долг',
-  daysOverdue: 'Дней просрочки',
-  agingBucket: 'Просрочка',
 }
-const filterableFields = ['agingBucket']
+const filterableFields: string[] = []
 const cellRenderers = {
   contractNumber: ContractLinkCell,
   residentFullName: ResidentLinkCell,
   totalBalance: DebtBalanceCell,
-  daysOverdue: DaysOverdueCell,
 }
 
 function formatMoney(value: number): string {
@@ -73,7 +69,6 @@ const columns = columnHelper.columns([
   columnHelper.accessor('totalPaid', { header: columnLabels.totalPaid, size: 130, minSize: 110 }),
   columnHelper.accessor('penaltyBalance', { header: columnLabels.penaltyBalance, size: 110, minSize: 90 }),
   columnHelper.accessor('totalBalance', { header: columnLabels.totalBalance, size: 130, minSize: 110 }),
-  columnHelper.accessor('daysOverdue', { header: columnLabels.daysOverdue, size: 130, minSize: 110 }),
 ])
 
 const summary = ref<DebtorsSummary | null>(null)
@@ -190,9 +185,7 @@ async function openBreakdown(contractId: number) {
                   <TableHead :class="CELL_BORDER_CLASS">Месяц</TableHead>
                   <TableHead :class="CELL_BORDER_CLASS">Начислено</TableHead>
                   <TableHead :class="CELL_BORDER_CLASS">Оплачено</TableHead>
-                  <TableHead :class="CELL_BORDER_CLASS">Пеня</TableHead>
-                  <TableHead :class="CELL_BORDER_CLASS">Долг</TableHead>
-                  <TableHead>Дней просрочки</TableHead>
+                  <TableHead>Долг</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -205,14 +198,17 @@ async function openBreakdown(contractId: number) {
                   </TableCell>
                   <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(p.total) }}</TableCell>
                   <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(p.paid) }}</TableCell>
-                  <TableCell :class="CELL_BORDER_CLASS">{{ p.penaltyAmount ? formatMoney(p.penaltyAmount) : '—' }}</TableCell>
-                  <TableCell :class="[CELL_BORDER_CLASS, p.balance > 0 ? 'text-red-500' : '']">{{ formatMoney(p.balance) }}</TableCell>
-                  <TableCell>{{ p.daysOverdue > 0 ? p.daysOverdue : '—' }}</TableCell>
+                  <TableCell :class="p.balance > 0 ? 'text-red-500' : ''">{{ formatMoney(p.balance) }}</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
           </div>
-          <p class="text-right text-sm font-medium">Итого долг: {{ formatMoney(breakdown.totalDebt) }}</p>
+          <!-- Пеня — единая на договор, не по месяцам (см. reports.controller.ts), поэтому
+               отдельной строкой итога, а не колонкой в помесячной разбивке. -->
+          <div class="flex flex-col items-end gap-1 text-sm">
+            <p v-if="breakdown.penaltyBalance > 0" class="text-red-500">Пеня по договору: {{ formatMoney(breakdown.penaltyBalance) }}</p>
+            <p class="font-medium">Итого долг: {{ formatMoney(breakdown.totalDebt) }}</p>
+          </div>
         </div>
       </DialogScrollContent>
     </Dialog>

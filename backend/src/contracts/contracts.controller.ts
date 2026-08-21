@@ -22,6 +22,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ensureUserRecord } from '../users/ensure-user';
 import { buildAccrualsForContract } from '../billing/accrual-generation';
 import { recalcAccrualsForTermination } from '../billing/termination';
+import { computePenaltyBalance } from '../billing/penalty-balance';
 import { serializeAccrual, serializePayment, serializeTerms } from './serializers';
 import { isMinorAt } from './minor';
 import { buildResidentSnapshot, type ResidentSnapshot } from './resident-snapshot';
@@ -240,12 +241,18 @@ export class ContractsController {
       throw new NotFoundException('Договор не найден');
     }
 
-    const { terms, roomAssignments, accruals, payments, resident, matCapitalAmount, ...contractFields } = contract;
+    const { terms, roomAssignments, accruals, payments, resident, matCapitalAmount, penaltyAmount, ...contractFields } = contract;
+    // Пеня — единая сумма на договор (не по начислениям, см. schema.prisma), сколько из
+    // неё уже покрыто платежами — выводим на чтении (см. penalty-balance.ts).
+    const { penaltyPaid, penaltyBalance } = computePenaltyBalance({ penaltyAmount, accruals, payments });
     return {
       ...contractFields,
       // Decimal не сериализуется в JSON как обычное число сам по себе — тот же приём, что
       // и в serializeTerms/serializeAccrual, явный Number(...) вместо спреда как есть.
       matCapitalAmount: matCapitalAmount !== null ? Number(matCapitalAmount) : null,
+      penaltyAmount: Number(penaltyAmount),
+      penaltyPaid: Number(penaltyPaid),
+      penaltyBalance: Number(penaltyBalance),
       residentFullName: resident.fullName,
       residentIndividualUid: resident.fizicheskoyeLitsoUid,
       currentRoom: roomAssignments.find((a) => a.toDate === null)?.room ?? null,

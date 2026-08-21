@@ -10,16 +10,12 @@ export function serializeAccrual(accrual: {
   dueDate: Date;
   rentAmount: Prisma.Decimal;
   utilitiesAmount: Prisma.Decimal;
-  penaltyAmount: Prisma.Decimal;
   adjustmentAmount: Prisma.Decimal;
   adjustmentReason: string | null;
   voidedAt: Date | null;
   allocations?: { amount: Prisma.Decimal }[];
 }) {
-  const total = accrual.rentAmount
-    .plus(accrual.utilitiesAmount)
-    .plus(accrual.penaltyAmount)
-    .plus(accrual.adjustmentAmount);
+  const total = accrual.rentAmount.plus(accrual.utilitiesAmount).plus(accrual.adjustmentAmount);
   const paid = (accrual.allocations ?? []).reduce((sum, a) => sum.plus(a.amount), new Prisma.Decimal(0));
   return {
     id: accrual.id,
@@ -28,7 +24,6 @@ export function serializeAccrual(accrual: {
     dueDate: accrual.dueDate,
     rentAmount: Number(accrual.rentAmount),
     utilitiesAmount: Number(accrual.utilitiesAmount),
-    penaltyAmount: Number(accrual.penaltyAmount),
     adjustmentAmount: Number(accrual.adjustmentAmount),
     adjustmentReason: accrual.adjustmentReason,
     voidedAt: accrual.voidedAt,

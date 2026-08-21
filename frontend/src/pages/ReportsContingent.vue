@@ -20,7 +20,7 @@ const columnLabels: Record<string, string> = {
   kursNumber: 'Курс',
   birthDate: 'Дата рождения',
   citizenship: 'Гражданство',
-  // Фильтры без собственной колонки — та же схема, что agingBucket в ReportsDebt.vue.
+  // Фильтры без собственной колонки — та же схема, что bucket в ReportsContractsRegistry.vue.
   citizenshipGroup: 'Гражданство',
   isOwnUniversity: 'Студент РосНОУ',
 }

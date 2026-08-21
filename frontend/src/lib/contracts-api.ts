@@ -40,7 +40,6 @@ export interface AccrualRow {
   dueDate: string
   rentAmount: number
   utilitiesAmount: number
-  penaltyAmount: number
   adjustmentAmount: number
   adjustmentReason: string | null
   voidedAt: string | null
@@ -88,6 +87,11 @@ export interface ContractDetail {
   matCapitalCoveredTo: string | null
   matCapitalAmount: number | null
   matCapitalDeferredUntil: string | null
+  // Пеня — единая сумма на договор (не по начислениям), penaltyBalance — сколько из неё
+  // ещё не покрыто платежами (см. contracts.controller.ts/penalty-balance.ts).
+  penaltyAmount: number
+  penaltyPaid: number
+  penaltyBalance: number
   terms: ContractTerms[]
   accruals: AccrualRow[]
   payments: PaymentRow[]

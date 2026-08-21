@@ -7,11 +7,13 @@ import { addDays, dateOnly, daysBetweenInclusive } from './period-utils';
 
 const { Decimal } = Prisma;
 
-// Ночной крон — 0,14%/день (п. 4.8/5.9 договора) от неоплаченного тела долга именно
-// этого начисления (не пени на пеню, не общего долга по договору), начиная с dueDate+5
-// (due day 5 -> с 10 числа). Идемпотентно: penaltyAccruedThrough не даёт начислить дважды
-// за один день, а при пропуске запуска (сервер был недоступен) досчитывает за все
-// пропущенные дни разом на следующем запуске — не теряет и не задваивает начисленное.
+// Ночной крон — 0,14%/день (п. 4.8/5.9 договора) от суммы всех ПРОСРОЧЕННЫХ и непогашенных
+// начислений договора ЦЕЛИКОМ (не по каждому начислению отдельно, см. Contract.penaltyAmount
+// в schema.prisma) — начислением считается просроченным с 10 числа месяца, следующего за
+// его periodStart (см. penaltyStartsAt). Идемпотентно: penaltyAccruedThrough на Contract не
+// даёт начислить дважды за один день, а при пропуске запуска (сервер был недоступен)
+// досчитывает за все пропущенные дни разом на следующем запуске по ТЕКУЩЕЙ базе (та же
+// упрощающая посылка, что была и раньше в этом кроне) — не теряет и не задваивает начисленное.
 @Injectable()
 export class PenaltyScheduler {
   private readonly logger = new Logger(PenaltyScheduler.name);
@@ -22,46 +24,59 @@ export class PenaltyScheduler {
   @Cron('0 2 * * *', { timeZone: 'Europe/Moscow' })
   async accruePenalties(): Promise<void> {
     const today = dateOnly(new Date());
-    // Грубый префильтр на уровне БД (due_date индексирован) — точная проверка (grace period,
-    // маткапитал, остаток) уже в цикле ниже, дороже гонять её без предварительного отсева.
-    const candidates = await this.prisma.accrual.findMany({
-      where: { voidedAt: null, dueDate: { lte: addDays(today, -5) } },
-      include: { allocations: true, contract: true },
+    // Грубый префильтр — пеня стартует не раньше 10 числа месяца, следующего за
+    // periodStart, то есть минимум через ~10 дней после periodStart (periodStart в конце
+    // длинного месяца, следующий короткий) — точная проверка (grace period, маткапитал,
+    // остаток) уже в цикле ниже, дороже гонять её без предварительного отсева. periodStart
+    // не индексирован, но на текущем объёме (см. известные проблемы в промпте проекта) это
+    // не критично.
+    const contracts = await this.prisma.contract.findMany({
+      where: { accruals: { some: { voidedAt: null, periodStart: { lte: addDays(today, -10) } } } },
+      include: { accruals: { where: { voidedAt: null }, include: { allocations: true } } },
     });
 
     let updated = 0;
-    for (const accrual of candidates) {
-      const startsAt = penaltyStartsAt(accrual.dueDate);
-      if (today < startsAt) continue;
+    for (const contract of contracts) {
+      let overdueSum = new Decimal(0);
+      let earliestStartsAt: Date | null = null;
 
-      const { contract } = accrual;
-      const withinMatCapitalPeriod =
-        contract.matCapitalCoveredFrom &&
-        contract.matCapitalCoveredTo &&
-        accrual.periodStart >= contract.matCapitalCoveredFrom &&
-        accrual.periodStart <= contract.matCapitalCoveredTo;
-      if (withinMatCapitalPeriod && contract.matCapitalDeferredUntil && today <= contract.matCapitalDeferredUntil) {
-        continue;
+      for (const accrual of contract.accruals) {
+        const startsAt = penaltyStartsAt(accrual.periodStart);
+        if (today < startsAt) continue;
+
+        const withinMatCapitalPeriod =
+          contract.matCapitalCoveredFrom &&
+          contract.matCapitalCoveredTo &&
+          accrual.periodStart >= contract.matCapitalCoveredFrom &&
+          accrual.periodStart <= contract.matCapitalCoveredTo;
+        if (withinMatCapitalPeriod && contract.matCapitalDeferredUntil && today <= contract.matCapitalDeferredUntil) {
+          continue;
+        }
+
+        const principal = accrual.rentAmount.plus(accrual.utilitiesAmount).plus(accrual.adjustmentAmount);
+        const paid = accrual.allocations.reduce((sum, a) => sum.plus(a.amount), new Decimal(0));
+        const outstanding = principal.minus(paid);
+        if (outstanding.lessThanOrEqualTo(0)) continue;
+
+        overdueSum = overdueSum.plus(outstanding);
+        if (!earliestStartsAt || startsAt < earliestStartsAt) earliestStartsAt = startsAt;
       }
 
-      const principalTotal = accrual.rentAmount.plus(accrual.utilitiesAmount).plus(accrual.adjustmentAmount);
-      const paidTotal = accrual.allocations.reduce((sum, a) => sum.plus(a.amount), new Decimal(0));
-      const outstandingPrincipal = principalTotal.minus(paidTotal);
-      if (outstandingPrincipal.lessThanOrEqualTo(0)) continue;
+      if (overdueSum.lessThanOrEqualTo(0) || !earliestStartsAt) continue;
 
-      const sinceDate = accrual.penaltyAccruedThrough ?? addDays(startsAt, -1);
+      const sinceDate = contract.penaltyAccruedThrough ?? addDays(earliestStartsAt, -1);
       if (sinceDate >= today) continue;
       const daysElapsed = daysBetweenInclusive(addDays(sinceDate, 1), today);
       if (daysElapsed <= 0) continue;
 
-      const newPenalty = outstandingPrincipal.times(PENALTY_DAILY_RATE).times(daysElapsed);
-      await this.prisma.accrual.update({
-        where: { id: accrual.id },
-        data: { penaltyAmount: accrual.penaltyAmount.plus(newPenalty), penaltyAccruedThrough: today },
+      const newPenalty = overdueSum.times(PENALTY_DAILY_RATE).times(daysElapsed);
+      await this.prisma.contract.update({
+        where: { id: contract.id },
+        data: { penaltyAmount: contract.penaltyAmount.plus(newPenalty), penaltyAccruedThrough: today },
       });
       updated++;
     }
 
-    this.logger.log(`Начисление пени: обновлено начислений — ${updated}`);
+    this.logger.log(`Начисление пени: обновлено договоров — ${updated}`);
   }
 }

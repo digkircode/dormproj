@@ -23,11 +23,20 @@ export function generateMonthlyPeriods(startDate: Date, endDate: Date): AccrualP
     const monthEnd = endOfMonth(cursor);
     const periodStart = monthStart < startDate ? startDate : monthStart;
     const periodEnd = monthEnd > endDate ? endDate : monthEnd;
-    const isFullMonth = periodStart.getTime() === monthStart.getTime() && periodEnd.getTime() === monthEnd.getTime();
+    // periodEnd < monthEnd означает, что это последний период договора (обрезан по
+    // endDate) — обычно это триггерит посуточный расчёт. Исключение: договоры по
+    // умолчанию заканчиваются 30 августа, не 31-го (см. Contracts.vue), это типовая, а
+    // не укороченная дата конца месяца — не должна давать посуточный расчёт последнего месяца.
+    const endsAtMonthBoundary = periodEnd.getTime() === monthEnd.getTime() || isAugustConventionalEnd(periodEnd);
+    const isFullMonth = periodStart.getTime() === monthStart.getTime() && endsAtMonthBoundary;
     periods.push({ periodStart, periodEnd, isFullMonth });
     cursor = addMonths(cursor, 1);
   }
   return periods;
+}
+
+function isAugustConventionalEnd(date: Date): boolean {
+  return date.getUTCMonth() === 7 && date.getUTCDate() === 30;
 }
 
 export interface AccrualTerms {
@@ -108,10 +117,46 @@ export function buildAccrualsForContract(params: {
   });
 }
 
-// Пеня начинает копиться через 5 дней после срока оплаты (due day 5 -> с 10 числа, п. 4.8/5.9).
-export const PENALTY_GRACE_DAYS = 5;
+// Пеня начинает копиться с 10 числа месяца, СЛЕДУЮЩЕГО за расчётным месяцем начисления
+// (не через N дней от dueDate) — например, не оплатили начисление за сентябрь
+// (periodStart = 1 сентября) к 5 сентября -> пеня стартует 10 октября, а не 10 сентября.
+export const PENALTY_START_DAY = 10;
 export const PENALTY_DAILY_RATE = new Decimal('0.0014');
 
-export function penaltyStartsAt(dueDate: Date): Date {
-  return addDays(dueDate, PENALTY_GRACE_DAYS);
+export function penaltyStartsAt(periodStart: Date): Date {
+  const y = periodStart.getUTCFullYear();
+  const m = periodStart.getUTCMonth();
+  return new Date(Date.UTC(y, m + 1, PENALTY_START_DAY));
+}
+
+export interface OverdueAccrual {
+  periodStart: Date;
+  rentAmount: DecimalLike;
+  utilitiesAmount: DecimalLike;
+  adjustmentAmount: DecimalLike;
+  allocations: { amount: DecimalLike }[];
+}
+
+// База пени (см. Contract.penaltyAmount) — сумма непогашенного остатка ТОЛЬКО по
+// начислениям, которые уже просрочены (прошёл penaltyStartsAt), а не по всему долгу
+// договора. Используется и ночным кроном (penalty.scheduler.ts), и отчётом «Задолженность»
+// (KPI «Просрочено») — чтобы это была одна и та же цифра в обоих местах.
+export function computeOverdueDebt(accruals: OverdueAccrual[], asOf: Date, matCapital?: MatCapitalWindow): DecimalLike {
+  let sum = new Decimal(0);
+  for (const accrual of accruals) {
+    if (asOf < penaltyStartsAt(accrual.periodStart)) continue;
+
+    const withinMatCapitalPeriod =
+      matCapital?.coveredFrom &&
+      matCapital.coveredTo &&
+      accrual.periodStart >= matCapital.coveredFrom &&
+      accrual.periodStart <= matCapital.coveredTo;
+    if (withinMatCapitalPeriod && matCapital?.deferredUntil && asOf <= matCapital.deferredUntil) continue;
+
+    const principal = accrual.rentAmount.plus(accrual.utilitiesAmount).plus(accrual.adjustmentAmount);
+    const paid = accrual.allocations.reduce((s, a) => s.plus(a.amount), new Decimal(0));
+    const outstanding = principal.minus(paid);
+    if (outstanding.greaterThan(0)) sum = sum.plus(outstanding);
+  }
+  return sum;
 }

@@ -82,7 +82,7 @@ const columns = columnHelper.columns([
   columnHelper.display({ id: 'actions', header: columnLabels.actions, enableSorting: false, enableHiding: false, size: 110, minSize: 96 }),
 ])
 
-// Статус — фиксированный список (тот же принцип, что bucket/agingBucket в отчётах),
+// Статус — фиксированный список (тот же принцип, что bucket в ReportsContractsRegistry),
 // не запрос к бэкенду: вся таблица собирается на клиенте из 6 независимых composable,
 // у неё нет своего списочного эндпоинта.
 const STATUS_OPTIONS: FacetOption[] = [

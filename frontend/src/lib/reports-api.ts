@@ -3,8 +3,6 @@ import { fetchListPage, fetchListFacets, type ListOptions, type ListPage, type F
 
 export type { ListOptions, ListPage, FacetOption }
 
-export type AgingBucket = 'CURRENT' | 'D1_30' | 'D31_60' | 'D61_90' | 'D90_PLUS'
-
 export interface DebtorRow {
   contractId: number
   contractNumber: string
@@ -16,8 +14,6 @@ export interface DebtorRow {
   principalBalance: number
   penaltyBalance: number
   totalBalance: number
-  daysOverdue: number
-  agingBucket: AgingBucket
 }
 
 export interface DebtorsSummary {
@@ -34,14 +30,12 @@ export interface DebtorBreakdownPeriod {
   dueDate: string
   rentAmount: number
   utilitiesAmount: number
-  penaltyAmount: number
   adjustmentAmount: number
   adjustmentReason: string | null
   voidedAt: string | null
   total: number
   paid: number
   balance: number
-  daysOverdue: number
 }
 
 export interface DebtorBreakdown {
@@ -50,6 +44,9 @@ export interface DebtorBreakdown {
   residentFullName: string
   room: string | null
   periods: DebtorBreakdownPeriod[]
+  // Пеня — единая сумма на договор, не по периодам (см. reports.controller.ts).
+  penaltyAmount: number
+  penaltyBalance: number
   totalDebt: number
 }
 

@@ -434,6 +434,14 @@ model Contract {
   matCapitalAmount        Decimal?  @map("mat_capital_amount") @db.Decimal(12, 2)
   matCapitalDeferredUntil DateTime? @map("mat_capital_deferred_until")
 
+  // Пеня — единая сумма на весь договор (не по начислениям, см. Accrual), 0,14%/день от
+  // суммы всех ПРОСРОЧЕННЫХ (прошёл срок 10-го числа месяца, следующего за periodStart,
+  // см. accrual-generation.ts/penaltyStartsAt) и непогашенных начислений — начисляется
+  // ночным кроном (billing/penalty.scheduler.ts). penaltyAccruedThrough — до какой даты
+  // уже посчитано, для идемпотентности крона.
+  penaltyAmount         Decimal   @default(0) @map("penalty_amount") @db.Decimal(12, 2)
+  penaltyAccruedThrough DateTime? @map("penalty_accrued_through")
+
   // Снимок личных данных проживающего на момент подписания (паспорт/СНИЛС/адрес/телефон/
   // институт-курс — то, что синхрон 1С может незаметно перезаписать позже). Заполняется
   // один раз при создании договора; для договоров, созданных до этой фичи — лениво при
@@ -521,8 +529,10 @@ model RoomAssignment {
 // первого/последнего — они могут быть неполными и считаются посуточно по dailyRateAmount
 // из действовавших на periodStart ContractTerms, с потолком в полную месячную сумму,
 // см. п. 4.2/5.2 договора). totalAmount/остаток не хранятся отдельным полем — считаются
-// на чтении (rentAmount + utilitiesAmount + penaltyAmount + adjustmentAmount минус сумма
-// PaymentAllocation), материализация в кеш — только если реально понадобится по нагрузке.
+// на чтении (rentAmount + utilitiesAmount + adjustmentAmount минус сумма PaymentAllocation),
+// материализация в кеш — только если реально понадобится по нагрузке. Пеня — НЕ здесь,
+// она единая на весь договор, см. Contract.penaltyAmount (по прямой просьбе 2026-08-22:
+// база пени — сумма всех просроченных начислений договора целиком, не одно начисление).
 model Accrual {
   id         Int      @id @default(autoincrement())
   contractId Int      @map("contract_id")
@@ -534,12 +544,6 @@ model Accrual {
 
   rentAmount      Decimal @map("rent_amount") @db.Decimal(12, 2)
   utilitiesAmount Decimal @map("utilities_amount") @db.Decimal(12, 2)
-
-  // Накопленная пеня по этому периоду — 0,14%/день от неоплаченного остатка именно этого
-  // начисления, считается ночным кроном начиная с dueDate + 5 дней (см. billing-penalty
-  // сервис). penaltyAccruedThrough — до какой даты уже посчитано, для идемпотентности крона.
-  penaltyAmount        Decimal   @default(0) @map("penalty_amount") @db.Decimal(12, 2)
-  penaltyAccruedThrough DateTime? @map("penalty_accrued_through")
 
   // Ручная корректировка (плюс или минус) поверх исходно выставленной суммы — например,
   // пересчёт последнего периода при досрочном выезде. Не переписываем rentAmount/

@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
+  AlertTriangle,
   ArrowDown,
   ArrowLeft,
   ArrowUp,
@@ -102,7 +103,11 @@ onMounted(async () => {
   dormInfo.value = await fetchDormitoryInfo()
 })
 
-const totalBalance = computed(() => (contract.value ? contract.value.accruals.reduce((sum, a) => sum + a.balance, 0) : 0))
+// Пеня — единая сумма на договор (не входит в accrual.balance, см. penalty-balance.ts на
+// бэке) — добавляем её отдельно, иначе общий баланс не совпадал бы с реальным долгом.
+const totalBalance = computed(() =>
+  contract.value ? contract.value.accruals.reduce((sum, a) => sum + a.balance, 0) + contract.value.penaltyBalance : 0,
+)
 // Коммунальные услуги в БД уже включены в стоимость комнаты (Room → характеристика
 // "Стоимость"), которая и попадает в rentAmount при создании договора — отдельно
 // прибавлять utilitiesAmount не нужно, это задвоило бы сумму.
@@ -141,7 +146,6 @@ const ACCRUAL_COLUMNS: { id: keyof AccrualRow; label: string }[] = [
   { id: 'periodStart', label: 'Период' },
   { id: 'dueDate', label: 'Срок оплаты' },
   { id: 'rentAmount', label: 'Найм' },
-  { id: 'penaltyAmount', label: 'Пеня' },
   { id: 'adjustmentAmount', label: 'Корректировка' },
   { id: 'paid', label: 'Оплачено' },
   { id: 'balance', label: 'Остаток' },
@@ -374,7 +378,7 @@ async function confirmReversePayment() {
             </span>
           </div>
 
-          <div class="grid grid-cols-4 gap-4 border-t pt-4">
+          <div class="grid grid-cols-5 gap-4 border-t pt-4">
             <div class="flex items-center gap-3">
               <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-500/15">
                 <Wallet class="size-5 text-blue-600 dark:text-blue-400" />
@@ -413,6 +417,17 @@ async function confirmReversePayment() {
               <div>
                 <p class="text-xs text-muted-foreground">Суточная ставка</p>
                 <p class="text-lg font-medium">{{ formatMoney(contract.terms[0]?.dailyRateAmount ?? 0) }}</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-red-100 dark:bg-red-500/15">
+                <AlertTriangle class="size-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <p class="text-xs text-muted-foreground">Пеня</p>
+                <p class="text-lg font-medium" :class="contract.penaltyBalance > 0 ? 'text-red-500' : ''">
+                  {{ formatMoney(contract.penaltyBalance) }}
+                </p>
               </div>
             </div>
           </div>
@@ -492,7 +507,6 @@ async function confirmReversePayment() {
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.periodStart) }} — {{ formatDate(a.periodEnd) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.dueDate) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.rentAmount) }}</TableCell>
-                    <TableCell :class="CELL_BORDER_CLASS">{{ a.penaltyAmount ? formatMoney(a.penaltyAmount) : '—' }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ a.adjustmentAmount ? formatMoney(a.adjustmentAmount) : '—' }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.paid) }}</TableCell>
                     <TableCell :class="a.balance > 0 ? 'text-red-500' : ''">
