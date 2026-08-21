@@ -129,34 +129,3 @@ export function penaltyStartsAt(periodStart: Date): Date {
   return new Date(Date.UTC(y, m + 1, PENALTY_START_DAY));
 }
 
-export interface OverdueAccrual {
-  periodStart: Date;
-  rentAmount: DecimalLike;
-  utilitiesAmount: DecimalLike;
-  adjustmentAmount: DecimalLike;
-  allocations: { amount: DecimalLike }[];
-}
-
-// База пени (см. Contract.penaltyAmount) — сумма непогашенного остатка ТОЛЬКО по
-// начислениям, которые уже просрочены (прошёл penaltyStartsAt), а не по всему долгу
-// договора. Используется и ночным кроном (penalty.scheduler.ts), и отчётом «Задолженность»
-// (KPI «Просрочено») — чтобы это была одна и та же цифра в обоих местах.
-export function computeOverdueDebt(accruals: OverdueAccrual[], asOf: Date, matCapital?: MatCapitalWindow): DecimalLike {
-  let sum = new Decimal(0);
-  for (const accrual of accruals) {
-    if (asOf < penaltyStartsAt(accrual.periodStart)) continue;
-
-    const withinMatCapitalPeriod =
-      matCapital?.coveredFrom &&
-      matCapital.coveredTo &&
-      accrual.periodStart >= matCapital.coveredFrom &&
-      accrual.periodStart <= matCapital.coveredTo;
-    if (withinMatCapitalPeriod && matCapital?.deferredUntil && asOf <= matCapital.deferredUntil) continue;
-
-    const principal = accrual.rentAmount.plus(accrual.utilitiesAmount).plus(accrual.adjustmentAmount);
-    const paid = accrual.allocations.reduce((s, a) => s.plus(a.amount), new Decimal(0));
-    const outstanding = principal.minus(paid);
-    if (outstanding.greaterThan(0)) sum = sum.plus(outstanding);
-  }
-  return sum;
-}

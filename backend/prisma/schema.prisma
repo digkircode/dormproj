@@ -434,13 +434,16 @@ model Contract {
   matCapitalAmount        Decimal?  @map("mat_capital_amount") @db.Decimal(12, 2)
   matCapitalDeferredUntil DateTime? @map("mat_capital_deferred_until")
 
-  // Пеня — единая сумма на весь договор (не по начислениям, см. Accrual), 0,14%/день от
-  // суммы всех ПРОСРОЧЕННЫХ (прошёл срок 10-го числа месяца, следующего за periodStart,
-  // см. accrual-generation.ts/penaltyStartsAt) и непогашенных начислений — начисляется
-  // ночным кроном (billing/penalty.scheduler.ts). penaltyAccruedThrough — до какой даты
-  // уже посчитано, для идемпотентности крона.
-  penaltyAmount         Decimal   @default(0) @map("penalty_amount") @db.Decimal(12, 2)
+  // Пеня — 0,14%/день от суммы всех ПРОСРОЧЕННЫХ (прошёл срок 10-го числа месяца,
+  // следующего за periodStart, см. accrual-generation.ts/penaltyStartsAt) и непогашенных
+  // начислений — начисляется ночным кроном (billing/penalty.scheduler.ts). Сама сумма НЕ
+  // хранится отдельным полем (по прямой просьбе 2026-08-22 — нужен отчёт "на дату", а
+  // одно число без истории по дням не даёт восстановить пеню на прошлую дату) — она
+  // производная: сумма PenaltyAccrualLog.amount по этому договору за нужный период,
+  // см. billing/penalty-balance.ts. penaltyAccruedThrough — до какой даты уже начислено,
+  // только для идемпотентности крона, сам баланс из него не считать.
   penaltyAccruedThrough DateTime? @map("penalty_accrued_through")
+  penaltyLogs            PenaltyAccrualLog[]
 
   // Снимок личных данных проживающего на момент подписания (паспорт/СНИЛС/адрес/телефон/
   // институт-курс — то, что синхрон 1С может незаметно перезаписать позже). Заполняется
@@ -531,8 +534,9 @@ model RoomAssignment {
 // см. п. 4.2/5.2 договора). totalAmount/остаток не хранятся отдельным полем — считаются
 // на чтении (rentAmount + utilitiesAmount + adjustmentAmount минус сумма PaymentAllocation),
 // материализация в кеш — только если реально понадобится по нагрузке. Пеня — НЕ здесь,
-// она единая на весь договор, см. Contract.penaltyAmount (по прямой просьбе 2026-08-22:
-// база пени — сумма всех просроченных начислений договора целиком, не одно начисление).
+// она единая на весь договор и по дням, см. PenaltyAccrualLog ниже (по прямой просьбе
+// 2026-08-22: база пени — сумма всех просроченных начислений договора целиком, не одно
+// начисление).
 model Accrual {
   id         Int      @id @default(autoincrement())
   contractId Int      @map("contract_id")
@@ -562,6 +566,34 @@ model Accrual {
   @@unique([contractId, periodStart, periodEnd])
   @@index([dueDate])
   @@map("accruals")
+}
+
+// Журнал начисления пени — одна строка на один календарный день на один договор,
+// пишется ночным кроном (billing/penalty.scheduler.ts). Это не только аудит ("откуда
+// взялась сумма") — это ЕДИНСТВЕННЫЙ источник самой суммы пени: Contract больше не хранит
+// пеню отдельным полем, она всегда считается как SUM(amount) по нужному диапазону дат
+// (см. billing/penalty-balance.ts), это и даёт финансовому отчёту точную пеню на
+// произвольную ПРОШЛУЮ дату, а не только "на сейчас".
+model PenaltyAccrualLog {
+  id         Int      @id @default(autoincrement())
+  contractId Int      @map("contract_id")
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  // Календарный день, за который начислена ЭТА строка (не дата запуска крона — при
+  // довозе пропущенных дней одним запуском на каждый день своя строка, см. крон).
+  date DateTime @map("date")
+  // Добавлено пени за этот день.
+  amount Decimal @db.Decimal(12, 2)
+  // База расчёта (сумма просроченных непогашенных начислений на момент запуска крона),
+  // справочно — amount = overdueBase * PENALTY_DAILY_RATE, хранится явно, чтобы не
+  // пересчитывать вручную при разборе "откуда цифра", см. запрос пользователя 2026-08-22.
+  overdueBase Decimal @map("overdue_base") @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([contractId, date])
+  @@index([contractId, date])
+  @@map("penalty_accrual_log")
 }
 
 enum PaymentMethod {

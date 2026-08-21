@@ -1,5 +1,6 @@
 import { apiFetch } from './api-base'
 import { fetchListPage, fetchListFacets, type ListOptions, type ListPage, type FacetOption } from './list-api'
+import type { ContractStatus } from './contracts-api'
 
 export type { ListOptions, ListPage, FacetOption }
 
@@ -9,18 +10,21 @@ export interface DebtorRow {
   residentIndividualUid: string
   residentFullName: string
   room: string | null
+  status: ContractStatus
+  createdAt: string
   totalAccrued: number
   totalPaid: number
-  principalBalance: number
+  principalDebt: number
   penaltyBalance: number
   totalBalance: number
 }
 
 export interface DebtorsSummary {
   debtorsCount: number
+  totalAccrued: number
   totalDebt: number
+  totalPenalty: number
   totalPaid: number
-  overdueDebt: number
 }
 
 export interface DebtorBreakdownPeriod {
@@ -28,8 +32,6 @@ export interface DebtorBreakdownPeriod {
   periodStart: string
   periodEnd: string
   dueDate: string
-  rentAmount: number
-  utilitiesAmount: number
   adjustmentAmount: number
   adjustmentReason: string | null
   voidedAt: string | null
@@ -44,10 +46,26 @@ export interface DebtorBreakdown {
   residentFullName: string
   room: string | null
   periods: DebtorBreakdownPeriod[]
+  totalAccrued: number
+  totalPaid: number
   // Пеня — единая сумма на договор, не по периодам (см. reports.controller.ts).
-  penaltyAmount: number
   penaltyBalance: number
   totalDebt: number
+}
+
+export interface PenaltyLogEntry {
+  date: string
+  amount: number
+  overdueBase: number
+}
+
+export interface DebtorPenaltyLog {
+  contractId: number
+  contractNumber: string
+  residentFullName: string
+  room: string | null
+  entries: PenaltyLogEntry[]
+  total: number
 }
 
 export interface UpcomingPaymentRow {
@@ -140,18 +158,21 @@ async function getJson<T>(path: string): Promise<T> {
   return response.json()
 }
 
-// --- Задолженность ---
-export function fetchDebtorsPage(options: ListOptions): Promise<ListPage<DebtorRow>> {
-  return fetchListPage<DebtorRow>('/reports/debtors', options)
+// --- Финансовый отчёт (бывшая "Задолженность") ---
+export function fetchDebtorsPage(options: ListOptions, asOf: string): Promise<ListPage<DebtorRow>> {
+  return fetchListPage<DebtorRow>('/reports/debtors', options, { asOf })
 }
 export function fetchDebtorsFacets(field: string): Promise<FacetOption[]> {
   return fetchListFacets('/reports/debtors', field)
 }
-export function fetchDebtorsSummary(): Promise<DebtorsSummary> {
-  return getJson('/reports/debtors/summary')
+export function fetchDebtorsSummary(asOf: string): Promise<DebtorsSummary> {
+  return getJson(`/reports/debtors/summary?asOf=${asOf}`)
 }
-export function fetchDebtorBreakdown(contractId: number): Promise<DebtorBreakdown> {
-  return getJson(`/reports/debtors/${contractId}/breakdown`)
+export function fetchDebtorBreakdown(contractId: number, asOf: string): Promise<DebtorBreakdown> {
+  return getJson(`/reports/debtors/${contractId}/breakdown?asOf=${asOf}`)
+}
+export function fetchDebtorPenaltyLog(contractId: number, asOf: string): Promise<DebtorPenaltyLog> {
+  return getJson(`/reports/debtors/${contractId}/penalty-log?asOf=${asOf}`)
 }
 
 export function fetchUpcomingPayments(days = 7): Promise<UpcomingPaymentRow[]> {
@@ -164,8 +185,8 @@ export function fetchOccupancy(): Promise<OccupancyReport> {
 }
 
 // --- Реестр проживающих ---
-export function fetchContingentPage(options: ListOptions): Promise<ListPage<ContingentRow>> {
-  return fetchListPage<ContingentRow>('/reports/contingent', options)
+export function fetchContingentPage(options: ListOptions, asOf: string): Promise<ListPage<ContingentRow>> {
+  return fetchListPage<ContingentRow>('/reports/contingent', options, { asOf })
 }
 export function fetchContingentFacets(field: string): Promise<FacetOption[]> {
   return fetchListFacets('/reports/contingent', field)
@@ -183,27 +204,8 @@ export function fetchContractsRegistrySummary(): Promise<ContractsRegistrySummar
 }
 
 // --- Заселение / выселение ---
-// Не через fetchListPage — у неё basePath без своих query-параметров (from/to
-// добавлялись бы вторым "?" и ломали URL), поэтому здесь тот же набор параметров
-// собирается вручную в один URLSearchParams.
-export async function fetchMovementsPage(options: ListOptions, from: string, to: string): Promise<ListPage<MovementEvent>> {
-  const params = new URLSearchParams({
-    page: String(options.page),
-    pageSize: String(options.pageSize),
-    sortBy: options.sortBy,
-    sortDir: options.sortDir,
-    from,
-    to,
-  })
-  if (options.search) params.set('search', options.search)
-  const activeFilters = Object.fromEntries(Object.entries(options.filters).filter(([, values]) => values.length > 0))
-  if (Object.keys(activeFilters).length > 0) params.set('filters', JSON.stringify(activeFilters))
-
-  const response = await apiFetch(`/reports/movements?${params}`)
-  if (!response.ok) {
-    throw new Error(`Не удалось получить данные (${response.status})`)
-  }
-  return response.json()
+export function fetchMovementsPage(options: ListOptions, from: string, to: string): Promise<ListPage<MovementEvent>> {
+  return fetchListPage<MovementEvent>('/reports/movements', options, { from, to })
 }
 export function fetchMovementsFacets(field: string): Promise<FacetOption[]> {
   return fetchListFacets('/reports/movements', field)

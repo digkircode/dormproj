@@ -102,7 +102,7 @@ const router = createRouter({
       path: '/reports/debt',
       name: 'reports-debt',
       component: ReportsDebt,
-      meta: { title: 'Задолженность', parent: 'reports', section: 'staff' },
+      meta: { title: 'Финансовый отчёт', parent: 'reports', section: 'staff' },
     },
     {
       path: '/reports/move-in-out',

@@ -74,7 +74,7 @@ const data = {
         { title: 'Занятость общежития', url: '/reports/occupancy' },
         { title: 'Реестр проживающих', url: '/reports/contingent' },
         { title: 'Реестр договоров', url: '/reports/contracts' },
-        { title: 'Задолженность', url: '/reports/debt' },
+        { title: 'Финансовый отчёт', url: '/reports/debt' },
         { title: 'Заселение / выселение', url: '/reports/move-in-out' },
       ],
     },

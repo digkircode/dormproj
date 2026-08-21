@@ -21,13 +21,17 @@ export interface FacetOption {
   label: string
 }
 
-// Общая форма списочных эндпоинтов бэкенда: GET basePath?page=&pageSize=&search=&sortBy=&sortDir=&filters=
-export async function fetchListPage<T>(basePath: string, options: ListOptions): Promise<ListPage<T>> {
+// Общая форма списочных эндпоинтов бэкенда: GET basePath?page=&pageSize=&search=&sortBy=&sortDir=&filters=[&extra]
+// extra — доп. параметры вроде asOf/from/to, которые EntityTable сама не знает (не часть
+// ListOptions) — родительская страница добавляет их сама, тот же приём, что уже был у
+// fetchMovementsPage, вынесен сюда, когда понадобился ещё в паре мест.
+export async function fetchListPage<T>(basePath: string, options: ListOptions, extra?: Record<string, string>): Promise<ListPage<T>> {
   const params = new URLSearchParams({
     page: String(options.page),
     pageSize: String(options.pageSize),
     sortBy: options.sortBy,
     sortDir: options.sortDir,
+    ...extra,
   })
   if (options.search) {
     params.set('search', options.search)

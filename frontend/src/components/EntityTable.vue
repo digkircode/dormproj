@@ -459,7 +459,7 @@ defineExpose({ refresh: loadPage })
                   v-for="header in headerGroup.headers"
                   :key="header.id"
                   :colspan="header.colSpan"
-                  class="relative select-none border-r border-border last:border-r-0"
+                  class="group/col relative select-none border-r border-border last:border-r-0"
                   :style="{ width: `var(--col-${header.column.id}-size)` }"
                 >
                   <!-- Не у каждой колонки есть смысл сортировать (например чисто
@@ -480,9 +480,16 @@ defineExpose({ refresh: loadPage })
                   <span v-else-if="!header.isPlaceholder" class="flex w-full min-w-0 truncate">
                     <FlexRender :header="header" />
                   </span>
+                  <!-- -right-1.5 центрирует хитбокс на границе колонки (удобно тянуть с обеих
+                       сторон) — для колонок с соседом справа лишние +6px просто перекрываются
+                       следующей ячейкой. У ПОСЛЕДНЕЙ колонки (когда нет rowAction-колонки
+                       после неё) сосседа справа нет — те же +6px вылезают за реальную ширину
+                       таблицы и держат постоянный горизонтальный скролл на 6px, даже когда
+                       контент вообще не переполняет таблицу. group-last/col:right-0 убирает
+                       именно этот вылет, не трогая ширину/удобство хитбокса у остальных колонок. -->
                   <div
                     v-if="header.column.getCanResize()"
-                    class="group absolute -right-1.5 top-0 z-10 h-full w-3 cursor-col-resize touch-none select-none"
+                    class="group absolute -right-1.5 top-0 z-10 h-full w-3 cursor-col-resize touch-none select-none group-last/col:right-0"
                     @mousedown="header.getResizeHandler()($event)"
                     @touchstart="header.getResizeHandler()($event)"
                   >

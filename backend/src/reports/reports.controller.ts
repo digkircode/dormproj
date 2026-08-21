@@ -5,10 +5,8 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { dateOnly, addDays, startOfMonth } from '../billing/period-utils';
-import { computeOverdueDebt } from '../billing/accrual-generation';
-import { computePenaltyBalance } from '../billing/penalty-balance';
+import { computePenaltyBalance, sumPenaltyLog } from '../billing/penalty-balance';
 import { fromStoredValue } from '../rooms/characteristic-value';
-import { serializeAccrual } from '../contracts/serializers';
 import { parseListOptions, paginateInMemory, facetsFromValues, type FacetOption } from './list-helpers';
 
 const { Decimal } = Prisma;
@@ -20,6 +18,15 @@ const BUCKET_LABELS: Record<ContractRegistryBucket, string> = {
   EXPIRING: 'Истекает',
   OVERDUE: 'Просрочен',
   TERMINATED: 'Расторгнут',
+};
+
+// Та же подпись, что и на карточке договора/в "Реестре договоров" (ContractStatusPill.vue) —
+// не переиспользуем напрямую из contracts.controller.ts (не экспортирован), но значения
+// синхронизированы, менять в обоих местах разом.
+const CONTRACT_STATUS_LABELS: Record<ContractStatus, string> = {
+  ACTIVE: 'Действует',
+  TERMINATED: 'Расторгнут',
+  EXPIRED: 'Истёк',
 };
 
 // Название характеристик комнаты, от которых зависят отчёты "Занятость" — заведены сидом
@@ -43,19 +50,19 @@ interface DebtorRow {
   residentIndividualUid: string;
   residentFullName: string;
   room: string | null;
+  status: ContractStatus;
+  createdAt: Date;
+  // Начислено/Оплачено — по ВСЕМУ сроку договора (весь срок целиком, не зависит от asOf) —
+  // справочные итоги, не то же самое, что "Долг" ниже.
   totalAccrued: number;
   totalPaid: number;
-  principalBalance: number;
+  // Долг НА ДАТУ asOf: тело долга только по уже НАСТУПИВШИМ начислениям (dueDate<=asOf),
+  // погашённое только теми платежами, что были ДО asOf (см. buildDebtorRows), плюс пеня
+  // на asOf (сумма журнала PenaltyAccrualLog по эту дату, см. penalty-balance.ts). Именно
+  // эта пара figures даёт "долг по договору на дату", а не по всему сроку.
+  principalDebt: number;
   penaltyBalance: number;
   totalBalance: number;
-  // Непогашённый остаток только по уже наступившим начислениям (дата платежа <= asOf) —
-  // решает, кто вообще попадает в отчёт как должник, не отдаётся отдельной колонкой
-  // в таблице (там "Долг" уже по всему сроку, см. totalBalance).
-  maturedBalance: number;
-  // База пени (см. Contract.penaltyAmount/computeOverdueDebt) — сумма непогашенного
-  // остатка только по ПРОСРОЧЕННЫМ начислениям (10 число месяца, следующего за periodStart,
-  // прошло) — используется для KPI "Просрочено" (см. debtorsSummary).
-  overdueBalance: number;
 }
 
 interface ContingentRow {
@@ -118,65 +125,51 @@ function resolveAsOf(asOfParam?: string): Date {
 export class ReportsController {
   constructor(private readonly prisma: PrismaService) {}
 
-  // ===== Отчёт "Задолженность" =====
-  // Должники на дату asOf (по умолчанию сегодня) — по каждому договору с непогашенным
-  // остатком: основной долг отдельно от пени (платежи по начислению считаем сначала
-  // гасящими тело долга, остаток сверху — пеню, тот же принцип, что в billing/penalty.scheduler.ts).
-  // totalAccrued/totalPaid/principalBalance/penaltyBalance/totalBalance — по ВСЕМ
-  // начислениям договора (весь срок, все начисления создаются сразу при создании
-  // договора — см. accrual-generation.ts), не только по уже наступившим: раньше здесь
-  // (2026-08-20) уже чинили totalAccrued/totalPaid таким же образом, но "Долг"
-  // (principalBalance+penaltyBalance) намеренно оставался только по наступившим —
-  // по прямой просьбе 2026-08-20 эта асимметрия убрана, теперь "Долг" тоже отражает
-  // полную непогашённую сумму по всему сроку, а не только уже просроченную часть.
-  // maturedBalance — по-прежнему только по НАСТУПИВШИМ начислениям (isMatured, dueDate):
-  // именно она решает, кто вообще попадает в отчёт как должник — иначе любой свежий,
-  // ничего не просрочивший арендатор попадал бы в список из-за ещё не наступивших
-  // будущих месяцев. Пеня (penaltyBalance) — с 2026-08-22 единая на договор, а не на
-  // начисление (см. Contract.penaltyAmount) — должником считаем и того, у кого пеня ещё
-  // не погашена, даже если всё тело долга уже оплачено.
+  // ===== Финансовый отчёт (бывшая "Задолженность") =====
+  // Показывает ВСЕ договоры (по прямой просьбе 2026-08-22, не только должников), на дату
+  // asOf (по умолчанию сегодня): "Долг" — тело долга только по уже НАСТУПИВШИМ начислениям
+  // (dueDate<=asOf), погашённое только платежами ДО asOf (позже — не считается, иначе
+  // "долг на дату X" включал бы деньги, внесённые уже после X), плюс пеня на asOf (сумма
+  // журнала PenaltyAccrualLog по эту дату, см. penalty-balance.ts). Начислено/Оплачено —
+  // по ВСЕМУ сроку договора целиком (не зависят от asOf) — справочные итоги.
   private async buildDebtorRows(asOf: Date): Promise<DebtorRow[]> {
     const contracts = await this.prisma.contract.findMany({
-      where: { accruals: { some: { voidedAt: null } } },
       include: {
         resident: { select: { fullName: true, fizicheskoyeLitsoUid: true } },
         roomAssignments: { where: { toDate: null }, include: { room: { select: { room: true } } } },
-        accruals: { where: { voidedAt: null }, include: { allocations: true } },
+        accruals: {
+          where: { voidedAt: null },
+          include: { allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } } },
+        },
         payments: true,
+        penaltyLogs: true,
       },
     });
 
     const rows: DebtorRow[] = [];
     for (const contract of contracts) {
       let totalAccrued = new Decimal(0);
-      let principalBalance = new Decimal(0);
-      let maturedBalance = new Decimal(0);
+      let principalDebtAsOf = new Decimal(0);
 
       for (const accrual of contract.accruals) {
         const principal = accrual.rentAmount.plus(accrual.utilitiesAmount).plus(accrual.adjustmentAmount);
-        const paid = accrual.allocations.reduce((sum, a) => sum.plus(a.amount), new Decimal(0));
-        // Непогашенный остаток по начислению — считаем по ВСЕМУ сроку договора, включая
-        // ещё не наступившие месяцы (см. комментарий к buildDebtorRows выше).
-        const unpaid = principal.minus(paid).lessThan(0) ? new Decimal(0) : principal.minus(paid);
-
         totalAccrued = totalAccrued.plus(principal);
-        principalBalance = principalBalance.plus(unpaid);
-        if (accrual.dueDate <= asOf) maturedBalance = maturedBalance.plus(unpaid);
+        if (accrual.dueDate > asOf) continue;
+
+        const paidAsOf = accrual.allocations
+          .filter((al) => !al.payment.reversedAt && al.payment.paidAt <= asOf)
+          .reduce((sum, al) => sum.plus(al.amount), new Decimal(0));
+        const unpaidAsOf = principal.minus(paidAsOf);
+        if (unpaidAsOf.greaterThan(0)) principalDebtAsOf = principalDebtAsOf.plus(unpaidAsOf);
       }
 
-      const overdueBalance = computeOverdueDebt(contract.accruals, asOf, {
-        coveredFrom: contract.matCapitalCoveredFrom,
-        coveredTo: contract.matCapitalCoveredTo,
-        deferredUntil: contract.matCapitalDeferredUntil,
-      });
       const { penaltyBalance } = computePenaltyBalance({
-        penaltyAmount: contract.penaltyAmount,
+        asOf,
+        penaltyLogs: contract.penaltyLogs,
         accruals: contract.accruals,
         payments: contract.payments,
       });
       const totalPaid = contract.payments.filter((p) => !p.reversedAt).reduce((sum, p) => sum.plus(p.amount), new Decimal(0));
-
-      if (maturedBalance.lessThanOrEqualTo(0) && penaltyBalance.lessThanOrEqualTo(0)) continue;
 
       rows.push({
         contractId: contract.id,
@@ -184,13 +177,13 @@ export class ReportsController {
         residentIndividualUid: contract.residentIndividualUid,
         residentFullName: contract.resident.fullName,
         room: contract.roomAssignments[0]?.room.room ?? null,
+        status: contract.status,
+        createdAt: contract.createdAt,
         totalAccrued: Number(totalAccrued),
         totalPaid: Number(totalPaid),
-        principalBalance: Number(principalBalance),
+        principalDebt: Number(principalDebtAsOf),
         penaltyBalance: Number(penaltyBalance),
-        totalBalance: Number(principalBalance.plus(penaltyBalance)),
-        maturedBalance: Number(maturedBalance),
-        overdueBalance: Number(overdueBalance),
+        totalBalance: Number(principalDebtAsOf.plus(penaltyBalance)),
       });
     }
 
@@ -211,8 +204,8 @@ export class ReportsController {
     const options = parseListOptions(pageParam, pageSizeParam, searchParam, sortByParam, sortDirParam, filtersParam, 'totalBalance');
     return paginateInMemory(rows, options, {
       searchFields: ['contractNumber', 'residentFullName', 'room'],
-      sortableFields: ['contractNumber', 'residentFullName', 'room', 'totalAccrued', 'totalPaid', 'totalBalance'],
-      filterFields: [],
+      sortableFields: ['contractNumber', 'residentFullName', 'room', 'createdAt', 'status', 'totalAccrued', 'totalPaid', 'penaltyBalance', 'totalBalance'],
+      filterFields: ['status'],
     });
   }
 
@@ -220,42 +213,72 @@ export class ReportsController {
   async debtorsSummary(@Query('asOf') asOfParam?: string) {
     const rows = await this.buildDebtorRows(resolveAsOf(asOfParam));
     return {
-      debtorsCount: rows.length,
+      debtorsCount: rows.filter((r) => r.totalBalance > 0).length,
+      totalAccrued: rows.reduce((sum, r) => sum + r.totalAccrued, 0),
       totalDebt: rows.reduce((sum, r) => sum + r.totalBalance, 0),
+      totalPenalty: rows.reduce((sum, r) => sum + r.penaltyBalance, 0),
       totalPaid: rows.reduce((sum, r) => sum + r.totalPaid, 0),
-      overdueDebt: rows.reduce((sum, r) => sum + r.overdueBalance, 0),
     };
   }
 
   @Get('debtors/facets/:field')
-  debtorsFacets(@Param('field') _field: string): FacetOption[] {
-    return [];
+  debtorsFacets(@Param('field') field: string): FacetOption[] {
+    if (field !== 'status') return [];
+    return (Object.keys(CONTRACT_STATUS_LABELS) as ContractStatus[]).map((value) => ({ value, label: CONTRACT_STATUS_LABELS[value] }));
   }
 
-  // Структура долга одного договора по периодам (клик на должника в реестре) — те же
-  // цифры, что уже показывает карточка договора (см. ContractDetail.vue), но без ПДн
-  // (без родителя/паспорта). Пеня — единая на договор (Contract.penaltyAmount), не по
-  // периодам, поэтому отдаётся отдельно от periods, не как их колонка.
+  // Структура долга одного договора по периодам (клик на договор в реестре) — на дату asOf:
+  // показывает только НАСТУПИВШИЕ начисления (dueDate<=asOf, по прямой просьбе 2026-08-22 —
+  // "только долги", будущие ещё не выставленные месяцы сюда не попадают), "Оплачено"/"Долг"
+  // считаются только по платежам ДО asOf. Пеня — единая на договор и по дням (см.
+  // PenaltyAccrualLog), поэтому отдаётся отдельно от periods, не как их колонка.
   @Get('debtors/:contractId/breakdown')
-  async debtorBreakdown(@Param('contractId') contractIdParam: string) {
+  async debtorBreakdown(@Param('contractId') contractIdParam: string, @Query('asOf') asOfParam?: string) {
     const contractId = parseIdParam(contractIdParam);
+    const asOf = resolveAsOf(asOfParam);
 
     const contract = await this.prisma.contract.findUnique({
       where: { id: contractId },
       include: {
         resident: { select: { fullName: true } },
         roomAssignments: { where: { toDate: null }, include: { room: { select: { room: true } } } },
-        accruals: { where: { voidedAt: null }, orderBy: { periodStart: 'asc' }, include: { allocations: true } },
+        accruals: {
+          where: { voidedAt: null },
+          orderBy: { periodStart: 'asc' },
+          include: { allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } } },
+        },
         payments: true,
+        penaltyLogs: true,
       },
     });
     if (!contract) {
       throw new NotFoundException('Договор не найден');
     }
 
-    const periods = contract.accruals.map((accrual) => serializeAccrual(accrual));
+    const periods = contract.accruals
+      .filter((accrual) => accrual.dueDate <= asOf)
+      .map((accrual) => {
+        const total = accrual.rentAmount.plus(accrual.utilitiesAmount).plus(accrual.adjustmentAmount);
+        const paid = accrual.allocations
+          .filter((al) => !al.payment.reversedAt && al.payment.paidAt <= asOf)
+          .reduce((sum, al) => sum.plus(al.amount), new Decimal(0));
+        const balance = total.minus(paid);
+        return {
+          id: accrual.id,
+          periodStart: accrual.periodStart,
+          periodEnd: accrual.periodEnd,
+          dueDate: accrual.dueDate,
+          adjustmentAmount: Number(accrual.adjustmentAmount),
+          adjustmentReason: accrual.adjustmentReason,
+          voidedAt: accrual.voidedAt,
+          total: Number(total),
+          paid: Number(paid),
+          balance: Number(balance),
+        };
+      });
     const { penaltyBalance } = computePenaltyBalance({
-      penaltyAmount: contract.penaltyAmount,
+      asOf,
+      penaltyLogs: contract.penaltyLogs,
       accruals: contract.accruals,
       payments: contract.payments,
     });
@@ -267,9 +290,46 @@ export class ReportsController {
       residentFullName: contract.resident.fullName,
       room: contract.roomAssignments[0]?.room.room ?? null,
       periods,
-      penaltyAmount: Number(contract.penaltyAmount),
+      totalAccrued: periods.reduce((sum, p) => sum + p.total, 0),
+      totalPaid: periods.reduce((sum, p) => sum + p.paid, 0),
       penaltyBalance: Number(penaltyBalance),
       totalDebt: principalDebt + Number(penaltyBalance),
+    };
+  }
+
+  // Расшифровка пени по дням (клик на "Пеня" в реестре) — сырые строки журнала до asOf
+  // включительно, чтобы ответить "откуда взялась сумма" (по прямой просьбе 2026-08-22):
+  // каждая строка — один день, добавленная за него сумма и база расчёта на тот момент.
+  @Get('debtors/:contractId/penalty-log')
+  async debtorPenaltyLog(@Param('contractId') contractIdParam: string, @Query('asOf') asOfParam?: string) {
+    const contractId = parseIdParam(contractIdParam);
+    const asOf = resolveAsOf(asOfParam);
+
+    const contract = await this.prisma.contract.findUnique({
+      where: { id: contractId },
+      select: {
+        id: true,
+        number: true,
+        resident: { select: { fullName: true } },
+        roomAssignments: { where: { toDate: null }, include: { room: { select: { room: true } } } },
+        penaltyLogs: { orderBy: { date: 'asc' } },
+      },
+    });
+    if (!contract) {
+      throw new NotFoundException('Договор не найден');
+    }
+
+    const entries = contract.penaltyLogs
+      .filter((l) => l.date <= asOf)
+      .map((l) => ({ date: l.date, amount: Number(l.amount), overdueBase: Number(l.overdueBase) }));
+
+    return {
+      contractId: contract.id,
+      contractNumber: contract.number,
+      residentFullName: contract.resident.fullName,
+      room: contract.roomAssignments[0]?.room.room ?? null,
+      entries,
+      total: entries.reduce((sum, e) => sum + e.amount, 0),
     };
   }
 

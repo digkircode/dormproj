@@ -3,10 +3,10 @@ import { computed, ref } from 'vue'
 import { UserRound, X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import SearchSelect from '@/components/SearchSelect.vue'
-import { fetchRoles, roleLabel, type Role } from '@/lib/roles-api'
+import { fetchRoles, roleLabel, roleIcon, type Role } from '@/lib/roles-api'
 import { searchUsers, grantRole, revokeRole, type UserRow } from '@/lib/users-api'
 
 const emit = defineEmits<{ changed: [] }>()
@@ -132,8 +132,9 @@ async function onRevoke(roleId: number) {
             <span
               v-for="r in selectedUser.roles"
               :key="r.id"
-              class="flex items-center gap-1 rounded-full border bg-background py-1 pl-2.5 pr-1 text-sm"
+              class="flex items-center gap-1.5 rounded-full border bg-background py-1 pl-2.5 pr-1 text-sm"
             >
+              <component :is="roleIcon(r.name)" class="size-3.5 shrink-0 text-primary" />
               {{ roleLabel(r.name) }}
               <button
                 type="button"
@@ -156,7 +157,12 @@ async function onRevoke(roleId: number) {
                 <SelectValue placeholder="Выберите роль" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem v-for="r in availableRoles" :key="r.id" :value="String(r.id)">{{ roleLabel(r.name) }}</SelectItem>
+                <SelectItem v-for="r in availableRoles" :key="r.id" :value="String(r.id)">
+                  <span class="flex items-center gap-1.5">
+                    <component :is="roleIcon(r.name)" class="size-3.5 shrink-0 text-primary" />
+                    {{ roleLabel(r.name) }}
+                  </span>
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -165,10 +171,6 @@ async function onRevoke(roleId: number) {
       </template>
 
       <p v-if="error" class="text-sm text-red-500">{{ error }}</p>
-
-      <DialogFooter>
-        <Button variant="outline" @click="isOpen = false">Закрыть</Button>
-      </DialogFooter>
     </DialogScrollContent>
   </Dialog>
 </template>

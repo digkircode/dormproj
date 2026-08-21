@@ -1,25 +1,31 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, provide, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { AlertTriangle, ArrowLeft, Banknote, Info, Users, Wallet } from 'lucide-vue-next'
+import { AlertTriangle, ArrowLeft, Banknote, Info, Percent, Users, Wallet } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell, TableFooter } from '@/components/ui/table'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import EntityTable from '@/components/EntityTable.vue'
 import ContractLinkCell from '@/components/ContractLinkCell.vue'
 import ResidentLinkCell from '@/components/ResidentLinkCell.vue'
 import DebtBalanceCell from '@/components/DebtBalanceCell.vue'
+import PenaltyBalanceCell from '@/components/PenaltyBalanceCell.vue'
+import ContractStatusCell from '@/components/ContractStatusCell.vue'
 import ReportKpiTile from '@/components/ReportKpiTile.vue'
+import DatePickerField from '@/components/DatePickerField.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import {
   fetchDebtorsPage,
   fetchDebtorsFacets,
   fetchDebtorsSummary,
   fetchDebtorBreakdown,
+  fetchDebtorPenaltyLog,
   type DebtorRow,
   type DebtorsSummary,
   type DebtorBreakdown,
+  type DebtorPenaltyLog,
+  type ListOptions,
 } from '@/lib/reports-api'
 import { goBack } from '@/lib/utils'
 
@@ -35,20 +41,29 @@ const columnLabels: Record<string, string> = {
   contractNumber: '№ договора',
   residentFullName: 'Проживающий',
   room: 'Комната',
+  status: 'Статус',
+  createdAt: 'Дата создания',
   totalAccrued: 'Начислено',
   totalPaid: 'Оплачено',
   penaltyBalance: 'Пеня',
   totalBalance: 'Долг',
 }
-const filterableFields: string[] = []
+const filterableFields = ['status']
 const cellRenderers = {
   contractNumber: ContractLinkCell,
   residentFullName: ResidentLinkCell,
+  status: ContractStatusCell,
+  penaltyBalance: PenaltyBalanceCell,
   totalBalance: DebtBalanceCell,
 }
 
 function formatMoney(value: number): string {
   return `${value.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
+}
+function formatDateIso(iso: string): string {
+  const date = new Date(iso)
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
 }
 function cellText(columnId: string, value: unknown): string {
   if (
@@ -57,24 +72,49 @@ function cellText(columnId: string, value: unknown): string {
   ) {
     return formatMoney(value)
   }
+  if (columnId === 'createdAt' && typeof value === 'string') {
+    return formatDateIso(value)
+  }
   return String(value ?? '')
 }
 
 const columnHelper = createAppColumnHelper<DebtorRow>()
 const columns = columnHelper.columns([
   columnHelper.accessor('contractNumber', { header: columnLabels.contractNumber, enableHiding: false, size: 128, minSize: 100 }),
-  columnHelper.accessor('residentFullName', { header: columnLabels.residentFullName, size: 220, minSize: 160 }),
-  columnHelper.accessor('room', { header: columnLabels.room, size: 110, minSize: 90 }),
+  columnHelper.accessor('residentFullName', { header: columnLabels.residentFullName, size: 200, minSize: 160 }),
+  columnHelper.accessor('room', { header: columnLabels.room, size: 100, minSize: 90 }),
+  columnHelper.accessor('status', { header: columnLabels.status, size: 130, minSize: 110 }),
+  columnHelper.accessor('createdAt', { header: columnLabels.createdAt, size: 130, minSize: 110 }),
   columnHelper.accessor('totalAccrued', { header: columnLabels.totalAccrued, size: 130, minSize: 110 }),
   columnHelper.accessor('totalPaid', { header: columnLabels.totalPaid, size: 130, minSize: 110 }),
   columnHelper.accessor('penaltyBalance', { header: columnLabels.penaltyBalance, size: 110, minSize: 90 }),
   columnHelper.accessor('totalBalance', { header: columnLabels.totalBalance, size: 130, minSize: 110 }),
 ])
 
+// Отчёт "на дату" (по умолчанию сегодня) — тот же приём, что период в ReportsMovements.vue:
+// EntityTable сама не знает про внешний asOf, перезапрашиваем страницу и сводку вручную
+// через её exposed refresh() при смене даты.
+function isoToday(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+const asOf = ref(isoToday())
+
+function fetchPage(options: ListOptions) {
+  return fetchDebtorsPage(options, asOf.value)
+}
+
 const summary = ref<DebtorsSummary | null>(null)
-onMounted(async () => {
-  summary.value = await fetchDebtorsSummary()
+async function loadSummary() {
+  if (!asOf.value) return
+  summary.value = await fetchDebtorsSummary(asOf.value)
+}
+
+const entityTable = ref<{ refresh: () => void } | null>(null)
+watch(asOf, () => {
+  loadSummary()
+  entityTable.value?.refresh()
 })
+onMounted(loadSummary)
 
 // "Месяц" — крупно название месяца, мелко и в скобках короткий диапазон дат под ним
 // (неполные месяцы на границах договора всё равно остаются понятны по датам).
@@ -100,13 +140,34 @@ async function openBreakdown(contractId: number) {
   breakdownError.value = ''
   breakdownLoading.value = true
   try {
-    breakdown.value = await fetchDebtorBreakdown(contractId)
+    breakdown.value = await fetchDebtorBreakdown(contractId, asOf.value)
   } catch (error) {
     breakdownError.value = error instanceof Error ? error.message : String(error)
   } finally {
     breakdownLoading.value = false
   }
 }
+
+// --- Расшифровка пени по дням — клик по значению "Пеня" в таблице ---
+const penaltyLogOpen = ref(false)
+const penaltyLog = ref<DebtorPenaltyLog | null>(null)
+const penaltyLogLoading = ref(false)
+const penaltyLogError = ref('')
+
+async function openPenaltyLog(contractId: number) {
+  penaltyLogOpen.value = true
+  penaltyLog.value = null
+  penaltyLogError.value = ''
+  penaltyLogLoading.value = true
+  try {
+    penaltyLog.value = await fetchDebtorPenaltyLog(contractId, asOf.value)
+  } catch (error) {
+    penaltyLogError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    penaltyLogLoading.value = false
+  }
+}
+provide('openPenaltyLog', openPenaltyLog)
 </script>
 
 <template>
@@ -116,10 +177,10 @@ async function openBreakdown(contractId: number) {
         <ArrowLeft class="text-primary" />
         <span class="sr-only">Назад</span>
       </Button>
-      <h1 class="text-lg font-medium">Задолженность</h1>
+      <h1 class="text-lg font-medium">Финансовый отчёт</h1>
     </div>
 
-    <Card v-if="summary" class="grid grid-cols-4 gap-4 p-4">
+    <Card v-if="summary" class="grid grid-cols-5 gap-4 p-4">
       <ReportKpiTile
         :icon="Users"
         bg-class="bg-blue-100 dark:bg-blue-500/15"
@@ -129,17 +190,24 @@ async function openBreakdown(contractId: number) {
       />
       <ReportKpiTile
         :icon="Banknote"
+        bg-class="bg-violet-100 dark:bg-violet-500/15"
+        icon-class="text-violet-600 dark:text-violet-400"
+        label="Всего начислено"
+        :value="formatMoney(summary.totalAccrued)"
+      />
+      <ReportKpiTile
+        :icon="AlertTriangle"
         bg-class="bg-red-100 dark:bg-red-500/15"
         icon-class="text-red-600 dark:text-red-400"
         label="Общий долг"
         :value="formatMoney(summary.totalDebt)"
       />
       <ReportKpiTile
-        :icon="AlertTriangle"
+        :icon="Percent"
         bg-class="bg-orange-100 dark:bg-orange-500/15"
         icon-class="text-orange-600 dark:text-orange-400"
-        label="Просрочено"
-        :value="formatMoney(summary.overdueDebt)"
+        label="Пени"
+        :value="formatMoney(summary.totalPenalty)"
       />
       <ReportKpiTile
         :icon="Wallet"
@@ -151,20 +219,26 @@ async function openBreakdown(contractId: number) {
     </Card>
 
     <EntityTable
+      ref="entityTable"
       :columns="columns"
       :column-labels="columnLabels"
       :filterable-fields="filterableFields"
       :default-sort="{ id: 'totalBalance', desc: true }"
-      :fetch-page="fetchDebtorsPage"
+      :fetch-page="fetchPage"
       :fetch-facet-values="fetchDebtorsFacets"
       :get-row-id="(d: DebtorRow) => String(d.contractId)"
-      total-label="должников"
+      total-label="договоров"
       :cell-text="cellText"
       :cell-renderers="cellRenderers"
       storage-key="reports-debt"
       accent-icons
       :row-action="{ icon: Info, label: 'Структура долга по месяцам', onClick: (d: DebtorRow) => openBreakdown(d.contractId) }"
-    />
+    >
+      <template #actions>
+        <span class="text-sm text-muted-foreground">На дату</span>
+        <DatePickerField v-model="asOf" />
+      </template>
+    </EntityTable>
 
     <Dialog :open="breakdownOpen" @update:open="(open) => (breakdownOpen = open)">
       <DialogScrollContent :class="['flex flex-col gap-4 sm:max-w-3xl', DIALOG_ANIMATE_CLASS]">
@@ -189,6 +263,9 @@ async function openBreakdown(contractId: number) {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                <TableRow v-if="!breakdown.periods.length">
+                  <TableCell colspan="4" class="text-center text-muted-foreground">Нет наступивших начислений на эту дату</TableCell>
+                </TableRow>
                 <TableRow v-for="p in breakdown.periods" :key="p.id">
                   <TableCell :class="[CELL_BORDER_CLASS, p.voidedAt ? 'text-muted-foreground line-through' : '']">
                     <div class="flex flex-col">
@@ -201,6 +278,16 @@ async function openBreakdown(contractId: number) {
                   <TableCell :class="p.balance > 0 ? 'text-red-500' : ''">{{ formatMoney(p.balance) }}</TableCell>
                 </TableRow>
               </TableBody>
+              <TableFooter v-if="breakdown.periods.length">
+                <TableRow>
+                  <TableCell :class="CELL_BORDER_CLASS">Итого</TableCell>
+                  <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(breakdown.totalAccrued) }}</TableCell>
+                  <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(breakdown.totalPaid) }}</TableCell>
+                  <TableCell :class="breakdown.totalAccrued - breakdown.totalPaid > 0 ? 'text-red-500' : ''">
+                    {{ formatMoney(breakdown.totalAccrued - breakdown.totalPaid) }}
+                  </TableCell>
+                </TableRow>
+              </TableFooter>
             </Table>
           </div>
           <!-- Пеня — единая на договор, не по месяцам (см. reports.controller.ts), поэтому
@@ -208,6 +295,49 @@ async function openBreakdown(contractId: number) {
           <div class="flex flex-col items-end gap-1 text-sm">
             <p v-if="breakdown.penaltyBalance > 0" class="text-red-500">Пеня по договору: {{ formatMoney(breakdown.penaltyBalance) }}</p>
             <p class="font-medium">Итого долг: {{ formatMoney(breakdown.totalDebt) }}</p>
+          </div>
+        </div>
+      </DialogScrollContent>
+    </Dialog>
+
+    <Dialog :open="penaltyLogOpen" @update:open="(open) => (penaltyLogOpen = open)">
+      <DialogScrollContent :class="['flex flex-col gap-4 sm:max-w-lg', DIALOG_ANIMATE_CLASS]">
+        <DialogHeader>
+          <DialogTitle>
+            {{ penaltyLog ? `Пеня — ${penaltyLog.residentFullName}, комн. ${penaltyLog.room ?? '—'}` : 'Пеня' }}
+          </DialogTitle>
+        </DialogHeader>
+
+        <p v-if="penaltyLogError" class="text-sm text-red-500">{{ penaltyLogError }}</p>
+        <p v-if="penaltyLogLoading" class="text-sm text-muted-foreground">Загрузка…</p>
+
+        <div v-if="penaltyLog" class="flex flex-col gap-3">
+          <div class="overflow-hidden rounded-md border">
+            <Table>
+              <TableHeader class="bg-muted">
+                <TableRow>
+                  <TableHead :class="CELL_BORDER_CLASS">Дата</TableHead>
+                  <TableHead :class="CELL_BORDER_CLASS">База расчёта</TableHead>
+                  <TableHead>Добавлено</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow v-if="!penaltyLog.entries.length">
+                  <TableCell colspan="3" class="text-center text-muted-foreground">Пеня не начислялась</TableCell>
+                </TableRow>
+                <TableRow v-for="(e, i) in penaltyLog.entries" :key="i">
+                  <TableCell :class="CELL_BORDER_CLASS">{{ formatDateIso(e.date) }}</TableCell>
+                  <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(e.overdueBase) }}</TableCell>
+                  <TableCell>{{ formatMoney(e.amount) }}</TableCell>
+                </TableRow>
+              </TableBody>
+              <TableFooter v-if="penaltyLog.entries.length">
+                <TableRow>
+                  <TableCell :class="CELL_BORDER_CLASS" colspan="2">Итого</TableCell>
+                  <TableCell>{{ formatMoney(penaltyLog.total) }}</TableCell>
+                </TableRow>
+              </TableFooter>
+            </Table>
           </div>
         </div>
       </DialogScrollContent>

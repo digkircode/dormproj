@@ -8,12 +8,17 @@ import { addDays, dateOnly, daysBetweenInclusive } from './period-utils';
 const { Decimal } = Prisma;
 
 // Ночной крон — 0,14%/день (п. 4.8/5.9 договора) от суммы всех ПРОСРОЧЕННЫХ и непогашенных
-// начислений договора ЦЕЛИКОМ (не по каждому начислению отдельно, см. Contract.penaltyAmount
-// в schema.prisma) — начислением считается просроченным с 10 числа месяца, следующего за
-// его periodStart (см. penaltyStartsAt). Идемпотентно: penaltyAccruedThrough на Contract не
-// даёт начислить дважды за один день, а при пропуске запуска (сервер был недоступен)
-// досчитывает за все пропущенные дни разом на следующем запуске по ТЕКУЩЕЙ базе (та же
-// упрощающая посылка, что была и раньше в этом кроне) — не теряет и не задваивает начисленное.
+// начислений договора ЦЕЛИКОМ (не по каждому начислению отдельно) — начисление считается
+// просроченным с 10 числа месяца, следующего за его periodStart (см. penaltyStartsAt).
+// Каждый начисленный день — отдельная строка PenaltyAccrualLog (не общий инкремент одним
+// числом): и аудит "откуда взялась сумма" (по прямой просьбе 2026-08-22), и единственный
+// способ восстановить пеню на прошлую дату для финансового отчёта (сумма строк журнала по
+// эту дату, см. billing/penalty-balance.ts). Идемпотентно: penaltyAccruedThrough на
+// Contract не даёт начислить дважды за один день (плюс @@unique([contractId, date]) в
+// БД — защита на случай гонки/повторного запуска), а при пропуске запуска (сервер был
+// недоступен) досчитывает за все пропущенные дни разом — по одной строке на каждый день,
+// все с ТЕКУЩЕЙ базой (та же упрощающая посылка, что была и раньше в этом кроне — база за
+// пропущенные дни назад не восстанавливается).
 @Injectable()
 export class PenaltyScheduler {
   private readonly logger = new Logger(PenaltyScheduler.name);
@@ -35,7 +40,10 @@ export class PenaltyScheduler {
       include: { accruals: { where: { voidedAt: null }, include: { allocations: true } } },
     });
 
-    let updated = 0;
+    const logRows: { contractId: number; date: Date; amount: Prisma.Decimal; overdueBase: Prisma.Decimal }[] = [];
+    const updatedContractIds: number[] = [];
+    let totalAdded = new Decimal(0);
+
     for (const contract of contracts) {
       let overdueSum = new Decimal(0);
       let earliestStartsAt: Date | null = null;
@@ -69,14 +77,28 @@ export class PenaltyScheduler {
       const daysElapsed = daysBetweenInclusive(addDays(sinceDate, 1), today);
       if (daysElapsed <= 0) continue;
 
-      const newPenalty = overdueSum.times(PENALTY_DAILY_RATE).times(daysElapsed);
-      await this.prisma.contract.update({
-        where: { id: contract.id },
-        data: { penaltyAmount: contract.penaltyAmount.plus(newPenalty), penaltyAccruedThrough: today },
-      });
-      updated++;
+      const dailyAmount = overdueSum.times(PENALTY_DAILY_RATE);
+      for (let i = 1; i <= daysElapsed; i++) {
+        logRows.push({ contractId: contract.id, date: addDays(sinceDate, i), amount: dailyAmount, overdueBase: overdueSum });
+      }
+      updatedContractIds.push(contract.id);
+      const contractTotal = dailyAmount.times(daysElapsed);
+      totalAdded = totalAdded.plus(contractTotal);
+
+      this.logger.log(
+        `Договор №${contract.number} (id=${contract.id}): база просрочки ${overdueSum.toFixed(2)}, ` +
+          `дней к начислению ${daysElapsed} (с ${sinceDate.toISOString().slice(0, 10)} по ${today.toISOString().slice(0, 10)}), ` +
+          `пеня/день ${dailyAmount.toFixed(2)}, добавлено всего ${contractTotal.toFixed(2)}`,
+      );
     }
 
-    this.logger.log(`Начисление пени: обновлено договоров — ${updated}`);
+    if (logRows.length > 0) {
+      await this.prisma.penaltyAccrualLog.createMany({ data: logRows, skipDuplicates: true });
+      await this.prisma.contract.updateMany({ where: { id: { in: updatedContractIds } }, data: { penaltyAccruedThrough: today } });
+    }
+
+    this.logger.log(
+      `Начисление пени: обновлено договоров — ${updatedContractIds.length}, строк журнала — ${logRows.length}, всего добавлено — ${totalAdded.toFixed(2)}`,
+    );
   }
 }

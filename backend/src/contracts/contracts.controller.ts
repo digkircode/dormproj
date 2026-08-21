@@ -23,6 +23,7 @@ import { ensureUserRecord } from '../users/ensure-user';
 import { buildAccrualsForContract } from '../billing/accrual-generation';
 import { recalcAccrualsForTermination } from '../billing/termination';
 import { computePenaltyBalance } from '../billing/penalty-balance';
+import { dateOnly } from '../billing/period-utils';
 import { serializeAccrual, serializePayment, serializeTerms } from './serializers';
 import { isMinorAt } from './minor';
 import { buildResidentSnapshot, type ResidentSnapshot } from './resident-snapshot';
@@ -233,18 +234,29 @@ export class ContractsController {
         resident: { select: { fullName: true, fizicheskoyeLitsoUid: true } },
         terms: { orderBy: { validFrom: 'desc' } },
         roomAssignments: { orderBy: { fromDate: 'desc' }, include: { room: { select: { id: true, room: true } } } },
-        accruals: { orderBy: { periodStart: 'asc' }, include: { allocations: true } },
+        accruals: {
+          orderBy: { periodStart: 'asc' },
+          include: { allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } } },
+        },
         payments: { orderBy: { paidAt: 'desc' } },
+        penaltyLogs: true,
       },
     });
     if (!contract) {
       throw new NotFoundException('Договор не найден');
     }
 
-    const { terms, roomAssignments, accruals, payments, resident, matCapitalAmount, penaltyAmount, ...contractFields } = contract;
-    // Пеня — единая сумма на договор (не по начислениям, см. schema.prisma), сколько из
-    // неё уже покрыто платежами — выводим на чтении (см. penalty-balance.ts).
-    const { penaltyPaid, penaltyBalance } = computePenaltyBalance({ penaltyAmount, accruals, payments });
+    const { terms, roomAssignments, accruals, payments, penaltyLogs, resident, matCapitalAmount, ...contractFields } = contract;
+    // Пеня — производная от журнала (не хранимое поле, см. schema.prisma), сколько из неё
+    // уже покрыто платежами — тоже выводим на чтении (см. penalty-balance.ts). "На сейчас",
+    // а не на дату — карточка договора не поддерживает выбор даты (в отличие от финансового
+    // отчёта, где asOf выбирается пользователем).
+    const { penaltyAmount, penaltyPaid, penaltyBalance } = computePenaltyBalance({
+      asOf: dateOnly(new Date()),
+      penaltyLogs,
+      accruals,
+      payments,
+    });
     return {
       ...contractFields,
       // Decimal не сериализуется в JSON как обычное число сам по себе — тот же приём, что

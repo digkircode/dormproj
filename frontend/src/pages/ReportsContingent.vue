@@ -1,12 +1,14 @@
 <script setup lang="ts">
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import EntityTable from '@/components/EntityTable.vue'
 import ResidentLinkCell from '@/components/ResidentLinkCell.vue'
 import ContractLinkCell from '@/components/ContractLinkCell.vue'
+import DatePickerField from '@/components/DatePickerField.vue'
 import { createAppColumnHelper } from '@/lib/table'
-import { fetchContingentPage, fetchContingentFacets, type ContingentRow } from '@/lib/reports-api'
+import { fetchContingentPage, fetchContingentFacets, type ContingentRow, type ListOptions } from '@/lib/reports-api'
 import { goBack } from '@/lib/utils'
 
 const router = useRouter()
@@ -50,6 +52,21 @@ const columns = columnHelper.columns([
   columnHelper.accessor('birthDate', { header: columnLabels.birthDate, size: 140, minSize: 110 }),
   columnHelper.accessor('citizenship', { header: columnLabels.citizenship, size: 160, minSize: 120 }),
 ])
+
+// Отчёт "на дату" (по умолчанию сегодня) — тот же приём, что период в ReportsMovements.vue/
+// дата в ReportsDebt.vue: EntityTable сама не знает про внешний asOf, перезапрашиваем
+// страницу вручную через её exposed refresh() при смене даты.
+function isoToday(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+const asOf = ref(isoToday())
+
+function fetchPage(options: ListOptions) {
+  return fetchContingentPage(options, asOf.value)
+}
+
+const entityTable = ref<{ refresh: () => void } | null>(null)
+watch(asOf, () => entityTable.value?.refresh())
 </script>
 
 <template>
@@ -63,11 +80,12 @@ const columns = columnHelper.columns([
     </div>
 
     <EntityTable
+      ref="entityTable"
       :columns="columns"
       :column-labels="columnLabels"
       :filterable-fields="filterableFields"
       :default-sort="{ id: 'movedInDate', desc: true }"
-      :fetch-page="fetchContingentPage"
+      :fetch-page="fetchPage"
       :fetch-facet-values="fetchContingentFacets"
       :get-row-id="(r: ContingentRow) => String(r.contractId)"
       total-label="проживающих"
@@ -75,6 +93,11 @@ const columns = columnHelper.columns([
       :cell-renderers="cellRenderers"
       storage-key="reports-contingent"
       accent-icons
-    />
+    >
+      <template #actions>
+        <span class="text-sm text-muted-foreground">На дату</span>
+        <DatePickerField v-model="asOf" />
+      </template>
+    </EntityTable>
   </div>
 </template>

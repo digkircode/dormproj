@@ -1,3 +1,5 @@
+import type { Component } from 'vue'
+import { Briefcase, ShieldCheck, Tag, User } from 'lucide-vue-next'
 import { apiFetch } from './api-base'
 
 export interface Role {
@@ -16,6 +18,16 @@ export const ROLE_LABELS: Record<string, string> = {
 }
 export function roleLabel(name: string): string {
   return ROLE_LABELS[name] ?? name
+}
+
+const ROLE_ICONS: Record<string, Component> = {
+  ADMIN: ShieldCheck,
+  STAFF: Briefcase,
+  RESIDENT: User,
+}
+// Роль с незнакомым name (созданная вручную через "Добавить роль") — общая иконка-заглушка.
+export function roleIcon(name: string): Component {
+  return ROLE_ICONS[name] ?? Tag
 }
 
 export async function fetchRoles(): Promise<Role[]> {
