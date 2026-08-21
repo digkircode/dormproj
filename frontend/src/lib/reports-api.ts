@@ -89,6 +89,8 @@ export interface ContingentRow {
   kursNumber: number | null
   birthDate: string | null
   citizenship: string | null
+  citizenshipGroup: 'RU' | 'FOREIGN'
+  isOwnUniversity: 'OWN' | 'OTHER'
   movedInDate: string
 }
 

@@ -580,7 +580,14 @@ async function confirmReversePayment() {
         <p v-if="deleteError" class="text-sm text-red-500">{{ deleteError }}</p>
         <DialogFooter>
           <Button variant="outline" @click="isDeleteOpen = false">Отмена</Button>
-          <Button variant="destructive" :disabled="isDeleting" @click="submitDelete">Удалить</Button>
+          <Button
+            variant="outline"
+            class="border-red-500 text-red-500 hover:text-red-500"
+            :disabled="isDeleting"
+            @click="submitDelete"
+          >
+            Да, удалить
+          </Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>

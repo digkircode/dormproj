@@ -4,9 +4,10 @@ import { FileText } from 'lucide-vue-next'
 defineProps<{ value: unknown; row?: unknown }>()
 
 // -mx/-my компенсируют паддинг ячейки под hover-подложку — тот же приём, что у
-// ФИО в шапке ContractDetail.vue.
+// ФИО в шапке ContractDetail.vue. w-fit max-w-full — иначе блочный flex растягивается
+// на всю ширину <td> и подсвечивается вся ячейка, а не только текст с иконкой.
 const LINK_CLASS =
-  '-mx-1.5 -my-0.5 flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-accent hover:text-accent-foreground'
+  '-mx-1.5 -my-0.5 flex w-fit max-w-full min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-accent hover:text-accent-foreground'
 </script>
 
 <template>

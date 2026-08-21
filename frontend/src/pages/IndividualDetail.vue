@@ -8,8 +8,6 @@ import {
   Copy,
   RefreshCw,
   FileSignature,
-  Wallet,
-  DoorOpen,
   Home,
   Phone,
   Mail,
@@ -22,6 +20,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import PassportTable from '@/components/PassportTable.vue'
 import StudentFields from '@/components/StudentFields.vue'
+import CreateContractDialog from '@/components/CreateContractDialog.vue'
 import { fetchIndividualDetail, syncIndividual, type IndividualDetail } from '@/lib/individuals-api'
 import { copyToClipboard, goBack } from '@/lib/utils'
 import { breadcrumbOverride } from '@/lib/breadcrumb-state'
@@ -101,6 +100,8 @@ let syncFeedbackTimeout: ReturnType<typeof setTimeout> | undefined
 // before-leave (иконка начала меняться) и снимается в after-enter (новая иконка
 // полностью на месте) — см. Transition ниже.
 const isSyncIconAnimating = ref(false)
+
+const createDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(null)
 
 // Перезапрашиваем всю карточку после успешной синхронизации — синхрон затрагивает
 // сразу 5 источников (студент/физлицо/гражданство/паспорт/контакты), проще перечитать
@@ -211,8 +212,6 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Явно 2x2, а не flex-wrap — при трёх колонках в шапке места под ряд из
-               4 кнопок уже не хватает, а непредсказуемый перенос выглядит неряшливо. -->
           <div class="grid grid-cols-2 gap-2">
             <Button variant="outline" size="sm" :disabled="isSyncing || syncFeedback !== null || isSyncIconAnimating" @click="runSync">
               <Transition
@@ -228,17 +227,9 @@ onUnmounted(() => {
               </Transition>
               Синхронизировать
             </Button>
-            <Button size="sm">
+            <Button size="sm" @click="detail && createDialogRef?.open(detail)">
               <FileSignature />
-              Составить договор
-            </Button>
-            <Button variant="outline" size="sm">
-              <Wallet class="text-primary" />
-              Просмотр оплаты
-            </Button>
-            <Button variant="outline" size="sm">
-              <DoorOpen class="text-primary" />
-              Просмотр комнаты
+              Создать договор
             </Button>
           </div>
           <p v-if="syncError" class="text-sm text-red-500">{{ syncError }}</p>
@@ -332,5 +323,7 @@ onUnmounted(() => {
         </Tabs>
       </Card>
     </template>
+
+    <CreateContractDialog ref="createDialogRef" />
   </div>
 </template>

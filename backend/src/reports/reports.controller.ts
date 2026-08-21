@@ -80,6 +80,10 @@ interface ContingentRow {
   kursNumber: number | null;
   birthDate: Date | null;
   citizenship: string | null;
+  // Производные поля для фиксированных фильтров (тот же принцип, что bucket/agingBucket/
+  // operation в остальных отчётах) — не отдельные хранимые поля.
+  citizenshipGroup: 'RU' | 'FOREIGN';
+  isOwnUniversity: 'OWN' | 'OTHER';
   movedInDate: Date;
 }
 
@@ -467,8 +471,23 @@ export class ReportsController {
       if (!studentByUid.has(s.fizicheskoyeLitsoUid)) studentByUid.set(s.fizicheskoyeLitsoUid, s);
     }
 
+    // Дата заселения — не fromDate текущего RoomAssignment (это дата последнего
+    // переезда/начала ТЕКУЩЕГО договора), а старт самого первого по времени договора
+    // этого физлица — по прямой просьбе, вне зависимости от того, сколько у него
+    // договоров было всего.
+    const allContractsOfResidents = await this.prisma.contract.findMany({
+      where: { residentIndividualUid: { in: uids } },
+      select: { residentIndividualUid: true, startDate: true },
+    });
+    const firstContractStartByUid = new Map<string, Date>();
+    for (const c of allContractsOfResidents) {
+      const existing = firstContractStartByUid.get(c.residentIndividualUid);
+      if (!existing || c.startDate < existing) firstContractStartByUid.set(c.residentIndividualUid, c.startDate);
+    }
+
     return assignments.map((a) => {
       const student = studentByUid.get(a.contract.residentIndividualUid);
+      const citizenship = a.contract.resident.citizenships[0]?.country ?? null;
       return {
         contractId: a.contract.id,
         contractNumber: a.contract.number,
@@ -478,8 +497,10 @@ export class ReportsController {
         facultet: student?.facultet ?? null,
         kursNumber: student?.kursNumber ?? null,
         birthDate: a.contract.resident.birthDate,
-        citizenship: a.contract.resident.citizenships[0]?.country ?? null,
-        movedInDate: a.fromDate,
+        citizenship,
+        citizenshipGroup: citizenship === 'Россия' ? 'RU' : 'FOREIGN',
+        isOwnUniversity: student ? 'OWN' : 'OTHER',
+        movedInDate: firstContractStartByUid.get(a.contract.residentIndividualUid) ?? a.fromDate,
       };
     });
   }
@@ -499,12 +520,24 @@ export class ReportsController {
     return paginateInMemory(rows, options, {
       searchFields: ['residentFullName', 'contractNumber', 'room', 'facultet', 'citizenship'],
       sortableFields: ['movedInDate', 'residentFullName', 'contractNumber', 'room', 'facultet', 'kursNumber', 'birthDate', 'citizenship'],
-      filterFields: ['facultet', 'kursNumber'],
+      filterFields: ['facultet', 'kursNumber', 'citizenshipGroup', 'isOwnUniversity'],
     });
   }
 
   @Get('contingent/facets/:field')
   async contingentFacets(@Param('field') field: string): Promise<FacetOption[]> {
+    if (field === 'citizenshipGroup') {
+      return [
+        { value: 'RU', label: 'Россия' },
+        { value: 'FOREIGN', label: 'Иностранный гражданин' },
+      ];
+    }
+    if (field === 'isOwnUniversity') {
+      return [
+        { value: 'OWN', label: 'Студент РосНОУ' },
+        { value: 'OTHER', label: 'Не студент РосНОУ' },
+      ];
+    }
     if (field !== 'facultet' && field !== 'kursNumber') return [];
     const rows = await this.buildContingentRows(dateOnly(new Date()));
     return facetsFromValues(rows.map((r) => r[field]));

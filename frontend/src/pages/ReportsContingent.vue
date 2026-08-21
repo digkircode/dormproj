@@ -20,8 +20,11 @@ const columnLabels: Record<string, string> = {
   kursNumber: 'Курс',
   birthDate: 'Дата рождения',
   citizenship: 'Гражданство',
+  // Фильтры без собственной колонки — та же схема, что agingBucket в ReportsDebt.vue.
+  citizenshipGroup: 'Гражданство (РФ/иностранец)',
+  isOwnUniversity: 'Студент РосНОУ',
 }
-const filterableFields = ['facultet', 'kursNumber']
+const filterableFields = ['facultet', 'kursNumber', 'citizenshipGroup', 'isOwnUniversity']
 const cellRenderers = { residentFullName: ResidentLinkCell, contractNumber: ContractLinkCell }
 
 function formatDateIso(iso: string): string {

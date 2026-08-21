@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { Building2, ChevronRight, DoorClosed, Layers, Plus } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import SearchSelect from '@/components/SearchSelect.vue'
 import type { RoomTreeItem } from '@/lib/rooms-api'
 
 const props = defineProps<{
@@ -44,6 +45,20 @@ const floorGroups = computed<FloorGroup[]>(() => {
 
 function isFloorOpen(key: string): boolean {
   return openFloors[key] ?? false
+}
+
+// Поиск по дереву — клиентский фильтр по уже загруженному списку (тот же приём, что
+// поиск комнаты в CreateContractDialog.vue). Выбор пункта эмитит тот же 'select', что
+// и клик по комнате в дереве, — реальный клик имитировать не нужно: ветка раскрывается
+// и комната подсвечивается сама, реактивно, через watch(selectedId) ниже.
+const searchQuery = ref('')
+const searchResults = ref<RoomTreeItem[]>([])
+function onTreeSearch(q: string) {
+  const query = q.trim().toLowerCase()
+  searchResults.value = query ? props.items.filter((r) => r.room.toLowerCase().includes(query)) : []
+}
+function pickSearchResult(item: RoomTreeItem) {
+  emit('select', item.id)
 }
 
 // Выбор комнаты снаружи (например, сразу после создания) — разворачиваем ветку дерева,
@@ -91,6 +106,17 @@ watch(
           <Building2 class="size-4 shrink-0 text-primary" />
           <span class="truncate">Общежитие РосНОУ</span>
         </button>
+        <div class="px-2 pt-2">
+          <SearchSelect
+            v-model="searchQuery"
+            :items="searchResults"
+            :item-key="(r: RoomTreeItem) => r.id"
+            :item-label="(r: RoomTreeItem) => r.room"
+            placeholder="Поиск комнаты…"
+            @search="onTreeSearch"
+            @select="pickSearchResult"
+          />
+        </div>
         <div class="ml-3 flex flex-col gap-0.5 border-l pl-2 pt-1">
           <p v-if="!floorGroups.length" class="px-2 py-1.5 text-sm text-muted-foreground">Комнат пока нет</p>
           <Collapsible
