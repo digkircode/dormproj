@@ -21,7 +21,7 @@ const columnLabels: Record<string, string> = {
   birthDate: 'Дата рождения',
   citizenship: 'Гражданство',
   // Фильтры без собственной колонки — та же схема, что agingBucket в ReportsDebt.vue.
-  citizenshipGroup: 'Гражданство (РФ/иностранец)',
+  citizenshipGroup: 'Гражданство',
   isOwnUniversity: 'Студент РосНОУ',
 }
 const filterableFields = ['facultet', 'kursNumber', 'citizenshipGroup', 'isOwnUniversity']

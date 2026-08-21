@@ -498,7 +498,9 @@ export class ReportsController {
         kursNumber: student?.kursNumber ?? null,
         birthDate: a.contract.resident.birthDate,
         citizenship,
-        citizenshipGroup: citizenship === 'Россия' ? 'RU' : 'FOREIGN',
+        // В БД значение хранится капсом ("РОССИЯ", см. citizenships.country из 1С) —
+        // сравнение регистронезависимое, чтобы не зависеть от регистра источника.
+        citizenshipGroup: citizenship?.toUpperCase() === 'РОССИЯ' ? 'RU' : 'FOREIGN',
         isOwnUniversity: student ? 'OWN' : 'OTHER',
         movedInDate: firstContractStartByUid.get(a.contract.residentIndividualUid) ?? a.fromDate,
       };

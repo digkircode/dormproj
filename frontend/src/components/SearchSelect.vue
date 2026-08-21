@@ -28,8 +28,12 @@ const isOpen = ref(false)
 const suppressNextOpen = ref(false)
 // Печать сбрасывает "выбранность" сразу, choose() её ставит — на blur без выбора
 // (ушли с поля, ничего не выбрав из списка) текст сбрасываем, чтобы в инпуте не
-// оставалось значение, которое выглядит как выбор, но им не является.
-const hasSelection = ref(false)
+// оставалось значение, которое выглядит как выбор, но им не является. Стартуем с
+// true, если поле уже пришло с непустым значением (родитель подставил его сам, в
+// обход choose() — например прошёл диалог создания договора с карточки физлица,
+// см. CreateContractDialog.vue), иначе первый же blur без клика по полю стирал бы
+// подставленное значение.
+const hasSelection = ref(!!query.value)
 
 function onInput(event: Event) {
   const value = (event.target as HTMLInputElement).value

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, ChevronRight, DoorClosed, DoorOpen, FileText, Home, Layers, ListFilter, Percent, SlidersHorizontal } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
@@ -82,26 +82,35 @@ function barClass(room: OccupancyRoom): string {
 // там данные тоже не обнуляются при закрытии, только флаг открытости).
 const roomDialogOpen = ref(false)
 const selectedRoom = ref<OccupancyRoom | null>(null)
-function openRoom(room: OccupancyRoom) {
-  selectedRoom.value = room
-  roomDialogOpen.value = true
-}
 
 // Характеристики комнаты в диалоге — та же сетка (вертикальные/горизонтальные полосы),
 // что и на странице "Комнаты" (RoomDetailPanel.vue/RoomInfoTrigger.vue), вместо текстового
-// "Занято X из Y, свободно Z".
+// "Занято X из Y, свободно Z". Грузим ДО открытия диалога (не в watch(roomDialogOpen) —
+// тот срабатывал уже после открытия, и сетка на мгновение показывала "Загрузка…") —
+// по прямой просьбе диалог теперь открывается уже с готовыми данными.
 const roomDetail = ref<RoomDetail | null>(null)
 const roomDetailLoading = ref(false)
-watch(roomDialogOpen, async (open) => {
-  if (!open || !selectedRoom.value) return
+const roomDetailError = ref('')
+// Кнопки комнат блокируем на время загрузки — иначе повторный клик по другой комнате
+// во время ещё идущего запроса мог бы открыть диалог с чужими данными.
+const loadingRoomId = ref<number | null>(null)
+
+async function openRoom(room: OccupancyRoom) {
+  loadingRoomId.value = room.id
   roomDetailLoading.value = true
+  roomDetailError.value = ''
   roomDetail.value = null
   try {
-    roomDetail.value = await fetchRoomDetail(selectedRoom.value.id)
+    roomDetail.value = await fetchRoomDetail(room.id)
+  } catch (error) {
+    roomDetailError.value = error instanceof Error ? error.message : String(error)
   } finally {
     roomDetailLoading.value = false
+    loadingRoomId.value = null
   }
-})
+  selectedRoom.value = room
+  roomDialogOpen.value = true
+}
 function formatCharacteristicValue(entry: { valueType: string; value: boolean | number | string | null; unit: string | null }): string {
   if (entry.value === null || entry.value === undefined) return '—'
   if (entry.valueType === 'BOOLEAN') return entry.value ? 'Да' : 'Нет'
@@ -174,7 +183,7 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
         />
       </Card>
 
-      <div class="flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
         <Tabs v-model="roomsView">
           <TabsList class="w-fit">
             <TabsTrigger value="new">Новый</TabsTrigger>
@@ -217,7 +226,8 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
               v-for="room in floorGroup.rooms"
               :key="room.id"
               type="button"
-              class="flex flex-col gap-2 rounded-md border p-3 text-left transition-colors hover:border-primary/50 hover:bg-accent"
+              class="flex flex-col gap-2 rounded-md border p-3 text-left transition-colors hover:border-primary/50 hover:bg-accent disabled:pointer-events-none disabled:opacity-60"
+              :disabled="loadingRoomId === room.id"
               @click="openRoom(room)"
             >
               <span class="flex items-center gap-1.5 text-sm font-semibold">
@@ -245,7 +255,8 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
               <SlidersHorizontal class="size-4 text-primary" />
               Характеристики
             </div>
-            <p v-if="roomDetailLoading" class="text-sm text-muted-foreground">Загрузка…</p>
+            <p v-if="roomDetailError" class="text-sm text-red-500">{{ roomDetailError }}</p>
+            <p v-else-if="roomDetailLoading" class="text-sm text-muted-foreground">Загрузка…</p>
             <!-- Та же сетка характеристик и тот же приём линий, что в RoomDetailPanel.vue/
                  RoomInfoTrigger.vue (вертикальный разделитель по чётности индекса,
                  горизонтальный — border-t от второй строки). Нечётное количество —

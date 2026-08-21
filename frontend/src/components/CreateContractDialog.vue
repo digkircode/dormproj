@@ -58,6 +58,11 @@ const utilitiesAmount = ref<number | undefined>(0)
 // Категория определяет суточную ставку (см. watch ниже) — теперь не выбирается вручную,
 // а определяется автоматически по тому, есть ли физлицо в Контингенте (см. pickIndividual).
 const dailyRateCategory = ref<DailyRateCategory>('OTHER_UNIVERSITY')
+// Пока проживающий не выбран, категория не определена по-настоящему — значение выше
+// чисто техническое стартовое, не факт о человеке. "Причина проживания" в шаблоне
+// смотрит на этот флаг, а не только на dailyRateCategory, иначе поле появлялось бы
+// по умолчанию ещё до выбора проживающего.
+const dailyRateCategoryKnown = ref(false)
 const dailyRateAmount = ref<number | undefined>(undefined)
 // Причина проживания — печатается в п.1.2 бланка вместо "обучением в АНО ВО «РосНОУ»",
 // нужна только когда проживающий не из своего вуза (см. dailyRateCategory).
@@ -187,11 +192,16 @@ async function pickIndividual(ind: Individual) {
   individualResults.value = []
   // Категория проживающего — автоматически по наличию в Контингенте (таблица Student,
   // синхронизируется из 1С только для студентов РосНОУ), а не ручным выбором.
+  // dailyRateCategoryKnown до этого момента false — иначе "Причина проживания" мелькала
+  // бы по умолчанию ещё до выбора проживающего (дефолт dailyRateCategory — OTHER_UNIVERSITY,
+  // см. ref ниже, чисто техническое стартовое значение, не факт о человеке).
   try {
     const detail = await fetchIndividualDetail(ind.fizicheskoyeLitsoUid)
     dailyRateCategory.value = detail.students.length > 0 ? 'OWN_UNIVERSITY' : 'OTHER_UNIVERSITY'
   } catch {
     dailyRateCategory.value = 'OTHER_UNIVERSITY'
+  } finally {
+    dailyRateCategoryKnown.value = true
   }
 }
 
@@ -240,9 +250,16 @@ const dormInfo = ref<{ communalServicesCost: number | null; dailyPaymentInternal
   dailyPaymentOther: null,
 })
 
+// Договор не может длиться больше года — дата окончания всегда 30.08, того же года,
+// если старт до этой даты включительно, иначе уже следующего (учебный/арендный год
+// заканчивается 30 августа). Сравнение по строке 'YYYY-MM-DD' напрямую, не через
+// new Date(...), чтобы не словить сдвиг на часовой пояс между UTC-парсингом ISO-строки
+// и локальной конструкцией даты.
 function defaultEndDate(from: string): string {
-  const year = new Date(from).getFullYear()
-  return `${year + 1}-08-31`
+  const [yearStr, monthStr, dayStr] = from.split('-')
+  const year = Number(yearStr)
+  const isBeforeOrOnAug30 = Number(monthStr) < 8 || (Number(monthStr) === 8 && Number(dayStr) <= 30)
+  return `${isBeforeOrOnAug30 ? year : year + 1}-08-30`
 }
 
 // Дата окончания подставляется автоматически при каждом выборе даты начала —
@@ -266,6 +283,7 @@ async function open(prefillIndividual?: Individual) {
   roomResults.value = []
   rentAmount.value = undefined
   residenceReason.value = ''
+  dailyRateCategoryKnown.value = false
   legalRepName.value = ''
   legalRepPhone.value = ''
   legalRepBirthDate.value = ''
@@ -475,7 +493,7 @@ async function submitCreate() {
             <!-- Только для не-своего вуза — печатается в п.1.2 бланка вместо "обучением
                  в АНО ВО «РосНОУ»" (см. dailyRateCategory, автоопределяется в pickIndividual). -->
             <Transition v-bind="REVEAL_TRANSITION">
-              <div v-if="dailyRateCategory === 'OTHER_UNIVERSITY'" class="flex flex-col gap-2">
+              <div v-if="dailyRateCategoryKnown && dailyRateCategory === 'OTHER_UNIVERSITY'" class="flex flex-col gap-2">
                 <Label>Причина проживания</Label>
                 <Input v-model="residenceReason" :class="residenceReasonInvalid ? 'border-red-500' : ''" />
               </div>
