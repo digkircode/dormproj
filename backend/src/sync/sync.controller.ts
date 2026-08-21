@@ -9,11 +9,14 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { SyncService, type SyncResult } from './sync.service';
 import { SyncAlreadyRunningError } from './sync.errors';
 
 @Controller('sync/students')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
+@Roles('ADMIN')
 export class SyncController {
   constructor(private readonly syncService: SyncService) {}
 

@@ -25,6 +25,8 @@ import { AuthModule } from './auth/auth.module';
 import { ContractsModule } from './contracts/contracts.module';
 import { BillingModule } from './billing/billing.module';
 import { ReportsModule } from './reports/reports.module';
+import { UsersModule } from './users/users.module';
+import { RolesModule } from './roles/roles.module';
 
 @Module({
   imports: [
@@ -55,6 +57,8 @@ import { ReportsModule } from './reports/reports.module';
     ContractsModule,
     BillingModule,
     ReportsModule,
+    UsersModule,
+    RolesModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

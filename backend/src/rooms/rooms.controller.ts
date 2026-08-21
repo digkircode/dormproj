@@ -15,6 +15,8 @@ import {
 import { z } from 'zod';
 import { Prisma } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { pickCurrentCharacteristics } from './current-characteristics';
 import { fromStoredValue, toStoredValue } from './characteristic-value';
@@ -57,7 +59,8 @@ function parseIdParam(idParam: string): number {
 }
 
 @Controller('rooms')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
+@Roles('STAFF', 'ADMIN')
 export class RoomsController {
   constructor(private readonly prisma: PrismaService) {}
 

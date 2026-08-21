@@ -1,12 +1,15 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { IndividualSyncService } from './individual-sync.service';
 
 // Только логи — никакого POST-триггера здесь намеренно нет. Единственный способ
 // запустить этот синхрон — POST /individuals/:uid/sync с карточки физлица
 // (см. IndividualsController), не общий запуск/крон, как у остальных 5 типов.
 @Controller('sync/individual')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
+@Roles('ADMIN')
 export class IndividualSyncController {
   constructor(private readonly syncService: IndividualSyncService) {}
 

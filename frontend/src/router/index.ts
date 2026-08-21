@@ -3,6 +3,7 @@ import { trackBreadcrumbs } from '@/lib/breadcrumb-state'
 import { currentUser, ensureUserLoaded } from '@/lib/auth-state'
 import type { RoleName } from '@/lib/auth-api'
 import Home from '@/pages/Home.vue'
+import Forbidden from '@/pages/Forbidden.vue'
 import Sync from '@/pages/Sync.vue'
 import SyncLogs from '@/pages/SyncLogs.vue'
 import Students from '@/pages/Students.vue'
@@ -20,6 +21,8 @@ import ReportsContingent from '@/pages/ReportsContingent.vue'
 import ReportsContractsRegistry from '@/pages/ReportsContractsRegistry.vue'
 import ReportsDebt from '@/pages/ReportsDebt.vue'
 import ReportsMovements from '@/pages/ReportsMovements.vue'
+import UsersStaff from '@/pages/UsersStaff.vue'
+import UsersRoles from '@/pages/UsersRoles.vue'
 
 // Первый этап ролевой модели (см. промпт проекта) — секция страницы определяет, кому
 // она видна: 'staff' — группа "Сотрудник" в сайдбаре (AppSidebar.vue/NavMain.vue),
@@ -29,6 +32,7 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', name: 'home', component: Home, meta: { title: 'Главная' } },
+    { path: '/403', name: 'forbidden', component: Forbidden, meta: { title: 'Доступ запрещён' } },
     { path: '/students', name: 'students', component: Students, meta: { title: 'Контингент', section: 'admin' } },
     { path: '/sync', name: 'sync', component: Sync, meta: { title: 'Синхронизация', section: 'admin' } },
     {
@@ -106,6 +110,9 @@ const router = createRouter({
       component: ReportsMovements,
       meta: { title: 'Заселение / выселение', parent: 'reports', section: 'staff' },
     },
+
+    { path: '/users', name: 'users', component: UsersStaff, meta: { title: 'Сотрудники', section: 'admin' } },
+    { path: '/roles', name: 'roles', component: UsersRoles, meta: { title: 'Роли', section: 'admin' } },
   ],
 })
 
@@ -123,8 +130,9 @@ function sectionAllowed(roles: RoleName[] | undefined, section: unknown): boolea
 router.beforeEach(async (to) => {
   await ensureUserLoaded()
   if (!currentUser.value) return true
+  if (to.name === 'forbidden') return true
   if (sectionAllowed(currentUser.value.roles, to.meta.section)) return true
-  return { name: 'home' }
+  return { name: 'forbidden' }
 })
 
 trackBreadcrumbs(router)

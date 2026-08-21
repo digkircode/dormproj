@@ -9,6 +9,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { SyncAlreadyRunningError } from '../sync/sync.errors';
 import {
   PassportSyncService,
@@ -16,7 +18,8 @@ import {
 } from './passport-sync.service';
 
 @Controller('sync/passport')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
+@Roles('ADMIN')
 export class PassportSyncController {
   constructor(private readonly syncService: PassportSyncService) {}
 

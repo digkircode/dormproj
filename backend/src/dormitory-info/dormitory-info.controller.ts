@@ -2,6 +2,8 @@ import { BadRequestException, Body, Controller, Get, Patch, UseGuards } from '@n
 import { z } from 'zod';
 import { Prisma } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 
 // Общежитие одно — ровно одна строка, id зафиксирован.
@@ -30,7 +32,8 @@ function serialize(row: DormitoryInfoRow) {
 }
 
 @Controller('dormitory-info')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
+@Roles('STAFF', 'ADMIN')
 export class DormitoryInfoController {
   constructor(private readonly prisma: PrismaService) {}
 

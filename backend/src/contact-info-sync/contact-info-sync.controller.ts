@@ -9,6 +9,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { SyncAlreadyRunningError } from '../sync/sync.errors';
 import {
   ContactInfoSyncService,
@@ -16,7 +18,8 @@ import {
 } from './contact-info-sync.service';
 
 @Controller('sync/contact-info')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
+@Roles('ADMIN')
 export class ContactInfoSyncController {
   constructor(private readonly syncService: ContactInfoSyncService) {}
 

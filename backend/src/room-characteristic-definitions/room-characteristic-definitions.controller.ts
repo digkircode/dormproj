@@ -14,6 +14,8 @@ import {
 import { z } from 'zod';
 import { Prisma, RoomCharacteristicValueType } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 
 const createSchema = z.object({
@@ -38,8 +40,13 @@ function parseIdParam(idParam: string): number {
   return id;
 }
 
+// Список (GET) остаётся доступен и STAFF — им пользуется страница "Комнаты"
+// (RoomDetailPanel.vue, выбор характеристики при добавлении значения), а не только
+// admin-страница "Характеристики комнат". Мутации (создание/переименование/удаление/
+// порядок самих типов характеристик) — только ADMIN, см. @Roles('ADMIN') на методах ниже.
 @Controller('room-characteristic-definitions')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
+@Roles('STAFF', 'ADMIN')
 export class RoomCharacteristicDefinitionsController {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -51,6 +58,7 @@ export class RoomCharacteristicDefinitionsController {
   }
 
   @Post()
+  @Roles('ADMIN')
   async create(@Body() body: unknown) {
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) {
@@ -78,6 +86,7 @@ export class RoomCharacteristicDefinitionsController {
   // по позиции в массиве. Регистрируется раньше ":id" ниже, иначе Nest примет "reorder"
   // за id и упадёт в parseIdParam.
   @Patch('reorder')
+  @Roles('ADMIN')
   async reorder(@Body() body: unknown) {
     const parsed = reorderSchema.safeParse(body);
     if (!parsed.success) {
@@ -92,6 +101,7 @@ export class RoomCharacteristicDefinitionsController {
   }
 
   @Patch(':id')
+  @Roles('ADMIN')
   async update(@Param('id') idParam: string, @Body() body: unknown) {
     const id = parseIdParam(idParam);
     const parsed = updateSchema.safeParse(body);
@@ -115,6 +125,7 @@ export class RoomCharacteristicDefinitionsController {
   }
 
   @Delete(':id')
+  @Roles('ADMIN')
   async remove(@Param('id') idParam: string) {
     const id = parseIdParam(idParam);
     const existing = await this.prisma.roomCharacteristicDefinition.findUnique({ where: { id } });

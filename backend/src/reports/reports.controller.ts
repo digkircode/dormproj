@@ -1,6 +1,8 @@
 import { BadRequestException, Controller, Get, NotFoundException, Param, Query, UseGuards } from '@nestjs/common';
 import { Prisma, ContractStatus } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { daysBetweenInclusive, dateOnly, addDays, startOfMonth } from '../billing/period-utils';
 import { fromStoredValue } from '../rooms/characteristic-value';
@@ -125,7 +127,8 @@ function resolveAsOf(asOfParam?: string): Date {
 }
 
 @Controller('reports')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
+@Roles('STAFF', 'ADMIN')
 export class ReportsController {
   constructor(private readonly prisma: PrismaService) {}
 

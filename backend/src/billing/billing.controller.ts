@@ -3,6 +3,8 @@ import type { Request } from 'express';
 import { z } from 'zod';
 import { Prisma } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { ensureUserRecord } from '../users/ensure-user';
 import { allocatePaymentFifo } from './payment-allocation';
@@ -24,7 +26,8 @@ function parseIdParam(idParam: string): number {
 }
 
 @Controller()
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
+@Roles('STAFF', 'ADMIN')
 export class BillingController {
   constructor(private readonly prisma: PrismaService) {}
 

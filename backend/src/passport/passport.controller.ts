@@ -1,6 +1,8 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -48,7 +50,8 @@ function isFilterableField(field: string): field is FilterableField {
 }
 
 @Controller('passport')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
+@Roles('ADMIN')
 export class PassportController {
   constructor(private readonly prisma: PrismaService) {}
 
