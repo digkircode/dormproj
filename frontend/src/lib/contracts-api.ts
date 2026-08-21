@@ -111,6 +111,7 @@ export interface LegalRepPrefill {
   legalRepPassportIssuedAt: string | null
   legalRepSnils: string | null
   legalRepInn: string | null
+  legalRepAddress: string | null
 }
 
 export interface CreateContractInput {

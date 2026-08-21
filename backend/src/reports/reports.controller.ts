@@ -4,7 +4,7 @@ import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
-import { dateOnly, addDays, startOfMonth } from '../billing/period-utils';
+import { dateOnly, addDays } from '../billing/period-utils';
 import { computePenaltyBalance, sumPenaltyLog } from '../billing/penalty-balance';
 import { fromStoredValue } from '../rooms/characteristic-value';
 import { parseListOptions, paginateInMemory, facetsFromValues, type FacetOption } from './list-helpers';
@@ -96,16 +96,27 @@ interface ContractRegistryRow {
   bucket: ContractRegistryBucket;
 }
 
+type MovementOperationType = 'IN' | 'OUT' | 'MOVE' | 'RENEWAL';
+
 interface MovementEvent {
   date: Date;
   contractId: number;
   contractNumber: string;
   residentIndividualUid: string;
   residentFullName: string;
-  operation: 'IN' | 'OUT' | 'MOVE';
+  operation: MovementOperationType;
   from: string | null;
   to: string | null;
 }
+
+const MOVEMENT_GAP_DAYS = 30;
+
+const MOVEMENT_LABELS: Record<MovementOperationType, string> = {
+  IN: 'Заселение',
+  OUT: 'Выселение',
+  MOVE: 'Переселение',
+  RENEWAL: 'Продление',
+};
 
 function parseIdParam(idParam: string): number {
   const id = Number.parseInt(idParam, 10);
@@ -159,8 +170,10 @@ export class ReportsController {
         const paidAsOf = accrual.allocations
           .filter((al) => !al.payment.reversedAt && al.payment.paidAt <= asOf)
           .reduce((sum, al) => sum.plus(al.amount), new Decimal(0));
-        const unpaidAsOf = principal.minus(paidAsOf);
-        if (unpaidAsOf.greaterThan(0)) principalDebtAsOf = principalDebtAsOf.plus(unpaidAsOf);
+        // НЕ ограничиваем снизу нулём — переплата по одному начислению должна гасить долг
+        // по другому в сумме по договору (не просто исчезать), это и даёт отрицательный
+        // "Долг" = переплата (см. DebtBalanceCell.vue на фронте, зелёная подсветка).
+        principalDebtAsOf = principalDebtAsOf.plus(principal.minus(paidAsOf));
       }
 
       const { penaltyBalance } = computePenaltyBalance({
@@ -215,7 +228,10 @@ export class ReportsController {
     return {
       debtorsCount: rows.filter((r) => r.totalBalance > 0).length,
       totalAccrued: rows.reduce((sum, r) => sum + r.totalAccrued, 0),
-      totalDebt: rows.reduce((sum, r) => sum + r.totalBalance, 0),
+      // Переплата по одному договору не должна маскировать реальный долг по другому —
+      // в сумме учитываем только положительные "Долг" (см. totalBalance выше), сама
+      // строка при этом всё равно показывает истинный (возможно отрицательный) баланс.
+      totalDebt: rows.reduce((sum, r) => sum + Math.max(0, r.totalBalance), 0),
       totalPenalty: rows.reduce((sum, r) => sum + r.penaltyBalance, 0),
       totalPaid: rows.reduce((sum, r) => sum + r.totalPaid, 0),
     };
@@ -227,10 +243,12 @@ export class ReportsController {
     return (Object.keys(CONTRACT_STATUS_LABELS) as ContractStatus[]).map((value) => ({ value, label: CONTRACT_STATUS_LABELS[value] }));
   }
 
-  // Структура долга одного договора по периодам (клик на договор в реестре) — на дату asOf:
-  // показывает только НАСТУПИВШИЕ начисления (dueDate<=asOf, по прямой просьбе 2026-08-22 —
-  // "только долги", будущие ещё не выставленные месяцы сюда не попадают), "Оплачено"/"Долг"
-  // считаются только по платежам ДО asOf. Пеня — единая на договор и по дням (см.
+  // Структура долга одного договора по периодам (клик на договор в реестре) — ВСЕ
+  // начисления по договору (весь срок, по прямой просьбе 2026-08-22 — не только
+  // наступившие), но "Долг" по каждому периоду — по аналогии с главной таблицей: для ещё
+  // не наступивших (dueDate>asOf) всегда 0 (не в счёт, см. DebtBalanceCell.vue — 0 без
+  // подсветки), для наступивших — реальный остаток на asOf (может быть отрицательным при
+  // переплате, тогда подсвечивается зелёным). Пеня — единая на договор и по дням (см.
   // PenaltyAccrualLog), поэтому отдаётся отдельно от periods, не как их колонка.
   @Get('debtors/:contractId/breakdown')
   async debtorBreakdown(@Param('contractId') contractIdParam: string, @Query('asOf') asOfParam?: string) {
@@ -255,27 +273,25 @@ export class ReportsController {
       throw new NotFoundException('Договор не найден');
     }
 
-    const periods = contract.accruals
-      .filter((accrual) => accrual.dueDate <= asOf)
-      .map((accrual) => {
-        const total = accrual.rentAmount.plus(accrual.utilitiesAmount).plus(accrual.adjustmentAmount);
-        const paid = accrual.allocations
-          .filter((al) => !al.payment.reversedAt && al.payment.paidAt <= asOf)
-          .reduce((sum, al) => sum.plus(al.amount), new Decimal(0));
-        const balance = total.minus(paid);
-        return {
-          id: accrual.id,
-          periodStart: accrual.periodStart,
-          periodEnd: accrual.periodEnd,
-          dueDate: accrual.dueDate,
-          adjustmentAmount: Number(accrual.adjustmentAmount),
-          adjustmentReason: accrual.adjustmentReason,
-          voidedAt: accrual.voidedAt,
-          total: Number(total),
-          paid: Number(paid),
-          balance: Number(balance),
-        };
-      });
+    const periods = contract.accruals.map((accrual) => {
+      const total = accrual.rentAmount.plus(accrual.utilitiesAmount).plus(accrual.adjustmentAmount);
+      const paid = accrual.allocations
+        .filter((al) => !al.payment.reversedAt && al.payment.paidAt <= asOf)
+        .reduce((sum, al) => sum.plus(al.amount), new Decimal(0));
+      const balance = accrual.dueDate <= asOf ? total.minus(paid) : new Decimal(0);
+      return {
+        id: accrual.id,
+        periodStart: accrual.periodStart,
+        periodEnd: accrual.periodEnd,
+        dueDate: accrual.dueDate,
+        adjustmentAmount: Number(accrual.adjustmentAmount),
+        adjustmentReason: accrual.adjustmentReason,
+        voidedAt: accrual.voidedAt,
+        total: Number(total),
+        paid: Number(paid),
+        balance: Number(balance),
+      };
+    });
     const { penaltyBalance } = computePenaltyBalance({
       asOf,
       penaltyLogs: contract.penaltyLogs,
@@ -630,58 +646,76 @@ export class ReportsController {
     return (Object.keys(BUCKET_LABELS) as ContractRegistryBucket[]).map((value) => ({ value, label: BUCKET_LABELS[value] }));
   }
 
-  // ===== Отчёт "Заселение / выселение / переселение" =====
-  // События — не хранимая сущность, а производная от истории RoomAssignment одного
-  // договора: первая запись = заселение, разрыв между соседними (toDate одной ==
-  // fromDate следующей) = переселение одним событием (а не выселение+заселение по
-  // отдельности), незакрытый хвост последней записи (toDate задан, следующей нет) = выселение.
-  private async buildMovementEvents(from: Date, to: Date): Promise<MovementEvent[]> {
-    const assignments = await this.prisma.roomAssignment.findMany({
-      include: {
-        room: { select: { room: true } },
-        contract: {
-          select: { id: true, number: true, residentIndividualUid: true, resident: { select: { fullName: true } } },
-        },
+  // ===== Отчёт "Движение проживающих" (бывшее "Заселение / выселение") =====
+  // События — не хранимая сущность, а производная от истории ДОГОВОРОВ одного физлица
+  // (не RoomAssignment, как было раньше) — по прямой просьбе 2026-08-22, правило "разрыв
+  // 30 дней": для каждого договора C смотрим предыдущий/следующий договор ТОГО ЖЕ физлица
+  // по хронологии.
+  // - Старт C: если нет предыдущего договора ИЛИ разрыв (C.startDate - prev.endEffective)
+  //   больше 30 дней -> ЗАСЕЛЕНИЕ. Иначе (разрыв <=30 дней) -> та же комната, что у
+  //   предыдущего -> ПРОДЛЕНИЕ; другая комната -> ПЕРЕСЕЛЕНИЕ. Дата события — startDate.
+  // - Конец C: если нет следующего договора ИЛИ разрыв (next.startDate - C.endEffective)
+  //   больше 30 дней -> ВЫСЕЛЕНИЕ, дата события — endEffective (actualEndDate ?? endDate).
+  //   Если следующий договор укладывается в 30 дней — отдельного события выселения нет,
+  //   переход уже описан стартовым событием следующего договора (продление/переселение).
+  // endEffective — actualEndDate, если было досрочное расторжение, иначе endDate.
+  private async buildMovementEvents(): Promise<MovementEvent[]> {
+    const contracts = await this.prisma.contract.findMany({
+      select: {
+        id: true,
+        number: true,
+        residentIndividualUid: true,
+        startDate: true,
+        endDate: true,
+        actualEndDate: true,
+        resident: { select: { fullName: true } },
+        roomAssignments: { orderBy: { fromDate: 'asc' }, take: 1, select: { room: { select: { room: true } } } },
       },
-      orderBy: [{ contractId: 'asc' }, { fromDate: 'asc' }],
     });
 
-    const events: MovementEvent[] = [];
-
-    let i = 0;
-    while (i < assignments.length) {
-      const contractId = assignments[i].contractId;
-      const group: typeof assignments = [];
-      while (i < assignments.length && assignments[i].contractId === contractId) {
-        group.push(assignments[i]);
-        i++;
-      }
-      group.forEach((a, idx) => {
-        const meta = {
-          contractId: a.contract.id,
-          contractNumber: a.contract.number,
-          residentIndividualUid: a.contract.residentIndividualUid,
-          residentFullName: a.contract.resident.fullName,
-        };
-        if (idx === 0) {
-          events.push({ date: a.fromDate, operation: 'IN', from: null, to: a.room.room, ...meta });
-        } else {
-          events.push({ date: a.fromDate, operation: 'MOVE', from: group[idx - 1].room.room, to: a.room.room, ...meta });
-        }
-        if (idx === group.length - 1 && a.toDate) {
-          events.push({ date: a.toDate, operation: 'OUT', from: a.room.room, to: null, ...meta });
-        }
-      });
+    const byResident = new Map<string, typeof contracts>();
+    for (const c of contracts) {
+      const list = byResident.get(c.residentIndividualUid);
+      if (list) list.push(c);
+      else byResident.set(c.residentIndividualUid, [c]);
     }
 
-    return events.filter((e) => e.date >= from && e.date <= to).sort((a, b) => b.date.getTime() - a.date.getTime());
-  }
+    const events: MovementEvent[] = [];
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    const gapDays = (a: Date, b: Date) => Math.round((b.getTime() - a.getTime()) / MS_PER_DAY);
 
-  private resolveMovementsRange(fromParam?: string, toParam?: string): { from: Date; to: Date } {
-    const today = dateOnly(new Date());
-    const from = fromParam ? dateOnly(new Date(fromParam)) : startOfMonth(today);
-    const to = toParam ? dateOnly(new Date(toParam)) : today;
-    return { from, to };
+    for (const list of byResident.values()) {
+      list.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+      for (let i = 0; i < list.length; i++) {
+        const c = list[i];
+        const prev = i > 0 ? list[i - 1] : null;
+        const next = i < list.length - 1 ? list[i + 1] : null;
+        const room = c.roomAssignments[0]?.room.room ?? null;
+        const endEffective = c.actualEndDate ?? c.endDate;
+        const meta = {
+          contractId: c.id,
+          contractNumber: c.number,
+          residentIndividualUid: c.residentIndividualUid,
+          residentFullName: c.resident.fullName,
+        };
+
+        const prevEndEffective = prev ? (prev.actualEndDate ?? prev.endDate) : null;
+        const prevRoom = prev ? (prev.roomAssignments[0]?.room.room ?? null) : null;
+        if (!prev || !prevEndEffective || gapDays(prevEndEffective, c.startDate) > MOVEMENT_GAP_DAYS) {
+          events.push({ date: c.startDate, operation: 'IN', from: null, to: room, ...meta });
+        } else if (prevRoom === room) {
+          events.push({ date: c.startDate, operation: 'RENEWAL', from: room, to: room, ...meta });
+        } else {
+          events.push({ date: c.startDate, operation: 'MOVE', from: prevRoom, to: room, ...meta });
+        }
+
+        if (!next || gapDays(endEffective, next.startDate) > MOVEMENT_GAP_DAYS) {
+          events.push({ date: endEffective, operation: 'OUT', from: room, to: null, ...meta });
+        }
+      }
+    }
+
+    return events;
   }
 
   @Get('movements')
@@ -695,8 +729,17 @@ export class ReportsController {
     @Query('from') fromParam?: string,
     @Query('to') toParam?: string,
   ) {
-    const { from, to } = this.resolveMovementsRange(fromParam, toParam);
-    const events = await this.buildMovementEvents(from, to);
+    const to = resolveAsOf(toParam);
+    // from пустой -> отчёт "на дату to" целиком (нижней границы нет), от начала времён.
+    // from задан -> строго ПОСЛЕ from и по to включительно — разница между "на дату to" и
+    // "на дату from" (см. комментарий к buildMovementEvents), не просто диапазон дат:
+    // события считаются один раз глобально по истории договоров, а не пересчитываются
+    // отдельно на каждую границу, поэтому разница снапшотов эквивалентна фильтру по дате.
+    const from = fromParam ? dateOnly(new Date(fromParam)) : null;
+    const allEvents = await this.buildMovementEvents();
+    const events = allEvents
+      .filter((e) => e.date <= to && (!from || e.date > from))
+      .sort((a, b) => b.date.getTime() - a.date.getTime());
     const options = parseListOptions(pageParam, pageSizeParam, searchParam, sortByParam, sortDirParam, filtersParam, 'date');
     return paginateInMemory(events, options, {
       searchFields: ['contractNumber', 'residentFullName', 'from', 'to'],
@@ -707,22 +750,21 @@ export class ReportsController {
 
   @Get('movements/summary')
   async movementsSummary(@Query('from') fromParam?: string, @Query('to') toParam?: string) {
-    const { from, to } = this.resolveMovementsRange(fromParam, toParam);
-    const events = await this.buildMovementEvents(from, to);
+    const to = resolveAsOf(toParam);
+    const from = fromParam ? dateOnly(new Date(fromParam)) : null;
+    const allEvents = await this.buildMovementEvents();
+    const events = allEvents.filter((e) => e.date <= to && (!from || e.date > from));
     return {
       movedIn: events.filter((e) => e.operation === 'IN').length,
       movedOut: events.filter((e) => e.operation === 'OUT').length,
       relocated: events.filter((e) => e.operation === 'MOVE').length,
+      renewed: events.filter((e) => e.operation === 'RENEWAL').length,
     };
   }
 
   @Get('movements/facets/:field')
   movementsFacets(@Param('field') field: string): FacetOption[] {
     if (field !== 'operation') return [];
-    return [
-      { value: 'IN', label: 'Заселение' },
-      { value: 'OUT', label: 'Выселение' },
-      { value: 'MOVE', label: 'Переселение' },
-    ];
+    return (Object.keys(MOVEMENT_LABELS) as MovementOperationType[]).map((value) => ({ value, label: MOVEMENT_LABELS[value] }));
   }
 }

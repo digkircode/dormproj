@@ -8,11 +8,13 @@ const OPERATION_LABELS: Record<MovementOperation, string> = {
   IN: 'Заселение',
   OUT: 'Выселение',
   MOVE: 'Переселение',
+  RENEWAL: 'Продление',
 }
 const OPERATION_DOT_CLASS: Record<MovementOperation, string> = {
   IN: 'bg-emerald-500',
   OUT: 'bg-red-500',
-  MOVE: 'bg-blue-500',
+  MOVE: 'bg-orange-500',
+  RENEWAL: 'bg-sky-400',
 }
 
 const operation = computed(() => props.value as MovementOperation)

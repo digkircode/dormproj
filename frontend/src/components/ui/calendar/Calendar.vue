@@ -1,6 +1,8 @@
 <script lang="ts" setup>
 import type { CalendarRootEmits, CalendarRootProps } from "reka-ui"
 import type { HTMLAttributes } from "vue"
+import { computed } from "vue"
+import { CalendarDate } from "@internationalized/date"
 import { reactiveOmit } from "@vueuse/core"
 import { CalendarRoot, useForwardPropsEmits } from "reka-ui"
 import { cn } from "@/lib/utils"
@@ -13,6 +15,10 @@ const emits = defineEmits<CalendarRootEmits>()
 const delegatedProps = reactiveOmit(props, "class")
 
 const forwarded = useForwardPropsEmits(delegatedProps, emits)
+
+// Минимальный выбираемый год — 1900 во всех календарях приложения (по прямой просьбе),
+// если конкретный вызывающий явно не передал свой minValue.
+const minValue = computed(() => props.minValue ?? new CalendarDate(1900, 1, 1))
 </script>
 
 <template>
@@ -20,6 +26,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
     v-slot="{ grid, weekDays }"
     :class="cn('p-3', props.class)"
     v-bind="forwarded"
+    :min-value="minValue"
   >
     <CalendarHeader>
       <CalendarPrevButton />

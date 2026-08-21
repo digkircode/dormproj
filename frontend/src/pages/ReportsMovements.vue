@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, ArrowRightLeft, LogIn, LogOut } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRightLeft, LogIn, LogOut, Repeat } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import EntityTable from '@/components/EntityTable.vue'
@@ -24,7 +24,7 @@ import { goBack } from '@/lib/utils'
 const router = useRouter()
 
 const columnLabels: Record<string, string> = {
-  date: 'Дата',
+  date: 'Дата операции',
   contractNumber: '№ договора',
   residentFullName: 'Проживающий',
   operation: 'Операция',
@@ -47,7 +47,7 @@ function cellText(columnId: string, value: unknown): string {
 
 const columnHelper = createAppColumnHelper<MovementEvent>()
 const columns = columnHelper.columns([
-  columnHelper.accessor('date', { header: columnLabels.date, enableHiding: false, size: 110, minSize: 90 }),
+  columnHelper.accessor('date', { header: columnLabels.date, enableHiding: false, size: 120, minSize: 100 }),
   columnHelper.accessor('contractNumber', { header: columnLabels.contractNumber, size: 128, minSize: 100 }),
   columnHelper.accessor('residentFullName', { header: columnLabels.residentFullName, size: 220, minSize: 160 }),
   columnHelper.accessor('operation', { header: columnLabels.operation, size: 140, minSize: 120 }),
@@ -58,12 +58,10 @@ const columns = columnHelper.columns([
 function isoToday(): string {
   return new Date().toISOString().slice(0, 10)
 }
-function isoStartOfMonth(): string {
-  const now = new Date()
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10)
-}
 
-const from = ref(isoStartOfMonth())
+// Дата начала периода пустая по умолчанию — тогда отчёт показывает всё "на дату
+// окончания" (без нижней границы, см. reports.controller.ts), не последний месяц.
+const from = ref('')
 const to = ref(isoToday())
 
 function fetchPage(options: ListOptions) {
@@ -72,14 +70,10 @@ function fetchPage(options: ListOptions) {
 
 const summary = ref<MovementsSummary | null>(null)
 async function loadSummary() {
-  if (!from.value || !to.value) return
+  if (!to.value) return
   summary.value = await fetchMovementsSummary(from.value, to.value)
 }
 
-// EntityTable сама не знает про внешние from/to — перезапрашиваем страницу и сводку
-// вручную через её exposed refresh() при смене периода. Тип ref — вручную (не
-// InstanceType<typeof EntityTable>), у generic-компонента (<script generic="TData">)
-// его конструкторный тип не разрешается для InstanceType, TS2344.
 const entityTable = ref<{ refresh: () => void } | null>(null)
 watch([from, to], () => {
   loadSummary()
@@ -95,10 +89,10 @@ onMounted(loadSummary)
         <ArrowLeft class="text-primary" />
         <span class="sr-only">Назад</span>
       </Button>
-      <h1 class="text-lg font-medium">Заселение / выселение</h1>
+      <h1 class="text-lg font-medium">Движение проживающих</h1>
     </div>
 
-    <Card v-if="summary" class="grid grid-cols-3 gap-4 p-4">
+    <Card v-if="summary" class="grid grid-cols-4 gap-4 p-4">
       <ReportKpiTile
         :icon="LogIn"
         bg-class="bg-emerald-100 dark:bg-emerald-500/15"
@@ -115,10 +109,17 @@ onMounted(loadSummary)
       />
       <ReportKpiTile
         :icon="ArrowRightLeft"
-        bg-class="bg-blue-100 dark:bg-blue-500/15"
-        icon-class="text-blue-600 dark:text-blue-400"
+        bg-class="bg-orange-100 dark:bg-orange-500/15"
+        icon-class="text-orange-600 dark:text-orange-400"
         label="Переселено"
         :value="String(summary.relocated)"
+      />
+      <ReportKpiTile
+        :icon="Repeat"
+        bg-class="bg-sky-100 dark:bg-sky-500/15"
+        icon-class="text-sky-600 dark:text-sky-400"
+        label="Продлено"
+        :value="String(summary.renewed)"
       />
     </Card>
 

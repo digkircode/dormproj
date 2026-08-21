@@ -80,6 +80,7 @@ const legalRepPassportIssuedCode = ref('')
 const legalRepPassportIssuedAt = ref('')
 const legalRepSnils = ref('')
 const legalRepInn = ref('')
+const legalRepAddress = ref('')
 
 const useMatCapital = ref(false)
 const matCapitalCoveredFrom = ref('')
@@ -223,6 +224,7 @@ watch(isMinor, async (minor) => {
   if (!legalRepPassportIssuedAt.value && prefill.legalRepPassportIssuedAt) legalRepPassportIssuedAt.value = prefill.legalRepPassportIssuedAt.slice(0, 10)
   if (!legalRepSnils.value.trim() && prefill.legalRepSnils) legalRepSnils.value = prefill.legalRepSnils
   if (!legalRepInn.value.trim() && prefill.legalRepInn) legalRepInn.value = prefill.legalRepInn
+  if (!legalRepAddress.value.trim() && prefill.legalRepAddress) legalRepAddress.value = prefill.legalRepAddress
 })
 
 // --- Поиск комнаты (SearchSelect, список уже загружен целиком — фильтр на клиенте) ---
@@ -294,6 +296,7 @@ async function open(prefillIndividual?: Individual) {
   legalRepPassportIssuedAt.value = ''
   legalRepSnils.value = ''
   legalRepInn.value = ''
+  legalRepAddress.value = ''
   useMatCapital.value = false
   matCapitalCoveredFrom.value = ''
   matCapitalCoveredTo.value = ''
@@ -398,6 +401,7 @@ async function submitCreate() {
       legalRepPassportIssuedAt: legalRepPassportIssuedAt.value || null,
       legalRepSnils: legalRepSnils.value.trim() || null,
       legalRepInn: legalRepInn.value.trim() || null,
+      legalRepAddress: legalRepAddress.value.trim() || null,
       matCapitalCoveredFrom: useMatCapital.value && matCapitalCoveredFrom.value ? matCapitalCoveredFrom.value : null,
       matCapitalCoveredTo: useMatCapital.value && matCapitalCoveredTo.value ? matCapitalCoveredTo.value : null,
       matCapitalAmount: useMatCapital.value && matCapitalAmount.value !== undefined ? matCapitalAmount.value : null,
@@ -554,6 +558,10 @@ async function submitCreate() {
                   <div class="flex flex-col gap-2">
                     <Label>ИНН</Label>
                     <Input v-model="legalRepInn" />
+                  </div>
+                  <div class="flex flex-col gap-2">
+                    <Label>Адрес регистрации</Label>
+                    <Input v-model="legalRepAddress" />
                   </div>
                 </div>
 

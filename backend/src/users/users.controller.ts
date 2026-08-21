@@ -85,9 +85,11 @@ export class UsersController {
     const where: Prisma.UserWhereInput = {
       AND: [
         { roles: roleNames.length ? { some: { role: { name: { in: roleNames } } } } : { some: {} } },
-        // Проживающие — отдельный контур (см. промпт проекта), в списке "Сотрудники" им
-        // не место, даже если у аккаунта когда-то заведут роль RESIDENT.
-        { roles: { none: { role: { name: 'RESIDENT' } } } },
+        // Скрываем только ЧИСТЫХ проживающих (единственная роль — RESIDENT) — сотрудник,
+        // который сам живёт в общежитии (RESIDENT + STAFF/ADMIN), в списке остаётся, по
+        // прямой просьбе. "Есть хотя бы одна НЕ-RESIDENT роль" — то же самое, что "не
+        // единственная роль RESIDENT", без отдельного count-запроса.
+        { roles: { some: { role: { name: { not: 'RESIDENT' } } } } },
         ...(searchClause ? [searchClause] : []),
       ],
     };
@@ -110,9 +112,9 @@ export class UsersController {
   @Get('facets/:field')
   async facets(@Param('field') field: string) {
     if (field !== 'role') return [];
-    // RESIDENT исключён из фильтра — таких пользователей в этом списке всё равно нет
-    // (см. where в list() выше), фильтр по ним не нашёл бы ни одной строки.
-    const roles = await this.prisma.role.findMany({ where: { name: { not: 'RESIDENT' } }, orderBy: { name: 'asc' } });
+    // RESIDENT остаётся в фильтре — сотрудник, который сам проживает (RESIDENT+STAFF/
+    // ADMIN), в списке есть (см. where в list() выше), фильтр по RESIDENT найдёт именно таких.
+    const roles = await this.prisma.role.findMany({ orderBy: { name: 'asc' } });
     return roles.map((r) => ({ value: r.name, label: r.name }));
   }
 

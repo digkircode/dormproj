@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-vue-next'
-import { parseDate, type DateValue } from '@internationalized/date'
+import { CalendarDate, parseDate, type DateValue } from '@internationalized/date'
 import {
   RangeCalendarCell,
   RangeCalendarCellTrigger,
@@ -32,6 +32,11 @@ const from = defineModel<string>('from', { default: '' })
 const to = defineModel<string>('to', { default: '' })
 
 const isOpen = ref(false)
+
+// Минимальный выбираемый год — 1900 во всех календарях приложения (по прямой просьбе,
+// тот же приём, что в общем Calendar.vue — этот пикер собран на голых RangeCalendar*
+// примитивах, не через ту обёртку, minValue нужно задать здесь отдельно).
+const MIN_DATE = new CalendarDate(1900, 1, 1)
 
 const rangeValue = computed(() => ({
   start: from.value ? parseDate(from.value) : undefined,
@@ -173,6 +178,7 @@ const CELL_TRIGGER_CLASS = cn(
           class="p-3"
           locale="ru"
           :model-value="rangeValue"
+          :min-value="MIN_DATE"
           @update:model-value="onRangeUpdate"
         >
           <RangeCalendarHeader class="relative flex w-full items-center justify-between pt-1">

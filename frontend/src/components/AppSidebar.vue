@@ -75,7 +75,7 @@ const data = {
         { title: 'Реестр проживающих', url: '/reports/contingent' },
         { title: 'Реестр договоров', url: '/reports/contracts' },
         { title: 'Финансовый отчёт', url: '/reports/debt' },
-        { title: 'Заселение / выселение', url: '/reports/move-in-out' },
+        { title: 'Движение проживающих', url: '/reports/move-in-out' },
       ],
     },
   ],

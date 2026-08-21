@@ -131,7 +131,7 @@ export interface ContractsRegistrySummary {
   ended: number
 }
 
-export type MovementOperation = 'IN' | 'OUT' | 'MOVE'
+export type MovementOperation = 'IN' | 'OUT' | 'MOVE' | 'RENEWAL'
 
 export interface MovementEvent {
   date: string
@@ -148,6 +148,7 @@ export interface MovementsSummary {
   movedIn: number
   movedOut: number
   relocated: number
+  renewed: number
 }
 
 async function getJson<T>(path: string): Promise<T> {

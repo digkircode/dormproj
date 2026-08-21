@@ -150,6 +150,7 @@ export function buildDocumentData(
   resident: ResidentSnapshot,
   terms: TermsLike | undefined,
   room: { room: string } | null,
+  communalServicesCost: Prisma.Decimal | null,
 ): Record<string, string | boolean> {
   const matCapitalText =
     contract.matCapitalCoveredFrom && contract.matCapitalCoveredTo && contract.matCapitalAmount !== null
@@ -159,9 +160,23 @@ export function buildDocumentData(
   const isOwnUniversity = terms?.dailyRateCategory === 'OWN_UNIVERSITY';
   const residenceReasonText = isOwnUniversity ? 'обучением в АНО ВО «РосНОУ»' : (contract.residenceReason ?? '');
 
-  const rent = terms ? moneyBreakdown(terms.rentAmount) : { digits: '', words: '', kopecksText: '' };
-  const utilities = terms ? moneyBreakdown(terms.utilitiesAmount) : { digits: '', words: '', kopecksText: '' };
-  const total = terms ? moneyBreakdown(terms.rentAmount.plus(terms.utilitiesAmount)) : { digits: '', words: '', kopecksText: '' };
+  // ContractTerms.utilitiesAmount в БД всегда 0 (коммуналка уже включена в rentAmount —
+  // см. Contracts.vue/ContractDetail.vue, "стоимость комнаты" из характеристики уже
+  // покрывает всё), поэтому печатать его напрямую в п.4.1/5.1 нельзя — бланк дословно
+  // говорит "плата за коммунальные услуги составляет 0 руб.", что неверно (коммуналка не
+  // бесплатна, она просто не выделена отдельной строкой в начислении). Для печати делим
+  // ЕДИНУЮ rentAmount на "наём"/"коммуналка" тем же способом, что уже показывает
+  // ContractDetail.vue как справочную величину (DormitoryInfo.communalServicesCost) — сумма
+  // двух строк остаётся равна rentAmount (totalMonthly не меняется, просто перестаёт
+  // выглядеть как двойной счёт), с бухгалтерией/начислениями это никак не связано (там как
+  // была одна rentAmount, так и осталась).
+  const rawUtilities = communalServicesCost ?? new Prisma.Decimal(0);
+  const utilitiesForDoc = terms && rawUtilities.lessThan(terms.rentAmount) ? rawUtilities : (terms?.rentAmount ?? new Prisma.Decimal(0));
+  const rentForDoc = terms ? terms.rentAmount.minus(utilitiesForDoc) : new Prisma.Decimal(0);
+
+  const rent = terms ? moneyBreakdown(rentForDoc) : { digits: '', words: '', kopecksText: '' };
+  const utilities = terms ? moneyBreakdown(utilitiesForDoc) : { digits: '', words: '', kopecksText: '' };
+  const total = terms ? moneyBreakdown(terms.rentAmount) : { digits: '', words: '', kopecksText: '' };
 
   const residentName = splitSurnameRest(resident.fullName);
   const legalRepNameSplit = splitSurnameRest(contract.legalRepName ?? '');
@@ -195,6 +210,11 @@ export function buildDocumentData(
     residentFullNameShort: surnameWithInitials(resident.fullName),
     residentFullNameSurname: residentName.surname,
     residentFullNameRest: residentName.rest,
+    // Только для узкой ячейки "(Ф.И.О. полностью)" в конце бланка несовершеннолетнего —
+    // там нет запасной строки-ячейки (в отличие от других мест с фамилией/именем на
+    // разных строках), переносом внутри одной ячейки, тот же приём, что и
+    // residentInstituteCourseStacked ниже.
+    residentFullNameStacked: [residentName.surname, residentName.rest].filter(Boolean).join('\n'),
     residentBirthDateShort: formatDateShort(resident.birthDate),
     residentPassportSeries: resident.passportSeries ?? '',
     residentPassportNumber: resident.passportNumber ?? '',

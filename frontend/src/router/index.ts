@@ -108,7 +108,7 @@ const router = createRouter({
       path: '/reports/move-in-out',
       name: 'reports-move-in-out',
       component: ReportsMovements,
-      meta: { title: 'Заселение / выселение', parent: 'reports', section: 'staff' },
+      meta: { title: 'Движение проживающих', parent: 'reports', section: 'staff' },
     },
 
     { path: '/users', name: 'users', component: UsersStaff, meta: { title: 'Сотрудники', section: 'admin' } },

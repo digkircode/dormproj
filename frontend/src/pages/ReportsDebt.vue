@@ -264,7 +264,7 @@ provide('openPenaltyLog', openPenaltyLog)
               </TableHeader>
               <TableBody>
                 <TableRow v-if="!breakdown.periods.length">
-                  <TableCell colspan="4" class="text-center text-muted-foreground">Нет наступивших начислений на эту дату</TableCell>
+                  <TableCell colspan="4" class="text-center text-muted-foreground">Нет начислений по договору</TableCell>
                 </TableRow>
                 <TableRow v-for="p in breakdown.periods" :key="p.id">
                   <TableCell :class="[CELL_BORDER_CLASS, p.voidedAt ? 'text-muted-foreground line-through' : '']">
@@ -275,7 +275,9 @@ provide('openPenaltyLog', openPenaltyLog)
                   </TableCell>
                   <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(p.total) }}</TableCell>
                   <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(p.paid) }}</TableCell>
-                  <TableCell :class="p.balance > 0 ? 'text-red-500' : ''">{{ formatMoney(p.balance) }}</TableCell>
+                  <TableCell :class="p.balance > 0 ? 'text-red-500' : p.balance < 0 ? 'text-emerald-600 dark:text-emerald-400' : ''">
+                    {{ formatMoney(p.balance) }}
+                  </TableCell>
                 </TableRow>
               </TableBody>
               <TableFooter v-if="breakdown.periods.length">
@@ -283,8 +285,16 @@ provide('openPenaltyLog', openPenaltyLog)
                   <TableCell :class="CELL_BORDER_CLASS">Итого</TableCell>
                   <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(breakdown.totalAccrued) }}</TableCell>
                   <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(breakdown.totalPaid) }}</TableCell>
-                  <TableCell :class="breakdown.totalAccrued - breakdown.totalPaid > 0 ? 'text-red-500' : ''">
-                    {{ formatMoney(breakdown.totalAccrued - breakdown.totalPaid) }}
+                  <TableCell
+                    :class="
+                      breakdown.totalDebt - breakdown.penaltyBalance > 0
+                        ? 'text-red-500'
+                        : breakdown.totalDebt - breakdown.penaltyBalance < 0
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : ''
+                    "
+                  >
+                    {{ formatMoney(breakdown.totalDebt - breakdown.penaltyBalance) }}
                   </TableCell>
                 </TableRow>
               </TableFooter>
@@ -312,9 +322,13 @@ provide('openPenaltyLog', openPenaltyLog)
         <p v-if="penaltyLogLoading" class="text-sm text-muted-foreground">Загрузка…</p>
 
         <div v-if="penaltyLog" class="flex flex-col gap-3">
-          <div class="overflow-hidden rounded-md border">
+          <!-- Максимум ~12 строк видно сразу, дальше — свой скролл (не растягивает
+               диалог до бесконечности), шапка "прилипает" (sticky), чтобы данные не
+               заезжали на неё при прокрутке — тот же приём, что у остальных таблиц
+               проекта (см. ContractDetail.vue). -->
+          <div class="flex max-h-[28rem] flex-col overflow-hidden rounded-md border">
             <Table>
-              <TableHeader class="bg-muted">
+              <TableHeader class="sticky top-0 z-10 bg-muted">
                 <TableRow>
                   <TableHead :class="CELL_BORDER_CLASS">Дата</TableHead>
                   <TableHead :class="CELL_BORDER_CLASS">База расчёта</TableHead>

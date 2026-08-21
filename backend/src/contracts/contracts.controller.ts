@@ -222,6 +222,7 @@ export class ContractsController {
       legalRepPassportIssuedAt: previous.legalRepPassportIssuedAt,
       legalRepSnils: previous.legalRepSnils,
       legalRepInn: previous.legalRepInn,
+      legalRepAddress: previous.legalRepAddress,
     };
   }
 
@@ -533,8 +534,12 @@ export class ContractsController {
     const terms = contract.terms[0];
     const room = contract.roomAssignments[0]?.room ?? null;
     const isMinorContract = contract.legalRepIndividualUid !== null;
+    const dormitoryInfo = await this.prisma.dormitoryInfo.findUnique({ where: { id: 1 } });
 
-    const buffer = renderContractDocument(isMinorContract ? 'minor' : 'standard', buildDocumentData(contract, resident, terms, room));
+    const buffer = renderContractDocument(
+      isMinorContract ? 'minor' : 'standard',
+      buildDocumentData(contract, resident, terms, room, dormitoryInfo?.communalServicesCost ?? null),
+    );
 
     // Content-Disposition — только Latin1/ASCII в filename=, иначе Node бросает
     // ERR_INVALID_CHAR (номер договора может содержать кириллицу/что угодно) —
