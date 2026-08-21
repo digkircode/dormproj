@@ -5,6 +5,7 @@ import { JwtModule } from '@nestjs/jwt';
 import type { Env } from '../config/env.schema';
 import { AuthController } from './auth.controller';
 import { AuthGuard } from './auth.guard';
+import { RolesGuard } from './roles.guard';
 import { RosnouIdService } from './rosnou-id.service';
 import { SessionService } from './session.service';
 
@@ -19,7 +20,7 @@ import { SessionService } from './session.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [RosnouIdService, SessionService, AuthGuard],
-  exports: [AuthGuard, SessionService],
+  providers: [RosnouIdService, SessionService, AuthGuard, RolesGuard],
+  exports: [AuthGuard, RolesGuard, SessionService],
 })
 export class AuthModule {}

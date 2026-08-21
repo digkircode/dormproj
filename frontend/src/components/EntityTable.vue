@@ -462,8 +462,12 @@ defineExpose({ refresh: loadPage })
                   class="relative select-none border-r border-border last:border-r-0"
                   :style="{ width: `var(--col-${header.column.id}-size)` }"
                 >
+                  <!-- Не у каждой колонки есть смысл сортировать (например чисто
+                       действийная "Действия" — см. Sync.vue) — enableSorting:false у
+                       такой колонки рендерит подпись без кнопки/стрелки, а не рабочую
+                       на вид, но по факту ничего не делающую сортировку. -->
                   <button
-                    v-if="!header.isPlaceholder"
+                    v-if="!header.isPlaceholder && header.column.getCanSort()"
                     type="button"
                     class="flex w-full min-w-0 items-center gap-1.5 hover:text-foreground/80"
                     @click="header.column.toggleSorting(header.column.getIsSorted() === 'asc')"
@@ -473,6 +477,9 @@ defineExpose({ refresh: loadPage })
                     <ArrowDown v-else-if="header.column.getIsSorted() === 'desc'" class="size-3.5 shrink-0" />
                     <ArrowUpDown v-else class="size-3.5 shrink-0 text-muted-foreground/50" />
                   </button>
+                  <span v-else-if="!header.isPlaceholder" class="flex w-full min-w-0 truncate">
+                    <FlexRender :header="header" />
+                  </span>
                   <div
                     v-if="header.column.getCanResize()"
                     class="group absolute -right-1.5 top-0 z-10 h-full w-3 cursor-col-resize touch-none select-none"

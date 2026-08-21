@@ -9,7 +9,13 @@ export interface RosnouIdUser {
   full_name: string;
 }
 
-// Полезная нагрузка нашей собственной сессионной JWT-куки.
+// Стабильные ключи ролей (roles.name в БД) — не для отображения, русские подписи
+// см. ROLE_LABELS. Первый этап ролевой модели, см. schema.prisma/миграцию Role/UserRole.
+export type RoleName = 'ADMIN' | 'STAFF' | 'RESIDENT';
+
+// Полезная нагрузка нашей собственной сессионной JWT-куки. roles — снимок на момент
+// логина (см. auth.controller.ts callback), не обновляется до следующего входа —
+// смена роли пользователю подхватится максимум через SESSION_TTL (24ч).
 export interface SessionUser {
   id: number;
   surname: string;
@@ -17,6 +23,7 @@ export interface SessionUser {
   patronymic: string | null;
   email: string;
   fullName: string;
+  roles: RoleName[];
 }
 
 declare module 'express-serve-static-core' {

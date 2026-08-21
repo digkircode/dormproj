@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { DoorOpen } from 'lucide-vue-next'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -37,8 +37,11 @@ function sortedCharacteristics(list: RoomDetail['characteristics']) {
   })
 }
 
-watch(isOpen, async (open) => {
-  if (!open || !props.roomId) return
+// Грузим ДО открытия диалога, не в watch(isOpen) после — иначе сетка на мгновение
+// показывала "Загрузка…" уже внутри открытого диалога (тот же фикс, что и в
+// ReportsOccupancy.vue). По прямой просьбе для карточки договора/списка договоров.
+async function openDialog() {
+  if (!props.roomId) return
   isLoading.value = true
   loadError.value = ''
   detail.value = null
@@ -49,7 +52,8 @@ watch(isOpen, async (open) => {
   } finally {
     isLoading.value = false
   }
-})
+  isOpen.value = true
+}
 </script>
 
 <template>
@@ -57,8 +61,9 @@ watch(isOpen, async (open) => {
     <TooltipTrigger as-child>
       <button
         type="button"
-        class="-mx-1.5 -my-0.5 inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-accent hover:text-accent-foreground"
-        @click="isOpen = true"
+        class="-mx-1.5 -my-0.5 inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-60"
+        :disabled="isLoading"
+        @click="openDialog"
       >
         <DoorOpen class="size-4 shrink-0 text-primary" />
         {{ roomName ?? '—' }}

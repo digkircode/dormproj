@@ -600,7 +600,7 @@ async function submitCreate() {
       <DialogFooter>
         <p v-if="dialogError" class="mr-auto self-center text-sm text-red-500">{{ dialogError }}</p>
         <Button variant="outline" @click="isDialogOpen = false">Отмена</Button>
-        <Button :disabled="isSaving" @click="submitCreate">Создать договор</Button>
+        <Button :loading="isSaving" @click="submitCreate">Создать договор</Button>
       </DialogFooter>
     </DialogScrollContent>
   </Dialog>

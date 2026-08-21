@@ -182,17 +182,49 @@ model User {
   azureId  String? @map("azure_id")
   univerId String? @map("univer_id")
   fullName String  @map("full_name")
+  // Заполняется/обновляется автоматически при каждом логине из фолбека rosnou-id
+  // (SessionUser.email, см. auth.controller.ts) — не из формы, своего UI на это поле нет.
+  email    String?
 
   individual Individual? @relation(fields: [univerId], references: [fizicheskoyeLitsoUid], onDelete: SetNull)
 
   contractsCreated Contract[] @relation("ContractCreatedBy")
   paymentsCreated  Payment[]  @relation("PaymentCreatedBy")
+  roles            UserRole[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([univerId])
   @@map("users")
+}
+
+// Первая часть ролевой модели (первый этап, см. промпт проекта) — только таблицы и
+// назначение по 3 фиксированным ролям, БЕЗ своего UI управления (это отдельная,
+// пока не начатая задача) и БЕЗ бэкенд-проверки на большинстве эндпоинтов (только
+// individuals/contracts, см. @Roles() там) — известная критическая дыра (AuthGuard
+// без проверки роли) остаётся открытой почти everywhere ещё на один заход.
+// name — стабильный ключ ('ADMIN'/'STAFF'/'RESIDENT'), не для отображения (русские
+// подписи — в коде, ROLE_LABELS, тот же принцип, что statusLabel/BUCKET_LABELS).
+model Role {
+  id    Int        @id @default(autoincrement())
+  name  String     @unique
+  users UserRole[]
+
+  @@map("roles")
+}
+
+// Junction, не enum-колонка на User — по прямой просьбе, плюс задел на будущее
+// (несколько ролей на аккаунт), даже если сейчас практически используется одна.
+model UserRole {
+  userId Int @map("user_id")
+  roleId Int @map("role_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("users_roles")
 }
 
 // Однорядный лок на время выполнения синхронизации данного типа — защита от параллельного запуска.

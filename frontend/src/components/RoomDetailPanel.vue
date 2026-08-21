@@ -720,7 +720,7 @@ async function confirmDeleteValue() {
           <Button
             variant="outline"
             class="border-red-500 text-red-500 hover:text-red-500"
-            :disabled="isDeletingRoom"
+            :loading="isDeletingRoom"
             @click="confirmDeleteRoom"
           >
             Да, удалить
@@ -810,7 +810,7 @@ async function confirmDeleteValue() {
         </div>
         <DialogFooter>
           <Button variant="outline" @click="valueFormOpen = false">Отмена</Button>
-          <Button :disabled="isSavingValue || !selectedDefinition" @click="submitValueForm">Сохранить</Button>
+          <Button :disabled="!selectedDefinition" :loading="isSavingValue" @click="submitValueForm">Сохранить</Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>
@@ -829,7 +829,7 @@ async function confirmDeleteValue() {
           <Button
             variant="outline"
             class="border-red-500 text-red-500 hover:text-red-500"
-            :disabled="deletingValueId !== null"
+            :loading="deletingValueId !== null"
             @click="confirmDeleteValue"
           >
             Да, удалить

@@ -150,7 +150,13 @@ async function submitCreate() {
         <p v-if="createError" class="text-sm text-red-500">{{ createError }}</p>
         <DialogFooter>
           <Button variant="outline" @click="isCreateOpen = false">Отмена</Button>
-          <Button :disabled="isCreating || !newRoomNumber.trim() || String(newRoomFloor).trim() === ''" @click="submitCreate">Создать</Button>
+          <Button
+            :disabled="!newRoomNumber.trim() || String(newRoomFloor).trim() === ''"
+            :loading="isCreating"
+            @click="submitCreate"
+          >
+            Создать
+          </Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>

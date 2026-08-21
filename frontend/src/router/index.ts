@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { trackBreadcrumbs } from '@/lib/breadcrumb-state'
+import { currentUser, ensureUserLoaded } from '@/lib/auth-state'
+import type { RoleName } from '@/lib/auth-api'
 import Home from '@/pages/Home.vue'
 import Sync from '@/pages/Sync.vue'
 import SyncLogs from '@/pages/SyncLogs.vue'
@@ -19,53 +21,110 @@ import ReportsContractsRegistry from '@/pages/ReportsContractsRegistry.vue'
 import ReportsDebt from '@/pages/ReportsDebt.vue'
 import ReportsMovements from '@/pages/ReportsMovements.vue'
 
+// Первый этап ролевой модели (см. промпт проекта) — секция страницы определяет, кому
+// она видна: 'staff' — группа "Сотрудник" в сайдбаре (AppSidebar.vue/NavMain.vue),
+// 'admin' — группа "Администратор" (NavProjects.vue), без section — доступно всем
+// залогиненным независимо от роли (сейчас только "Главная"). Администратор видит всё.
 const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', name: 'home', component: Home, meta: { title: 'Главная' } },
-    { path: '/students', name: 'students', component: Students, meta: { title: 'Контингент' } },
-    { path: '/sync', name: 'sync', component: Sync, meta: { title: 'Синхронизация' } },
-    { path: '/sync/:slug/logs', name: 'sync-logs', component: SyncLogs, meta: { title: 'Логи синхронизации', parent: 'sync' } },
+    { path: '/students', name: 'students', component: Students, meta: { title: 'Контингент', section: 'admin' } },
+    { path: '/sync', name: 'sync', component: Sync, meta: { title: 'Синхронизация', section: 'admin' } },
+    {
+      path: '/sync/:slug/logs',
+      name: 'sync-logs',
+      component: SyncLogs,
+      meta: { title: 'Логи синхронизации', parent: 'sync', section: 'admin' },
+    },
 
-    { path: '/individuals', name: 'individuals', component: Individuals, meta: { title: 'Физические лица' } },
-    { path: '/individuals/:uid', name: 'individual-detail', component: IndividualDetail, meta: { title: 'Физическое лицо', parent: 'individuals' } },
-    { path: '/system-tables/citizenship', name: 'citizenship', component: Citizenship, meta: { title: 'Гражданство' } },
-    { path: '/system-tables/contact-info', name: 'contact-info', component: ContactInfo, meta: { title: 'Контактная информация' } },
-    { path: '/system-tables/passport-data', name: 'passport-data', component: Passport, meta: { title: 'Паспортные данные' } },
+    { path: '/individuals', name: 'individuals', component: Individuals, meta: { title: 'Физические лица', section: 'staff' } },
+    {
+      path: '/individuals/:uid',
+      name: 'individual-detail',
+      component: IndividualDetail,
+      meta: { title: 'Физическое лицо', parent: 'individuals', section: 'staff' },
+    },
+    { path: '/system-tables/citizenship', name: 'citizenship', component: Citizenship, meta: { title: 'Гражданство', section: 'admin' } },
+    {
+      path: '/system-tables/contact-info',
+      name: 'contact-info',
+      component: ContactInfo,
+      meta: { title: 'Контактная информация', section: 'admin' },
+    },
+    {
+      path: '/system-tables/passport-data',
+      name: 'passport-data',
+      component: Passport,
+      meta: { title: 'Паспортные данные', section: 'admin' },
+    },
 
-    { path: '/rooms', name: 'rooms', component: Rooms, meta: { title: 'Комнаты' } },
-    { path: '/room-characteristics', name: 'room-characteristics', component: RoomCharacteristics, meta: { title: 'Характеристики комнат' } },
+    { path: '/rooms', name: 'rooms', component: Rooms, meta: { title: 'Комнаты', section: 'staff' } },
+    {
+      path: '/room-characteristics',
+      name: 'room-characteristics',
+      component: RoomCharacteristics,
+      meta: { title: 'Характеристики комнат', section: 'admin' },
+    },
 
-    { path: '/contracts', name: 'contracts', component: Contracts, meta: { title: 'Договоры' } },
-    { path: '/contracts/:id', name: 'contract-detail', component: ContractDetail, meta: { title: 'Информация о договоре', parent: 'contracts' } },
+    { path: '/contracts', name: 'contracts', component: Contracts, meta: { title: 'Договоры', section: 'staff' } },
+    {
+      path: '/contracts/:id',
+      name: 'contract-detail',
+      component: ContractDetail,
+      meta: { title: 'Информация о договоре', parent: 'contracts', section: 'staff' },
+    },
 
-    { path: '/reports', name: 'reports', redirect: '/reports/debt', meta: { title: 'Отчёты' } },
+    { path: '/reports', name: 'reports', redirect: '/reports/debt', meta: { title: 'Отчёты', section: 'staff' } },
     {
       path: '/reports/occupancy',
       name: 'reports-occupancy',
       component: ReportsOccupancy,
-      meta: { title: 'Занятость общежития', parent: 'reports' },
+      meta: { title: 'Занятость общежития', parent: 'reports', section: 'staff' },
     },
     {
       path: '/reports/contingent',
       name: 'reports-contingent',
       component: ReportsContingent,
-      meta: { title: 'Реестр проживающих', parent: 'reports' },
+      meta: { title: 'Реестр проживающих', parent: 'reports', section: 'staff' },
     },
     {
       path: '/reports/contracts',
       name: 'reports-contracts',
       component: ReportsContractsRegistry,
-      meta: { title: 'Реестр договоров', parent: 'reports' },
+      meta: { title: 'Реестр договоров', parent: 'reports', section: 'staff' },
     },
-    { path: '/reports/debt', name: 'reports-debt', component: ReportsDebt, meta: { title: 'Задолженность', parent: 'reports' } },
+    {
+      path: '/reports/debt',
+      name: 'reports-debt',
+      component: ReportsDebt,
+      meta: { title: 'Задолженность', parent: 'reports', section: 'staff' },
+    },
     {
       path: '/reports/move-in-out',
       name: 'reports-move-in-out',
       component: ReportsMovements,
-      meta: { title: 'Заселение / выселение', parent: 'reports' },
+      meta: { title: 'Заселение / выселение', parent: 'reports', section: 'staff' },
     },
   ],
+})
+
+function sectionAllowed(roles: RoleName[] | undefined, section: unknown): boolean {
+  if (section !== 'staff' && section !== 'admin') return true
+  if (!roles?.length) return false
+  if (roles.includes('ADMIN')) return true
+  return section === 'staff' && roles.includes('STAFF')
+}
+
+// currentUser===null здесь означает либо "ещё не авторизован" (App.vue сам уводит на
+// rosnou-id логин — дублировать это тут не нужно), либо "уже разлогинен" — в обоих
+// случаях просто пропускаем навигацию, решение не по роли, а по самой сессии остаётся
+// за App.vue.
+router.beforeEach(async (to) => {
+  await ensureUserLoaded()
+  if (!currentUser.value) return true
+  if (sectionAllowed(currentUser.value.roles, to.meta.section)) return true
+  return { name: 'home' }
 })
 
 trackBreadcrumbs(router)

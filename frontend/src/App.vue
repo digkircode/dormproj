@@ -5,7 +5,7 @@ import { Separator } from '@/components/ui/separator'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import AppSidebar from './components/AppSidebar.vue'
 import AppFooter from './components/AppFooter.vue'
-import { currentUser, isAuthLoading, loadCurrentUser } from '@/lib/auth-state'
+import { currentUser, isAuthLoading, ensureUserLoaded } from '@/lib/auth-state'
 import { rosnouLoginUrl } from '@/lib/auth-api'
 import { breadcrumbOverride, breadcrumbTrail as trackedTrail } from '@/lib/breadcrumb-state'
 
@@ -19,7 +19,7 @@ const breadcrumbTrail = computed(() =>
 )
 
 onMounted(async () => {
-  await loadCurrentUser()
+  await ensureUserLoaded()
   if (!currentUser.value) {
     window.location.href = rosnouLoginUrl()
   }

@@ -2,7 +2,6 @@
 import { computed } from 'vue'
 import type { SidebarProps } from '@/components/ui/sidebar'
 import {
-  Repeat,
   BarChart3,
   Users,
   RefreshCw,
@@ -37,6 +36,14 @@ const user = computed(() => ({
   avatar: '',
 }))
 
+// Тот же принцип, что и router-guard (router/index.ts) — Администратор видит обе
+// группы, Сотрудник только "Сотрудник" (NavMain), без роли — ни одной (только
+// "Главная", которой в сайдбаре нет вовсе).
+const roles = computed(() => currentUser.value?.roles ?? [])
+const isAdmin = computed(() => roles.value.includes('ADMIN'))
+const canSeeStaffSection = computed(() => isAdmin.value || roles.value.includes('STAFF'))
+const canSeeAdminSection = computed(() => isAdmin.value)
+
 const data = {
   teams: [
     {
@@ -45,33 +52,6 @@ const data = {
     },
   ],
   navMain: [
-    {
-      title: 'Lifecycle',
-      url: '#',
-      icon: Repeat,
-      items: [
-        { title: 'Заселение', url: '#' },
-        { title: 'Выселение', url: '#' },
-      ],
-    },
-    {
-      title: 'Analytics',
-      url: '#',
-      icon: BarChart3,
-      items: [
-        { title: 'Оплаты', url: '#' },
-        { title: 'Заселённость', url: '#' },
-      ],
-    },
-    {
-      title: 'Team',
-      url: '#',
-      icon: Users,
-      items: [
-        { title: 'Сотрудники', url: '#' },
-        { title: 'Роли', url: '#' },
-      ],
-    },
     {
       title: 'Физические лица',
       url: '/individuals',
@@ -112,6 +92,10 @@ const data = {
       ],
     },
     { name: 'Синхронизация', url: '/sync', icon: RefreshCw },
+    // Пока без своей страницы (управление ролями — отдельная, ещё не сделанная
+    // задача) — раньше был стаб-пунктом "Team" в секции "Сотрудник", по прямой
+    // просьбе переименован и перенесён сюда, в "Администратор".
+    { name: 'Пользователи', url: '#', icon: Users },
   ],
 }
 </script>
@@ -122,8 +106,8 @@ const data = {
       <TeamSwitcher :teams="data.teams" />
     </SidebarHeader>
     <SidebarContent>
-      <NavMain :items="data.navMain" />
-      <NavProjects :projects="data.projects" />
+      <NavMain v-if="canSeeStaffSection" :items="data.navMain" />
+      <NavProjects v-if="canSeeAdminSection" :projects="data.projects" />
     </SidebarContent>
     <SidebarFooter>
       <NavUser :user="user" />

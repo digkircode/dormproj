@@ -1,6 +1,8 @@
 import { ConflictException, Controller, Get, HttpCode, NotFoundException, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { sortPassportsByPriority } from './passport-priority';
 import { pickLatestContactInfo } from './contact-info-priority';
@@ -33,7 +35,8 @@ function isFilterableField(field: string): field is FilterableField {
 }
 
 @Controller('individuals')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
+@Roles('STAFF', 'ADMIN')
 export class IndividualsController {
   constructor(
     private readonly prisma: PrismaService,

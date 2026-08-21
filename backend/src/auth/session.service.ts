@@ -17,7 +17,9 @@ const COOKIE_OPTIONS: CookieOptions = {
 export class SessionService {
   constructor(private readonly jwt: JwtService) {}
 
-  toSessionUser(user: RosnouIdUser): SessionUser {
+  // roles сюда не входят — RosnouIdUser их не знает, они добавляются отдельно
+  // (см. auth.controller.ts callback: fetchRoles() из БД) перед sign().
+  toSessionUser(user: RosnouIdUser): Omit<SessionUser, 'roles'> {
     return {
       id: user.id,
       surname: user.surname,

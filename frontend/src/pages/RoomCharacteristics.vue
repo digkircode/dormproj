@@ -329,7 +329,7 @@ async function confirmDelete() {
         </div>
         <DialogFooter>
           <Button variant="outline" @click="isDialogOpen = false">Отмена</Button>
-          <Button :disabled="isSaving || !formName.trim()" @click="submitDialog">Сохранить</Button>
+          <Button :disabled="!formName.trim()" :loading="isSaving" @click="submitDialog">Сохранить</Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>
@@ -345,7 +345,7 @@ async function confirmDelete() {
         <p v-if="deleteError" class="text-sm text-red-500">{{ deleteError }}</p>
         <DialogFooter>
           <Button variant="outline" @click="deleteTarget = null">Отмена</Button>
-          <Button variant="outline" class="border-red-500 text-red-500 hover:text-red-500" :disabled="isDeleting" @click="confirmDelete">Да, удалить</Button>
+          <Button variant="outline" class="border-red-500 text-red-500 hover:text-red-500" :loading="isDeleting" @click="confirmDelete">Да, удалить</Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>

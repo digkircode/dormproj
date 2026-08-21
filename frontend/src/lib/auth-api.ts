@@ -1,5 +1,10 @@
 import { apiFetch, apiUrl } from './api-base'
 
+// Стабильные ключи ролей (roles.name в БД, см. backend/src/auth/types.ts) — не для
+// отображения. Первый этап ролевой модели: только сами роли и назначение, без своего
+// UI управления (см. промпт проекта).
+export type RoleName = 'ADMIN' | 'STAFF' | 'RESIDENT'
+
 export interface SessionUser {
   id: number
   surname: string
@@ -7,6 +12,9 @@ export interface SessionUser {
   patronymic: string | null
   email: string
   fullName: string
+  // Снимок на момент логина (JWT, TTL 24ч) — смена роли пользователю подхватится
+  // не раньше следующего входа, не мгновенно.
+  roles: RoleName[]
 }
 
 export function rosnouLoginUrl(): string {

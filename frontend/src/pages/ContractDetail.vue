@@ -563,7 +563,7 @@ async function confirmReversePayment() {
         <p v-if="terminateError" class="text-sm text-red-500">{{ terminateError }}</p>
         <DialogFooter>
           <Button variant="outline" @click="isTerminateOpen = false">Отмена</Button>
-          <Button :disabled="isTerminating" @click="submitTerminate">Расторгнуть</Button>
+          <Button :loading="isTerminating" @click="submitTerminate">Расторгнуть</Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>
@@ -583,7 +583,7 @@ async function confirmReversePayment() {
           <Button
             variant="outline"
             class="border-red-500 text-red-500 hover:text-red-500"
-            :disabled="isDeleting"
+            :loading="isDeleting"
             @click="submitDelete"
           >
             Да, удалить
@@ -628,7 +628,7 @@ async function confirmReversePayment() {
         </div>
         <DialogFooter>
           <Button variant="outline" @click="isPaymentOpen = false">Отмена</Button>
-          <Button :disabled="isSavingPayment" @click="submitPayment">Сохранить</Button>
+          <Button :loading="isSavingPayment" @click="submitPayment">Сохранить</Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>
@@ -649,7 +649,7 @@ async function confirmReversePayment() {
           <Button
             variant="outline"
             class="border-red-500 text-red-500 hover:text-red-500"
-            :disabled="isReversing"
+            :loading="isReversing"
             @click="confirmReversePayment"
           >
             Да, сторнировать

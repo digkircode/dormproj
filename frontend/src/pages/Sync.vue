@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { FileText } from 'lucide-vue-next'
 import EntityTable from '@/components/EntityTable.vue'
 import SyncOverviewStatusCell from '@/components/SyncOverviewStatusCell.vue'
+import SyncOverviewActionsCell from '@/components/SyncOverviewActionsCell.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import { useSyncRow } from '@/composables/useSyncRow'
 import type { FacetOption, ListOptions, ListPage } from '@/lib/list-api'
@@ -22,7 +22,7 @@ interface SyncOverviewRow {
 
 const tableRef = ref<{ refresh: () => void | Promise<void> } | null>(null)
 
-// Кнопка "Запустить" внутри SyncOverviewStatusCell.vue дёргает run() через строку —
+// Кнопка "Запустить" внутри SyncOverviewActionsCell.vue дёргает run() через строку —
 // сама composable-реактивность (isRunning и т.п.) не долетает до уже отрисованной
 // EntityTable (та держит свой rows как снимок, не живую ссылку), поэтому run
 // оборачиваем так, чтобы сразу после запуска дёрнуть refresh() и подхватить
@@ -49,7 +49,7 @@ const rows = computed<SyncOverviewRow[]>(() => [
   { ...passportSync.row.value, isRunning: passportSync.isRunning.value, run: wrapRun(passportSync.run), slug: 'passport' },
   { ...contactInfoSync.row.value, isRunning: contactInfoSync.isRunning.value, run: wrapRun(contactInfoSync.run), slug: 'contact-info' },
   // Запускается только с карточки конкретного физлица — здесь только строка с логами,
-  // без кнопки "Запустить" (см. isReal ниже и SyncOverviewStatusCell.vue).
+  // без кнопки "Запустить" (см. isReal ниже и SyncOverviewActionsCell.vue).
   {
     ...individualManualSync.row.value,
     isRunning: false,
@@ -64,16 +64,22 @@ const columnLabels: Record<string, string> = {
   status: 'Статус',
   time: 'Время',
   duration: 'Длительность',
+  actions: 'Действия',
 }
 const filterableFields = ['status']
-const cellRenderers = { status: SyncOverviewStatusCell }
+const cellRenderers = { status: SyncOverviewStatusCell, actions: SyncOverviewActionsCell }
 
 const columnHelper = createAppColumnHelper<SyncOverviewRow>()
 const columns = columnHelper.columns([
   columnHelper.accessor('name', { header: columnLabels.name, enableHiding: false, size: 280, minSize: 200 }),
-  columnHelper.accessor('status', { header: columnLabels.status, size: 220, minSize: 180 }),
+  columnHelper.accessor('status', { header: columnLabels.status, size: 180, minSize: 150 }),
   columnHelper.accessor('time', { header: columnLabels.time, size: 176, minSize: 140 }),
   columnHelper.accessor('duration', { header: columnLabels.duration, size: 140, minSize: 110 }),
+  // Действия (Логи+Запустить в одной ячейке) — обычная колонка с cellRenderer, не
+  // встроенный rowAction у EntityTable: тот рассчитан ровно на одну кнопку, а тут их
+  // две (см. SyncOverviewActionsCell.vue). enableSorting:false — сортировка по пустой
+  // колонке без данных не имеет смысла.
+  columnHelper.display({ id: 'actions', header: columnLabels.actions, enableSorting: false, enableHiding: false, size: 110, minSize: 96 }),
 ])
 
 // Статус — фиксированный список (тот же принцип, что bucket/agingBucket в отчётах),
@@ -169,7 +175,6 @@ onMounted(async () => {
       :get-row-id="(r: SyncOverviewRow) => r.slug"
       total-label="синхронизаций"
       :cell-renderers="cellRenderers"
-      :row-action="{ icon: FileText, label: 'Логи', getHref: (r: SyncOverviewRow) => `/sync/${r.slug}/logs` }"
       storage-key="sync-overview"
       accent-icons
       @loaded="onRowsLoaded"
