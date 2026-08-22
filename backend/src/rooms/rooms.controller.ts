@@ -10,16 +10,27 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { z } from 'zod';
 import { Prisma } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
+import { ensureUserRecord } from '../users/ensure-user';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { pickCurrentCharacteristics } from './current-characteristics';
 import { fromStoredValue, toStoredValue } from './characteristic-value';
+
+function requireUser(req: Request) {
+  if (!req.user) {
+    throw new BadRequestException('Не удалось определить пользователя сессии');
+  }
+  return req.user;
+}
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -62,7 +73,10 @@ function parseIdParam(idParam: string): number {
 @UseGuards(AuthGuard, RolesGuard)
 @Roles('STAFF', 'ADMIN')
 export class RoomsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditLog: AuditLogService,
+  ) {}
 
   @Get()
   async list(
@@ -188,11 +202,12 @@ export class RoomsController {
   }
 
   @Post()
-  async create(@Body() body: unknown) {
+  async create(@Body() body: unknown, @Req() req: Request) {
     const parsed = createRoomSchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException(parsed.error.message);
     }
+    const sessionUser = requireUser(req);
 
     const floorDefinition = await this.prisma.roomCharacteristicDefinition.findUnique({
       where: { name: FLOOR_DEFINITION_NAME },
@@ -209,6 +224,19 @@ export class RoomsController {
         await tx.roomCharacteristicValue.create({
           data: { roomId: room.id, definitionId: floorDefinition.id, period: new Date(), valueNumber: parsed.data.floor },
         });
+
+        const userId = await ensureUserRecord(tx, sessionUser);
+        await this.auditLog.log(tx, {
+          userId,
+          action: 'CREATE',
+          entityType: 'Room',
+          entityId: room.id,
+          entityLabel: room.room,
+          before: null,
+          after: room,
+          fields: ['room'],
+        });
+
         return room;
       });
     } catch (error) {
@@ -220,18 +248,35 @@ export class RoomsController {
   }
 
   @Patch(':id')
-  async update(@Param('id') idParam: string, @Body() body: unknown) {
+  async update(@Param('id') idParam: string, @Body() body: unknown, @Req() req: Request) {
     const id = parseIdParam(idParam);
     const parsed = updateRoomSchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException(parsed.error.message);
     }
+    const sessionUser = requireUser(req);
+    const existing = await this.prisma.room.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException('Комната не найдена');
+    }
+
     try {
-      return await this.prisma.room.update({ where: { id }, data: { room: parsed.data.room } });
+      return await this.prisma.$transaction(async (tx) => {
+        const updated = await tx.room.update({ where: { id }, data: { room: parsed.data.room } });
+        const userId = await ensureUserRecord(tx, sessionUser);
+        await this.auditLog.log(tx, {
+          userId,
+          action: 'UPDATE',
+          entityType: 'Room',
+          entityId: updated.id,
+          entityLabel: updated.room,
+          before: existing,
+          after: updated,
+          fields: ['room'],
+        });
+        return updated;
+      });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        throw new NotFoundException('Комната не найдена');
-      }
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('Комната с таким номером уже существует');
       }
@@ -240,10 +285,30 @@ export class RoomsController {
   }
 
   @Delete(':id')
-  async remove(@Param('id') idParam: string) {
+  async remove(@Param('id') idParam: string, @Req() req: Request) {
     const id = parseIdParam(idParam);
+    const sessionUser = requireUser(req);
+    const existing = await this.prisma.room.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException('Комната не найдена');
+    }
+
     try {
-      return await this.prisma.room.delete({ where: { id } });
+      return await this.prisma.$transaction(async (tx) => {
+        await tx.room.delete({ where: { id } });
+        const userId = await ensureUserRecord(tx, sessionUser);
+        await this.auditLog.log(tx, {
+          userId,
+          action: 'DELETE',
+          entityType: 'Room',
+          entityId: id,
+          entityLabel: existing.room,
+          before: existing,
+          after: null,
+          fields: ['room'],
+        });
+        return existing;
+      });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
         throw new NotFoundException('Комната не найдена');
@@ -253,26 +318,44 @@ export class RoomsController {
   }
 
   @Post(':id/characteristics')
-  async addCharacteristicValue(@Param('id') idParam: string, @Body() body: unknown) {
+  async addCharacteristicValue(@Param('id') idParam: string, @Body() body: unknown, @Req() req: Request) {
     const roomId = parseIdParam(idParam);
     const parsed = createValueSchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException(parsed.error.message);
     }
+    const sessionUser = requireUser(req);
 
-    const definition = await this.prisma.roomCharacteristicDefinition.findUnique({
-      where: { id: parsed.data.definitionId },
-    });
+    const [definition, room] = await Promise.all([
+      this.prisma.roomCharacteristicDefinition.findUnique({ where: { id: parsed.data.definitionId } }),
+      this.prisma.room.findUnique({ where: { id: roomId } }),
+    ]);
     if (!definition) {
       throw new NotFoundException('Характеристика не найдена');
+    }
+    if (!room) {
+      throw new NotFoundException('Комната не найдена');
     }
 
     const stored = toStoredValue(definition.valueType, parsed.data.value);
     try {
-      const created = await this.prisma.roomCharacteristicValue.create({
-        data: { roomId, definitionId: definition.id, period: parsed.data.period, ...stored },
+      return await this.prisma.$transaction(async (tx) => {
+        const created = await tx.roomCharacteristicValue.create({
+          data: { roomId, definitionId: definition.id, period: parsed.data.period, ...stored },
+        });
+        const userId = await ensureUserRecord(tx, sessionUser);
+        await this.auditLog.log(tx, {
+          userId,
+          action: 'CREATE',
+          entityType: 'RoomCharacteristicValue',
+          entityId: created.id,
+          entityLabel: `${definition.name} — комната ${room.room}`,
+          before: null,
+          after: { period: created.period, value: fromStoredValue(definition.valueType, created) },
+          fields: ['period', 'value'],
+        });
+        return { ...created, value: fromStoredValue(definition.valueType, created) };
       });
-      return { ...created, value: fromStoredValue(definition.valueType, created) };
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('На эту дату уже есть значение этой характеристики для этой комнаты');
@@ -289,6 +372,7 @@ export class RoomsController {
     @Param('id') idParam: string,
     @Param('valueId') valueIdParam: string,
     @Body() body: unknown,
+    @Req() req: Request,
   ) {
     const roomId = parseIdParam(idParam);
     const valueId = parseIdParam(valueIdParam);
@@ -296,10 +380,11 @@ export class RoomsController {
     if (!parsed.success) {
       throw new BadRequestException(parsed.error.message);
     }
+    const sessionUser = requireUser(req);
 
     const existing = await this.prisma.roomCharacteristicValue.findFirst({
       where: { id: valueId, roomId },
-      include: { definition: true },
+      include: { definition: true, room: true },
     });
     if (!existing) {
       throw new NotFoundException('Значение характеристики не найдено');
@@ -310,11 +395,24 @@ export class RoomsController {
 
     const stored = parsed.data.value === undefined ? {} : toStoredValue(existing.definition.valueType, parsed.data.value);
     try {
-      const updated = await this.prisma.roomCharacteristicValue.update({
-        where: { id: valueId },
-        data: { ...(parsed.data.period ? { period: parsed.data.period } : {}), ...stored },
+      return await this.prisma.$transaction(async (tx) => {
+        const updated = await tx.roomCharacteristicValue.update({
+          where: { id: valueId },
+          data: { ...(parsed.data.period ? { period: parsed.data.period } : {}), ...stored },
+        });
+        const userId = await ensureUserRecord(tx, sessionUser);
+        await this.auditLog.log(tx, {
+          userId,
+          action: 'UPDATE',
+          entityType: 'RoomCharacteristicValue',
+          entityId: updated.id,
+          entityLabel: `${existing.definition.name} — комната ${existing.room.room}`,
+          before: { period: existing.period, value: fromStoredValue(existing.definition.valueType, existing) },
+          after: { period: updated.period, value: fromStoredValue(existing.definition.valueType, updated) },
+          fields: ['period', 'value'],
+        });
+        return { ...updated, value: fromStoredValue(existing.definition.valueType, updated) };
       });
-      return { ...updated, value: fromStoredValue(existing.definition.valueType, updated) };
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('На эту дату уже есть значение этой характеристики для этой комнаты');
@@ -324,11 +422,15 @@ export class RoomsController {
   }
 
   @Delete(':id/characteristics/:valueId')
-  async removeCharacteristicValue(@Param('id') idParam: string, @Param('valueId') valueIdParam: string) {
+  async removeCharacteristicValue(@Param('id') idParam: string, @Param('valueId') valueIdParam: string, @Req() req: Request) {
     const roomId = parseIdParam(idParam);
     const valueId = parseIdParam(valueIdParam);
+    const sessionUser = requireUser(req);
 
-    const existing = await this.prisma.roomCharacteristicValue.findFirst({ where: { id: valueId, roomId } });
+    const existing = await this.prisma.roomCharacteristicValue.findFirst({
+      where: { id: valueId, roomId },
+      include: { definition: true, room: true },
+    });
     if (!existing) {
       throw new NotFoundException('Значение характеристики не найдено');
     }
@@ -336,6 +438,20 @@ export class RoomsController {
       throw new ConflictException('Это значение нельзя удалить');
     }
 
-    return this.prisma.roomCharacteristicValue.delete({ where: { id: valueId } });
+    return this.prisma.$transaction(async (tx) => {
+      await tx.roomCharacteristicValue.delete({ where: { id: valueId } });
+      const userId = await ensureUserRecord(tx, sessionUser);
+      await this.auditLog.log(tx, {
+        userId,
+        action: 'DELETE',
+        entityType: 'RoomCharacteristicValue',
+        entityId: existing.id,
+        entityLabel: `${existing.definition.name} — комната ${existing.room.room}`,
+        before: { period: existing.period, value: fromStoredValue(existing.definition.valueType, existing) },
+        after: null,
+        fields: ['period', 'value'],
+      });
+      return existing;
+    });
   }
 }

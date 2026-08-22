@@ -7,6 +7,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { validateEnv } from './config/env.schema';
 import { PrismaModule } from './prisma/prisma.module';
+import { AuditLogModule } from './audit-log/audit-log.module';
 import { SyncModule } from './sync/sync.module';
 import { IndividualsSyncModule } from './individuals-sync/individuals-sync.module';
 import { CitizenshipSyncModule } from './citizenship-sync/citizenship-sync.module';
@@ -39,6 +40,7 @@ import { RolesModule } from './roles/roles.module';
       throttlers: [{ ttl: 60000, limit: 100 }],
     }),
     PrismaModule,
+    AuditLogModule,
     AuthModule,
     SyncModule,
     IndividualsSyncModule,

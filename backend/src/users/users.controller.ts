@@ -1,10 +1,13 @@
-import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
 import { z } from 'zod';
 import { Prisma } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
+import { ensureUserRecord } from './ensure-user';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -31,7 +34,10 @@ function parseIdParam(idParam: string): number {
 @UseGuards(AuthGuard, RolesGuard)
 @Roles('ADMIN')
 export class UsersController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditLog: AuditLogService,
+  ) {}
 
   private async userWithRoles(id: number) {
     const user = await this.prisma.user.findUnique({
@@ -134,11 +140,14 @@ export class UsersController {
   }
 
   @Post(':id/roles')
-  async grantRole(@Param('id') idParam: string, @Body() body: unknown) {
+  async grantRole(@Param('id') idParam: string, @Body() body: unknown, @Req() req: Request) {
     const id = parseIdParam(idParam);
     const parsed = grantRoleSchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException(parsed.error.message);
+    }
+    if (!req.user) {
+      throw new BadRequestException('Не удалось определить пользователя сессии');
     }
     const [user, role] = await Promise.all([
       this.prisma.user.findUnique({ where: { id } }),
@@ -147,19 +156,56 @@ export class UsersController {
     if (!user) throw new NotFoundException('Пользователь не найден');
     if (!role) throw new NotFoundException('Роль не найдена');
 
-    await this.prisma.userRole.upsert({
-      where: { userId_roleId: { userId: id, roleId: role.id } },
-      create: { userId: id, roleId: role.id },
-      update: {},
+    await this.prisma.$transaction(async (tx) => {
+      await tx.userRole.upsert({
+        where: { userId_roleId: { userId: id, roleId: role.id } },
+        create: { userId: id, roleId: role.id },
+        update: {},
+      });
+      const actorId = await ensureUserRecord(tx, req.user!);
+      await this.auditLog.log(tx, {
+        userId: actorId,
+        action: 'CREATE',
+        entityType: 'UserRole',
+        entityId: id,
+        entityLabel: `${user.fullName} — роль «${role.name}»`,
+        before: null,
+        after: { roleName: role.name },
+        fields: ['roleName'],
+      });
     });
     return this.userWithRoles(id);
   }
 
   @Delete(':id/roles/:roleId')
-  async revokeRole(@Param('id') idParam: string, @Param('roleId') roleIdParam: string) {
+  async revokeRole(@Param('id') idParam: string, @Param('roleId') roleIdParam: string, @Req() req: Request) {
     const id = parseIdParam(idParam);
     const roleId = parseIdParam(roleIdParam);
-    await this.prisma.userRole.deleteMany({ where: { userId: id, roleId } });
+    if (!req.user) {
+      throw new BadRequestException('Не удалось определить пользователя сессии');
+    }
+    const [user, role] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id } }),
+      this.prisma.role.findUnique({ where: { id: roleId } }),
+    ]);
+    if (!user) throw new NotFoundException('Пользователь не найден');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.userRole.deleteMany({ where: { userId: id, roleId } });
+      if (role) {
+        const actorId = await ensureUserRecord(tx, req.user!);
+        await this.auditLog.log(tx, {
+          userId: actorId,
+          action: 'DELETE',
+          entityType: 'UserRole',
+          entityId: id,
+          entityLabel: `${user.fullName} — роль «${role.name}»`,
+          before: { roleName: role.name },
+          after: null,
+          fields: ['roleName'],
+        });
+      }
+    });
     return this.userWithRoles(id);
   }
 }

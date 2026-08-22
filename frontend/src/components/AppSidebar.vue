@@ -9,6 +9,7 @@ import {
   Table2,
   DoorOpen,
   FileText,
+  History,
 } from 'lucide-vue-next'
 import NavMain from '@/components/NavMain.vue'
 import NavProjects from '@/components/NavProjects.vue'
@@ -93,6 +94,7 @@ const data = {
       ],
     },
     { name: 'Синхронизация', url: '/sync', icon: RefreshCw },
+    { name: 'История изменений', url: '/audit-log', icon: History },
     {
       name: 'Пользователи',
       icon: Users,

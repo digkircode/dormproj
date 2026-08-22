@@ -7,6 +7,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { ensureUserRecord } from '../users/ensure-user';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { allocatePaymentFifo } from './payment-allocation';
 import { serializePayment } from '../contracts/serializers';
 
@@ -16,6 +17,8 @@ const createPaymentSchema = z.object({
   method: z.enum(['CASH', 'CARD_ACQUIRING', 'BANK_TRANSFER', 'MAT_CAPITAL', 'WEBSITE']),
   rawComment: z.string().trim().min(1).nullish(),
 });
+
+const AUDITED_PAYMENT_FIELDS = ['amount', 'paidAt', 'method', 'source', 'rawComment', 'reversedAt'];
 
 function parseIdParam(idParam: string): number {
   const id = Number.parseInt(idParam, 10);
@@ -29,7 +32,10 @@ function parseIdParam(idParam: string): number {
 @UseGuards(AuthGuard, RolesGuard)
 @Roles('STAFF', 'ADMIN')
 export class BillingController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditLog: AuditLogService,
+  ) {}
 
   // Ручной платёж (сотрудник вносит) — сразу разносится по неоплаченным начислениям
   // (FIFO, самое старое первым, см. billing/payment-allocation.ts). Источник — всегда
@@ -66,6 +72,18 @@ export class BillingController {
         },
       });
       await allocatePaymentFifo(tx, contractId, payment.id, amount);
+
+      await this.auditLog.log(tx, {
+        userId: createdByUserId,
+        action: 'CREATE',
+        entityType: 'Payment',
+        entityId: payment.id,
+        entityLabel: `Платёж по договору №${contract.number}`,
+        before: null,
+        after: payment,
+        fields: AUDITED_PAYMENT_FIELDS,
+      });
+
       return serializePayment(payment);
     });
   }
@@ -73,9 +91,12 @@ export class BillingController {
   // Сторно — платёж внесён ошибочно. Не удаляем сам Payment (остаётся с reversedAt для
   // истории), но снимаем его разнесение — начисления сразу же снова видны как неоплаченные.
   @Post('payments/:paymentId/reverse')
-  async reversePayment(@Param('paymentId') paymentIdParam: string) {
+  async reversePayment(@Param('paymentId') paymentIdParam: string, @Req() req: Request) {
     const paymentId = parseIdParam(paymentIdParam);
-    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId } });
+    if (!req.user) {
+      throw new BadRequestException('Не удалось определить пользователя сессии');
+    }
+    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId }, include: { contract: { select: { number: true } } } });
     if (!payment) {
       throw new NotFoundException('Платёж не найден');
     }
@@ -86,6 +107,19 @@ export class BillingController {
     return this.prisma.$transaction(async (tx) => {
       await tx.paymentAllocation.deleteMany({ where: { paymentId } });
       const updated = await tx.payment.update({ where: { id: paymentId }, data: { reversedAt: new Date() } });
+
+      const userId = await ensureUserRecord(tx, req.user!);
+      await this.auditLog.log(tx, {
+        userId,
+        action: 'UPDATE',
+        entityType: 'Payment',
+        entityId: updated.id,
+        entityLabel: `Платёж по договору №${payment.contract.number}`,
+        before: payment,
+        after: updated,
+        fields: AUDITED_PAYMENT_FIELDS,
+      });
+
       return serializePayment(updated);
     });
   }

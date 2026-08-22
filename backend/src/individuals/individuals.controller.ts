@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Controller, Get, HttpCode, NotFoundException, Param, Post, Body, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, ConflictException, Controller, Get, HttpCode, NotFoundException, Param, Post, Body, Query, Req, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { Prisma } from '../../generated/prisma/client.js';
@@ -6,10 +7,34 @@ import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
+import { ensureUserRecord } from '../users/ensure-user';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { sortPassportsByPriority } from './passport-priority';
 import { pickLatestContactInfo } from './contact-info-priority';
 import { IndividualSyncService, type IndividualSyncResult } from '../individual-sync/individual-sync.service';
 import { SyncAlreadyRunningError } from '../sync/sync.errors';
+
+// Поля, участвующие в diff'е истории изменений (AuditLogService) — служебные (createdAt/
+// updatedAt/isManual/deleteMark/code/photoCode) намеренно не отслеживаются.
+const AUDITED_INDIVIDUAL_FIELDS = [
+  'fullName',
+  'surname',
+  'name',
+  'otchestvo',
+  'birthDate',
+  'gender',
+  'citizenship',
+  'phone',
+  'email',
+  'address',
+  'snils',
+  'inn',
+  'passportSeries',
+  'passportNumber',
+  'passportIssuedBy',
+  'passportIssuedCode',
+  'passportIssuedAt',
+];
 
 // Форма "Новое физическое лицо" (Individuals.vue) — заводит физлицо руками, не через
 // синхрон 1С. Детерминированного uid тут нет (в отличие от manual-parent-* в
@@ -65,6 +90,7 @@ export class IndividualsController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly individualSyncService: IndividualSyncService,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   @Get()
@@ -122,36 +148,55 @@ export class IndividualsController {
   }
 
   @Post()
-  async create(@Body() body: unknown) {
+  async create(@Body() body: unknown, @Req() req: Request) {
     const parsed = createIndividualSchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException(parsed.error.message);
     }
+    if (!req.user) {
+      throw new BadRequestException('Не удалось определить пользователя сессии');
+    }
     const data = parsed.data;
     const fullName = [data.surname, data.name, data.otchestvo].filter(Boolean).join(' ');
 
-    return this.prisma.individual.create({
-      data: {
-        fizicheskoyeLitsoUid: `manual-${randomUUID()}`,
-        isManual: true,
-        fullName,
-        surname: data.surname,
-        name: data.name,
-        otchestvo: data.otchestvo ?? null,
-        birthDate: data.birthDate,
-        gender: data.gender ?? null,
-        citizenship: data.citizenship ?? null,
-        phone: data.phone,
-        email: data.email ?? null,
-        address: data.address,
-        snils: data.snils ?? null,
-        inn: data.inn ?? null,
-        passportSeries: data.passportSeries ?? null,
-        passportNumber: data.passportNumber,
-        passportIssuedBy: data.passportIssuedBy ?? null,
-        passportIssuedCode: data.passportIssuedCode ?? null,
-        passportIssuedAt: data.passportIssuedAt,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const created = await tx.individual.create({
+        data: {
+          fizicheskoyeLitsoUid: `manual-${randomUUID()}`,
+          isManual: true,
+          fullName,
+          surname: data.surname,
+          name: data.name,
+          otchestvo: data.otchestvo ?? null,
+          birthDate: data.birthDate,
+          gender: data.gender ?? null,
+          citizenship: data.citizenship ?? null,
+          phone: data.phone,
+          email: data.email ?? null,
+          address: data.address,
+          snils: data.snils ?? null,
+          inn: data.inn ?? null,
+          passportSeries: data.passportSeries ?? null,
+          passportNumber: data.passportNumber,
+          passportIssuedBy: data.passportIssuedBy ?? null,
+          passportIssuedCode: data.passportIssuedCode ?? null,
+          passportIssuedAt: data.passportIssuedAt,
+        },
+      });
+
+      const userId = await ensureUserRecord(tx, req.user!);
+      await this.auditLog.log(tx, {
+        userId,
+        action: 'CREATE',
+        entityType: 'Individual',
+        entityId: created.fizicheskoyeLitsoUid,
+        entityLabel: created.fullName,
+        before: null,
+        after: created,
+        fields: AUDITED_INDIVIDUAL_FIELDS,
+      });
+
+      return created;
     });
   }
 

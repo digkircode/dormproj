@@ -5,6 +5,7 @@ import { FileSignature, UserRound } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import DatePickerField from '@/components/DatePickerField.vue'
@@ -92,6 +93,7 @@ const paymentDueDay = ref(5)
 
 const legalRepName = ref('')
 const legalRepPhone = ref('')
+const legalRepGender = ref<'Мужской' | 'Женский' | ''>('')
 const legalRepBirthDate = ref('')
 const legalRepPassportSeries = ref('')
 const legalRepPassportNumber = ref('')
@@ -216,6 +218,7 @@ watch(isMinor, async (minor) => {
   if (!prefill) return
   if (!legalRepName.value.trim() && prefill.legalRepName) legalRepName.value = prefill.legalRepName
   if (!legalRepPhone.value.trim() && prefill.legalRepPhone) legalRepPhone.value = prefill.legalRepPhone
+  if (!legalRepGender.value && prefill.legalRepGender) legalRepGender.value = prefill.legalRepGender as 'Мужской' | 'Женский'
   if (!legalRepBirthDate.value && prefill.legalRepBirthDate) legalRepBirthDate.value = prefill.legalRepBirthDate.slice(0, 10)
   if (!legalRepPassportSeries.value.trim() && prefill.legalRepPassportSeries) legalRepPassportSeries.value = prefill.legalRepPassportSeries
   if (!legalRepPassportNumber.value.trim() && prefill.legalRepPassportNumber) legalRepPassportNumber.value = prefill.legalRepPassportNumber
@@ -288,6 +291,7 @@ async function open(prefillIndividual?: Individual) {
   dailyRateCategoryKnown.value = false
   legalRepName.value = ''
   legalRepPhone.value = ''
+  legalRepGender.value = ''
   legalRepBirthDate.value = ''
   legalRepPassportSeries.value = ''
   legalRepPassportNumber.value = ''
@@ -393,6 +397,7 @@ async function submitCreate() {
       residenceReason: dailyRateCategory.value === 'OTHER_UNIVERSITY' ? residenceReason.value.trim() || null : null,
       legalRepName: legalRepName.value.trim() || null,
       legalRepPhone: legalRepPhone.value.trim() || null,
+      legalRepGender: legalRepGender.value || null,
       legalRepBirthDate: legalRepBirthDate.value || null,
       legalRepPassportSeries: legalRepPassportSeries.value.trim() || null,
       legalRepPassportNumber: legalRepPassportNumber.value.trim() || null,
@@ -528,6 +533,21 @@ async function submitCreate() {
               <div v-if="isMinor" class="flex flex-col gap-4">
                 <div class="grid grid-cols-2 gap-4">
                   <div class="flex flex-col gap-2">
+                    <Label>Пол</Label>
+                    <Select
+                      :model-value="legalRepGender || undefined"
+                      @update:model-value="(v) => (legalRepGender = v as 'Мужской' | 'Женский')"
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Не указан" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Мужской">Мужской</SelectItem>
+                        <SelectItem value="Женский">Женский</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div class="flex flex-col gap-2">
                     <Label>Дата рождения</Label>
                     <DatePickerField v-model="legalRepBirthDate" :invalid="legalRepBirthDateInvalid" />
                   </div>
@@ -543,6 +563,10 @@ async function submitCreate() {
                       @input="onLegalRepSnilsInput"
                       @keydown="blockNonDigitKeys"
                     />
+                  </div>
+                  <div class="flex flex-col gap-2">
+                    <Label>ИНН</Label>
+                    <Input v-model="legalRepInn" />
                   </div>
                   <div class="flex flex-col gap-2">
                     <Label>Паспорт: серия</Label>
@@ -569,10 +593,6 @@ async function submitCreate() {
                   <div class="col-span-2 flex flex-col gap-2">
                     <Label>Кем выдан</Label>
                     <Input v-model="legalRepPassportIssuedBy" />
-                  </div>
-                  <div class="flex flex-col gap-2">
-                    <Label>ИНН</Label>
-                    <Input v-model="legalRepInn" />
                   </div>
                   <div class="col-span-2 flex flex-col gap-2">
                     <Label>Адрес регистрации</Label>

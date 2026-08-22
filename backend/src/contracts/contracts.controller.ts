@@ -20,6 +20,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { ensureUserRecord } from '../users/ensure-user';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { buildAccrualsForContract } from '../billing/accrual-generation';
 import { recalcAccrualsForTermination } from '../billing/termination';
 import { computePenaltyBalance } from '../billing/penalty-balance';
@@ -57,6 +58,7 @@ const STATUS_LABELS: Record<ContractStatus, string> = {
 const legalRepFields = {
   legalRepName: z.string().trim().min(1).nullish(),
   legalRepPhone: z.string().trim().min(1).nullish(),
+  legalRepGender: z.enum(['Мужской', 'Женский']).nullish(),
   legalRepBirthDate: z.coerce.date().nullish(),
   legalRepPassportSeries: z.string().trim().min(1).nullish(),
   legalRepPassportNumber: z.string().trim().min(1).nullish(),
@@ -96,6 +98,36 @@ const createContractSchema = z
 
 const terminateSchema = z.object({ actualEndDate: z.coerce.date() });
 
+// Поля, участвующие в diff'е истории изменений (AuditLogService) — residentSnapshot (JSON-
+// слепок) и penaltyAccruedThrough (служебное, для идемпотентности крона) намеренно не
+// отслеживаются, слишком шумно/не осмысленно для diff'а.
+const AUDITED_CONTRACT_FIELDS = [
+  'number',
+  'contractDate',
+  'residentIndividualUid',
+  'startDate',
+  'endDate',
+  'actualEndDate',
+  'status',
+  'residenceReason',
+  'legalRepName',
+  'legalRepPhone',
+  'legalRepGender',
+  'legalRepBirthDate',
+  'legalRepPassportSeries',
+  'legalRepPassportNumber',
+  'legalRepPassportIssuedBy',
+  'legalRepPassportIssuedCode',
+  'legalRepPassportIssuedAt',
+  'legalRepSnils',
+  'legalRepInn',
+  'legalRepAddress',
+  'matCapitalCoveredFrom',
+  'matCapitalCoveredTo',
+  'matCapitalAmount',
+  'matCapitalDeferredUntil',
+];
+
 function parseIdParam(idParam: string): number {
   const id = Number.parseInt(idParam, 10);
   if (!Number.isInteger(id)) {
@@ -108,7 +140,10 @@ function parseIdParam(idParam: string): number {
 @UseGuards(AuthGuard, RolesGuard)
 @Roles('STAFF', 'ADMIN')
 export class ContractsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditLog: AuditLogService,
+  ) {}
 
   @Get()
   async list(
@@ -214,6 +249,7 @@ export class ContractsController {
     return {
       legalRepName: previous.legalRepName,
       legalRepPhone: previous.legalRepPhone,
+      legalRepGender: previous.legalRepGender,
       legalRepBirthDate: previous.legalRepBirthDate,
       legalRepPassportSeries: previous.legalRepPassportSeries,
       legalRepPassportNumber: previous.legalRepPassportNumber,
@@ -340,6 +376,7 @@ export class ContractsController {
             residenceReason: data.residenceReason ?? null,
             legalRepName: data.legalRepName ?? null,
             legalRepPhone: data.legalRepPhone ?? null,
+            legalRepGender: data.legalRepGender ?? null,
             legalRepBirthDate: data.legalRepBirthDate ?? null,
             legalRepPassportSeries: data.legalRepPassportSeries ?? null,
             legalRepPassportNumber: data.legalRepPassportNumber ?? null,
@@ -425,6 +462,7 @@ export class ContractsController {
           // (поиск/карточка), риска для печати нет.
           const legalRepIndividualData = {
             fullName: data.legalRepName,
+            gender: data.legalRepGender ?? null,
             birthDate: data.legalRepBirthDate ?? null,
             snils: data.legalRepSnils ?? null,
             inn: data.legalRepInn ?? null,
@@ -441,10 +479,27 @@ export class ContractsController {
             create: { fizicheskoyeLitsoUid: legalRepUid, isManual: true, ...legalRepIndividualData },
             update: legalRepIndividualData,
           });
-          return tx.contract.update({ where: { id: contract.id }, data: { legalRepIndividualUid: legalRepUid } });
         }
 
-        return contract;
+        const finalContract = contractIsMinor && data.legalRepName
+          ? await tx.contract.update({
+              where: { id: contract.id },
+              data: { legalRepIndividualUid: `manual-parent-${data.residentIndividualUid}` },
+            })
+          : contract;
+
+        await this.auditLog.log(tx, {
+          userId: createdByUserId,
+          action: 'CREATE',
+          entityType: 'Contract',
+          entityId: finalContract.id,
+          entityLabel: finalContract.number,
+          before: null,
+          after: finalContract,
+          fields: AUDITED_CONTRACT_FIELDS,
+        });
+
+        return finalContract;
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -458,11 +513,14 @@ export class ContractsController {
   // теряются) — фактическая дата выезда отдельным полем, будущие начисления гасятся
   // (voidedAt), граничное начисление пересчитывается через adjustmentAmount.
   @Post(':id/terminate')
-  async terminate(@Param('id') idParam: string, @Body() body: unknown) {
+  async terminate(@Param('id') idParam: string, @Body() body: unknown, @Req() req: Request) {
     const id = parseIdParam(idParam);
     const parsed = terminateSchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException(parsed.error.message);
+    }
+    if (!req.user) {
+      throw new BadRequestException('Не удалось определить пользователя сессии');
     }
 
     const contract = await this.prisma.contract.findUnique({ where: { id } });
@@ -483,7 +541,21 @@ export class ContractsController {
         data: { toDate: parsed.data.actualEndDate },
       });
       await recalcAccrualsForTermination(tx, id, parsed.data.actualEndDate);
-      return tx.contract.findUniqueOrThrow({ where: { id } });
+      const updated = await tx.contract.findUniqueOrThrow({ where: { id } });
+
+      const userId = await ensureUserRecord(tx, req.user!);
+      await this.auditLog.log(tx, {
+        userId,
+        action: 'UPDATE',
+        entityType: 'Contract',
+        entityId: updated.id,
+        entityLabel: updated.number,
+        before: contract,
+        after: updated,
+        fields: AUDITED_CONTRACT_FIELDS,
+      });
+
+      return updated;
     });
   }
 
@@ -494,8 +566,11 @@ export class ContractsController {
   // пустая на практике (нет сервиса импорта), но если когда-то появится, FK не должен
   // блокировать удаление осиротевшей ссылки.
   @Delete(':id')
-  async remove(@Param('id') idParam: string) {
+  async remove(@Param('id') idParam: string, @Req() req: Request) {
     const id = parseIdParam(idParam);
+    if (!req.user) {
+      throw new BadRequestException('Не удалось определить пользователя сессии');
+    }
     const contract = await this.prisma.contract.findUnique({ where: { id } });
     if (!contract) {
       throw new NotFoundException('Договор не найден');
@@ -508,6 +583,18 @@ export class ContractsController {
     await this.prisma.$transaction(async (tx) => {
       await tx.paymentImportRecord.updateMany({ where: { matchedContractId: id }, data: { matchedContractId: null } });
       await tx.contract.delete({ where: { id } });
+
+      const userId = await ensureUserRecord(tx, req.user!);
+      await this.auditLog.log(tx, {
+        userId,
+        action: 'DELETE',
+        entityType: 'Contract',
+        entityId: id,
+        entityLabel: contract.number,
+        before: contract,
+        after: null,
+        fields: AUDITED_CONTRACT_FIELDS,
+      });
     });
     return { ok: true };
   }

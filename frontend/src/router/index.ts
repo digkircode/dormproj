@@ -23,6 +23,7 @@ import ReportsDebt from '@/pages/ReportsDebt.vue'
 import ReportsMovements from '@/pages/ReportsMovements.vue'
 import UsersStaff from '@/pages/UsersStaff.vue'
 import UsersRoles from '@/pages/UsersRoles.vue'
+import AuditLog from '@/pages/AuditLog.vue'
 
 // Первый этап ролевой модели (см. промпт проекта) — секция страницы определяет, кому
 // она видна: 'staff' — группа "Сотрудник" в сайдбаре (AppSidebar.vue/NavMain.vue),
@@ -113,6 +114,7 @@ const router = createRouter({
 
     { path: '/users', name: 'users', component: UsersStaff, meta: { title: 'Сотрудники', section: 'admin' } },
     { path: '/roles', name: 'roles', component: UsersRoles, meta: { title: 'Роли', section: 'admin' } },
+    { path: '/audit-log', name: 'audit-log', component: AuditLog, meta: { title: 'История изменений', section: 'admin' } },
   ],
 })
 

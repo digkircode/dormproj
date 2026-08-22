@@ -74,6 +74,7 @@ export interface ContractDetail {
   currentRoom: { id: number; room: string } | null
   legalRepName: string | null
   legalRepPhone: string | null
+  legalRepGender: string | null
   legalRepBirthDate: string | null
   legalRepPassportSeries: string | null
   legalRepPassportNumber: string | null
@@ -103,6 +104,7 @@ export interface ContractDetail {
 export interface LegalRepPrefill {
   legalRepName: string | null
   legalRepPhone: string | null
+  legalRepGender: string | null
   legalRepBirthDate: string | null
   legalRepPassportSeries: string | null
   legalRepPassportNumber: string | null
@@ -129,6 +131,7 @@ export interface CreateContractInput {
   residenceReason?: string | null
   legalRepName?: string | null
   legalRepPhone?: string | null
+  legalRepGender?: 'Мужской' | 'Женский' | null
   legalRepBirthDate?: string | null
   legalRepPassportSeries?: string | null
   legalRepPassportNumber?: string | null
