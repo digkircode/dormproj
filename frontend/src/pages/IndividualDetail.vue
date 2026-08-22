@@ -21,7 +21,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import PassportTable from '@/components/PassportTable.vue'
 import StudentFields from '@/components/StudentFields.vue'
 import CreateContractDialog from '@/components/CreateContractDialog.vue'
-import { fetchIndividualDetail, syncIndividual, type IndividualDetail } from '@/lib/individuals-api'
+import { fetchIndividualDetail, syncIndividual, type IndividualDetail, type IndividualPassport } from '@/lib/individuals-api'
 import { copyToClipboard, goBack } from '@/lib/utils'
 import { breadcrumbOverride } from '@/lib/breadcrumb-state'
 
@@ -46,7 +46,31 @@ const initials = computed(() =>
 )
 
 const citizenship = computed(() => detail.value?.citizenships[0] ?? null)
-const latestPassport = computed(() => detail.value?.passports[0] ?? null)
+
+// Паспорт ручного ввода (см. schema.prisma) — не настоящая строка Passport (тот синхрон
+// никогда не трогает isManual-физлиц), поэтому синтетическая строка того же вида, только
+// для отображения в уже существующей PassportTable.vue. Реальные Passport из 1С (если
+// вдруг когда-то появятся у ручного физлица) в приоритете — синтетика только когда
+// настоящих документов нет вообще.
+const manualPassportRow = computed<IndividualPassport | null>(() => {
+  if (!detail.value?.isManual || !detail.value.passportNumber) return null
+  return {
+    id: -1,
+    period: detail.value.passportIssuedAt ?? detail.value.createdAt,
+    type: 'Паспорт (введён вручную)',
+    series: detail.value.passportSeries ?? '',
+    number: detail.value.passportNumber,
+    dateStart: detail.value.passportIssuedAt ?? '',
+    unit: detail.value.passportIssuedBy ?? '',
+    codeUnit: detail.value.passportIssuedCode ?? '',
+    systemDoc: '',
+  }
+})
+const passportRows = computed<IndividualPassport[]>(() => {
+  if (detail.value && detail.value.passports.length > 0) return detail.value.passports
+  return manualPassportRow.value ? [manualPassportRow.value] : []
+})
+const latestPassport = computed(() => passportRows.value[0] ?? null)
 const latestPassportRows = computed(() => (latestPassport.value ? [latestPassport.value] : []))
 
 function formatDate(iso: string | null | undefined): string {
@@ -273,6 +297,22 @@ onUnmounted(() => {
             <span class="text-muted-foreground">ИНН</span>
             <span>{{ detail.inn ?? '—' }}</span>
           </div>
+          <!-- Телефон/email/адрес — поля ручного ввода (см. schema.prisma), заполнены
+               только у физлиц, заведённых через "Новое физическое лицо" или как родитель
+               несовершеннолетнего; у синхронизируемых из 1С — всегда "—" (их контакты
+               смотреть в блоке контактной информации слева, из ContactInfo). -->
+          <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
+            <span class="text-muted-foreground">Телефон</span>
+            <span>{{ detail.phone ?? '—' }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
+            <span class="text-muted-foreground">Email</span>
+            <span>{{ detail.email ?? '—' }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
+            <span class="text-muted-foreground">Адрес регистрации</span>
+            <span>{{ detail.address ?? '—' }}</span>
+          </div>
         </div>
       </Card>
 
@@ -286,7 +326,7 @@ onUnmounted(() => {
             <TabsTrigger value="latest">Актуальный</TabsTrigger>
             <TabsTrigger value="all" class="gap-1.5">
               Все
-              <Badge variant="secondary">{{ detail.passports.length }}</Badge>
+              <Badge variant="secondary">{{ passportRows.length }}</Badge>
             </TabsTrigger>
           </TabsList>
 
@@ -295,7 +335,7 @@ onUnmounted(() => {
           </TabsContent>
 
           <TabsContent value="all">
-            <PassportTable :passports="detail.passports" />
+            <PassportTable :passports="passportRows" />
           </TabsContent>
         </Tabs>
       </Card>

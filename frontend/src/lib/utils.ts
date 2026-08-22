@@ -112,3 +112,25 @@ export async function copyToClipboard(text: string): Promise<void> {
     document.body.removeChild(textarea)
   }
 }
+
+// Backend отдаёт ошибку невалидного тела как JSON-строку массива zod-issues (ZodError.message) —
+// сырой JSON пользователю показывать незачем: если формат распознан, даём понятный текст и
+// подсвечиваем конкретные поля; если нет (обычная текстовая ошибка) — показываем её как есть.
+// Общий хелпер для диалогов создания (CreateContractDialog.vue/CreateIndividualDialog.vue).
+export function parseApiError(error: unknown): { message: string; fields: Set<string> } {
+  const raw = error instanceof Error ? error.message : String(error)
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((i) => i && typeof i === 'object' && 'path' in i)) {
+      const fields = new Set<string>()
+      for (const issue of parsed as { path: unknown[] }[]) {
+        const first = issue.path[0]
+        if (typeof first === 'string') fields.add(first)
+      }
+      return { message: 'Проверьте правильность данных', fields }
+    }
+  } catch {
+    // не JSON — обычное текстовое сообщение об ошибке, оставляем как есть
+  }
+  return { message: raw, fields: new Set() }
+}

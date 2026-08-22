@@ -74,6 +74,21 @@ model Individual {
   // не трогает и их UID не участвует в запросе к источнику (см. individuals-sync.service.ts).
   isManual             Boolean   @default(false) @map("is_manual")
 
+  // Поля ручного ввода (форма "Новое физическое лицо", individuals.controller.ts, и
+  // родитель несовершеннолетнего при создании договора, contracts.controller.ts) — для
+  // синхронизируемых из 1С физлиц всегда null, реальные контакты/документы там приходят
+  // через связи contactInfos/passports. Не путать с Passport/ContactInfo — те две модели
+  // "слепок из 1С" с обязательными техническими полями (xml/json/systemDoc и т.п.), не
+  // подходящими для ручного ввода.
+  phone                String?   @map("phone")
+  email                String?   @map("email")
+  address              String?   @map("address")
+  passportSeries       String?   @map("passport_series")
+  passportNumber       String?   @map("passport_number")
+  passportIssuedBy     String?   @map("passport_issued_by")
+  passportIssuedCode   String?   @map("passport_issued_code")
+  passportIssuedAt     DateTime? @map("passport_issued_at")
+
   citizenships Citizenship[]
   passports    Passport[]
   contactInfos ContactInfo[]

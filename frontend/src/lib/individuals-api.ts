@@ -15,6 +15,17 @@ export interface Individual {
   snils: string | null
   photoCode: string | null
   isManual: boolean
+  // Поля ручного ввода (см. schema.prisma) — только у физлиц, заведённых через форму
+  // "Новое физическое лицо" или как родитель несовершеннолетнего; у синхронизируемых
+  // из 1С физлиц всегда null (их контакты/документы — в contactInfos/passports).
+  phone: string | null
+  email: string | null
+  address: string | null
+  passportSeries: string | null
+  passportNumber: string | null
+  passportIssuedBy: string | null
+  passportIssuedCode: string | null
+  passportIssuedAt: string | null
   createdAt: string
   updatedAt: string
 }
@@ -86,6 +97,36 @@ export function fetchIndividuals(options: FetchIndividualsOptions): Promise<Indi
 
 export function fetchFacetValues(field: string): Promise<FacetOption[]> {
   return fetchListFacets('/individuals', field)
+}
+
+export interface CreateIndividualInput {
+  surname: string
+  name: string
+  otchestvo?: string | null
+  birthDate: string
+  phone: string
+  email?: string | null
+  address: string
+  snils?: string | null
+  inn?: string | null
+  passportSeries?: string | null
+  passportNumber: string
+  passportIssuedBy?: string | null
+  passportIssuedCode?: string | null
+  passportIssuedAt: string
+}
+
+export async function createIndividual(input: CreateIndividualInput): Promise<Individual> {
+  const response = await apiFetch('/individuals', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!response.ok) {
+    const body: { message?: string } = await response.json().catch(() => ({}))
+    throw new Error(body.message ?? `Не удалось создать физическое лицо (${response.status})`)
+  }
+  return response.json()
 }
 
 export async function fetchIndividualDetail(uid: string): Promise<IndividualDetail> {

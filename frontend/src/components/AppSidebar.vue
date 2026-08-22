@@ -31,6 +31,7 @@ const props = withDefaults(defineProps<SidebarProps>(), {
 // AppSidebar рендерится только когда currentUser уже точно есть (см. App.vue) —
 // проверка тут просто чтобы TypeScript не ругался на возможный null.
 const user = computed(() => ({
+  id: currentUser.value?.id,
   name: currentUser.value?.fullName ?? '',
   email: currentUser.value?.email ?? '',
   avatar: '',

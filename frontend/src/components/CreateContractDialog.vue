@@ -15,7 +15,7 @@ import { createContract, fetchLegalRepPrefill, type DailyRateCategory } from '@/
 import { fetchIndividuals, fetchIndividualDetail, type Individual } from '@/lib/individuals-api'
 import { fetchRoomsTree, fetchRoomDetail, type RoomTreeItem } from '@/lib/rooms-api'
 import { fetchDormitoryInfo } from '@/lib/dormitory-info-api'
-import { blockNonNumericKeys } from '@/lib/utils'
+import { blockNonNumericKeys, parseApiError } from '@/lib/utils'
 
 const router = useRouter()
 
@@ -110,28 +110,8 @@ const isMinor = computed(() => {
   return calculateAge(birthDate, contractDate.value || new Date().toISOString().slice(0, 10)) < 18
 })
 
-// Backend отдаёт ошибку невалидного тела как JSON-строку массива zod-issues (ZodError.message) —
-// например при рассинхроне типа (см. serverFieldErrors ниже). Сырой JSON пользователю показывать
-// незачем: если формат распознан, даём понятный текст и подсвечиваем конкретные поля;
-// если нет (обычная текстовая ошибка вроде "Комната уже занята") — показываем её как есть.
-function parseApiError(error: unknown): { message: string; fields: Set<string> } {
-  const raw = error instanceof Error ? error.message : String(error)
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((i) => i && typeof i === 'object' && 'path' in i)) {
-      const fields = new Set<string>()
-      for (const issue of parsed as { path: unknown[] }[]) {
-        const first = issue.path[0]
-        if (typeof first === 'string') fields.add(first)
-      }
-      return { message: 'Проверьте правильность данных', fields }
-    }
-  } catch {
-    // не JSON — обычное текстовое сообщение об ошибке, оставляем как есть
-  }
-  return { message: raw, fields: new Set() }
-}
-// Поля, на которые сервер пожаловался типом/форматом в последней попытке сохранить —
+// parseApiError — общий хелпер (см. lib/utils.ts), тут только серверные ошибки конкретной
+// формы. Поля, на которые сервер пожаловался типом/форматом в последней попытке сохранить —
 // например пустая "Стоимость" уходит как "" (см. известный баг v-model.number на
 // очищенном поле), а не undefined, и клиентская проверка это не ловит.
 const serverFieldErrors = ref<Set<string>>(new Set())
@@ -559,7 +539,7 @@ async function submitCreate() {
                     <Label>ИНН</Label>
                     <Input v-model="legalRepInn" />
                   </div>
-                  <div class="flex flex-col gap-2">
+                  <div class="col-span-2 flex flex-col gap-2">
                     <Label>Адрес регистрации</Label>
                     <Input v-model="legalRepAddress" />
                   </div>

@@ -417,22 +417,29 @@ export class ContractsController {
         // берутся из legalRep*-полей выше, эта запись только для будущей автоподстановки.
         if (contractIsMinor && data.legalRepName) {
           const legalRepUid = `manual-parent-${data.residentIndividualUid}`;
+          // Телефон/адрес/паспорт родителя (2026-08-22) — те же поля ручного ввода, что и у
+          // формы "Новое физическое лицо" (см. schema.prisma), тем же upsert'ом, что и
+          // остальные поля выше. Contract.legalRep* при этом не трогаем — они остаются
+          // неизменным снимком на момент подписания для печати бланка (см. промпт проекта),
+          // это чисто аддитивно обогащает связанную запись Individual для будущей пользы
+          // (поиск/карточка), риска для печати нет.
+          const legalRepIndividualData = {
+            fullName: data.legalRepName,
+            birthDate: data.legalRepBirthDate ?? null,
+            snils: data.legalRepSnils ?? null,
+            inn: data.legalRepInn ?? null,
+            phone: data.legalRepPhone ?? null,
+            address: data.legalRepAddress ?? null,
+            passportSeries: data.legalRepPassportSeries ?? null,
+            passportNumber: data.legalRepPassportNumber ?? null,
+            passportIssuedBy: data.legalRepPassportIssuedBy ?? null,
+            passportIssuedCode: data.legalRepPassportIssuedCode ?? null,
+            passportIssuedAt: data.legalRepPassportIssuedAt ?? null,
+          };
           await tx.individual.upsert({
             where: { fizicheskoyeLitsoUid: legalRepUid },
-            create: {
-              fizicheskoyeLitsoUid: legalRepUid,
-              isManual: true,
-              fullName: data.legalRepName,
-              birthDate: data.legalRepBirthDate ?? null,
-              snils: data.legalRepSnils ?? null,
-              inn: data.legalRepInn ?? null,
-            },
-            update: {
-              fullName: data.legalRepName,
-              birthDate: data.legalRepBirthDate ?? null,
-              snils: data.legalRepSnils ?? null,
-              inn: data.legalRepInn ?? null,
-            },
+            create: { fizicheskoyeLitsoUid: legalRepUid, isManual: true, ...legalRepIndividualData },
+            update: legalRepIndividualData,
           });
           return tx.contract.update({ where: { id: contract.id }, data: { legalRepIndividualUid: legalRepUid } });
         }

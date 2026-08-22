@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { ExternalLink } from 'lucide-vue-next'
+import { ref } from 'vue'
+import { ExternalLink, Plus } from 'lucide-vue-next'
 import EntityTable from '@/components/EntityTable.vue'
+import CreateIndividualDialog from '@/components/CreateIndividualDialog.vue'
+import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createAppColumnHelper } from '@/lib/table'
 import { fetchFacetValues, fetchIndividuals, type Individual } from '@/lib/individuals-api'
 
@@ -36,6 +40,8 @@ const columns = columnHelper.columns([
   columnHelper.accessor('snils', { header: columnLabels.snils, size: 144, minSize: 100 }),
   columnHelper.accessor('inn', { header: columnLabels.inn, size: 144, minSize: 100 }),
 ])
+
+const createDialogRef = ref<InstanceType<typeof CreateIndividualDialog> | null>(null)
 </script>
 
 <template>
@@ -58,6 +64,20 @@ const columns = columnHelper.columns([
         label: 'Открыть карточку физлица',
         getHref: (i: Individual) => `/individuals/${encodeURIComponent(i.fizicheskoyeLitsoUid)}`,
       }"
-    />
+    >
+      <template #actions>
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button size="icon" @click="createDialogRef?.open()">
+              <Plus />
+              <span class="sr-only">Новое физическое лицо</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Новое физическое лицо</TooltipContent>
+        </Tooltip>
+      </template>
+    </EntityTable>
+
+    <CreateIndividualDialog ref="createDialogRef" />
   </div>
 </template>

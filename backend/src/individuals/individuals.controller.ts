@@ -1,4 +1,6 @@
-import { ConflictException, Controller, Get, HttpCode, NotFoundException, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, ConflictException, Controller, Get, HttpCode, NotFoundException, Param, Post, Body, Query, UseGuards } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { z } from 'zod';
 import { Prisma } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -8,6 +10,26 @@ import { sortPassportsByPriority } from './passport-priority';
 import { pickLatestContactInfo } from './contact-info-priority';
 import { IndividualSyncService, type IndividualSyncResult } from '../individual-sync/individual-sync.service';
 import { SyncAlreadyRunningError } from '../sync/sync.errors';
+
+// Форма "Новое физическое лицо" (Individuals.vue) — заводит физлицо руками, не через
+// синхрон 1С. Детерминированного uid тут нет (в отличие от manual-parent-* в
+// contracts.controller.ts, где он один на резидента) — просто случайный per вызов.
+const createIndividualSchema = z.object({
+  surname: z.string().trim().min(1),
+  name: z.string().trim().min(1),
+  otchestvo: z.string().trim().min(1).nullish(),
+  birthDate: z.coerce.date(),
+  phone: z.string().trim().min(1),
+  email: z.string().trim().email().nullish(),
+  address: z.string().trim().min(1),
+  snils: z.string().trim().min(1).nullish(),
+  inn: z.string().trim().min(1).nullish(),
+  passportSeries: z.string().trim().min(1).nullish(),
+  passportNumber: z.string().trim().min(1),
+  passportIssuedBy: z.string().trim().min(1).nullish(),
+  passportIssuedCode: z.string().trim().min(1).nullish(),
+  passportIssuedAt: z.coerce.date(),
+});
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -95,6 +117,38 @@ export class IndividualsController {
     ]);
 
     return { data, total, page, pageSize };
+  }
+
+  @Post()
+  async create(@Body() body: unknown) {
+    const parsed = createIndividualSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.message);
+    }
+    const data = parsed.data;
+    const fullName = [data.surname, data.name, data.otchestvo].filter(Boolean).join(' ');
+
+    return this.prisma.individual.create({
+      data: {
+        fizicheskoyeLitsoUid: `manual-${randomUUID()}`,
+        isManual: true,
+        fullName,
+        surname: data.surname,
+        name: data.name,
+        otchestvo: data.otchestvo ?? null,
+        birthDate: data.birthDate,
+        phone: data.phone,
+        email: data.email ?? null,
+        address: data.address,
+        snils: data.snils ?? null,
+        inn: data.inn ?? null,
+        passportSeries: data.passportSeries ?? null,
+        passportNumber: data.passportNumber,
+        passportIssuedBy: data.passportIssuedBy ?? null,
+        passportIssuedCode: data.passportIssuedCode ?? null,
+        passportIssuedAt: data.passportIssuedAt,
+      },
+    });
   }
 
   @Get('facets/:field')
