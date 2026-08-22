@@ -26,6 +26,7 @@ export interface Individual {
   passportIssuedBy: string | null
   passportIssuedCode: string | null
   passportIssuedAt: string | null
+  citizenship: string | null
   createdAt: string
   updatedAt: string
 }
@@ -104,6 +105,8 @@ export interface CreateIndividualInput {
   name: string
   otchestvo?: string | null
   birthDate: string
+  gender?: 'Мужской' | 'Женский' | null
+  citizenship?: string | null
   phone: string
   email?: string | null
   address: string

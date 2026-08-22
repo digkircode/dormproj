@@ -46,6 +46,9 @@ const initials = computed(() =>
 )
 
 const citizenship = computed(() => detail.value?.citizenships[0] ?? null)
+// Ручной ввод (detail.citizenship, см. schema.prisma) — только если нет синхронной записи
+// гражданства (у синхронизируемых физлиц она всегда есть, у ручных — никогда).
+const citizenshipDisplay = computed(() => citizenship.value?.country ?? detail.value?.citizenship ?? null)
 
 // Паспорт ручного ввода (см. schema.prisma) — не настоящая строка Passport (тот синхрон
 // никогда не трогает isManual-физлиц), поэтому синтетическая строка того же вида, только
@@ -102,13 +105,23 @@ interface ContactRow {
   predstavleniye: string | null
 }
 
+// Поля ручного ввода (phone/email/address, см. schema.prisma) — не отдельные строки
+// сбоку, а подстановка в СВОЙ уже существующий тип синхронного блока контактов (иначе
+// значения бы дублировались или показывались не на своём месте). У синхронизируемых
+// физлиц эти поля всегда null, поэтому фолбэк ничего не меняет для них.
+const MANUAL_CONTACT_FALLBACK: Partial<Record<string, () => string | null | undefined>> = {
+  'Телефон мобильный': () => detail.value?.phone,
+  Email: () => detail.value?.email,
+  'Адрес по прописке': () => detail.value?.address,
+}
+
 const contactRows = computed<ContactRow[]>(() => {
   const byType = new Map((detail.value?.contactInfos ?? []).map((c) => [c.type, c]))
   const extraTypes = [...byType.keys()].filter((type) => !CONTACT_TYPE_ORDER.includes(type)).sort((a, b) => a.localeCompare(b, 'ru'))
   return [...CONTACT_TYPE_ORDER, ...extraTypes].map((type) => ({
     key: type,
     type,
-    predstavleniye: byType.get(type)?.predstavleniye ?? null,
+    predstavleniye: byType.get(type)?.predstavleniye ?? MANUAL_CONTACT_FALLBACK[type]?.() ?? null,
   }))
 })
 
@@ -200,39 +213,44 @@ onUnmounted(() => {
             </Avatar>
             <div class="flex flex-col gap-1 pt-1">
               <div class="text-xl font-semibold">{{ detail.fullName }}</div>
-              <button
-                type="button"
-                class="grid w-fit items-center text-xs text-muted-foreground hover:text-foreground"
-                @click="copyValue('uid', detail.fizicheskoyeLitsoUid)"
-              >
-                <Transition enter-active-class="animate-in fade-in-0 duration-200" leave-active-class="animate-out fade-out-0 duration-200">
-                  <span v-if="copiedField === 'uid'" key="copied" class="col-start-1 row-start-1 flex items-center gap-1.5">
-                    <Check class="size-3.5 shrink-0 text-emerald-500" />
-                    <span>Скопировано</span>
-                  </span>
-                  <span v-else key="value" class="col-start-1 row-start-1 flex items-center gap-1.5">
-                    <Copy class="size-3.5 shrink-0" />
-                    <span>{{ detail.fizicheskoyeLitsoUid }}</span>
-                  </span>
-                </Transition>
-              </button>
-              <button
-                type="button"
-                class="grid w-fit items-center text-xs text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-                :disabled="!detail.code"
-                @click="copyValue('code', detail.code)"
-              >
-                <Transition enter-active-class="animate-in fade-in-0 duration-200" leave-active-class="animate-out fade-out-0 duration-200">
-                  <span v-if="copiedField === 'code'" key="copied" class="col-start-1 row-start-1 flex items-center gap-1.5">
-                    <Check class="size-3.5 shrink-0 text-emerald-500" />
-                    <span>Скопировано</span>
-                  </span>
-                  <span v-else key="value" class="col-start-1 row-start-1 flex items-center gap-1.5">
-                    <Copy class="size-3.5 shrink-0" />
-                    <span>{{ detail.code ?? '—' }}</span>
-                  </span>
-                </Transition>
-              </button>
+              <!-- Копирование UID/кода 1С — только у синхронизируемых физлиц, у ручных
+                   (isManual) это не настоящий код/guid из 1С, а синтетический
+                   технический ключ, копировать его пользователю незачем. -->
+              <template v-if="!detail.isManual">
+                <button
+                  type="button"
+                  class="grid w-fit items-center text-xs text-muted-foreground hover:text-foreground"
+                  @click="copyValue('uid', detail.fizicheskoyeLitsoUid)"
+                >
+                  <Transition enter-active-class="animate-in fade-in-0 duration-200" leave-active-class="animate-out fade-out-0 duration-200">
+                    <span v-if="copiedField === 'uid'" key="copied" class="col-start-1 row-start-1 flex items-center gap-1.5">
+                      <Check class="size-3.5 shrink-0 text-emerald-500" />
+                      <span>Скопировано</span>
+                    </span>
+                    <span v-else key="value" class="col-start-1 row-start-1 flex items-center gap-1.5">
+                      <Copy class="size-3.5 shrink-0" />
+                      <span>{{ detail.fizicheskoyeLitsoUid }}</span>
+                    </span>
+                  </Transition>
+                </button>
+                <button
+                  type="button"
+                  class="grid w-fit items-center text-xs text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                  :disabled="!detail.code"
+                  @click="copyValue('code', detail.code)"
+                >
+                  <Transition enter-active-class="animate-in fade-in-0 duration-200" leave-active-class="animate-out fade-out-0 duration-200">
+                    <span v-if="copiedField === 'code'" key="copied" class="col-start-1 row-start-1 flex items-center gap-1.5">
+                      <Check class="size-3.5 shrink-0 text-emerald-500" />
+                      <span>Скопировано</span>
+                    </span>
+                    <span v-else key="value" class="col-start-1 row-start-1 flex items-center gap-1.5">
+                      <Copy class="size-3.5 shrink-0" />
+                      <span>{{ detail.code ?? '—' }}</span>
+                    </span>
+                  </Transition>
+                </button>
+              </template>
             </div>
           </div>
 
@@ -279,7 +297,7 @@ onUnmounted(() => {
         <div class="flex flex-col divide-y divide-border pt-4 lg:w-64 lg:shrink-0 lg:pt-0 lg:pl-6">
           <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
             <span class="text-muted-foreground">Гражданство</span>
-            <span>{{ citizenship?.country ?? '—' }}</span>
+            <span>{{ citizenshipDisplay ?? '—' }}</span>
           </div>
           <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
             <span class="text-muted-foreground">Дата рождения</span>
@@ -296,22 +314,6 @@ onUnmounted(() => {
           <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
             <span class="text-muted-foreground">ИНН</span>
             <span>{{ detail.inn ?? '—' }}</span>
-          </div>
-          <!-- Телефон/email/адрес — поля ручного ввода (см. schema.prisma), заполнены
-               только у физлиц, заведённых через "Новое физическое лицо" или как родитель
-               несовершеннолетнего; у синхронизируемых из 1С — всегда "—" (их контакты
-               смотреть в блоке контактной информации слева, из ContactInfo). -->
-          <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
-            <span class="text-muted-foreground">Телефон</span>
-            <span>{{ detail.phone ?? '—' }}</span>
-          </div>
-          <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
-            <span class="text-muted-foreground">Email</span>
-            <span>{{ detail.email ?? '—' }}</span>
-          </div>
-          <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
-            <span class="text-muted-foreground">Адрес регистрации</span>
-            <span>{{ detail.address ?? '—' }}</span>
           </div>
         </div>
       </Card>

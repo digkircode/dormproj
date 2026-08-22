@@ -88,6 +88,9 @@ model Individual {
   passportIssuedBy     String?   @map("passport_issued_by")
   passportIssuedCode   String?   @map("passport_issued_code")
   passportIssuedAt     DateTime? @map("passport_issued_at")
+  // Гражданство ручного ввода — как и остальные поля выше, только для isManual; у
+  // синхронизируемых физлиц гражданство приходит через связь citizenships (история по period).
+  citizenship          String?   @map("citizenship")
 
   citizenships Citizenship[]
   passports    Passport[]

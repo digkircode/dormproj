@@ -15,7 +15,7 @@ import { createContract, fetchLegalRepPrefill, type DailyRateCategory } from '@/
 import { fetchIndividuals, fetchIndividualDetail, type Individual } from '@/lib/individuals-api'
 import { fetchRoomsTree, fetchRoomDetail, type RoomTreeItem } from '@/lib/rooms-api'
 import { fetchDormitoryInfo } from '@/lib/dormitory-info-api'
-import { blockNonNumericKeys, parseApiError } from '@/lib/utils'
+import { blockNonDigitKeys, blockNonNumericKeys, formatSnils, formatSubdivisionCode, parseApiError } from '@/lib/utils'
 
 const router = useRouter()
 
@@ -24,6 +24,11 @@ const DIALOG_ANIMATE_CLASS =
 // Скрывает нативные стрелочки +/- у <input type="number"> (Chrome/Safari + Firefox) —
 // та же константа, что в Rooms.vue/RoomDetailPanel.vue.
 const NO_SPINNER_CLASS = '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
+// Те же классы, что и у components/ui/input/Input.vue — для голых <input> с собственной
+// маской (СНИЛС/код подразделения родителя), см. соответствующие поля ниже и
+// CreateIndividualDialog.vue (тот же приём).
+const MASK_INPUT_CLASS =
+  'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground transition-shadow focus-visible:outline-none focus-visible:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/20 focus-visible:shadow-sm disabled:cursor-not-allowed disabled:opacity-50'
 // Тот же fade, что и у переключения содержимого в RoomDetailPanel.vue — единообразная
 // анимация появления полей по всему приложению.
 const REVEAL_TRANSITION = {
@@ -35,6 +40,21 @@ function formatDateIso(iso: string): string {
   const date = new Date(iso)
   const pad = (n: number) => n.toString().padStart(2, '0')
   return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
+}
+
+// СНИЛС/код подразделения родителя — цифровая маска с разделителями, тот же приём
+// (formatSnils/formatSubdivisionCode, см. lib/utils.ts), что и в CreateIndividualDialog.vue.
+function onLegalRepSnilsInput(event: Event) {
+  const input = event.target as HTMLInputElement
+  const formatted = formatSnils(input.value)
+  input.value = formatted
+  legalRepSnils.value = formatted
+}
+function onLegalRepPassportIssuedCodeInput(event: Event) {
+  const input = event.target as HTMLInputElement
+  const formatted = formatSubdivisionCode(input.value)
+  input.value = formatted
+  legalRepPassportIssuedCode.value = formatted
 }
 
 const isDialogOpen = ref(false)
@@ -513,7 +533,16 @@ async function submitCreate() {
                   </div>
                   <div class="flex flex-col gap-2">
                     <Label>СНИЛС</Label>
-                    <Input v-model="legalRepSnils" />
+                    <!-- Голый <input>, не обёртка Input.vue — та держит свой внутренний
+                         v-model на том же нативном 'input'-событии, что и наш @input-хендлер
+                         маски — гонка (та же ловушка, что и в DatePickerField.vue). -->
+                    <input
+                      :value="legalRepSnils"
+                      :class="MASK_INPUT_CLASS"
+                      placeholder="000-000-000 00"
+                      @input="onLegalRepSnilsInput"
+                      @keydown="blockNonDigitKeys"
+                    />
                   </div>
                   <div class="flex flex-col gap-2">
                     <Label>Паспорт: серия</Label>
@@ -524,16 +553,22 @@ async function submitCreate() {
                     <Input v-model="legalRepPassportNumber" />
                   </div>
                   <div class="flex flex-col gap-2">
-                    <Label>Кем выдан</Label>
-                    <Input v-model="legalRepPassportIssuedBy" />
-                  </div>
-                  <div class="flex flex-col gap-2">
                     <Label>Код подразделения</Label>
-                    <Input v-model="legalRepPassportIssuedCode" />
+                    <input
+                      :value="legalRepPassportIssuedCode"
+                      :class="MASK_INPUT_CLASS"
+                      placeholder="000-000"
+                      @input="onLegalRepPassportIssuedCodeInput"
+                      @keydown="blockNonDigitKeys"
+                    />
                   </div>
                   <div class="flex flex-col gap-2">
                     <Label>Дата выдачи</Label>
                     <DatePickerField v-model="legalRepPassportIssuedAt" />
+                  </div>
+                  <div class="col-span-2 flex flex-col gap-2">
+                    <Label>Кем выдан</Label>
+                    <Input v-model="legalRepPassportIssuedBy" />
                   </div>
                   <div class="flex flex-col gap-2">
                     <Label>ИНН</Label>

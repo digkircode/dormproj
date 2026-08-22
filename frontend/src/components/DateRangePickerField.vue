@@ -18,7 +18,7 @@ import {
 } from 'reka-ui'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { applyDateMask, blockNonDigitKeys, cn } from '@/lib/utils'
+import { cn, digitsToDateTemplate, handleDateMaskKeydown } from '@/lib/utils'
 
 // Голый <input>, не обёртка Input.vue — см. подробное объяснение в DatePickerField.vue
 // (гонка между внутренним v-model обёртки и внешним @input-обработчиком маски).
@@ -74,21 +74,38 @@ watch(to, (value) => {
   toText.value = value ? formatDate(value) : ''
 })
 
-// Пишем в DOM синхронно, а не только через реактивный :value — иначе при быстром
-// вводе/автоповторе клавиши браузер успевает вставить следующий символ раньше, чем
-// долетит реактивный ререндер, и лишние цифры (например в годе) проскакивают мимо маски
-// (см. подробности в DatePickerField.vue).
+// Цифры/Backspace/Delete — на @keydown (handleDateMaskKeydown, см. DatePickerField.vue
+// и lib/utils.ts — перезаписывает символ под кареткой, не пересобирает всё значение).
+// @input — только фолбэк для вставки/автозаполнения.
+function onFromKeydown(event: KeyboardEvent) {
+  const result = handleDateMaskKeydown(event, fromText.value)
+  if (!result) return
+  const input = event.target as HTMLInputElement
+  input.value = result.value
+  fromText.value = result.value
+  input.setSelectionRange(result.caret, result.caret)
+}
+function onToKeydown(event: KeyboardEvent) {
+  const result = handleDateMaskKeydown(event, toText.value)
+  if (!result) return
+  const input = event.target as HTMLInputElement
+  input.value = result.value
+  toText.value = result.value
+  input.setSelectionRange(result.caret, result.caret)
+}
 function onFromInput(event: Event) {
   const input = event.target as HTMLInputElement
-  const masked = applyDateMask(input.value)
-  input.value = masked
-  fromText.value = masked
+  const templated = digitsToDateTemplate(input.value)
+  input.value = templated
+  fromText.value = templated
+  input.setSelectionRange(templated.length, templated.length)
 }
 function onToInput(event: Event) {
   const input = event.target as HTMLInputElement
-  const masked = applyDateMask(input.value)
-  input.value = masked
-  toText.value = masked
+  const templated = digitsToDateTemplate(input.value)
+  input.value = templated
+  toText.value = templated
+  input.setSelectionRange(templated.length, templated.length)
 }
 
 function commitFrom() {
@@ -152,7 +169,7 @@ const CELL_TRIGGER_CLASS = cn(
       @input="onFromInput"
       @blur="commitFrom"
       @keydown.enter="commitFrom"
-      @keydown="blockNonDigitKeys"
+      @keydown="onFromKeydown"
     />
     <span class="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground">–</span>
     <div class="relative flex items-center">
@@ -163,7 +180,7 @@ const CELL_TRIGGER_CLASS = cn(
         @input="onToInput"
         @blur="commitTo"
         @keydown.enter="commitTo"
-        @keydown="blockNonDigitKeys"
+        @keydown="onToKeydown"
       />
       <Popover :open="isOpen" @update:open="(v) => (isOpen = v)">
         <PopoverTrigger as-child>

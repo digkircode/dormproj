@@ -5,10 +5,10 @@ import { parseDate, type DateValue } from '@internationalized/date'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { applyDateMask, blockNonDigitKeys, cn } from '@/lib/utils'
+import { cn, digitsToDateTemplate, handleDateMaskKeydown } from '@/lib/utils'
 
-// Голый <input>, не обёртка Input.vue — у нашего @input-обработчика (applyDateMask)
-// и внутреннего v-model самой Input.vue происходит гонка за то, что реально показать в
+// Голый <input>, не обёртка Input.vue — у нашего @keydown/@input-обработчиков и
+// внутреннего v-model самой Input.vue произошла бы гонка за то, что реально показать в
 // DOM (тот же класс бага, что задокументирован в промпте проекта для type="number":
 // два независимых источника правды на одном элементе). Один явный источник — надёжно.
 const INPUT_CLASS =
@@ -52,14 +52,25 @@ watch(model, (value) => {
   text.value = value ? formatDate(value) : ''
 })
 
+// Цифры/Backspace/Delete обрабатываются на @keydown (handleDateMaskKeydown — см.
+// lib/utils.ts, перезаписывает символ под кареткой, а не пересобирает всё значение).
+// @input остаётся только как фолбэк для вставки/автозаполнения — тех путей, что не
+// проходят через keydown вообще.
+function onTextKeydown(event: KeyboardEvent) {
+  const result = handleDateMaskKeydown(event, text.value)
+  if (!result) return
+  const input = event.target as HTMLInputElement
+  input.value = result.value
+  text.value = result.value
+  input.setSelectionRange(result.caret, result.caret)
+}
+
 function onTextInput(event: Event) {
   const input = event.target as HTMLInputElement
-  const masked = applyDateMask(input.value)
-  // Пишем в DOM синхронно, а не только через реактивный :value — иначе при быстром
-  // вводе/автоповторе клавиши браузер успевает вставить следующий символ раньше, чем
-  // долетит реактивный ререндер, и лишние цифры (например в годе) проскакивают мимо маски.
-  input.value = masked
-  text.value = masked
+  const templated = digitsToDateTemplate(input.value)
+  input.value = templated
+  text.value = templated
+  input.setSelectionRange(templated.length, templated.length)
 }
 
 function commitText() {
@@ -91,7 +102,7 @@ function onSelect(value: DateValue | undefined) {
       @input="onTextInput"
       @blur="commitText"
       @keydown.enter="commitText"
-      @keydown="blockNonDigitKeys"
+      @keydown="onTextKeydown"
     />
     <Popover :open="isOpen" @update:open="(v) => (isOpen = v)">
       <PopoverTrigger as-child>

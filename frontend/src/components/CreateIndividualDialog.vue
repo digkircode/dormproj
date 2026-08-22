@@ -5,17 +5,22 @@ import { UserRound, Contact, IdCard } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import DatePickerField from '@/components/DatePickerField.vue'
 import PhoneInput from '@/components/PhoneInput.vue'
 import { createIndividual } from '@/lib/individuals-api'
-import { parseApiError } from '@/lib/utils'
+import { blockNonDigitKeys, formatSnils, formatSubdivisionCode, isValidEmailFormat, parseApiError } from '@/lib/utils'
 
 const router = useRouter()
 
 // Тот же fade-переход открытия/закрытия, что у остальных диалогов (CreateContractDialog.vue).
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
+// Те же классы, что и у components/ui/input/Input.vue — для голых <input> с собственной
+// маской (СНИЛС/код подразделения), см. комментарий у соответствующих полей ниже.
+const MASK_INPUT_CLASS =
+  'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground transition-shadow focus-visible:outline-none focus-visible:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/20 focus-visible:shadow-sm disabled:cursor-not-allowed disabled:opacity-50'
 
 const isDialogOpen = ref(false)
 const isSaving = ref(false)
@@ -27,6 +32,8 @@ const surname = ref('')
 const name = ref('')
 const otchestvo = ref('')
 const birthDate = ref('')
+const gender = ref<'Мужской' | 'Женский' | ''>('')
+const citizenship = ref('')
 
 const phone = ref('')
 const email = ref('')
@@ -53,7 +60,25 @@ const birthDateInvalid = computedInvalid(() => !birthDate.value)
 const addressInvalid = computedInvalid(() => !address.value.trim())
 const passportNumberInvalid = computedInvalid(() => !passportNumber.value.trim())
 const passportIssuedAtInvalid = computedInvalid(() => !passportIssuedAt.value)
-const emailInvalid = computedInvalid(() => serverFieldErrors.value.has('email'))
+const emailInvalid = computedInvalid(
+  () => serverFieldErrors.value.has('email') || (!!email.value.trim() && !isValidEmailFormat(email.value.trim())),
+)
+
+// СНИЛС/код подразделения — цифровая маска с разделителями (formatSnils/
+// formatSubdivisionCode, см. lib/utils.ts), тот же приём, что и в CreateContractDialog.vue
+// для полей родителя.
+function onSnilsInput(event: Event) {
+  const input = event.target as HTMLInputElement
+  const formatted = formatSnils(input.value)
+  input.value = formatted
+  snils.value = formatted
+}
+function onPassportIssuedCodeInput(event: Event) {
+  const input = event.target as HTMLInputElement
+  const formatted = formatSubdivisionCode(input.value)
+  input.value = formatted
+  passportIssuedCode.value = formatted
+}
 
 async function open() {
   dialogError.value = ''
@@ -63,6 +88,8 @@ async function open() {
   name.value = ''
   otchestvo.value = ''
   birthDate.value = ''
+  gender.value = ''
+  citizenship.value = ''
   phone.value = ''
   email.value = ''
   address.value = ''
@@ -90,7 +117,8 @@ async function submitCreate() {
     !phoneValid ||
     !address.value.trim() ||
     !passportNumber.value.trim() ||
-    !passportIssuedAt.value
+    !passportIssuedAt.value ||
+    (!!email.value.trim() && !isValidEmailFormat(email.value.trim()))
   ) {
     dialogError.value = 'Заполните обязательные поля'
     return
@@ -103,6 +131,8 @@ async function submitCreate() {
       name: name.value.trim(),
       otchestvo: otchestvo.value.trim() || null,
       birthDate: birthDate.value,
+      gender: gender.value || null,
+      citizenship: citizenship.value.trim() || null,
       phone: phone.value,
       email: email.value.trim() || null,
       address: address.value.trim(),
@@ -157,6 +187,22 @@ async function submitCreate() {
                 <Label>Дата рождения</Label>
                 <DatePickerField v-model="birthDate" :invalid="birthDateInvalid" />
               </div>
+              <div class="flex flex-col gap-2">
+                <Label>Пол</Label>
+                <Select :model-value="gender || undefined" @update:model-value="(v) => (gender = v as 'Мужской' | 'Женский')">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Не указан" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Мужской">Мужской</SelectItem>
+                    <SelectItem value="Женский">Женский</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div class="flex flex-col gap-2">
+                <Label>Гражданство</Label>
+                <Input v-model="citizenship" />
+              </div>
             </div>
           </div>
         </div>
@@ -193,7 +239,11 @@ async function submitCreate() {
             <div class="grid grid-cols-2 gap-4">
               <div class="flex flex-col gap-2">
                 <Label>СНИЛС</Label>
-                <Input v-model="snils" />
+                <!-- Голый <input>, не обёртка Input.vue — та держит свой внутренний v-model
+                     на том же нативном 'input'-событии, что и наш @input-хендлер маски —
+                     гонка (см. известную ловушку в промпте проекта, тот же приём, что и в
+                     DatePickerField.vue). -->
+                <input :value="snils" :class="MASK_INPUT_CLASS" placeholder="000-000-000 00" @input="onSnilsInput" @keydown="blockNonDigitKeys" />
               </div>
               <div class="flex flex-col gap-2">
                 <Label>ИНН</Label>
@@ -208,16 +258,22 @@ async function submitCreate() {
                 <Input v-model="passportNumber" :class="passportNumberInvalid ? 'border-red-500' : ''" />
               </div>
               <div class="flex flex-col gap-2">
-                <Label>Кем выдан</Label>
-                <Input v-model="passportIssuedBy" />
-              </div>
-              <div class="flex flex-col gap-2">
                 <Label>Код подразделения</Label>
-                <Input v-model="passportIssuedCode" />
+                <input
+                  :value="passportIssuedCode"
+                  :class="MASK_INPUT_CLASS"
+                  placeholder="000-000"
+                  @input="onPassportIssuedCodeInput"
+                  @keydown="blockNonDigitKeys"
+                />
               </div>
               <div class="flex flex-col gap-2">
                 <Label>Дата выдачи</Label>
                 <DatePickerField v-model="passportIssuedAt" :invalid="passportIssuedAtInvalid" />
+              </div>
+              <div class="col-span-2 flex flex-col gap-2">
+                <Label>Кем выдан</Label>
+                <Input v-model="passportIssuedBy" />
               </div>
             </div>
           </div>
