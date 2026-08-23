@@ -99,9 +99,9 @@ const data = {
       name: 'Пользователи',
       icon: Users,
       items: [
+        { title: 'Список пользователей', url: '/users-all' },
         { title: 'Сотрудники', url: '/users' },
         { title: 'Роли', url: '/roles' },
-        { title: 'Список пользователей', url: '/users-all' },
       ],
     },
   ],

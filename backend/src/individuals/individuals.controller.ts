@@ -72,13 +72,17 @@ const AUDITED_INDIVIDUAL_UPDATE_FIELDS = [
   'passportIssuedAt',
 ];
 
-// Пустая строка/undefined — "поле очищено", null (не отправлено) — не трогать. Форма
-// правки всегда шлёт целиком текущее+изменённое состояние (как и форма создания), не
-// частичный PATCH — поэтому именно "пусто = очистить", а не "пусто = не менять".
+// Пустая строка/undefined/null — "поле очищено". Форма правки всегда шлёт целиком
+// текущее+изменённое состояние (как и форма создания), не частичный PATCH — поэтому
+// именно "пусто = очистить". nullish() (не optional()) обязателен — фронт для пустых
+// полей шлёт буквально null (см. EditIndividualDialog.vue: `field.value.trim() || null`),
+// а не undefined — optional() такое null отклоняет, из-за чего почти любое сохранение
+// с хотя бы одним пустым необязательным полем падало на валидации ("Проверьте
+// правильность данных" на любую правку, баг 2026-08-23).
 const clearableText = z
   .string()
   .trim()
-  .optional()
+  .nullish()
   .transform((v) => (v && v.length > 0 ? v : null));
 
 const updateIndividualSchema = z.object({
@@ -92,7 +96,7 @@ const updateIndividualSchema = z.object({
   registrationAddress: clearableText,
   residenceAddress: clearableText,
   phone: clearableText,
-  email: z.union([z.literal(''), z.string().trim().email()]).optional().transform((v) => (v ? v : null)),
+  email: z.union([z.literal(''), z.string().trim().email()]).nullish().transform((v) => (v ? v : null)),
   snils: clearableText,
   inn: clearableText,
   passportSeries: clearableText,
