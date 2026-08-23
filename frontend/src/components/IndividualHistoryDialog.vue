@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { ChevronRight, CirclePlus, Pencil, Trash2 } from 'lucide-vue-next'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { fetchIndividualAuditLog, type IndividualAuditLogEntry } from '@/lib/individuals-api'
@@ -8,6 +9,12 @@ const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
 
 const ACTION_LABELS: Record<string, string> = { CREATE: 'Создание', UPDATE: 'Изменение', DELETE: 'Удаление' }
+const ACTION_ICONS: Record<string, unknown> = { CREATE: CirclePlus, UPDATE: Pencil, DELETE: Trash2 }
+const ACTION_ICON_CLASS: Record<string, string> = {
+  CREATE: 'text-emerald-600 dark:text-emerald-400',
+  UPDATE: 'text-primary',
+  DELETE: 'text-red-500',
+}
 
 // Те же имена полей, что в AUDITED_INDIVIDUAL_FIELDS/AUDITED_INDIVIDUAL_UPDATE_FIELDS на
 // бэкенде (individuals.controller.ts) — иначе они показывались бы как есть по-английски
@@ -39,12 +46,16 @@ const isOpen = ref(false)
 const isLoading = ref(false)
 const loadError = ref('')
 const entries = ref<IndividualAuditLogEntry[]>([])
+// Таблица изменений по умолчанию свёрнута (по прямой просьбе) — раскрывается по клику
+// на саму запись, id записи в наборе = раскрыта. Сбрасывается при каждом открытии диалога.
+const expandedIds = ref<Set<number>>(new Set())
 
 async function open(uid: string) {
   isOpen.value = true
   isLoading.value = true
   loadError.value = ''
   entries.value = []
+  expandedIds.value = new Set()
   try {
     entries.value = await fetchIndividualAuditLog(uid)
   } catch (error) {
@@ -55,6 +66,13 @@ async function open(uid: string) {
 }
 
 defineExpose({ open })
+
+function toggleExpanded(id: number) {
+  const next = new Set(expandedIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  expandedIds.value = next
+}
 
 function formatDateTime(iso: string): string {
   const d = new Date(iso)
@@ -86,13 +104,29 @@ function formatValue(value: unknown): string {
       <p v-else-if="entries.length === 0" class="text-sm text-muted-foreground">Изменений пока не было</p>
 
       <div v-for="entry in entries" :key="entry.id" class="flex flex-col gap-2 rounded-md border p-3">
-        <div class="flex items-center justify-between text-sm">
-          <span class="font-medium">{{ ACTION_LABELS[entry.action] ?? entry.action }}</span>
+        <button
+          type="button"
+          class="flex items-center justify-between gap-2 text-left text-sm"
+          :disabled="!entry.changes || Object.keys(entry.changes).length === 0"
+          @click="toggleExpanded(entry.id)"
+        >
+          <span class="flex items-center gap-1.5 font-medium">
+            <ChevronRight
+              v-if="entry.changes && Object.keys(entry.changes).length > 0"
+              class="size-4 shrink-0 text-muted-foreground transition-transform"
+              :class="{ 'rotate-90': expandedIds.has(entry.id) }"
+            />
+            <component :is="ACTION_ICONS[entry.action]" class="size-4 shrink-0" :class="ACTION_ICON_CLASS[entry.action]" />
+            {{ ACTION_LABELS[entry.action] ?? entry.action }}
+          </span>
           <span class="text-muted-foreground">{{ entry.userFullName }} · {{ formatDateTime(entry.createdAt) }}</span>
-        </div>
-        <div v-if="entry.changes && Object.keys(entry.changes).length > 0" class="overflow-hidden rounded-md border">
+        </button>
+        <div
+          v-if="expandedIds.has(entry.id) && entry.changes && Object.keys(entry.changes).length > 0"
+          class="overflow-hidden rounded-md border"
+        >
           <Table>
-            <TableHeader>
+            <TableHeader class="bg-muted">
               <TableRow>
                 <TableHead>Поле</TableHead>
                 <TableHead>Было</TableHead>

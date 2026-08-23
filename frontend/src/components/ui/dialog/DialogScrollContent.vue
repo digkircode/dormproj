@@ -34,7 +34,10 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
       <DialogContent
         :class="
           cn(
-            'relative z-50 grid w-full max-w-lg my-8 gap-4 border border-border bg-background p-6 shadow-lg duration-200 will-change-transform sm:rounded-lg md:w-full',
+            // max-h-[70vh] — модалка не выше 70% экрана (отступ ~15% сверху/снизу за счёт
+            // place-items:safe_center на оверлее), overflow-y-auto — скролл внутри самой
+            // модалки, а не всей страницы/оверлея, как было раньше (см. my-8 в старой версии).
+            'relative z-50 grid w-full max-w-lg max-h-[70vh] gap-4 overflow-y-auto border border-border bg-background p-6 shadow-lg duration-200 will-change-transform sm:rounded-lg md:w-full',
             props.class,
           )
         "
