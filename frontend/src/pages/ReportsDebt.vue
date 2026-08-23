@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { AlertTriangle, ArrowLeft, Banknote, Download, Info, Percent, Users, Wallet } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell, TableFooter } from '@/components/ui/table'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import EntityTable from '@/components/EntityTable.vue'
@@ -254,10 +255,15 @@ async function onExport() {
       <template #actions>
         <span class="text-sm text-muted-foreground">На дату</span>
         <DatePickerField v-model="asOf" />
-        <Button variant="outline" size="sm" :loading="isExporting" @click="onExport">
-          <Download class="size-4" />
-          Экспорт в Excel
-        </Button>
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button size="icon" :loading="isExporting" @click="onExport">
+              <Download />
+              <span class="sr-only">Экспорт в Excel</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Экспорт в Excel</TooltipContent>
+        </Tooltip>
       </template>
     </EntityTable>
     <p v-if="exportError" class="text-sm text-red-500">{{ exportError }}</p>

@@ -33,12 +33,14 @@ function formatMoney(value: Prisma.Decimal | number | null | undefined): string 
 // там и так широкая ячейка). Там, где есть запасная строка (см. buildDocumentData),
 // печатаем раздельно: кем выдан — своей строкой, код+дата — своей, каждая с рамкой.
 function formatIssuedInfo(issuedBy: string | null, issuedCode: string | null, issuedAt: Date | string | null): string {
-  const parts = [issuedBy, issuedCode ? `код ${issuedCode}` : null, formatDateShort(issuedAt) || null].filter(Boolean);
+  const dateShort = formatDateShort(issuedAt);
+  const parts = [issuedBy, issuedCode ? `КП: ${issuedCode}` : null, dateShort ? `Дата: ${dateShort}` : null].filter(Boolean);
   return parts.join(', ');
 }
 
 function formatIssuedCodeDateLine(issuedCode: string | null, issuedAt: Date | string | null): string {
-  const parts = [issuedCode ? `код ${issuedCode}` : null, formatDateShort(issuedAt) || null].filter(Boolean);
+  const dateShort = formatDateShort(issuedAt);
+  const parts = [issuedCode ? `КП: ${issuedCode}` : null, dateShort ? `Дата: ${dateShort}` : null].filter(Boolean);
   return parts.join(', ');
 }
 
@@ -152,10 +154,14 @@ export function buildDocumentData(
   room: { room: string } | null,
   communalServicesCost: Prisma.Decimal | null,
 ): Record<string, string | boolean> {
+  // Без данных — оставляем п.5.5 как в исходном макете (подчёркивания под заполнение от
+  // руки), а не тире: тире тут смотрелось чужеродно рядом с уже нетронутыми "________"
+  // в следующем абзаце того же пункта ("с возможностью отсрочки..." — отдельный статичный
+  // абзац бланка, {matCapitalText} его не касается, см. contract-minor.docx).
   const matCapitalText =
     contract.matCapitalCoveredFrom && contract.matCapitalCoveredTo && contract.matCapitalAmount !== null
       ? `за период с ${formatDateShort(contract.matCapitalCoveredFrom)} по ${formatDateShort(contract.matCapitalCoveredTo)} в сумме ${formatMoney(contract.matCapitalAmount)}`
-      : '—';
+      : 'за период с ______________ по ______________ в сумме _______________________';
 
   const isOwnUniversity = terms?.dailyRateCategory === 'OWN_UNIVERSITY';
   const residenceReasonText = isOwnUniversity ? 'обучением в АНО ВО «РосНОУ»' : (contract.residenceReason ?? '');
@@ -210,11 +216,6 @@ export function buildDocumentData(
     residentFullNameShort: surnameWithInitials(resident.fullName),
     residentFullNameSurname: residentName.surname,
     residentFullNameRest: residentName.rest,
-    // Только для узкой ячейки "(Ф.И.О. полностью)" в конце бланка несовершеннолетнего —
-    // там нет запасной строки-ячейки (в отличие от других мест с фамилией/именем на
-    // разных строках), переносом внутри одной ячейки, тот же приём, что и
-    // residentInstituteCourseStacked ниже.
-    residentFullNameStacked: [residentName.surname, residentName.rest].filter(Boolean).join('\n'),
     residentBirthDateShort: formatDateShort(resident.birthDate),
     residentPassportSeries: resident.passportSeries ?? '',
     residentPassportNumber: resident.passportNumber ?? '',

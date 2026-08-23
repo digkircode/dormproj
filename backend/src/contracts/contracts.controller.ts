@@ -27,7 +27,7 @@ import { computePenaltyBalance } from '../billing/penalty-balance';
 import { dateOnly } from '../billing/period-utils';
 import { serializeAccrual, serializePayment, serializeTerms } from './serializers';
 import { isMinorAt } from './minor';
-import { buildResidentSnapshot, type ResidentSnapshot } from './resident-snapshot';
+import { buildResidentSnapshot, fillManualFallbacks, type ResidentSnapshot } from './resident-snapshot';
 import { renderContractDocument } from './contract-document';
 import { buildDocumentData } from './contract-document-data';
 
@@ -638,7 +638,17 @@ export class ContractsController {
       contract = { ...contract, residentSnapshot: snapshot as unknown as Prisma.JsonValue };
     }
 
-    const resident = contract.residentSnapshot as unknown as ResidentSnapshot;
+    // Снимок мог быть сохранён ДО фикса isManual-фолбэка (2026-08-23) — телефон/адрес/
+    // паспорт в нём тогда пустые, хотя у физлица они введены вручную. Снимок целиком не
+    // пересобираем (не должен "плыть" от текущих данных), но именно эти пустые поля
+    // дозаполняем текущими значениями Individual при каждой печати, см. fillManualFallbacks.
+    const individualForFallback = await this.prisma.individual.findUnique({
+      where: { fizicheskoyeLitsoUid: contract.residentIndividualUid },
+      select: { phone: true, address: true, passportSeries: true, passportNumber: true, passportIssuedBy: true, passportIssuedCode: true, passportIssuedAt: true },
+    });
+    const resident = fillManualFallbacks(contract.residentSnapshot as unknown as ResidentSnapshot, individualForFallback ?? {
+      phone: null, address: null, passportSeries: null, passportNumber: null, passportIssuedBy: null, passportIssuedCode: null, passportIssuedAt: null,
+    });
     const terms = contract.terms[0];
     const room = contract.roomAssignments[0]?.room ?? null;
     const isMinorContract = contract.legalRepIndividualUid !== null;

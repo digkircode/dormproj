@@ -2,8 +2,11 @@ import { Prisma } from '../../generated/prisma/client.js';
 import { pickLatestContactInfo } from '../individuals/contact-info-priority';
 
 // Типы ContactInfo, из которых берём адрес/телефон проживающего для печати — те же типы,
-// что использует карточка физлица (см. contact-info-priority.ts).
-const ADDRESS_TYPE = 'Адрес по прописке';
+// что использует карточка физлица (см. contact-info-priority.ts). Адрес места жительства —
+// в приоритете над адресом по прописке (обычно это фактическое место проживания
+// проживающего, прописка — только запасной вариант, если первого нет).
+const RESIDENCE_ADDRESS_TYPE = 'Адрес места проживания';
+const REGISTRATION_ADDRESS_TYPE = 'Адрес по прописке';
 const PHONE_TYPE = 'Телефон мобильный';
 
 export interface ResidentSnapshot {
@@ -39,22 +42,64 @@ export async function buildResidentSnapshot(
   ]);
 
   const latestContacts = pickLatestContactInfo(contactInfos);
-  const address = latestContacts.find((c) => c.type === ADDRESS_TYPE)?.predstavleniye ?? null;
-  const phone = latestContacts.find((c) => c.type === PHONE_TYPE)?.phoneNumber ?? null;
+  // Адрес — место жительства, если есть, иначе прописка, иначе (для isManual-физлиц, у
+  // которых обеих строк ContactInfo нет вообще) ручное поле Individual.address — та же
+  // роль, что оно уже играет как фолбэк "Адреса по прописке" на карточке физлица
+  // (см. MANUAL_CONTACT_FALLBACK в IndividualDetail.vue).
+  const address =
+    latestContacts.find((c) => c.type === RESIDENCE_ADDRESS_TYPE)?.predstavleniye ??
+    latestContacts.find((c) => c.type === REGISTRATION_ADDRESS_TYPE)?.predstavleniye ??
+    individual.address ??
+    null;
+  // Телефон/паспорт — та же история: у физлиц, заведённых вручную (isManual, включая
+  // автосозданного родителя несовершеннолетнего), нет ни ContactInfo, ни Passport — данные
+  // введены прямо в Individual (см. миграцию individual_manual_fields), печать раньше их
+  // не читала вообще, отсюда пустые "Контактный телефон"/паспортные поля в бланке.
+  const phone = latestContacts.find((c) => c.type === PHONE_TYPE)?.phoneNumber ?? individual.phone ?? null;
 
   return {
     fullName: individual.fullName,
     birthDate: individual.birthDate?.toISOString() ?? null,
     snils: individual.snils ?? null,
-    passportSeries: latestPassport?.series ?? null,
-    passportNumber: latestPassport?.number ?? null,
-    passportIssuedBy: latestPassport?.unit ?? null,
-    passportIssuedCode: latestPassport?.codeUnit ?? null,
-    passportIssuedAt: latestPassport?.dateStart?.toISOString() ?? null,
+    passportSeries: latestPassport?.series ?? individual.passportSeries ?? null,
+    passportNumber: latestPassport?.number ?? individual.passportNumber ?? null,
+    passportIssuedBy: latestPassport?.unit ?? individual.passportIssuedBy ?? null,
+    passportIssuedCode: latestPassport?.codeUnit ?? individual.passportIssuedCode ?? null,
+    passportIssuedAt: (latestPassport?.dateStart ?? individual.passportIssuedAt)?.toISOString() ?? null,
     address,
     phone,
     facultet: student?.facultet ?? null,
     kursNumber: student?.kursNumber ?? null,
     formObuch: student?.formObuch ?? null,
+  };
+}
+
+// Договоры, созданные ДО фикса isManual-фолбэка выше (2026-08-23), уже хранят снимок с
+// пустыми phone/адресом/паспортом навсегда — Contract.residentSnapshot не пересчитывается
+// на новую печать (сознательный дизайн, см. buildResidentSnapshot). Пересобирать снимок
+// целиком для них не нужно (это бы "поплыло" остальными полями от текущих данных), но
+// именно эти конкретные пустые поля можно безопасно дозаполнить текущими значениями
+// Individual при каждой печати — не трогая уже сохранённый JSON в БД. См. contracts.controller.ts#document.
+export function fillManualFallbacks(
+  snapshot: ResidentSnapshot,
+  individual: {
+    phone: string | null;
+    address: string | null;
+    passportSeries: string | null;
+    passportNumber: string | null;
+    passportIssuedBy: string | null;
+    passportIssuedCode: string | null;
+    passportIssuedAt: Date | null;
+  },
+): ResidentSnapshot {
+  return {
+    ...snapshot,
+    phone: snapshot.phone ?? individual.phone ?? null,
+    address: snapshot.address ?? individual.address ?? null,
+    passportSeries: snapshot.passportSeries ?? individual.passportSeries ?? null,
+    passportNumber: snapshot.passportNumber ?? individual.passportNumber ?? null,
+    passportIssuedBy: snapshot.passportIssuedBy ?? individual.passportIssuedBy ?? null,
+    passportIssuedCode: snapshot.passportIssuedCode ?? individual.passportIssuedCode ?? null,
+    passportIssuedAt: snapshot.passportIssuedAt ?? individual.passportIssuedAt?.toISOString() ?? null,
   };
 }

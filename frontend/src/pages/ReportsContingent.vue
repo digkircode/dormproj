@@ -3,6 +3,7 @@ import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, Download } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import EntityTable from '@/components/EntityTable.vue'
 import ResidentLinkCell from '@/components/ResidentLinkCell.vue'
 import ContractLinkCell from '@/components/ContractLinkCell.vue'
@@ -111,10 +112,15 @@ async function onExport() {
       <template #actions>
         <span class="text-sm text-muted-foreground">На дату</span>
         <DatePickerField v-model="asOf" />
-        <Button variant="outline" size="sm" :loading="isExporting" @click="onExport">
-          <Download class="size-4" />
-          Экспорт в Excel
-        </Button>
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button size="icon" :loading="isExporting" @click="onExport">
+              <Download />
+              <span class="sr-only">Экспорт в Excel</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Экспорт в Excel</TooltipContent>
+        </Tooltip>
       </template>
     </EntityTable>
     <p v-if="exportError" class="text-sm text-red-500">{{ exportError }}</p>
