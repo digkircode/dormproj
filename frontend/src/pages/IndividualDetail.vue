@@ -269,10 +269,16 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- flex-wrap, не grid-cols-2 — кнопки размером по содержимому и прибиты к
-               левому краю, а не растянуты на всю ширину колонки. -->
-          <div class="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" :disabled="isSyncing || syncFeedback !== null || isSyncIconAnimating" @click="runSync">
+          <!-- grid-cols-2 — все 4 кнопки одинаковой ширины (по самой длинной, "Синхронизировать")
+               и с одинаковыми отступами по обеим осям (gap-2), а не по содержимому, как раньше. -->
+          <div class="grid grid-cols-2 gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              class="w-full"
+              :disabled="isSyncing || syncFeedback !== null || isSyncIconAnimating"
+              @click="runSync"
+            >
               <Transition
                 enter-active-class="animate-in fade-in-0 duration-200"
                 leave-active-class="animate-out fade-out-0 duration-200"
@@ -286,15 +292,15 @@ onUnmounted(() => {
               </Transition>
               Синхронизировать
             </Button>
-            <Button size="sm" @click="detail && createDialogRef?.open(detail)">
+            <Button size="sm" class="w-full" @click="detail && createDialogRef?.open(detail)">
               <FileSignature />
               Создать договор
             </Button>
-            <Button variant="outline" size="sm" @click="detail && editDialogRef?.open(detail)">
+            <Button variant="outline" size="sm" class="w-full" @click="detail && editDialogRef?.open(detail)">
               <Pencil class="text-primary" />
               Редактировать
             </Button>
-            <Button variant="outline" size="sm" @click="historyDialogRef?.open(uid)">
+            <Button variant="outline" size="sm" class="w-full" @click="historyDialogRef?.open(uid)">
               <History class="text-primary" />
               История
             </Button>

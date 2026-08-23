@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { STATUS_LABELS, STATUS_ICON, STATUS_ICON_CLASS, STATUS_PILL_CLASS } from '@/lib/contracts-format'
-import type { ContractStatus } from '@/lib/contracts-api'
+import { STATUS_LABELS, STATUS_ICON, STATUS_ICON_CLASS, STATUS_PILL_CLASS, type ContractDisplayStatus } from '@/lib/contracts-format'
 
-defineProps<{ status: ContractStatus }>()
+defineProps<{ status: ContractDisplayStatus }>()
 </script>
 
 <template>

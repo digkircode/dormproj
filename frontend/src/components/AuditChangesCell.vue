@@ -25,7 +25,7 @@ function formatValue(value: unknown): string {
 
 <template>
   <Button variant="outline" size="sm" @click="isOpen = true">
-    <Eye class="size-3.5" />
+    <Eye class="size-3.5 text-primary" />
     {{ Object.keys(row.changes ?? {}).length }} {{ Object.keys(row.changes ?? {}).length === 1 ? 'поле' : 'полей' }}
   </Button>
 

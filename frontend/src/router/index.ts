@@ -25,6 +25,7 @@ import UsersStaff from '@/pages/UsersStaff.vue'
 import UsersRoles from '@/pages/UsersRoles.vue'
 import UsersList from '@/pages/UsersList.vue'
 import AuditLog from '@/pages/AuditLog.vue'
+import StudentGeneralInfo from '@/pages/StudentGeneralInfo.vue'
 
 // Первый этап ролевой модели (см. промпт проекта) — секция страницы определяет, кому
 // она видна: 'staff' — группа "Сотрудник" в сайдбаре (AppSidebar.vue/NavMain.vue),
@@ -35,6 +36,9 @@ const router = createRouter({
   routes: [
     { path: '/', name: 'home', component: Home, meta: { title: 'Главная' } },
     { path: '/403', name: 'forbidden', component: Forbidden, meta: { title: 'Доступ запрещён' } },
+    // Без section — доступна всем залогиненным независимо от роли (в т.ч. без роли
+    // вообще), тот же принцип, что у "Главной" — секция "Студент" в сайдбаре видна всем.
+    { path: '/student/general-info', name: 'student-general-info', component: StudentGeneralInfo, meta: { title: 'Общая информация' } },
     { path: '/students', name: 'students', component: Students, meta: { title: 'Контингент', section: 'admin' } },
     { path: '/sync', name: 'sync', component: Sync, meta: { title: 'Синхронизация', section: 'admin' } },
     {

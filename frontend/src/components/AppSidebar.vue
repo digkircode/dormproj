@@ -10,7 +10,9 @@ import {
   DoorOpen,
   FileText,
   History,
+  Info,
 } from 'lucide-vue-next'
+import NavStudent from '@/components/NavStudent.vue'
 import NavMain from '@/components/NavMain.vue'
 import NavProjects from '@/components/NavProjects.vue'
 import NavUser from '@/components/NavUser.vue'
@@ -51,6 +53,15 @@ const data = {
     {
       name: 'RosNOU',
       plan: 'Общежитие',
+    },
+  ],
+  // Видна всем залогиненным независимо от роли (в т.ч. без роли вообще) — см.
+  // router/index.ts, страницы этой группы без meta.section.
+  navStudent: [
+    {
+      title: 'Общая информация',
+      url: '/student/general-info',
+      icon: Info,
     },
   ],
   navMain: [
@@ -114,6 +125,7 @@ const data = {
       <TeamSwitcher :teams="data.teams" />
     </SidebarHeader>
     <SidebarContent>
+      <NavStudent :items="data.navStudent" />
       <NavMain v-if="canSeeStaffSection" :items="data.navMain" />
       <NavProjects v-if="canSeeAdminSection" :projects="data.projects" />
     </SidebarContent>

@@ -14,7 +14,7 @@ defineProps<{ value: unknown; row?: { roles: Role[] } }>()
       :key="r.id"
       class="flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground"
     >
-      <component :is="roleIcon(r.name)" class="size-3 shrink-0" />
+      <component :is="roleIcon(r.name)" class="size-3 shrink-0 text-primary" />
       {{ roleLabel(r.name) }}
     </span>
   </div>
