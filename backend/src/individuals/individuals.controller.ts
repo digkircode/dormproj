@@ -96,7 +96,9 @@ const updateIndividualSchema = z.object({
   registrationAddress: clearableText,
   residenceAddress: clearableText,
   phone: clearableText,
-  email: z.union([z.literal(''), z.string().trim().email()]).nullish().transform((v) => (v ? v : null)),
+  // Необязательное поле без проверки формата (по прямой просьбе 2026-08-23) — раньше
+  // строгий z.string().email() отклонял правку, если email не похож на почту.
+  email: clearableText,
   snils: clearableText,
   inn: clearableText,
   passportSeries: clearableText,

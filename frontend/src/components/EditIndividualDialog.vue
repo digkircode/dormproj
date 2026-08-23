@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import DatePickerField from '@/components/DatePickerField.vue'
 import { updateIndividual, type IndividualDetail } from '@/lib/individuals-api'
-import { blockNonDigitKeys, formatSnils, formatSubdivisionCode, isValidEmailFormat, parseApiError } from '@/lib/utils'
+import { blockNonDigitKeys, formatSnils, formatSubdivisionCode, parseApiError } from '@/lib/utils'
 
 // "Критическая правка" — пишет напрямую в синхронные таблицы физлица (ContactInfo/
 // Passport/Citizenship), не только в manual-поля Individual (см. backend/src/
@@ -55,9 +55,9 @@ function computedInvalid(check: () => boolean) {
 const surnameInvalid = computedInvalid(() => !surname.value.trim())
 const nameInvalid = computedInvalid(() => !name.value.trim())
 const birthDateInvalid = computedInvalid(() => !birthDate.value)
-const emailInvalid = computedInvalid(
-  () => serverFieldErrors.value.has('email') || (!!email.value.trim() && !isValidEmailFormat(email.value.trim())),
-)
+// Email необязателен и без проверки формата (по прямой просьбе 2026-08-23) — только
+// серверные ошибки поля (если когда-нибудь появятся по другой причине) подсвечивают рамку.
+const emailInvalid = computedInvalid(() => serverFieldErrors.value.has('email'))
 
 function onSnilsInput(event: Event) {
   const input = event.target as HTMLInputElement
@@ -111,7 +111,7 @@ async function submitUpdate() {
   dialogError.value = ''
   serverFieldErrors.value = new Set()
   submitAttempted.value = true
-  if (!surname.value.trim() || !name.value.trim() || !birthDate.value || (!!email.value.trim() && !isValidEmailFormat(email.value.trim()))) {
+  if (!surname.value.trim() || !name.value.trim() || !birthDate.value) {
     dialogError.value = 'Заполните обязательные поля'
     return
   }

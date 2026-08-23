@@ -33,9 +33,15 @@ const isDisabled = computed(() => props.disabled || props.loading)
     :as="as"
     :as-child="asChild"
     :disabled="isDisabled"
-    :class="cn(buttonVariants({ variant, size }), props.class)"
+    :class="cn(buttonVariants({ variant, size }), loading && 'relative', props.class)"
   >
-    <Loader v-if="loading" class="animate-spin" />
-    <slot v-else />
+    <!-- Спиннер поверх исходного содержимого (не вместо него) — контент остаётся в потоке,
+         просто invisible, чтобы кнопка не схлопывалась в квадрат по ширине спиннера. -->
+    <span v-if="loading" class="absolute inset-0 flex items-center justify-center">
+      <Loader class="animate-spin" />
+    </span>
+    <span class="contents" :class="{ invisible: loading }">
+      <slot />
+    </span>
   </Primitive>
 </template>
