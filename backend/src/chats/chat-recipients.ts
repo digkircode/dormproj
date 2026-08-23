@@ -22,10 +22,20 @@ export interface ChatRecipient {
 }
 
 export interface ChatRecipientFilters {
-  floor?: string;
+  // Несколько этажей сразу (по прямой просьбе — сотруднику может понадобиться разослать
+  // сразу на 2-3 этажа) — пусто/не задано = без фильтра. Корпус остался одиночным
+  // выбором, множественный не просили.
+  floors?: string[];
   corpus?: string;
   debtorsOnly?: boolean;
   search?: string;
+  // Явный список получателей по ФИО-поиску ("написать 3 конкретным людям", по прямой
+  // просьбе) — если задан, ПОЛНОСТЬЮ заменяет собой floors/corpus/debtorsOnly/search
+  // (см. chatRecipients ниже), а не пересекается с ними: раз сотрудник вручную выбрал
+  // получателей, фильтры по этажу/долгу для них уже не имеют смысла. Не "доверие клиенту
+  // вслепую" — список всё равно пересекается с currentResidents на сервере, adresat не
+  // может оказаться человеком, которого там вообще нет.
+  individualUids?: string[];
 }
 
 export interface ChatRecipientFacets {
@@ -138,25 +148,34 @@ export async function chatRecipientFacets(prisma: PrismaService): Promise<ChatRe
   };
 }
 
-// Сервер сам пересчитывает получателей по фильтрам (не доверяет списку uid от клиента,
-// см. chats.controller.ts#broadcast) — и для превью, и для реальной отправки вызывается
-// одна и та же функция, чтобы список в диалоге и фактические адресаты не могли разойтись.
+// Сервер сам пересчитывает получателей по фильтрам (не доверяет списку uid от клиента
+// вслепую — individualUids ниже всё равно пересекается с currentResidents) — и для
+// превью, и для реальной отправки вызывается одна и та же функция, чтобы список в
+// диалоге и фактические адресаты не могли разойтись.
 export async function chatRecipients(prisma: PrismaService, filters: ChatRecipientFilters): Promise<ChatRecipient[]> {
   const residents = await currentResidents(prisma);
   const roomIds = [...new Set(residents.map((r) => r.roomId))];
   const { floorByRoom, corpusByRoom } = await loadCharacteristics(prisma, roomIds);
-  const search = filters.search?.trim().toLowerCase();
 
-  return residents
-    .map((r) => ({
-      individualUid: r.residentIndividualUid,
-      fullName: r.residentFullName,
-      room: r.room,
-      floor: characteristicText(floorByRoom.get(r.roomId)),
-      corpus: characteristicText(corpusByRoom.get(r.roomId)),
-      balance: r.totalBalance,
-    }))
-    .filter((r) => (filters.floor ? r.floor === filters.floor : true))
+  const mapped = residents.map((r) => ({
+    individualUid: r.residentIndividualUid,
+    fullName: r.residentFullName,
+    room: r.room,
+    floor: characteristicText(floorByRoom.get(r.roomId)),
+    corpus: characteristicText(corpusByRoom.get(r.roomId)),
+    balance: r.totalBalance,
+  }));
+
+  if (filters.individualUids?.length) {
+    const picked = new Set(filters.individualUids);
+    return mapped.filter((r) => picked.has(r.individualUid)).sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru'));
+  }
+
+  const search = filters.search?.trim().toLowerCase();
+  const floors = filters.floors?.length ? new Set(filters.floors) : null;
+
+  return mapped
+    .filter((r) => (floors ? r.floor !== null && floors.has(r.floor) : true))
     .filter((r) => (filters.corpus ? r.corpus === filters.corpus : true))
     .filter((r) => (filters.debtorsOnly ? r.balance > 0 : true))
     .filter((r) => (search ? r.fullName.toLowerCase().includes(search) : true))

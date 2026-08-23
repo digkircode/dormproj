@@ -121,8 +121,19 @@ const editingId = ref<number | null>(null)
 const formName = ref('')
 const formValueType = ref<CharacteristicValueType>('TEXT')
 const formUnit = ref('')
+// Закрытый список значений (только для TEXT) — вводится через запятую, как самый
+// простой вариант редактирования короткого списка (2-5 значений типа "Новый, Старый"),
+// не отдельный чиповый редактор — не оправдан для такого объёма.
+const formOptions = ref('')
 const dialogError = ref('')
 const isSaving = ref(false)
+
+function parseOptions(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean)
+}
 
 function openCreate() {
   dialogMode.value = 'create'
@@ -130,6 +141,7 @@ function openCreate() {
   formName.value = ''
   formValueType.value = 'TEXT'
   formUnit.value = ''
+  formOptions.value = ''
   dialogError.value = ''
   isDialogOpen.value = true
 }
@@ -140,6 +152,7 @@ function openEdit(definition: RoomCharacteristicDefinition) {
   formName.value = definition.name
   formValueType.value = definition.valueType
   formUnit.value = definition.unit ?? ''
+  formOptions.value = definition.options.join(', ')
   dialogError.value = ''
   isDialogOpen.value = true
 }
@@ -157,10 +170,11 @@ async function submitDialog() {
   isSaving.value = true
   dialogError.value = ''
   try {
+    const options = formValueType.value === 'TEXT' ? parseOptions(formOptions.value) : []
     if (dialogMode.value === 'create') {
-      await createDefinition({ name: formName.value.trim(), valueType: formValueType.value, unit: formUnit.value.trim() || null })
+      await createDefinition({ name: formName.value.trim(), valueType: formValueType.value, unit: formUnit.value.trim() || null, options })
     } else if (editingId.value !== null) {
-      await updateDefinition(editingId.value, { name: formName.value.trim(), unit: formUnit.value.trim() || null })
+      await updateDefinition(editingId.value, { name: formName.value.trim(), unit: formUnit.value.trim() || null, options })
     }
     isDialogOpen.value = false
     await load()
@@ -265,7 +279,10 @@ async function confirmDelete() {
                   <span>{{ d.name }}</span>
                 </div>
               </TableCell>
-              <TableCell class="border-r border-border">{{ VALUE_TYPE_LABELS[d.valueType] }}</TableCell>
+              <TableCell class="border-r border-border">
+                {{ VALUE_TYPE_LABELS[d.valueType] }}
+                <span v-if="d.options.length" class="text-muted-foreground"> ({{ d.options.join(', ') }})</span>
+              </TableCell>
               <TableCell>{{ d.unit ?? '—' }}</TableCell>
               <TableCell class="py-2 pl-1 pr-3 text-right">
                 <!-- Без Tooltip на самом триггере — вложенность Tooltip+DropdownMenuTrigger
@@ -324,6 +341,13 @@ async function confirmDelete() {
           <div class="flex flex-col gap-2">
             <Label for="def-unit">Единица измерения</Label>
             <Input id="def-unit" v-model="formUnit" />
+          </div>
+          <div v-if="formValueType === 'TEXT'" class="flex flex-col gap-2">
+            <Label for="def-options">Допустимые значения (через запятую)</Label>
+            <Input id="def-options" v-model="formOptions" placeholder="Например: Новый, Старый" />
+            <p class="text-xs text-muted-foreground">
+              Если заполнено — при добавлении значения комнате будет выбор из списка, а не свободный текст. Пусто — обычное текстовое поле.
+            </p>
           </div>
           <p v-if="dialogError" class="text-sm text-red-500">{{ dialogError }}</p>
         </div>

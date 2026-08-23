@@ -33,9 +33,9 @@ async function selectConversation(id: number) {
   if (conversation) conversation.unread = false
 }
 
-async function onSend(body: string) {
+async function onSend(body: string, files: File[]) {
   if (!selectedId.value) return
-  await sendStaffMessage(selectedId.value, body)
+  await sendStaffMessage(selectedId.value, body, files)
   messages.value = await fetchConversationMessages(selectedId.value)
   await loadConversations()
 }
@@ -75,6 +75,7 @@ onMounted(loadConversations)
         :key="selectedId"
         :messages="messages"
         viewer-role="STAFF"
+        attachment-base-path="/chats/attachments"
         :on-send="onSend"
       />
       <p v-else class="m-auto text-sm text-muted-foreground">Выберите диалог слева</p>

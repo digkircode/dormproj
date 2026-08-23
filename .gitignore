@@ -15,6 +15,9 @@ backend/dist/
 # prisma
 backend/prisma/*.db
 
+# загруженные вложения чата — живут в docker-volume на сервере, не в репозитории
+backend/uploads/
+
 # local handoff notes (contains server access details)
 CONTEXT_HANDOFF.md
 DormProjPrompt.md

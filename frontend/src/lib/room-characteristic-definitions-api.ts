@@ -8,6 +8,10 @@ export interface RoomCharacteristicDefinition {
   unit: string | null
   isProtected: boolean
   sortOrder: number
+  // Закрытый список допустимых значений — только для valueType TEXT (пусто = обычное
+  // свободное поле, как раньше). См. RoomDetailPanel.vue (Select вместо <input>) и
+  // RoomCharacteristics.vue (редактирование списка).
+  options: string[]
 }
 
 export async function fetchDefinitions(): Promise<RoomCharacteristicDefinition[]> {
@@ -22,6 +26,7 @@ export async function createDefinition(input: {
   name: string
   valueType: CharacteristicValueType
   unit?: string | null
+  options?: string[]
 }): Promise<RoomCharacteristicDefinition> {
   const response = await apiFetch('/room-characteristic-definitions', {
     method: 'POST',
@@ -35,8 +40,11 @@ export async function createDefinition(input: {
   return response.json()
 }
 
-// valueType нельзя поменять после создания (см. бэкенд) — только имя/единица измерения.
-export async function updateDefinition(id: number, input: { name?: string; unit?: string | null }): Promise<RoomCharacteristicDefinition> {
+// valueType нельзя поменять после создания (см. бэкенд) — только имя/единица измерения/options.
+export async function updateDefinition(
+  id: number,
+  input: { name?: string; unit?: string | null; options?: string[] },
+): Promise<RoomCharacteristicDefinition> {
   const response = await apiFetch(`/room-characteristic-definitions/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },

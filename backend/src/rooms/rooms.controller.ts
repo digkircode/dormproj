@@ -61,6 +61,16 @@ const updateValueSchema = z.object({
   value: z.union([z.boolean(), z.number(), z.string()]).optional(),
 });
 
+// options — закрытый список допустимых значений для TEXT-характеристик (см.
+// schema.prisma), заполняется через "Характеристики комнат" (комнаты сами по себе список
+// не меняют). Пустой массив — обычное свободное поле, как раньше, ничего не проверяем.
+function assertValueInOptions(definition: { valueType: string; options: string[] }, storedValueText: string | null) {
+  if (definition.valueType !== 'TEXT' || definition.options.length === 0) return;
+  if (storedValueText === null || !definition.options.includes(storedValueText)) {
+    throw new BadRequestException(`Значение должно быть одним из: ${definition.options.join(', ')}`);
+  }
+}
+
 function parseIdParam(idParam: string): number {
   const id = Number.parseInt(idParam, 10);
   if (!Number.isInteger(id)) {
@@ -338,6 +348,7 @@ export class RoomsController {
     }
 
     const stored = toStoredValue(definition.valueType, parsed.data.value);
+    assertValueInOptions(definition, stored.valueText);
     try {
       return await this.prisma.$transaction(async (tx) => {
         const created = await tx.roomCharacteristicValue.create({
@@ -394,6 +405,9 @@ export class RoomsController {
     }
 
     const stored = parsed.data.value === undefined ? {} : toStoredValue(existing.definition.valueType, parsed.data.value);
+    if (parsed.data.value !== undefined) {
+      assertValueInOptions(existing.definition, (stored as { valueText: string | null }).valueText);
+    }
     try {
       return await this.prisma.$transaction(async (tx) => {
         const updated = await tx.roomCharacteristicValue.update({

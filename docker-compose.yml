@@ -31,6 +31,11 @@ services:
       ROSNOU_ID_REDIRECT_URI: ${ROSNOU_ID_REDIRECT_URI}
       FRONTEND_URL: ${FRONTEND_URL}
       SESSION_SECRET: ${SESSION_SECRET}
+    volumes:
+      # Вложения чата (фото/видео) — именованный volume, а не слой контейнера: без
+      # него файлы терялись бы при каждом `docker compose up --build` (пересоздаёт
+      # контейнер), тот же принцип, что db_data ниже для Postgres.
+      - chat_uploads:/app/uploads
     ports:
       - "${BACKEND_PORT:-3000}:3000"
 
@@ -44,3 +49,4 @@ services:
 
 volumes:
   db_data:
+  chat_uploads:

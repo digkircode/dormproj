@@ -1,4 +1,4 @@
-import { apiFetch } from './api-base'
+import { apiFetch, apiUrl } from './api-base'
 
 export type ChatSenderRole = 'RESIDENT' | 'STAFF'
 
@@ -11,12 +11,24 @@ export interface ChatConversationListItem {
   unread: boolean
 }
 
+export type ChatAttachmentKind = 'IMAGE' | 'VIDEO'
+
+export interface ChatAttachment {
+  id: number
+  kind: ChatAttachmentKind
+  mimeType: string
+  fileName: string
+  sizeBytes: number
+}
+
 export interface ChatMessage {
   id: number
-  body: string
+  // Nullable — сообщение может быть только вложением без текста (как в Telegram).
+  body: string | null
   senderRole: ChatSenderRole
   senderFullName: string
   createdAt: string
+  attachments: ChatAttachment[]
 }
 
 export interface ChatRecipient {
@@ -37,11 +49,28 @@ export interface ChatRecipientFacets {
 }
 
 export interface ChatRecipientFilters {
-  floor?: string
+  floors?: string[]
   corpus?: string
   debtorsOnly?: boolean
   search?: string
+  // Явный выбор получателей по ФИО-поиску ("написать 3 конкретным людям") — если задан,
+  // остальные фильтры выше игнорируются на бэке, см. chat-recipients.ts.
+  individualUids?: string[]
 }
+
+// Разные пути на стороне сотрудников (/chats/attachments) и проживающего
+// (/my-chat/attachments) — доступ проверяется по-разному (см. chats.controller.ts /
+// my-chat.controller.ts), url строит вызывающий компонент (см. ChatThread.vue).
+export function chatAttachmentUrl(basePath: string, attachmentId: number): string {
+  return apiUrl(`${basePath}/${attachmentId}`)
+}
+
+// Лимиты — те же, что и на бэке (см. chat-attachments-storage.ts), продублированы тут
+// для мгновенной подсказки в UI до отправки, а не только после ответа сервера с ошибкой.
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+export const MAX_VIDEO_BYTES = 50 * 1024 * 1024
+export const MAX_ATTACHMENTS_PER_MESSAGE = 5
+export const ALLOWED_ATTACHMENT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm', 'video/quicktime']
 
 async function parseErrorMessage(response: Response, fallback: string): Promise<string> {
   const body: { message?: string } = await response.json().catch(() => ({}))
@@ -63,11 +92,20 @@ export async function fetchConversationMessages(conversationId: number, before?:
   return response.json()
 }
 
-export async function sendStaffMessage(conversationId: number, body: string): Promise<void> {
+// multipart/form-data, не JSON — сообщение может нести файлы (см. ChatAttachment выше).
+// Content-Type НЕ выставляем вручную — браузер сам проставляет multipart-boundary при
+// теле FormData, ручной заголовок его затирает и ломает разбор на бэке.
+function messageFormData(body: string, files: File[]): FormData {
+  const form = new FormData()
+  if (body) form.set('body', body)
+  for (const file of files) form.append('files', file)
+  return form
+}
+
+export async function sendStaffMessage(conversationId: number, body: string, files: File[] = []): Promise<void> {
   const response = await apiFetch(`/chats/${conversationId}/messages`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ body }),
+    body: messageFormData(body, files),
   })
   if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось отправить сообщение'))
 }
@@ -85,10 +123,11 @@ export async function fetchRecipientFacets(): Promise<ChatRecipientFacets> {
 
 function filtersToQuery(filters: ChatRecipientFilters): string {
   const params = new URLSearchParams()
-  if (filters.floor) params.set('floor', filters.floor)
+  if (filters.floors?.length) params.set('floors', filters.floors.join(','))
   if (filters.corpus) params.set('corpus', filters.corpus)
   if (filters.debtorsOnly) params.set('debtorsOnly', 'true')
   if (filters.search) params.set('search', filters.search)
+  if (filters.individualUids?.length) params.set('individualUids', filters.individualUids.join(','))
   const query = params.toString()
   return query ? `?${query}` : ''
 }
@@ -122,11 +161,10 @@ export async function fetchMyChat(): Promise<MyChatResponse> {
   return response.json()
 }
 
-export async function sendMyMessage(body: string): Promise<void> {
+export async function sendMyMessage(body: string, files: File[] = []): Promise<void> {
   const response = await apiFetch('/my-chat/messages', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ body }),
+    body: messageFormData(body, files),
   })
   if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось отправить сообщение'))
 }

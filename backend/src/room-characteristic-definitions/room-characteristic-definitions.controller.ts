@@ -29,10 +29,15 @@ function requireUser(req: Request) {
   return req.user;
 }
 
+// options — закрытый список допустимых значений, только для valueType TEXT (см.
+// schema.prisma) — пустой массив у BOOLEAN/NUMBER означает "не ограничено", как раньше.
+const optionsField = z.array(z.string().trim().min(1)).max(50).optional().default([]);
+
 const createSchema = z.object({
   name: z.string().trim().min(1),
   valueType: z.enum(RoomCharacteristicValueType),
   unit: z.string().trim().min(1).nullish(),
+  options: optionsField,
 });
 // valueType сознательно нельзя поменять после создания — уже записанные значения лежат
 // в конкретной типизированной колонке (см. characteristic-value.ts), смена типа задним
@@ -40,6 +45,7 @@ const createSchema = z.object({
 const updateSchema = z.object({
   name: z.string().trim().min(1).optional(),
   unit: z.string().trim().min(1).nullish(),
+  options: z.array(z.string().trim().min(1)).max(50).optional(),
 });
 const reorderSchema = z.object({ ids: z.array(z.number().int()).min(1) });
 
@@ -78,6 +84,9 @@ export class RoomCharacteristicDefinitionsController {
     if (!parsed.success) {
       throw new BadRequestException(parsed.error.message);
     }
+    if (parsed.data.options.length > 0 && parsed.data.valueType !== 'TEXT') {
+      throw new BadRequestException('Список допустимых значений применим только к типу "Текст"');
+    }
     const sessionUser = requireUser(req);
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -88,6 +97,7 @@ export class RoomCharacteristicDefinitionsController {
             valueType: parsed.data.valueType,
             unit: parsed.data.unit ?? null,
             sortOrder: (last?.sortOrder ?? 0) + 1,
+            options: parsed.data.options,
           },
         });
         const userId = await ensureUserRecord(tx, sessionUser);
@@ -99,7 +109,7 @@ export class RoomCharacteristicDefinitionsController {
           entityLabel: created.name,
           before: null,
           after: created,
-          fields: ['name', 'valueType', 'unit'],
+          fields: ['name', 'valueType', 'unit', 'options'],
         });
         return created;
       });
@@ -158,11 +168,18 @@ export class RoomCharacteristicDefinitionsController {
     if (!existing) {
       throw new NotFoundException('Характеристика не найдена');
     }
+    if (parsed.data.options !== undefined && parsed.data.options.length > 0 && existing.valueType !== 'TEXT') {
+      throw new BadRequestException('Список допустимых значений применим только к типу "Текст"');
+    }
     try {
       return await this.prisma.$transaction(async (tx) => {
         const updated = await tx.roomCharacteristicDefinition.update({
           where: { id },
-          data: { ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}), ...(parsed.data.unit !== undefined ? { unit: parsed.data.unit } : {}) },
+          data: {
+            ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+            ...(parsed.data.unit !== undefined ? { unit: parsed.data.unit } : {}),
+            ...(parsed.data.options !== undefined ? { options: parsed.data.options } : {}),
+          },
         });
         const userId = await ensureUserRecord(tx, sessionUser);
         await this.auditLog.log(tx, {
@@ -173,7 +190,7 @@ export class RoomCharacteristicDefinitionsController {
           entityLabel: updated.name,
           before: existing,
           after: updated,
-          fields: ['name', 'valueType', 'unit'],
+          fields: ['name', 'valueType', 'unit', 'options'],
         });
         return updated;
       });

@@ -365,6 +365,13 @@ model RoomCharacteristicDefinition {
   // Ручной порядок для drag-and-drop в UI — новые характеристики получают
   // max(sortOrder)+1 (в конец списка), см. room-characteristic-definitions.controller.ts.
   sortOrder Int @default(0) @map("sort_order")
+  // Закрытый список допустимых значений — только для valueType TEXT (пусто = обычное
+  // свободное текстовое поле, как раньше). Если задан — форма значения на комнате
+  // (RoomDetailPanel.vue) рисует Select вместо голого <input>, а бэкенд (rooms.controller.ts)
+  // отклоняет значение, которого нет в списке. Добавлено вместе с "Корпус" (Новый/Старый),
+  // но не привязано к конкретному имени характеристики — общий механизм для любой будущей
+  // TEXT-характеристики с фиксированным набором значений.
+  options String[] @default([]) @map("options")
 
   values RoomCharacteristicValue[]
 
@@ -805,10 +812,41 @@ model ChatMessage {
   // стороны экрана рисовать сообщение, независимо от смены ролей задним числом.
   senderRole ChatSenderRole @map("sender_role")
 
-  body String
+  // Nullable — сообщение может быть только вложением без текста (как в Telegram),
+  // см. attachments ниже. На бэке проверяется "текст ИЛИ хотя бы одно вложение".
+  body String?
+
+  attachments ChatAttachment[]
 
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([conversationId, createdAt])
   @@map("chat_messages")
+}
+
+enum ChatAttachmentKind {
+  IMAGE
+  VIDEO
+}
+
+// Файл лежит на диске backend-контейнера (persistent docker volume, см.
+// docker-compose.yml) — БД хранит только метаданные + сгенерированное имя файла
+// (storageKey), не сам байты и не оригинальное имя как путь (избегаем path traversal
+// через управляемое пользователем имя файла).
+model ChatAttachment {
+  id        Int                @id @default(autoincrement())
+  messageId Int                @map("message_id")
+  message   ChatMessage        @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  kind      ChatAttachmentKind
+  mimeType  String             @map("mime_type")
+  // Оригинальное имя файла — только для отображения/Content-Disposition, не для пути на диске.
+  fileName  String             @map("file_name")
+  sizeBytes Int                @map("size_bytes")
+  // Сгенерированное имя файла на диске (randomUUID + расширение) — см. chat-attachments-storage.ts.
+  storageKey String            @unique @map("storage_key")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([messageId])
+  @@map("chat_attachments")
 }

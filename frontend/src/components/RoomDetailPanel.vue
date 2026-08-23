@@ -813,6 +813,21 @@ async function confirmDeleteValue() {
               ]"
               @keydown="blockScientificNotationKeys"
             />
+            <!-- TEXT с закрытым списком значений (см. "Корпус"/options в
+                 room-characteristic-definitions-api.ts) — выбор вместо свободного ввода,
+                 чтобы нельзя было вписать значение мимо списка. Пустой options — обычное поле. -->
+            <Select
+              v-else-if="selectedDefinition?.valueType === 'TEXT' && selectedDefinition.options.length > 0"
+              :model-value="valueDialogTextValue || undefined"
+              @update:model-value="(v) => (valueDialogTextValue = (v as string) ?? '')"
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Выберите значение" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="option in selectedDefinition.options" :key="option" :value="option">{{ option }}</SelectItem>
+              </SelectContent>
+            </Select>
             <Input v-else v-model="valueDialogTextValue" type="text" />
           </div>
 
