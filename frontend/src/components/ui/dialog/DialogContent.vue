@@ -29,11 +29,13 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
       v-bind="forwarded"
       :class="
         cn(
-          // max-h-[70vh] + overflow-y-auto — тот же лимит высоты/внутренний скролл, что и
-          // в DialogScrollContent.vue (см. там же). На практике везде используется
-          // DialogScrollContent (см. известную ловушку про transform-конфликт с анимацией),
-          // но держим в согласии на случай, если этот вариант где-то всё же понадобится.
-          'fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg max-h-[70vh] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg',
+          // max-h-[80vh] + overflow-y-auto — тот же лимит высоты/внутренний скролл, что и
+          // в DialogScrollContent.vue (см. там же, было 70vh — по прямой просьбе 2026-08-23
+          // сужено до максимум 10% отступа сверху/снизу вместо ~15%). На практике везде
+          // используется DialogScrollContent (см. известную ловушку про transform-конфликт
+          // с анимацией), но держим в согласии на случай, если этот вариант где-то всё же
+          // понадобится.
+          'fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg max-h-[80vh] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg',
           props.class,
         )"
     >

@@ -62,8 +62,8 @@ const ddm = [
 ]
 
 const ddmStaff: StaffPerson[] = [
-  { name: 'Гузенко Виктория Владимировна', photo: guzPhoto },
   { name: 'Буторова Наталья Владимировна', photo: butPhoto },
+  { name: 'Гузенко Виктория Владимировна', photo: guzPhoto },
 ]
 
 function initials(fullName: string): string {
@@ -76,13 +76,15 @@ function initials(fullName: string): string {
     .toUpperCase()
 }
 
-// Крылья здания и обстановка комнат — добавлено 2026-08-23 по присланному пользователем
-// тексту, сжато до кратких пунктов (не дословная простыня).
-const buildingWings = [
-  'Правое крыло: на каждом этаже 2 кухни, 3 душевые, 4 холла, комната для стирки и сушки',
-  'Левое крыло: одна кухня на этаж, персональные душевые в каждом блоке',
-  'В комнатах — кровати, шкафы, тумбочки, холодильник; утюги/фены студенты привозят сами',
-  'С разрешения администратора можно ставить доп. шкафы, полки, ковры',
+// "Здание" — развёрнутым текстом, не краткими буллетами (по прямой просьбе 2026-08-23:
+// после переноса "Доступности" в правую колонку слева стало заметно меньше текста, чем
+// справа — расписали подробнее, не сокращая присланный пользователем текст про крылья/
+// обстановку комнат до одной строки, как было раньше).
+const buildingParagraphs = [
+  'Общая площадь здания — 12 697 м², в общежитии предусмотрено 617 мест для проживания. Комнаты представлены в двух форматах — блочном и коридорном, с разным уровнем комфорта и планировки.',
+  'В 2014 году в здании был проведён капитальный ремонт, а для безопасности проживающих установлена система видеонаблюдения.',
+  'Здание состоит из двух крыльев, и обустроены они по-разному. На всех этажах правого крыла оборудованы две кухни, три душевые комнаты, четыре холла для отдыха и общения, а также отдельная комната для стирки и сушки белья. В левом крыле — по одной кухне на этаж, а душевые сделаны персональными в каждом блоке, что даёт больше приватности.',
+  'В каждой комнате уже установлена необходимая мебель — кровати, шкафы для одежды, тумбочки и холодильник. Утюги, фены и прочую бытовую технику студенты обычно привозят с собой. С разрешения администратора обстановку можно донастроить под себя: поставить дополнительный шкаф, повесить полки или постелить ковёр.',
 ]
 
 const infrastructure = [
@@ -161,9 +163,9 @@ onMounted(async () => {
         <TabsTrigger value="contacts">Контакты</TabsTrigger>
       </TabsList>
 
-      <!-- Вкладка 1 — сначала Здание (+ Доступность подразделом под ним) слева,
-           Инфраструктура справа через вертикальный разделитель; "Как добраться" — по
-           прямой просьбе в самом низу вкладки, а не сверху. -->
+      <!-- Вкладка 1 — Здание слева развёрнутым текстом, справа Инфраструктура и под ней
+           (по прямой просьбе) Доступность — перенесена сюда с левой колонки, чтобы
+           текста в обеих колонках было примерно поровну; "Как добраться" — внизу вкладки. -->
       <TabsContent value="general" class="mt-4 flex flex-col gap-4">
         <Card class="p-6">
           <div class="flex flex-col gap-6 lg:flex-row lg:divide-x lg:divide-border">
@@ -172,12 +174,16 @@ onMounted(async () => {
                 <Building2 class="size-4 text-primary" />
                 Здание
               </div>
+              <p v-for="para in buildingParagraphs" :key="para" class="mt-3 text-sm first:mt-3">{{ para }}</p>
+            </div>
+
+            <div class="flex flex-col lg:w-1/2 lg:pl-6">
+              <div class="flex items-center gap-1.5 text-sm font-medium">
+                <Wifi class="size-4 text-primary" />
+                Инфраструктура и услуги
+              </div>
               <ul class="mt-3 flex flex-col gap-1.5 text-sm">
-                <li>Общая площадь здания — 12 697 м², всего 617 мест для проживания</li>
-                <li>Блочный и коридорный типы комнат с разным уровнем комфорта</li>
-                <li>В 2014 году проведён капитальный ремонт</li>
-                <li>Установлена система видеонаблюдения</li>
-                <li v-for="w in buildingWings" :key="w">{{ w }}</li>
+                <li v-for="i in infrastructure" :key="i">{{ i }}</li>
               </ul>
 
               <div class="mt-4 flex items-center gap-1.5 border-t pt-4 text-sm font-medium">
@@ -189,16 +195,6 @@ onMounted(async () => {
                 <li>Пандус для беспрепятственного доступа</li>
                 <li>На первом этаже — жилые комнаты, читальный зал, санузлы для лиц с ограниченными возможностями</li>
                 <li>Тактильные таблички со шрифтом Брайля</li>
-              </ul>
-            </div>
-
-            <div class="flex flex-col lg:w-1/2 lg:pl-6">
-              <div class="flex items-center gap-1.5 text-sm font-medium">
-                <Wifi class="size-4 text-primary" />
-                Инфраструктура и услуги
-              </div>
-              <ul class="mt-3 flex flex-col gap-1.5 text-sm">
-                <li v-for="i in infrastructure" :key="i">{{ i }}</li>
               </ul>
             </div>
           </div>
@@ -213,6 +209,7 @@ onMounted(async () => {
             <li>Ближайшее метро — «Авиамоторная» (около 20 минут пешком)</li>
             <li>От метро «Авиамоторная» — автобус № 695 или с679 до остановки «Андроновское шоссе, 26», далее пешком</li>
             <li>От главного корпуса (ул. Радио, д. 22) — автобус № 624 от остановки «Лефортовская набережная» до «НИИ прикладной механики», далее пешком</li>
+            <li>От главного корпуса до метро «Авиамоторная» — трамваи Т2 или 50 от остановки «Лефортовская набережная»</li>
           </ul>
           <!-- Тот же embed (конструктор Яндекс.Карт), что и на официальной странице
                rosnou.ru/university/hostel/ — с готовыми пронумерованными маршрутами на
@@ -323,7 +320,7 @@ onMounted(async () => {
       <TabsContent value="contacts" class="mt-4 flex flex-col gap-4">
         <Card class="p-6">
           <div class="flex flex-col gap-6 lg:flex-row lg:divide-x lg:divide-border">
-            <div class="flex flex-col gap-3 lg:w-1/2 lg:pr-6">
+            <div class="flex flex-col gap-3 lg:w-2/3 lg:pr-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
                 <Contact class="size-4 text-primary" />
                 Контакты администрации
@@ -335,13 +332,15 @@ onMounted(async () => {
                   <span>{{ c.value }}</span>
                 </div>
               </div>
+              <!-- Блок расширен до 2/3 (было 1/2), фото чуть уменьшены (size-56→size-40) —
+                   по прямой просьбе, чтобы все 4 фото помещались в один ряд. -->
               <div class="mt-1 border-t pt-3">
                 <div class="mb-2 text-xs text-muted-foreground">Ответственные сотрудники</div>
-                <div class="flex flex-wrap gap-6">
-                  <div v-for="p in staff" :key="p.name" class="flex w-56 flex-col items-center gap-2 text-center">
-                    <Avatar class="size-56 rounded-full border-4 border-border">
+                <div class="flex flex-wrap gap-4">
+                  <div v-for="p in staff" :key="p.name" class="flex w-40 flex-col items-center gap-2 text-center">
+                    <Avatar class="size-40 rounded-full border-4 border-border">
                       <AvatarImage v-if="p.photo" :src="p.photo" :alt="p.name" />
-                      <AvatarFallback class="text-4xl">{{ initials(p.name) }}</AvatarFallback>
+                      <AvatarFallback class="text-3xl">{{ initials(p.name) }}</AvatarFallback>
                     </Avatar>
                     <span class="text-sm leading-tight">{{ p.name }}</span>
                   </div>
@@ -349,7 +348,7 @@ onMounted(async () => {
               </div>
             </div>
 
-            <div class="flex flex-col gap-3 lg:w-1/2 lg:pl-6">
+            <div class="flex flex-col gap-3 lg:w-1/3 lg:pl-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
                 <Users class="size-4 text-primary" />
                 Департамент по делам молодёжи и воспитательной работе
@@ -363,11 +362,11 @@ onMounted(async () => {
               </div>
               <div class="mt-1 border-t pt-3">
                 <div class="mb-2 text-xs text-muted-foreground">Ответственные сотрудники</div>
-                <div class="flex flex-wrap gap-6">
-                  <div v-for="p in ddmStaff" :key="p.name" class="flex w-56 flex-col items-center gap-2 text-center">
-                    <Avatar class="size-56 rounded-full border-4 border-border">
+                <div class="flex flex-wrap gap-4">
+                  <div v-for="p in ddmStaff" :key="p.name" class="flex w-40 flex-col items-center gap-2 text-center">
+                    <Avatar class="size-40 rounded-full border-4 border-border">
                       <AvatarImage v-if="p.photo" :src="p.photo" :alt="p.name" />
-                      <AvatarFallback class="text-4xl">{{ initials(p.name) }}</AvatarFallback>
+                      <AvatarFallback class="text-3xl">{{ initials(p.name) }}</AvatarFallback>
                     </Avatar>
                     <span class="text-sm leading-tight">{{ p.name }}</span>
                   </div>
