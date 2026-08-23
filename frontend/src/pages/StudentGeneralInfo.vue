@@ -139,35 +139,35 @@ onMounted(async () => {
       </TabsList>
 
       <TabsContent value="general" class="mt-4 flex flex-col gap-4">
+        <!-- Здание/Инфраструктура/Доступность — по прямой просьбе объединены в одну карточку
+             вместо трёх подряд, каждый раздел — свой мини-заголовок с иконкой + border-t
+             между разделами (тот же приём, что у "Ответственные сотрудники" в карточке
+             контактов ниже). -->
         <Card class="p-6">
-          <div class="mb-3 flex items-center gap-1.5 text-sm font-medium">
+          <div class="flex items-center gap-1.5 text-sm font-medium">
             <Building2 class="size-4 text-primary" />
             Здание
           </div>
-          <ul class="flex flex-col gap-1.5 text-sm">
+          <ul class="mt-3 flex flex-col gap-1.5 text-sm">
             <li>Общая площадь здания — 12 697 м², всего 617 мест для проживания</li>
             <li>Блочный и коридорный типы комнат с разным уровнем комфорта</li>
             <li>В 2014 году проведён капитальный ремонт</li>
             <li>Установлена система видеонаблюдения</li>
           </ul>
-        </Card>
 
-        <Card class="p-6">
-          <div class="mb-3 flex items-center gap-1.5 text-sm font-medium">
+          <div class="mt-4 flex items-center gap-1.5 border-t pt-4 text-sm font-medium">
             <Wifi class="size-4 text-primary" />
             Инфраструктура и услуги
           </div>
-          <ul class="grid grid-cols-1 gap-1.5 text-sm sm:grid-cols-2">
+          <ul class="mt-3 grid grid-cols-1 gap-1.5 text-sm sm:grid-cols-2">
             <li v-for="i in infrastructure" :key="i">{{ i }}</li>
           </ul>
-        </Card>
 
-        <Card class="p-6">
-          <div class="mb-3 flex items-center gap-1.5 text-sm font-medium">
+          <div class="mt-4 flex items-center gap-1.5 border-t pt-4 text-sm font-medium">
             <Accessibility class="size-4 text-primary" />
             Доступность для лиц с ограниченными возможностями
           </div>
-          <ul class="flex flex-col gap-1.5 text-sm">
+          <ul class="mt-3 flex flex-col gap-1.5 text-sm">
             <li>Общежитие оснащено оборудованием для проживания лиц с ОВЗ и инвалидов</li>
             <li>Пандус для беспрепятственного доступа</li>
             <li>На первом этаже — жилые комнаты, читальный зал, санузлы для лиц с ограниченными возможностями</li>
@@ -175,14 +175,16 @@ onMounted(async () => {
           </ul>
         </Card>
 
+        <!-- Стоимость проживания/Оплата — тоже по прямой просьбе одной карточкой, тот же
+             приём с border-t между разделами. -->
         <Card class="p-6">
-          <div class="mb-3 flex items-center gap-1.5 text-sm font-medium">
+          <div class="flex items-center gap-1.5 text-sm font-medium">
             <Wallet class="size-4 text-primary" />
             Стоимость проживания
           </div>
-          <p v-if="hostelInfoError" class="text-sm text-red-500">{{ hostelInfoError }}</p>
-          <p v-else-if="isHostelInfoLoading" class="text-sm text-muted-foreground">Загрузка…</p>
-          <div v-else class="flex flex-col divide-y divide-border">
+          <p v-if="hostelInfoError" class="mt-3 text-sm text-red-500">{{ hostelInfoError }}</p>
+          <p v-else-if="isHostelInfoLoading" class="mt-3 text-sm text-muted-foreground">Загрузка…</p>
+          <div v-else class="mt-3 flex flex-col divide-y divide-border">
             <div
               v-for="p in hostelInfo?.priceRanges ?? []"
               :key="p.capacity"
@@ -206,14 +208,12 @@ onMounted(async () => {
               <span class="font-medium">{{ hostelInfo.passRestorationCost.toLocaleString('ru-RU') }} ₽</span>
             </div>
           </div>
-        </Card>
 
-        <Card class="p-6">
-          <div class="mb-3 flex items-center gap-1.5 text-sm font-medium">
+          <div class="mt-4 flex items-center gap-1.5 border-t pt-4 text-sm font-medium">
             <Wallet class="size-4 text-primary" />
             Оплата
           </div>
-          <ul class="flex flex-col gap-1.5 text-sm">
+          <ul class="mt-3 flex flex-col gap-1.5 text-sm">
             <li>Оплата вносится ежемесячно (или сразу за квартал/полугодие) не позднее 5-го числа расчётного месяца — срок зафиксирован в договоре найма</li>
             <li>За каждый день просрочки начисляется пеня — 0,14% от непогашенной суммы в день (п. 4.8/5.9 договора)</li>
             <li>Студенты заочной формы заселяются на время сессии при наличии мест, расчёт — по количеству прожитых дней</li>
@@ -269,13 +269,13 @@ onMounted(async () => {
               </div>
               <div class="mt-1 border-t pt-3">
                 <div class="mb-2 text-xs text-muted-foreground">Ответственные сотрудники</div>
-                <div class="flex flex-wrap gap-4">
-                  <div v-for="p in staff" :key="p.name" class="flex w-20 flex-col items-center gap-1.5 text-center">
-                    <Avatar class="size-16 rounded-md border-2 border-border">
+                <div class="flex flex-wrap gap-6">
+                  <div v-for="p in staff" :key="p.name" class="flex w-48 flex-col items-center gap-2 text-center">
+                    <Avatar class="size-48 rounded-md border-4 border-border">
                       <AvatarImage v-if="p.photo" :src="p.photo" :alt="p.name" />
-                      <AvatarFallback class="rounded-md text-sm">{{ initials(p.name) }}</AvatarFallback>
+                      <AvatarFallback class="rounded-md text-4xl">{{ initials(p.name) }}</AvatarFallback>
                     </Avatar>
-                    <span class="text-xs leading-tight">{{ p.name }}</span>
+                    <span class="text-sm leading-tight">{{ p.name }}</span>
                   </div>
                 </div>
               </div>
@@ -294,13 +294,13 @@ onMounted(async () => {
               </div>
               <div class="mt-1 border-t pt-3">
                 <div class="mb-2 text-xs text-muted-foreground">Ответственные сотрудники</div>
-                <div class="flex flex-wrap gap-4">
-                  <div v-for="p in ddmStaff" :key="p.name" class="flex w-20 flex-col items-center gap-1.5 text-center">
-                    <Avatar class="size-16 rounded-md border-2 border-border">
+                <div class="flex flex-wrap gap-6">
+                  <div v-for="p in ddmStaff" :key="p.name" class="flex w-48 flex-col items-center gap-2 text-center">
+                    <Avatar class="size-48 rounded-md border-4 border-border">
                       <AvatarImage v-if="p.photo" :src="p.photo" :alt="p.name" />
-                      <AvatarFallback class="rounded-md text-sm">{{ initials(p.name) }}</AvatarFallback>
+                      <AvatarFallback class="rounded-md text-4xl">{{ initials(p.name) }}</AvatarFallback>
                     </Avatar>
-                    <span class="text-xs leading-tight">{{ p.name }}</span>
+                    <span class="text-sm leading-tight">{{ p.name }}</span>
                   </div>
                 </div>
               </div>
