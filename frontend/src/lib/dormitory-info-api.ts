@@ -1,11 +1,18 @@
 import { apiFetch } from './api-base'
 
-export type DormitoryInfoFieldKey = 'communalServicesCost' | 'dailyPaymentInternal' | 'dailyPaymentOther'
+export type DormitoryInfoFieldKey =
+  | 'communalServicesCost'
+  | 'dailyPaymentInternal'
+  | 'dailyPaymentOther'
+  | 'passRestorationCost'
+  | 'guestRoomDailyRate'
 
 export interface DormitoryInfo {
   communalServicesCost: number | null
   dailyPaymentInternal: number | null
   dailyPaymentOther: number | null
+  passRestorationCost: number | null
+  guestRoomDailyRate: number | null
   updatedAt: string
 }
 
@@ -18,6 +25,8 @@ export const DORMITORY_INFO_FIELDS: { key: DormitoryInfoFieldKey; name: string; 
   { key: 'communalServicesCost', name: 'Коммунальные услуги', unit: '₽' },
   { key: 'dailyPaymentInternal', name: 'Суточная оплата (Вн. вуз.)', unit: '₽' },
   { key: 'dailyPaymentOther', name: 'Суточная оплата (Другой вуз.)', unit: '₽' },
+  { key: 'passRestorationCost', name: 'Восстановление пропускного документа', unit: '₽' },
+  { key: 'guestRoomDailyRate', name: 'Гостевая стоимость (сутки)', unit: '₽' },
 ]
 
 export async function fetchDormitoryInfo(): Promise<DormitoryInfo> {

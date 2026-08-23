@@ -28,6 +28,7 @@ import { BillingModule } from './billing/billing.module';
 import { ReportsModule } from './reports/reports.module';
 import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
+import { PublicInfoModule } from './public-info/public-info.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { RolesModule } from './roles/roles.module';
     ReportsModule,
     UsersModule,
     RolesModule,
+    PublicInfoModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

@@ -54,6 +54,10 @@ interface DebtorRow {
   room: string | null;
   status: ContractStatus;
   createdAt: Date;
+  // endDate — добавлено 2026-08-23, только для отображения статуса "Истекает" на фронте
+  // (ContractStatusCell.vue, тот же приём, что в основном списке /contracts), в расчёт
+  // долга/пени само по себе не участвует.
+  endDate: Date;
   // Начислено/Оплачено — по ВСЕМУ сроку договора (весь срок целиком, не зависит от asOf) —
   // справочные итоги, не то же самое, что "Долг" ниже.
   totalAccrued: number;
@@ -194,6 +198,7 @@ export class ReportsController {
         room: contract.roomAssignments[0]?.room.room ?? null,
         status: contract.status,
         createdAt: contract.createdAt,
+        endDate: contract.endDate,
         totalAccrued: Number(totalAccrued),
         totalPaid: Number(totalPaid),
         principalDebt: Number(principalDebtAsOf),

@@ -73,21 +73,29 @@ const dormitoryEditValues = reactive<Record<DormitoryInfoFieldKey, string>>({
   communalServicesCost: '',
   dailyPaymentInternal: '',
   dailyPaymentOther: '',
+  passRestorationCost: '',
+  guestRoomDailyRate: '',
 })
 const dormitorySavingFields = reactive<Record<DormitoryInfoFieldKey, boolean>>({
   communalServicesCost: false,
   dailyPaymentInternal: false,
   dailyPaymentOther: false,
+  passRestorationCost: false,
+  guestRoomDailyRate: false,
 })
 const dormitorySavedFields = reactive<Record<DormitoryInfoFieldKey, boolean>>({
   communalServicesCost: false,
   dailyPaymentInternal: false,
   dailyPaymentOther: false,
+  passRestorationCost: false,
+  guestRoomDailyRate: false,
 })
 const dormitoryFieldErrors = reactive<Record<DormitoryInfoFieldKey, string>>({
   communalServicesCost: '',
   dailyPaymentInternal: '',
   dailyPaymentOther: '',
+  passRestorationCost: '',
+  guestRoomDailyRate: '',
 })
 
 async function loadDormitoryInfo() {

@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Plus, Shield } from 'lucide-vue-next'
+import { ArrowLeft, Plus } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { fetchRoles, createRole, roleLabel, type Role } from '@/lib/roles-api'
+import { fetchRoles, createRole, roleLabel, roleIcon, type Role } from '@/lib/roles-api'
 import { goBack } from '@/lib/utils'
 
 const router = useRouter()
@@ -89,7 +89,7 @@ async function submitCreate() {
         <TableBody>
           <TableRow v-for="r in roles" :key="r.id">
             <TableCell class="flex items-center gap-1.5 font-medium">
-              <Shield class="size-4 shrink-0 text-primary" />
+              <component :is="roleIcon(r.name)" class="size-4 shrink-0 text-primary" />
               {{ roleLabel(r.name) }}
             </TableCell>
             <TableCell class="text-muted-foreground">{{ r._count.users }}</TableCell>

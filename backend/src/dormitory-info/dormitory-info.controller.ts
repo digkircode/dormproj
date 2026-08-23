@@ -16,12 +16,16 @@ const updateSchema = z.object({
   communalServicesCost: z.number().finite().nullish(),
   dailyPaymentInternal: z.number().finite().nullish(),
   dailyPaymentOther: z.number().finite().nullish(),
+  passRestorationCost: z.number().finite().nullish(),
+  guestRoomDailyRate: z.number().finite().nullish(),
 });
 
 interface DormitoryInfoRow {
   communalServicesCost: Prisma.Decimal | null;
   dailyPaymentInternal: Prisma.Decimal | null;
   dailyPaymentOther: Prisma.Decimal | null;
+  passRestorationCost: Prisma.Decimal | null;
+  guestRoomDailyRate: Prisma.Decimal | null;
   updatedAt: Date;
 }
 
@@ -30,6 +34,8 @@ function serialize(row: DormitoryInfoRow) {
     communalServicesCost: row.communalServicesCost === null ? null : Number(row.communalServicesCost),
     dailyPaymentInternal: row.dailyPaymentInternal === null ? null : Number(row.dailyPaymentInternal),
     dailyPaymentOther: row.dailyPaymentOther === null ? null : Number(row.dailyPaymentOther),
+    passRestorationCost: row.passRestorationCost === null ? null : Number(row.passRestorationCost),
+    guestRoomDailyRate: row.guestRoomDailyRate === null ? null : Number(row.guestRoomDailyRate),
     updatedAt: row.updatedAt,
   };
 }
@@ -81,7 +87,7 @@ export class DormitoryInfoController {
         entityLabel: 'Настройки общежития',
         before,
         after: updated,
-        fields: ['communalServicesCost', 'dailyPaymentInternal', 'dailyPaymentOther'],
+        fields: ['communalServicesCost', 'dailyPaymentInternal', 'dailyPaymentOther', 'passRestorationCost', 'guestRoomDailyRate'],
       });
       return serialize(updated);
     });

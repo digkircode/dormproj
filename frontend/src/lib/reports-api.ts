@@ -12,6 +12,7 @@ export interface DebtorRow {
   room: string | null
   status: ContractStatus
   createdAt: string
+  endDate: string
   totalAccrued: number
   totalPaid: number
   principalDebt: number

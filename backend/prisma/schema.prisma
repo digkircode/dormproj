@@ -412,6 +412,12 @@ model DormitoryInfo {
   communalServicesCost Decimal? @map("communal_services_cost") @db.Decimal(12, 2)
   dailyPaymentInternal Decimal? @map("daily_payment_internal") @db.Decimal(12, 2)
   dailyPaymentOther    Decimal? @map("daily_payment_other") @db.Decimal(12, 2)
+  // Добавлено 2026-08-23 — справочные величины для страницы "Проживающий → Общая
+  // информация" (StudentGeneralInfo.vue): восстановление утерянного пропускного
+  // документа (единая цена что для студенческого билета, что для пластиковой карты)
+  // и суточная ставка для гостевых комнат (см. характеристика "Гостевая" ниже).
+  passRestorationCost Decimal? @map("pass_restoration_cost") @db.Decimal(12, 2)
+  guestRoomDailyRate  Decimal? @map("guest_room_daily_rate") @db.Decimal(12, 2)
   updatedAt            DateTime @updatedAt @map("updated_at")
 
   @@map("dormitory_info")
