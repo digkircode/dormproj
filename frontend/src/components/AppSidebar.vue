@@ -11,6 +11,7 @@ import {
   FileText,
   History,
   Info,
+  MessageCircle,
 } from 'lucide-vue-next'
 import NavStudent from '@/components/NavStudent.vue'
 import NavMain from '@/components/NavMain.vue'
@@ -47,21 +48,28 @@ const roles = computed(() => currentUser.value?.roles ?? [])
 const isAdmin = computed(() => roles.value.includes('ADMIN'))
 const canSeeStaffSection = computed(() => isAdmin.value || roles.value.includes('STAFF'))
 const canSeeAdminSection = computed(() => isAdmin.value)
+// Чат с сотрудниками — не всему разделу "Проживающий" (тот виден любому залогиненному),
+// а только роли RESIDENT (плюс ADMIN по общему принципу "администратор видит всё") — тот
+// же гейт, что в router/index.ts (meta.section:'resident').
+const canSeeResidentChat = computed(() => isAdmin.value || roles.value.includes('RESIDENT'))
+
+// Видна всем залогиненным независимо от роли (в т.ч. без роли вообще) — см.
+// router/index.ts, страницы этой группы без meta.section. Пункт чата — исключение,
+// добавляется только при canSeeResidentChat, поэтому весь список стал computed.
+const navStudent = computed(() => [
+  {
+    title: 'Общая информация',
+    url: '/student/general-info',
+    icon: Info,
+  },
+  ...(canSeeResidentChat.value ? [{ title: 'Чат с сотрудниками', url: '/student/chat', icon: MessageCircle }] : []),
+])
 
 const data = {
   teams: [
     {
       name: 'RosNOU',
       plan: 'Общежитие',
-    },
-  ],
-  // Видна всем залогиненным независимо от роли (в т.ч. без роли вообще) — см.
-  // router/index.ts, страницы этой группы без meta.section.
-  navStudent: [
-    {
-      title: 'Общая информация',
-      url: '/student/general-info',
-      icon: Info,
     },
   ],
   navMain: [
@@ -79,6 +87,11 @@ const data = {
       title: 'Договоры',
       url: '/contracts',
       icon: FileText,
+    },
+    {
+      title: 'Чаты',
+      url: '/chats',
+      icon: MessageCircle,
     },
     {
       title: 'Отчёты',
@@ -125,7 +138,7 @@ const data = {
       <TeamSwitcher :teams="data.teams" />
     </SidebarHeader>
     <SidebarContent>
-      <NavStudent :items="data.navStudent" />
+      <NavStudent :items="navStudent" />
       <NavMain v-if="canSeeStaffSection" :items="data.navMain" />
       <NavProjects v-if="canSeeAdminSection" :projects="data.projects" />
     </SidebarContent>

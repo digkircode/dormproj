@@ -10,6 +10,7 @@ import { computePenaltyBalance, sumPenaltyLog } from '../billing/penalty-balance
 import { fromStoredValue } from '../rooms/characteristic-value';
 import { parseListOptions, paginateInMemory, filterAndSortInMemory, facetsFromValues, type FacetOption } from './list-helpers';
 import { sendExcelReport, type ExcelColumn } from './excel-export';
+import { buildDebtorRows, type DebtorRow } from './debtor-rows';
 
 const { Decimal } = Prisma;
 
@@ -44,31 +45,6 @@ interface OccupancyRoomRow {
   occupied: number;
   free: number | null;
   occupants: { contractId: number; contractNumber: string; residentFullName: string }[];
-}
-
-interface DebtorRow {
-  contractId: number;
-  contractNumber: string;
-  residentIndividualUid: string;
-  residentFullName: string;
-  room: string | null;
-  status: ContractStatus;
-  createdAt: Date;
-  // endDate — добавлено 2026-08-23, только для отображения статуса "Истекает" на фронте
-  // (ContractStatusCell.vue, тот же приём, что в основном списке /contracts), в расчёт
-  // долга/пени само по себе не участвует.
-  endDate: Date;
-  // Начислено/Оплачено — по ВСЕМУ сроку договора (весь срок целиком, не зависит от asOf) —
-  // справочные итоги, не то же самое, что "Долг" ниже.
-  totalAccrued: number;
-  totalPaid: number;
-  // Долг НА ДАТУ asOf: тело долга только по уже НАСТУПИВШИМ начислениям (dueDate<=asOf),
-  // погашённое только теми платежами, что были ДО asOf (см. buildDebtorRows), плюс пеня
-  // на asOf (сумма журнала PenaltyAccrualLog по эту дату, см. penalty-balance.ts). Именно
-  // эта пара figures даёт "долг по договору на дату", а не по всему сроку.
-  principalDebt: number;
-  penaltyBalance: number;
-  totalBalance: number;
 }
 
 interface ContingentRow {
@@ -144,72 +120,8 @@ export class ReportsController {
 
   // ===== Финансовый отчёт (бывшая "Задолженность") =====
   // Показывает ВСЕ договоры (по прямой просьбе 2026-08-22, не только должников), на дату
-  // asOf (по умолчанию сегодня): "Долг" — тело долга только по уже НАСТУПИВШИМ начислениям
-  // (dueDate<=asOf), погашённое только платежами ДО asOf (позже — не считается, иначе
-  // "долг на дату X" включал бы деньги, внесённые уже после X), плюс пеня на asOf (сумма
-  // журнала PenaltyAccrualLog по эту дату, см. penalty-balance.ts). Начислено/Оплачено —
-  // по ВСЕМУ сроку договора целиком (не зависят от asOf) — справочные итоги.
-  private async buildDebtorRows(asOf: Date): Promise<DebtorRow[]> {
-    const contracts = await this.prisma.contract.findMany({
-      include: {
-        resident: { select: { fullName: true, fizicheskoyeLitsoUid: true } },
-        roomAssignments: { where: { toDate: null }, include: { room: { select: { room: true } } } },
-        accruals: {
-          where: { voidedAt: null },
-          include: { allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } } },
-        },
-        payments: true,
-        penaltyLogs: true,
-      },
-    });
-
-    const rows: DebtorRow[] = [];
-    for (const contract of contracts) {
-      let totalAccrued = new Decimal(0);
-      let principalDebtAsOf = new Decimal(0);
-
-      for (const accrual of contract.accruals) {
-        const principal = accrual.rentAmount.plus(accrual.utilitiesAmount).plus(accrual.adjustmentAmount);
-        totalAccrued = totalAccrued.plus(principal);
-        if (accrual.dueDate > asOf) continue;
-
-        const paidAsOf = accrual.allocations
-          .filter((al) => !al.payment.reversedAt && al.payment.paidAt <= asOf)
-          .reduce((sum, al) => sum.plus(al.amount), new Decimal(0));
-        // НЕ ограничиваем снизу нулём — переплата по одному начислению должна гасить долг
-        // по другому в сумме по договору (не просто исчезать), это и даёт отрицательный
-        // "Долг" = переплата (см. DebtBalanceCell.vue на фронте, зелёная подсветка).
-        principalDebtAsOf = principalDebtAsOf.plus(principal.minus(paidAsOf));
-      }
-
-      const { penaltyBalance } = computePenaltyBalance({
-        asOf,
-        penaltyLogs: contract.penaltyLogs,
-        accruals: contract.accruals,
-        payments: contract.payments,
-      });
-      const totalPaid = contract.payments.filter((p) => !p.reversedAt).reduce((sum, p) => sum.plus(p.amount), new Decimal(0));
-
-      rows.push({
-        contractId: contract.id,
-        contractNumber: contract.number,
-        residentIndividualUid: contract.residentIndividualUid,
-        residentFullName: contract.resident.fullName,
-        room: contract.roomAssignments[0]?.room.room ?? null,
-        status: contract.status,
-        createdAt: contract.createdAt,
-        endDate: contract.endDate,
-        totalAccrued: Number(totalAccrued),
-        totalPaid: Number(totalPaid),
-        principalDebt: Number(principalDebtAsOf),
-        penaltyBalance: Number(penaltyBalance),
-        totalBalance: Number(principalDebtAsOf.plus(penaltyBalance)),
-      });
-    }
-
-    return rows;
-  }
-
+  // asOf (по умолчанию сегодня). Сама выборка — buildDebtorRows() в ./debtor-rows.ts
+  // (вынесена оттуда же — та же выборка нужна фильтрам рассылки чата, см. chats/).
   @Get('debtors')
   async debtors(
     @Query('page') pageParam?: string,
@@ -220,7 +132,7 @@ export class ReportsController {
     @Query('filters') filtersParam?: string,
     @Query('asOf') asOfParam?: string,
   ) {
-    const rows = await this.buildDebtorRows(resolveAsOf(asOfParam));
+    const rows = await buildDebtorRows(this.prisma, resolveAsOf(asOfParam));
     const options = parseListOptions(pageParam, pageSizeParam, searchParam, sortByParam, sortDirParam, filtersParam, 'totalBalance');
     return paginateInMemory(rows, options, {
       searchFields: ['contractNumber', 'residentFullName', 'room'],
@@ -231,7 +143,7 @@ export class ReportsController {
 
   @Get('debtors/summary')
   async debtorsSummary(@Query('asOf') asOfParam?: string) {
-    const rows = await this.buildDebtorRows(resolveAsOf(asOfParam));
+    const rows = await buildDebtorRows(this.prisma, resolveAsOf(asOfParam));
     return {
       debtorsCount: rows.filter((r) => r.totalBalance > 0).length,
       totalAccrued: rows.reduce((sum, r) => sum + r.totalAccrued, 0),
@@ -261,7 +173,7 @@ export class ReportsController {
     @Query('filters') filtersParam?: string,
     @Query('asOf') asOfParam?: string,
   ) {
-    const rows = await this.buildDebtorRows(resolveAsOf(asOfParam));
+    const rows = await buildDebtorRows(this.prisma, resolveAsOf(asOfParam));
     const options = parseListOptions(undefined, undefined, searchParam, sortByParam, sortDirParam, filtersParam, 'totalBalance');
     const sorted = filterAndSortInMemory(rows, options, {
       searchFields: ['contractNumber', 'residentFullName', 'room'],

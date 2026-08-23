@@ -26,6 +26,8 @@ import UsersRoles from '@/pages/UsersRoles.vue'
 import UsersList from '@/pages/UsersList.vue'
 import AuditLog from '@/pages/AuditLog.vue'
 import StudentGeneralInfo from '@/pages/StudentGeneralInfo.vue'
+import Chats from '@/pages/Chats.vue'
+import MyChat from '@/pages/MyChat.vue'
 
 // Первый этап ролевой модели (см. промпт проекта) — секция страницы определяет, кому
 // она видна: 'staff' — группа "Сотрудник" в сайдбаре (AppSidebar.vue/NavMain.vue),
@@ -39,6 +41,10 @@ const router = createRouter({
     // Без section — доступна всем залогиненным независимо от роли (в т.ч. без роли
     // вообще), тот же принцип, что у "Главной" — секция "Студент" в сайдбаре видна всем.
     { path: '/student/general-info', name: 'student-general-info', component: StudentGeneralInfo, meta: { title: 'Общая информация' } },
+    // section: 'resident' — не "доступно всем", как остальной раздел "Проживающий" выше,
+    // а только роли RESIDENT (плюс ADMIN по общему для приложения принципу "администратор
+    // видит всё") — уточнено с пользователем отдельно при планировании чата.
+    { path: '/student/chat', name: 'student-chat', component: MyChat, meta: { title: 'Чат с сотрудниками', section: 'resident' } },
     { path: '/students', name: 'students', component: Students, meta: { title: 'Контингент', section: 'admin' } },
     { path: '/sync', name: 'sync', component: Sync, meta: { title: 'Синхронизация', section: 'admin' } },
     {
@@ -78,6 +84,7 @@ const router = createRouter({
     },
 
     { path: '/contracts', name: 'contracts', component: Contracts, meta: { title: 'Договоры', section: 'staff' } },
+    { path: '/chats', name: 'chats', component: Chats, meta: { title: 'Чаты', section: 'staff' } },
     {
       path: '/contracts/:id',
       name: 'contract-detail',
@@ -125,6 +132,10 @@ const router = createRouter({
 })
 
 function sectionAllowed(roles: RoleName[] | undefined, section: unknown): boolean {
+  // 'resident' — отдельная ветка от 'staff'/'admin' ниже: там ADMIN проходит просто
+  // потому что не 'staff'/'admin', здесь — по тому же общему принципу "администратор
+  // видит всё", но явно, вместе с самой ролью RESIDENT.
+  if (section === 'resident') return !!roles?.includes('ADMIN') || !!roles?.includes('RESIDENT')
   if (section !== 'staff' && section !== 'admin') return true
   if (!roles?.length) return false
   if (roles.includes('ADMIN')) return true

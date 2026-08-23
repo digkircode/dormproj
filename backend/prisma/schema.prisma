@@ -98,6 +98,7 @@ model Individual {
   users        User[]
   contracts    Contract[]
   contractsAsLegalRep Contract[] @relation("ContractLegalRep")
+  chatConversation ChatConversation?
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -210,6 +211,7 @@ model User {
   paymentsCreated  Payment[]  @relation("PaymentCreatedBy")
   roles            UserRole[]
   auditLogs        AuditLog[]
+  chatMessages     ChatMessage[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -755,4 +757,58 @@ model PaymentImportRecord {
   @@unique([source, externalId])
   @@index([status])
   @@map("payment_import_records")
+}
+
+// ===== Внутренний чат «проживающий ↔ сотрудники» =====
+// Упрощённая переписка по типу Telegram, не тикет-система — без приоритетов/статусов/
+// назначения ответственного (см. промпт проекта, раздел про чат). Один диалог на
+// физлицо, общий сразу для всех сотрудников (нет "назначен на конкретного сотрудника").
+
+// Диалог привязан к Individual, а не к User — так рассылка/фильтр по этажу/должникам
+// может адресоваться физлицу, у которого ещё нет аккаунта rosnou-id (аккаунт и роль
+// RESIDENT появляются только при первом логине, см. resident-role-sync.ts): сообщение
+// уже будет ждать его в диалоге, диалог найдётся по individualUid, когда он всё же войдёт.
+model ChatConversation {
+  id            Int        @id @default(autoincrement())
+  individualUid String     @unique @map("individual_uid")
+  individual    Individual @relation(fields: [individualUid], references: [fizicheskoyeLitsoUid])
+
+  lastMessageAt DateTime @default(now()) @map("last_message_at")
+  // Общая на ВСЕХ сотрудников отметка прочтения — нет назначения ответственного, значит
+  // нет и персонального прочтения: открыл один сотрудник диалог — непрочитанность
+  // снимается для всей команды сразу (по прямой просьбе, см. промпт проекта).
+  staffLastReadAt    DateTime? @map("staff_last_read_at")
+  residentLastReadAt DateTime? @map("resident_last_read_at")
+
+  messages ChatMessage[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("chat_conversations")
+}
+
+enum ChatSenderRole {
+  RESIDENT
+  STAFF
+}
+
+model ChatMessage {
+  id             Int              @id @default(autoincrement())
+  conversationId Int              @map("conversation_id")
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderUserId   Int              @map("sender_user_id")
+  sender         User             @relation(fields: [senderUserId], references: [id])
+  // Хранится явно на сообщении, а не выводится из текущих ролей отправителя — роль в
+  // JWT это снимок на момент логина (не живая проверка, см. известную проблему в
+  // промпте проекта), плюс гибридный аккаунт (сотрудник, который сам проживает) может
+  // писать и как сотрудник, и как проживающий — это поле однозначно определяет, с какой
+  // стороны экрана рисовать сообщение, независимо от смены ролей задним числом.
+  senderRole ChatSenderRole @map("sender_role")
+
+  body String
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([conversationId, createdAt])
+  @@map("chat_messages")
 }
