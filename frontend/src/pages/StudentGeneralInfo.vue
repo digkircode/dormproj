@@ -29,6 +29,7 @@ import butPhoto from '@/assets/staff/but.jpg'
 // просьбе — эта страница показывает официальную информацию об общежитии как есть, без
 // отсебятины). Обновлять вручную при изменениях на сайте вуза — автосинхронизации нет.
 // Исключение — "Стоимость проживания" ниже: цифры реальные, из БД (см. hostelInfo).
+// Три вкладки (2026-08-23, второй раунд) — вместо одной длинной ленты карточек.
 
 interface StaffPerson {
   name: string
@@ -73,6 +74,15 @@ function initials(fullName: string): string {
     .toUpperCase()
 }
 
+// Крылья здания и обстановка комнат — добавлено 2026-08-23 по присланному пользователем
+// тексту, сжато до кратких пунктов (не дословная простыня).
+const buildingWings = [
+  'Правое крыло: на каждом этаже 2 кухни, 3 душевые, 4 холла, комната для стирки и сушки',
+  'Левое крыло: одна кухня на этаж, персональные душевые в каждом блоке',
+  'В комнатах — кровати, шкафы, тумбочки, холодильник; утюги/фены студенты привозят сами',
+  'С разрешения администратора можно ставить доп. шкафы, полки, ковры',
+]
+
 const infrastructure = [
   'Бесплатный Wi-Fi на всей территории общежития',
   'Общая кухня на каждом этаже',
@@ -87,6 +97,15 @@ const tempRegistrationDocuments = [
   'Выписка из приказа о зачислении',
   'Справка с места обучения',
   'Фотография 3×4 см',
+]
+
+// "Шпаргалка" — добавлено 2026-08-23 по присланному пользователем тексту, сжато до
+// пошагового списка (само собой разумеющееся вступление про иногородних/список
+// документов уже было на странице абзацем выше — не дублировали).
+const polyclinicSteps = [
+  'Оформить временную регистрацию',
+  'Взять с собой полис ОМС, паспорт и СНИЛС',
+  'Обратиться в ближайшее отделение страховой компании',
 ]
 
 const polyclinics = [
@@ -136,113 +155,135 @@ onMounted(async () => {
     <Tabs default-value="general">
       <TabsList>
         <TabsTrigger value="general">Общая информация</TabsTrigger>
+        <TabsTrigger value="payment">Оплата и документы</TabsTrigger>
+        <TabsTrigger value="contacts">Контакты</TabsTrigger>
       </TabsList>
 
+      <!-- Вкладка 1 — Здание (+ Доступность подразделом под ним) слева, Инфраструктура
+           справа через вертикальный разделитель. -->
       <TabsContent value="general" class="mt-4 flex flex-col gap-4">
-        <!-- Здание/Инфраструктура/Доступность — по прямой просьбе объединены в одну карточку
-             вместо трёх подряд, каждый раздел — свой мини-заголовок с иконкой + border-t
-             между разделами (тот же приём, что у "Ответственные сотрудники" в карточке
-             контактов ниже). -->
         <Card class="p-6">
-          <div class="flex items-center gap-1.5 text-sm font-medium">
-            <Building2 class="size-4 text-primary" />
-            Здание
-          </div>
-          <ul class="mt-3 flex flex-col gap-1.5 text-sm">
-            <li>Общая площадь здания — 12 697 м², всего 617 мест для проживания</li>
-            <li>Блочный и коридорный типы комнат с разным уровнем комфорта</li>
-            <li>В 2014 году проведён капитальный ремонт</li>
-            <li>Установлена система видеонаблюдения</li>
-          </ul>
+          <div class="flex flex-col gap-6 lg:flex-row lg:divide-x lg:divide-border">
+            <div class="flex flex-col lg:w-1/2 lg:pr-6">
+              <div class="flex items-center gap-1.5 text-sm font-medium">
+                <Building2 class="size-4 text-primary" />
+                Здание
+              </div>
+              <ul class="mt-3 flex flex-col gap-1.5 text-sm">
+                <li>Общая площадь здания — 12 697 м², всего 617 мест для проживания</li>
+                <li>Блочный и коридорный типы комнат с разным уровнем комфорта</li>
+                <li>В 2014 году проведён капитальный ремонт</li>
+                <li>Установлена система видеонаблюдения</li>
+                <li v-for="w in buildingWings" :key="w">{{ w }}</li>
+              </ul>
 
-          <div class="mt-4 flex items-center gap-1.5 border-t pt-4 text-sm font-medium">
-            <Wifi class="size-4 text-primary" />
-            Инфраструктура и услуги
-          </div>
-          <ul class="mt-3 grid grid-cols-1 gap-1.5 text-sm sm:grid-cols-2">
-            <li v-for="i in infrastructure" :key="i">{{ i }}</li>
-          </ul>
+              <div class="mt-4 flex items-center gap-1.5 border-t pt-4 text-sm font-medium">
+                <Accessibility class="size-4 text-primary" />
+                Доступность для лиц с ограниченными возможностями
+              </div>
+              <ul class="mt-3 flex flex-col gap-1.5 text-sm">
+                <li>Общежитие оснащено оборудованием для проживания лиц с ОВЗ и инвалидов</li>
+                <li>Пандус для беспрепятственного доступа</li>
+                <li>На первом этаже — жилые комнаты, читальный зал, санузлы для лиц с ограниченными возможностями</li>
+                <li>Тактильные таблички со шрифтом Брайля</li>
+              </ul>
+            </div>
 
-          <div class="mt-4 flex items-center gap-1.5 border-t pt-4 text-sm font-medium">
-            <Accessibility class="size-4 text-primary" />
-            Доступность для лиц с ограниченными возможностями
+            <div class="flex flex-col lg:w-1/2 lg:pl-6">
+              <div class="flex items-center gap-1.5 text-sm font-medium">
+                <Wifi class="size-4 text-primary" />
+                Инфраструктура и услуги
+              </div>
+              <ul class="mt-3 flex flex-col gap-1.5 text-sm">
+                <li v-for="i in infrastructure" :key="i">{{ i }}</li>
+              </ul>
+            </div>
           </div>
-          <ul class="mt-3 flex flex-col gap-1.5 text-sm">
-            <li>Общежитие оснащено оборудованием для проживания лиц с ОВЗ и инвалидов</li>
-            <li>Пандус для беспрепятственного доступа</li>
-            <li>На первом этаже — жилые комнаты, читальный зал, санузлы для лиц с ограниченными возможностями</li>
-            <li>Тактильные таблички со шрифтом Брайля</li>
-          </ul>
+        </Card>
+      </TabsContent>
+
+      <!-- Вкладка 2 — Оплата и Стоимость проживания через вертикальный разделитель,
+           плюс Временная регистрация и Поликлиники ниже отдельной карточкой. -->
+      <TabsContent value="payment" class="mt-4 flex flex-col gap-4">
+        <Card class="p-6">
+          <div class="flex flex-col gap-6 lg:flex-row lg:divide-x lg:divide-border">
+            <div class="flex flex-col lg:w-1/2 lg:pr-6">
+              <div class="flex items-center gap-1.5 text-sm font-medium">
+                <Wallet class="size-4 text-primary" />
+                Оплата
+              </div>
+              <ul class="mt-3 flex flex-col gap-1.5 text-sm">
+                <li>Оплата вносится ежемесячно (или сразу за квартал/полугодие) не позднее 5-го числа расчётного месяца — срок зафиксирован в договоре найма</li>
+                <li>За каждый день просрочки начисляется пеня — 0,14% от непогашенной суммы в день (п. 4.8/5.9 договора)</li>
+                <li>Студенты заочной формы заселяются на время сессии при наличии мест, расчёт — по количеству прожитых дней</li>
+              </ul>
+            </div>
+
+            <div class="flex flex-col lg:w-1/2 lg:pl-6">
+              <div class="flex items-center gap-1.5 text-sm font-medium">
+                <Wallet class="size-4 text-primary" />
+                Стоимость проживания
+              </div>
+              <p v-if="hostelInfoError" class="mt-3 text-sm text-red-500">{{ hostelInfoError }}</p>
+              <p v-else-if="isHostelInfoLoading" class="mt-3 text-sm text-muted-foreground">Загрузка…</p>
+              <div v-else class="mt-3 flex flex-col divide-y divide-border">
+                <div
+                  v-for="p in hostelInfo?.priceRanges ?? []"
+                  :key="p.capacity"
+                  class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0"
+                >
+                  <span class="text-muted-foreground">{{ roomLabel(p.capacity) }}</span>
+                  <span class="font-medium">{{ priceRange(p.min, p.max) }}</span>
+                </div>
+                <div
+                  v-if="hostelInfo?.guestRoomDailyRate != null"
+                  class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0"
+                >
+                  <span class="text-muted-foreground">Гостевая комната</span>
+                  <span class="font-medium">{{ hostelInfo.guestRoomDailyRate.toLocaleString('ru-RU') }} ₽/сутки</span>
+                </div>
+                <div
+                  v-if="hostelInfo?.passRestorationCost != null"
+                  class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0"
+                >
+                  <span class="text-muted-foreground">Восстановление пропускного документа</span>
+                  <span class="font-medium">{{ hostelInfo.passRestorationCost.toLocaleString('ru-RU') }} ₽</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </Card>
 
-        <!-- Стоимость проживания/Оплата — тоже по прямой просьбе одной карточкой, тот же
-             приём с border-t между разделами. -->
         <Card class="p-6">
           <div class="flex items-center gap-1.5 text-sm font-medium">
-            <Wallet class="size-4 text-primary" />
-            Стоимость проживания
-          </div>
-          <p v-if="hostelInfoError" class="mt-3 text-sm text-red-500">{{ hostelInfoError }}</p>
-          <p v-else-if="isHostelInfoLoading" class="mt-3 text-sm text-muted-foreground">Загрузка…</p>
-          <div v-else class="mt-3 flex flex-col divide-y divide-border">
-            <div
-              v-for="p in hostelInfo?.priceRanges ?? []"
-              :key="p.capacity"
-              class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0"
-            >
-              <span class="text-muted-foreground">{{ roomLabel(p.capacity) }}</span>
-              <span class="font-medium">{{ priceRange(p.min, p.max) }}</span>
-            </div>
-            <div
-              v-if="hostelInfo?.guestRoomDailyRate != null"
-              class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0"
-            >
-              <span class="text-muted-foreground">Гостевая комната</span>
-              <span class="font-medium">{{ hostelInfo.guestRoomDailyRate.toLocaleString('ru-RU') }} ₽/сутки</span>
-            </div>
-            <div
-              v-if="hostelInfo?.passRestorationCost != null"
-              class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0"
-            >
-              <span class="text-muted-foreground">Восстановление пропускного документа</span>
-              <span class="font-medium">{{ hostelInfo.passRestorationCost.toLocaleString('ru-RU') }} ₽</span>
-            </div>
-          </div>
-
-          <div class="mt-4 flex items-center gap-1.5 border-t pt-4 text-sm font-medium">
-            <Wallet class="size-4 text-primary" />
-            Оплата
-          </div>
-          <ul class="mt-3 flex flex-col gap-1.5 text-sm">
-            <li>Оплата вносится ежемесячно (или сразу за квартал/полугодие) не позднее 5-го числа расчётного месяца — срок зафиксирован в договоре найма</li>
-            <li>За каждый день просрочки начисляется пеня — 0,14% от непогашенной суммы в день (п. 4.8/5.9 договора)</li>
-            <li>Студенты заочной формы заселяются на время сессии при наличии мест, расчёт — по количеству прожитых дней</li>
-          </ul>
-        </Card>
-
-        <Card class="p-6">
-          <div class="mb-3 flex items-center gap-1.5 text-sm font-medium">
             <FileText class="size-4 text-primary" />
             Временная регистрация
           </div>
-          <p class="mb-2 text-sm text-muted-foreground">
+          <p class="mt-3 mb-2 text-sm text-muted-foreground">
             Для свидетельства о регистрации по месту пребывания необходимо предоставить (обращение в администрацию
             общежития или каб. 801):
           </p>
           <ul class="flex flex-col gap-1 text-sm">
             <li v-for="d in tempRegistrationDocuments" :key="d">{{ d }}</li>
           </ul>
-        </Card>
 
-        <Card class="p-6">
-          <div class="mb-3 flex items-center gap-1.5 text-sm font-medium">
+          <div class="mt-4 flex items-center gap-1.5 border-t pt-4 text-sm font-medium">
             <Stethoscope class="size-4 text-primary" />
             Прикрепление к поликлинике
           </div>
-          <p class="mb-2 text-sm text-muted-foreground">
+          <p class="mt-3 mb-2 text-sm text-muted-foreground">
             Иногородние студенты могут прикрепиться к ближайшей поликлинике при наличии паспорта, студенческого
             билета, полиса ОМС и временной регистрации.
           </p>
+          <div class="mb-3 rounded-md border border-dashed p-3">
+            <p class="mb-1.5 text-xs font-medium text-muted-foreground">Шпаргалка: как прикрепиться</p>
+            <ol class="flex flex-col gap-1 text-sm">
+              <li v-for="(step, i) in polyclinicSteps" :key="step" class="flex gap-2">
+                <span class="font-medium text-primary">{{ i + 1 }}.</span>
+                <span>{{ step }}</span>
+              </li>
+            </ol>
+          </div>
           <div class="flex flex-col divide-y divide-border">
             <div v-for="p in polyclinics" :key="p.name" class="flex flex-col gap-0.5 py-2 text-sm first:pt-0 last:pb-0">
               <span class="font-medium">{{ p.name }}</span>
@@ -250,9 +291,10 @@ onMounted(async () => {
             </div>
           </div>
         </Card>
+      </TabsContent>
 
-        <!-- Контакты — по прямой просьбе в самом низу страницы, объединены в одну карточку
-             (администрация общежития + ДДМ) вместо двух отдельных рядом. -->
+      <!-- Вкладка 3 — Контакты, фото крупнее и круглые (лицо+плечи, object-top). -->
+      <TabsContent value="contacts" class="mt-4 flex flex-col gap-4">
         <Card class="p-6">
           <div class="flex flex-col gap-6 lg:flex-row lg:divide-x lg:divide-border">
             <div class="flex flex-col gap-3 lg:w-1/2 lg:pr-6">
@@ -270,10 +312,10 @@ onMounted(async () => {
               <div class="mt-1 border-t pt-3">
                 <div class="mb-2 text-xs text-muted-foreground">Ответственные сотрудники</div>
                 <div class="flex flex-wrap gap-6">
-                  <div v-for="p in staff" :key="p.name" class="flex w-48 flex-col items-center gap-2 text-center">
-                    <Avatar class="size-48 rounded-md border-4 border-border">
+                  <div v-for="p in staff" :key="p.name" class="flex w-56 flex-col items-center gap-2 text-center">
+                    <Avatar class="size-56 rounded-full border-4 border-border">
                       <AvatarImage v-if="p.photo" :src="p.photo" :alt="p.name" />
-                      <AvatarFallback class="rounded-md text-4xl">{{ initials(p.name) }}</AvatarFallback>
+                      <AvatarFallback class="text-4xl">{{ initials(p.name) }}</AvatarFallback>
                     </Avatar>
                     <span class="text-sm leading-tight">{{ p.name }}</span>
                   </div>
@@ -295,10 +337,10 @@ onMounted(async () => {
               <div class="mt-1 border-t pt-3">
                 <div class="mb-2 text-xs text-muted-foreground">Ответственные сотрудники</div>
                 <div class="flex flex-wrap gap-6">
-                  <div v-for="p in ddmStaff" :key="p.name" class="flex w-48 flex-col items-center gap-2 text-center">
-                    <Avatar class="size-48 rounded-md border-4 border-border">
+                  <div v-for="p in ddmStaff" :key="p.name" class="flex w-56 flex-col items-center gap-2 text-center">
+                    <Avatar class="size-56 rounded-full border-4 border-border">
                       <AvatarImage v-if="p.photo" :src="p.photo" :alt="p.name" />
-                      <AvatarFallback class="rounded-md text-4xl">{{ initials(p.name) }}</AvatarFallback>
+                      <AvatarFallback class="text-4xl">{{ initials(p.name) }}</AvatarFallback>
                     </Avatar>
                     <span class="text-sm leading-tight">{{ p.name }}</span>
                   </div>
