@@ -161,30 +161,10 @@ onMounted(async () => {
         <TabsTrigger value="contacts">Контакты</TabsTrigger>
       </TabsList>
 
-      <!-- Вкладка 1 — Как добраться (адрес+карта), затем Здание (+ Доступность
-           подразделом под ним) слева, Инфраструктура справа через вертикальный
-           разделитель. -->
+      <!-- Вкладка 1 — сначала Здание (+ Доступность подразделом под ним) слева,
+           Инфраструктура справа через вертикальный разделитель; "Как добраться" — по
+           прямой просьбе в самом низу вкладки, а не сверху. -->
       <TabsContent value="general" class="mt-4 flex flex-col gap-4">
-        <Card class="p-6">
-          <div class="flex items-center gap-1.5 text-sm font-medium">
-            <MapPin class="size-4 text-primary" />
-            Как добраться
-          </div>
-          <ul class="mt-3 mb-4 flex flex-col gap-1.5 text-sm">
-            <li>Ближайшее метро — «Авиамоторная» (около 20 минут пешком)</li>
-            <li>От метро «Авиамоторная» — автобус № 695 или с679 до остановки «Андроновское шоссе, 26», далее пешком</li>
-            <li>От главного корпуса (ул. Радио, д. 22) — автобус № 624 от остановки «Лефортовская набережная» до «НИИ прикладной механики», далее пешком</li>
-          </ul>
-          <div class="overflow-hidden rounded-md border">
-            <iframe
-              src="https://yandex.ru/map-widget/v1/?text=Москва%2C%20ул.%20Авиамоторная%2C%20д.%2055%2C%20корп.%205&z=16"
-              class="block h-[360px] w-full"
-              loading="lazy"
-              title="Как добраться до общежития РосНОУ — карта"
-            />
-          </div>
-        </Card>
-
         <Card class="p-6">
           <div class="flex flex-col gap-6 lg:flex-row lg:divide-x lg:divide-border">
             <div class="flex flex-col lg:w-1/2 lg:pr-6">
@@ -221,6 +201,29 @@ onMounted(async () => {
                 <li v-for="i in infrastructure" :key="i">{{ i }}</li>
               </ul>
             </div>
+          </div>
+        </Card>
+
+        <Card class="p-6">
+          <div class="flex items-center gap-1.5 text-sm font-medium">
+            <MapPin class="size-4 text-primary" />
+            Как добраться
+          </div>
+          <ul class="mt-3 mb-4 flex flex-col gap-1.5 text-sm">
+            <li>Ближайшее метро — «Авиамоторная» (около 20 минут пешком)</li>
+            <li>От метро «Авиамоторная» — автобус № 695 или с679 до остановки «Андроновское шоссе, 26», далее пешком</li>
+            <li>От главного корпуса (ул. Радио, д. 22) — автобус № 624 от остановки «Лефортовская набережная» до «НИИ прикладной механики», далее пешком</li>
+          </ul>
+          <!-- Тот же embed (конструктор Яндекс.Карт), что и на официальной странице
+               rosnou.ru/university/hostel/ — с готовыми пронумерованными маршрутами на
+               карте, не просто геокодированная точка (см. промпт проекта). -->
+          <div class="overflow-hidden rounded-md border">
+            <iframe
+              src="https://yandex.ru/map-widget/v1/?lang=ru_RU&scroll=true&source=constructor-api&um=constructor%3AzKairv6FkwsqRhkpf5bDqYE06Mx3Xtzy"
+              class="block h-[420px] w-full"
+              loading="lazy"
+              title="Как добраться до общежития РосНОУ — карта с маршрутами"
+            />
           </div>
         </Card>
       </TabsContent>
