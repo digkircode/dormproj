@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import type { SidebarProps } from '@/components/ui/sidebar'
 import {
   BarChart3,
@@ -19,6 +19,9 @@ import NavProjects from '@/components/NavProjects.vue'
 import NavUser from '@/components/NavUser.vue'
 import TeamSwitcher from '@/components/TeamSwitcher.vue'
 import { currentUser } from '@/lib/auth-state'
+import { useChatStream } from '@/lib/chat-stream'
+import { fetchConversations, fetchMyChatUnread } from '@/lib/chat-api'
+import { hasUnreadStaffChats, hasUnreadResidentChat } from '@/lib/chat-unread-state'
 
 import {
   Sidebar,
@@ -52,6 +55,13 @@ const canSeeAdminSection = computed(() => isAdmin.value)
 // а только роли RESIDENT (плюс ADMIN по общему принципу "администратор видит всё") — тот
 // же гейт, что в router/index.ts (meta.section:'resident').
 const canSeeResidentChat = computed(() => isAdmin.value || roles.value.includes('RESIDENT'))
+// Отдельно от canSeeResidentChat — та (по общему правилу "администратор видит всё")
+// пускает и ADMIN без роли RESIDENT на страницу чата, но у такого аккаунта обычно нет
+// привязанного физлица (см. my-chat.controller.ts#resolveIndividualUid) — держать для
+// него открытым фоновое SSE-соединение под бейджик не нужно, оно только дёргало бы
+// /my-chat/stream вхолостую. Сама страница (MyChat.vue) свой собственный edge case уже
+// обрабатывает штатно (ошибка вместо пустого экрана), это не то же самое, что бейджик.
+const hasResidentRole = computed(() => roles.value.includes('RESIDENT'))
 
 // Видна всем залогиненным независимо от роли (в т.ч. без роли вообще) — см.
 // router/index.ts, страницы этой группы без meta.section. Пункт чата — исключение,
@@ -62,7 +72,67 @@ const navStudent = computed(() => [
     url: '/student/general-info',
     icon: Info,
   },
-  ...(canSeeResidentChat.value ? [{ title: 'Чат с сотрудниками', url: '/student/chat', icon: MessageCircle }] : []),
+  ...(canSeeResidentChat.value
+    ? [{ title: 'Чат с сотрудниками', url: '/student/chat', icon: MessageCircle, badge: hasUnreadResidentChat.value }]
+    : []),
+])
+
+async function refreshStaffUnread() {
+  try {
+    hasUnreadStaffChats.value = (await fetchConversations()).some((c) => c.unread)
+  } catch {
+    // Тихо игнорируем — бейджик просто не обновится до следующей попытки (следующий
+    // SSE-эвент или ремаунт сайдбара), не роняем весь layout из-за индикатора.
+  }
+}
+async function refreshResidentUnread() {
+  hasUnreadResidentChat.value = await fetchMyChatUnread()
+}
+
+watch(canSeeStaffSection, (value) => value && refreshStaffUnread(), { immediate: true })
+watch(hasResidentRole, (value) => value && refreshResidentUnread(), { immediate: true })
+
+// AppSidebar смонтирован всё время, пока пользователь залогинен (в отличие от
+// Chats.vue/MyChat.vue, которые живут только на своих страницах) — эти два SSE-потока
+// держат бейджик актуальным, даже когда человек находится совсем на другой странице.
+useChatStream('/chats/stream', refreshStaffUnread, canSeeStaffSection)
+useChatStream('/my-chat/stream', refreshResidentUnread, hasResidentRole)
+
+// "Чаты" — единственный пункт с бейджиком, поэтому весь список computed (та же причина,
+// что у navStudent выше).
+const navMain = computed(() => [
+  {
+    title: 'Физические лица',
+    url: '/individuals',
+    icon: User,
+  },
+  {
+    title: 'Комнаты',
+    url: '/rooms',
+    icon: DoorOpen,
+  },
+  {
+    title: 'Договоры',
+    url: '/contracts',
+    icon: FileText,
+  },
+  {
+    title: 'Чаты',
+    url: '/chats',
+    icon: MessageCircle,
+    badge: hasUnreadStaffChats.value,
+  },
+  {
+    title: 'Отчёты',
+    icon: BarChart3,
+    items: [
+      { title: 'Занятость общежития', url: '/reports/occupancy' },
+      { title: 'Реестр проживающих', url: '/reports/contingent' },
+      { title: 'Реестр договоров', url: '/reports/contracts' },
+      { title: 'Финансовый отчёт', url: '/reports/debt' },
+      { title: 'Движение проживающих', url: '/reports/move-in-out' },
+    ],
+  },
 ])
 
 const data = {
@@ -70,39 +140,6 @@ const data = {
     {
       name: 'RosNOU',
       plan: 'Общежитие',
-    },
-  ],
-  navMain: [
-    {
-      title: 'Физические лица',
-      url: '/individuals',
-      icon: User,
-    },
-    {
-      title: 'Комнаты',
-      url: '/rooms',
-      icon: DoorOpen,
-    },
-    {
-      title: 'Договоры',
-      url: '/contracts',
-      icon: FileText,
-    },
-    {
-      title: 'Чаты',
-      url: '/chats',
-      icon: MessageCircle,
-    },
-    {
-      title: 'Отчёты',
-      icon: BarChart3,
-      items: [
-        { title: 'Занятость общежития', url: '/reports/occupancy' },
-        { title: 'Реестр проживающих', url: '/reports/contingent' },
-        { title: 'Реестр договоров', url: '/reports/contracts' },
-        { title: 'Финансовый отчёт', url: '/reports/debt' },
-        { title: 'Движение проживающих', url: '/reports/move-in-out' },
-      ],
     },
   ],
   projects: [
@@ -139,7 +176,7 @@ const data = {
     </SidebarHeader>
     <SidebarContent>
       <NavStudent :items="navStudent" />
-      <NavMain v-if="canSeeStaffSection" :items="data.navMain" />
+      <NavMain v-if="canSeeStaffSection" :items="navMain" />
       <NavProjects v-if="canSeeAdminSection" :projects="data.projects" />
     </SidebarContent>
     <SidebarFooter>

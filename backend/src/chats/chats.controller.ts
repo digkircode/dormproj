@@ -31,6 +31,7 @@ import { ChatEventsService } from './chat-events.service';
 import { chatRecipientFacets, chatRecipients, type ChatRecipientFilters } from './chat-recipients';
 import { CHAT_UPLOADS_DIR, MAX_ATTACHMENTS_PER_MESSAGE, chatAttachmentsMulterOptions } from './chat-attachments-storage';
 import { cleanupUploadedFiles, validateAttachmentSizes } from './chat-attachments';
+import { isMessageRead } from './chat-read-status';
 
 const MAX_BODY_LENGTH = 4000;
 
@@ -93,6 +94,12 @@ export class ChatsController {
   @Get()
   async list() {
     const conversations = await this.prisma.chatConversation.findMany({
+      // Диалог без единого сообщения не должен попадать в инбокс — GET /my-chat раньше
+      // заводил диалог сразу при открытии вкладки (не при отправке), из-за чего у
+      // сотрудников появлялись "диалоги" от людей, которые просто зашли посмотреть.
+      // GET /my-chat больше так не делает (см. my-chat.controller.ts), но этот фильтр
+      // остаётся и как защита на будущее, и подчищает уже осевшие пустые записи.
+      where: { messages: { some: {} } },
       orderBy: { lastMessageAt: 'desc' },
       include: {
         individual: { select: { fullName: true } },
@@ -191,12 +198,18 @@ export class ChatsController {
     const conversationId = parseId(idParam);
     const before = beforeParam ? parseId(beforeParam) : undefined;
 
-    const rows = await this.prisma.chatMessage.findMany({
-      where: { conversationId, ...(before ? { id: { lt: before } } : {}) },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-      include: { sender: { select: { fullName: true } }, attachments: true },
-    });
+    const [conversation, rows] = await Promise.all([
+      this.prisma.chatConversation.findUnique({
+        where: { id: conversationId },
+        select: { staffLastReadAt: true, residentLastReadAt: true },
+      }),
+      this.prisma.chatMessage.findMany({
+        where: { conversationId, ...(before ? { id: { lt: before } } : {}) },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+        include: { sender: { select: { fullName: true } }, attachments: true },
+      }),
+    ]);
 
     return rows
       .map((row) => ({
@@ -206,8 +219,35 @@ export class ChatsController {
         senderFullName: row.sender.fullName,
         createdAt: row.createdAt,
         attachments: row.attachments.map((a) => ({ id: a.id, kind: a.kind, mimeType: a.mimeType, fileName: a.fileName, sizeBytes: a.sizeBytes })),
+        read: isMessageRead(row.senderRole, row.createdAt, conversation),
       }))
       .reverse();
+  }
+
+  // Комната/договор проживающего — шапка диалога у сотрудника (по прямой просьбе,
+  // на высоте поиска слева). Только ДЕЙСТВУЮЩИЙ договор — расторгнутые/истёкшие не
+  // показываем здесь (это не карточка договора, просто быстрый контекст диалога).
+  @Get(':id/resident-info')
+  async residentInfo(@Param('id') idParam: string) {
+    const conversationId = parseId(idParam);
+    const conversation = await this.prisma.chatConversation.findUnique({
+      where: { id: conversationId },
+      select: { individualUid: true },
+    });
+    if (!conversation) {
+      throw new NotFoundException('Диалог не найден');
+    }
+
+    const contract = await this.prisma.contract.findFirst({
+      where: { residentIndividualUid: conversation.individualUid, status: 'ACTIVE' },
+      orderBy: { contractDate: 'desc' },
+      include: { roomAssignments: { where: { toDate: null }, include: { room: { select: { room: true } } } } },
+    });
+
+    return {
+      contractNumber: contract?.number ?? null,
+      room: contract?.roomAssignments[0]?.room.room ?? null,
+    };
   }
 
   @Post(':id/messages')

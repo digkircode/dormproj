@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { Card } from '@/components/ui/card'
 import ChatThread from '@/components/chat/ChatThread.vue'
 import { useChatStream } from '@/lib/chat-stream'
+import { hasUnreadResidentChat } from '@/lib/chat-unread-state'
 import { fetchMyChat, sendMyMessage, type ChatMessage } from '@/lib/chat-api'
 
 // Один диалог на аккаунт — "между проживающими чата нет" (см. промпт проекта), поэтому
@@ -22,6 +23,9 @@ async function load() {
     const chat = await fetchMyChat()
     messages.value = chat.messages
     streamEnabled.value = true
+    // Открытие страницы = прочтение (fetchMyChat() уже бампнул residentLastReadAt на
+    // бэке) — сбрасываем бейджик в сайдбаре сразу, не дожидаясь следующего SSE-события.
+    hasUnreadResidentChat.value = false
   } catch (error) {
     loadError.value = error instanceof Error ? error.message : String(error)
   } finally {

@@ -24,6 +24,8 @@ defineProps<{
     url?: string
     icon?: LucideIcon
     isActive?: boolean
+    // Кружок непрочитанного (сейчас только у "Чаты", см. AppSidebar.vue/lib/chat-unread-state.ts).
+    badge?: boolean
     items?: {
       title: string
       url: string
@@ -82,6 +84,7 @@ function handleGroupClick(title: string, isActive?: boolean) {
             <RouterLink :to="item.url ?? '#'">
               <component :is="item.icon" v-if="item.icon" class="text-primary" />
               <span>{{ item.title }}</span>
+              <span v-if="item.badge" class="ml-auto size-2 shrink-0 rounded-full bg-primary" />
             </RouterLink>
           </SidebarMenuButton>
         </SidebarMenuItem>

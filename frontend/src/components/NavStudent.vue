@@ -17,6 +17,9 @@ defineProps<{
     title: string
     url: string
     icon?: LucideIcon
+    // Кружок непрочитанного (сейчас только у "Чат с сотрудниками", см.
+    // AppSidebar.vue/lib/chat-unread-state.ts).
+    badge?: boolean
   }[]
 }>()
 </script>
@@ -30,6 +33,7 @@ defineProps<{
           <RouterLink :to="item.url">
             <component :is="item.icon" v-if="item.icon" class="text-primary" />
             <span>{{ item.title }}</span>
+            <span v-if="item.badge" class="ml-auto size-2 shrink-0 rounded-full bg-primary" />
           </RouterLink>
         </SidebarMenuButton>
       </SidebarMenuItem>

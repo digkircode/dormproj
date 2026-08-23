@@ -29,6 +29,7 @@ import { ChatEventsService } from './chat-events.service';
 import { ChatRateLimiterService } from './chat-rate-limiter.service';
 import { CHAT_UPLOADS_DIR, MAX_ATTACHMENTS_PER_MESSAGE, chatAttachmentsMulterOptions } from './chat-attachments-storage';
 import { cleanupUploadedFiles, validateAttachmentSizes } from './chat-attachments';
+import { isMessageRead } from './chat-read-status';
 
 const MAX_BODY_LENGTH = 4000;
 
@@ -66,19 +67,24 @@ export class MyChatController {
 
   // Открытие своего чата = прочтение — бампает residentLastReadAt при каждом вызове,
   // отдельного POST /my-chat/read поэтому нет (был бы мёртвым кодом, фронт всегда
-  // получает актуальный список сообщений именно через этот эндпоинт).
+  // получает актуальный список сообщений именно через этот эндпоинт). НЕ заводит диалог
+  // сам по себе, если его ещё нет (см. GET /my-chat/unread — тот же принцип) — раньше
+  // заводил через upsert, из-за чего у сотрудников появлялись "диалоги" от людей,
+  // которые просто открыли вкладку, ничего не написав (по прямой просьбе исправлено).
   @Get()
   async myChat(@Req() req: Request) {
     if (!req.user) {
       throw new BadRequestException('Не удалось определить пользователя сессии');
     }
     const individualUid = await this.resolveIndividualUid(req.user.id);
-    const now = new Date();
 
-    const conversation = await this.prisma.chatConversation.upsert({
-      where: { individualUid },
-      create: { individualUid, lastMessageAt: now, residentLastReadAt: now },
-      update: { residentLastReadAt: now },
+    const existing = await this.prisma.chatConversation.findUnique({ where: { individualUid } });
+    if (!existing) {
+      return { conversationId: null, messages: [] };
+    }
+    const conversation = await this.prisma.chatConversation.update({
+      where: { id: existing.id },
+      data: { residentLastReadAt: new Date() },
     });
 
     const messages = await this.prisma.chatMessage.findMany({
@@ -96,8 +102,29 @@ export class MyChatController {
         senderFullName: row.sender.fullName,
         createdAt: row.createdAt,
         attachments: row.attachments.map((a) => ({ id: a.id, kind: a.kind, mimeType: a.mimeType, fileName: a.fileName, sizeBytes: a.sizeBytes })),
+        read: isMessageRead(row.senderRole, row.createdAt, conversation),
       })),
     };
+  }
+
+  // Лёгкая проверка "есть ли непрочитанное", БЕЗ побочного эффекта пометки прочтения
+  // (в отличие от GET / выше) — нужна для бейджика в сайдбаре (AppSidebar.vue), который
+  // может дёргаться, когда пользователь вообще не на странице чата; вызов обычного GET /
+  // оттуда сразу пометил бы всё прочитанным, и бейджик не успевал бы показаться.
+  @Get('unread')
+  async unread(@Req() req: Request) {
+    if (!req.user) {
+      throw new BadRequestException('Не удалось определить пользователя сессии');
+    }
+    const individualUid = await this.resolveIndividualUid(req.user.id);
+    const conversation = await this.prisma.chatConversation.findUnique({
+      where: { individualUid },
+      select: { lastMessageAt: true, residentLastReadAt: true },
+    });
+    if (!conversation) {
+      return { unread: false };
+    }
+    return { unread: !conversation.residentLastReadAt || conversation.lastMessageAt > conversation.residentLastReadAt };
   }
 
   @Post('messages')

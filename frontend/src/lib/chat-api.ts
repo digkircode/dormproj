@@ -29,6 +29,16 @@ export interface ChatMessage {
   senderFullName: string
   createdAt: string
   attachments: ChatAttachment[]
+  // Прочитано ли "той стороной" (см. isMessageRead на бэке) — тиками показывается
+  // только на своих сообщениях (см. ChatThread.vue): 1 серая — только отправляется
+  // (клиент ещё не получил ответ сервера), 1 закрашенная — есть на сервере, 2
+  // закрашенные — read=true.
+  read: boolean
+}
+
+export interface ResidentInfo {
+  contractNumber: string | null
+  room: string | null
 }
 
 export interface ChatRecipient {
@@ -115,6 +125,13 @@ export async function markConversationRead(conversationId: number): Promise<void
   if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось отметить диалог прочитанным'))
 }
 
+// Комната/действующий договор проживающего — шапка диалога у сотрудника.
+export async function fetchResidentInfo(conversationId: number): Promise<ResidentInfo> {
+  const response = await apiFetch(`/chats/${conversationId}/resident-info`)
+  if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось получить информацию о проживающем'))
+  return response.json()
+}
+
 export async function fetchRecipientFacets(): Promise<ChatRecipientFacets> {
   const response = await apiFetch('/chats/recipients/filters')
   if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось получить фильтры получателей'))
@@ -151,7 +168,9 @@ export async function sendBroadcast(body: string, filters: ChatRecipientFilters)
 // ===== Личный чат проживающего =====
 
 export interface MyChatResponse {
-  conversationId: number
+  // null — диалога ещё нет (никто ничего не писал, см. my-chat.controller.ts —
+  // GET / больше не заводит диалог сам по себе за факт открытия вкладки).
+  conversationId: number | null
   messages: ChatMessage[]
 }
 
@@ -159,6 +178,15 @@ export async function fetchMyChat(): Promise<MyChatResponse> {
   const response = await apiFetch('/my-chat')
   if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось получить чат'))
   return response.json()
+}
+
+// Лёгкая проверка непрочитанного без побочного эффекта пометки прочтения (в отличие от
+// fetchMyChat выше) — для бейджика в сайдбаре, см. lib/chat-unread-state.ts.
+export async function fetchMyChatUnread(): Promise<boolean> {
+  const response = await apiFetch('/my-chat/unread')
+  if (!response.ok) return false
+  const data: { unread: boolean } = await response.json()
+  return data.unread
 }
 
 export async function sendMyMessage(body: string, files: File[] = []): Promise<void> {
