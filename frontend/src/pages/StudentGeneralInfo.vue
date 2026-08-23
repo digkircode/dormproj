@@ -230,19 +230,23 @@ onMounted(async () => {
       <TabsContent value="payment" class="mt-4 flex flex-col gap-4">
         <Card class="p-6">
           <div class="flex flex-col gap-6 lg:flex-row lg:divide-x lg:divide-border">
-            <div class="flex flex-col lg:w-1/2 lg:pr-6">
+            <div class="flex flex-col lg:w-3/5 lg:pr-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
                 <Wallet class="size-4 text-primary" />
                 Оплата
               </div>
-              <ul class="mt-3 flex flex-col gap-1.5 text-sm">
-                <li>Оплата вносится ежемесячно (или сразу за квартал/полугодие) не позднее 5-го числа расчётного месяца — срок зафиксирован в договоре найма</li>
-                <li>За каждый день просрочки начисляется пеня — 0,14% от непогашенной суммы в день (п. 4.8/5.9 договора)</li>
-                <li>Студенты заочной формы заселяются на время сессии при наличии мест, расчёт — по количеству прожитых дней</li>
-              </ul>
+              <p class="mt-3 text-sm">
+                Оплата вносится ежемесячно, либо сразу за квартал или полугодие, не позднее 5-го числа расчётного месяца — срок закреплён в договоре найма.
+              </p>
+              <p class="mt-3 text-sm">
+                Если оплата не поступила вовремя, с 10-го числа месяца, следующего за расчётным периодом, начинает начисляться пеня — 0,14% в день от непогашенной суммы (п. 4.8/5.9 договора).
+              </p>
+              <p class="mt-3 text-sm">
+                Студенты заочной формы обучения заселяются на время сессии при наличии свободных мест — расчёт стоимости идёт по количеству фактически прожитых дней.
+              </p>
             </div>
 
-            <div class="flex flex-col lg:w-1/2 lg:pl-6">
+            <div class="flex flex-col lg:w-2/5 lg:pl-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
                 <Banknote class="size-4 text-primary" />
                 Стоимость проживания
@@ -320,7 +324,7 @@ onMounted(async () => {
       <TabsContent value="contacts" class="mt-4 flex flex-col gap-4">
         <Card class="p-6">
           <div class="flex flex-col gap-6 lg:flex-row lg:divide-x lg:divide-border">
-            <div class="flex flex-col gap-3 lg:w-2/3 lg:pr-6">
+            <div class="flex flex-col gap-3 lg:w-1/2 lg:pr-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
                 <Contact class="size-4 text-primary" />
                 Контакты администрации
@@ -332,15 +336,13 @@ onMounted(async () => {
                   <span>{{ c.value }}</span>
                 </div>
               </div>
-              <!-- Блок расширен до 2/3 (было 1/2), фото чуть уменьшены (size-56→size-40) —
-                   по прямой просьбе, чтобы все 4 фото помещались в один ряд. -->
               <div class="mt-1 border-t pt-3">
                 <div class="mb-2 text-xs text-muted-foreground">Ответственные сотрудники</div>
-                <div class="flex flex-wrap gap-4">
-                  <div v-for="p in staff" :key="p.name" class="flex w-40 flex-col items-center gap-2 text-center">
-                    <Avatar class="size-40 rounded-full border-4 border-border">
+                <div class="flex flex-wrap gap-6">
+                  <div v-for="p in staff" :key="p.name" class="flex w-56 flex-col items-center gap-2 text-center">
+                    <Avatar class="size-56 rounded-full border-4 border-border">
                       <AvatarImage v-if="p.photo" :src="p.photo" :alt="p.name" />
-                      <AvatarFallback class="text-3xl">{{ initials(p.name) }}</AvatarFallback>
+                      <AvatarFallback class="text-4xl">{{ initials(p.name) }}</AvatarFallback>
                     </Avatar>
                     <span class="text-sm leading-tight">{{ p.name }}</span>
                   </div>
@@ -348,7 +350,7 @@ onMounted(async () => {
               </div>
             </div>
 
-            <div class="flex flex-col gap-3 lg:w-1/3 lg:pl-6">
+            <div class="flex flex-col gap-3 lg:w-1/2 lg:pl-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
                 <Users class="size-4 text-primary" />
                 Департамент по делам молодёжи и воспитательной работе
@@ -362,11 +364,11 @@ onMounted(async () => {
               </div>
               <div class="mt-1 border-t pt-3">
                 <div class="mb-2 text-xs text-muted-foreground">Ответственные сотрудники</div>
-                <div class="flex flex-wrap gap-4">
-                  <div v-for="p in ddmStaff" :key="p.name" class="flex w-40 flex-col items-center gap-2 text-center">
-                    <Avatar class="size-40 rounded-full border-4 border-border">
+                <div class="flex flex-wrap gap-6">
+                  <div v-for="p in ddmStaff" :key="p.name" class="flex w-56 flex-col items-center gap-2 text-center">
+                    <Avatar class="size-56 rounded-full border-4 border-border">
                       <AvatarImage v-if="p.photo" :src="p.photo" :alt="p.name" />
-                      <AvatarFallback class="text-3xl">{{ initials(p.name) }}</AvatarFallback>
+                      <AvatarFallback class="text-4xl">{{ initials(p.name) }}</AvatarFallback>
                     </Avatar>
                     <span class="text-sm leading-tight">{{ p.name }}</span>
                   </div>
