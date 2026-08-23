@@ -10,6 +10,8 @@ import {
   Wifi,
   Accessibility,
   Wallet,
+  Banknote,
+  Contact,
   FileText,
   Stethoscope,
   GraduationCap,
@@ -53,10 +55,10 @@ const staff: StaffPerson[] = [
 ]
 
 const ddm = [
-  { label: 'Адрес', value: 'г. Москва, ул. Радио, д. 22, каб. 801' },
-  { label: 'Телефон', value: '+7 (495) 925-03-71 (вн. 211)' },
-  { label: 'Email', value: 'ddm@rosnou.ru, hostel@rosnou.ru' },
-  { label: 'Время работы', value: 'Пн–Пт 10:00–18:00' },
+  { icon: MapPin, label: 'Адрес', value: 'г. Москва, ул. Радио, д. 22, каб. 801' },
+  { icon: Phone, label: 'Телефон', value: '+7 (495) 925-03-71 (вн. 211)' },
+  { icon: Mail, label: 'Email', value: 'ddm@rosnou.ru, hostel@rosnou.ru' },
+  { icon: Clock, label: 'Время работы', value: 'Пн–Пт 10:00–18:00' },
 ]
 
 const ddmStaff: StaffPerson[] = [
@@ -159,9 +161,30 @@ onMounted(async () => {
         <TabsTrigger value="contacts">Контакты</TabsTrigger>
       </TabsList>
 
-      <!-- Вкладка 1 — Здание (+ Доступность подразделом под ним) слева, Инфраструктура
-           справа через вертикальный разделитель. -->
+      <!-- Вкладка 1 — Как добраться (адрес+карта), затем Здание (+ Доступность
+           подразделом под ним) слева, Инфраструктура справа через вертикальный
+           разделитель. -->
       <TabsContent value="general" class="mt-4 flex flex-col gap-4">
+        <Card class="p-6">
+          <div class="flex items-center gap-1.5 text-sm font-medium">
+            <MapPin class="size-4 text-primary" />
+            Как добраться
+          </div>
+          <ul class="mt-3 mb-4 flex flex-col gap-1.5 text-sm">
+            <li>Ближайшее метро — «Авиамоторная» (около 20 минут пешком)</li>
+            <li>От метро «Авиамоторная» — автобус № 695 или с679 до остановки «Андроновское шоссе, 26», далее пешком</li>
+            <li>От главного корпуса (ул. Радио, д. 22) — автобус № 624 от остановки «Лефортовская набережная» до «НИИ прикладной механики», далее пешком</li>
+          </ul>
+          <div class="overflow-hidden rounded-md border">
+            <iframe
+              src="https://yandex.ru/map-widget/v1/?text=Москва%2C%20ул.%20Авиамоторная%2C%20д.%2055%2C%20корп.%205&z=16"
+              class="block h-[360px] w-full"
+              loading="lazy"
+              title="Как добраться до общежития РосНОУ — карта"
+            />
+          </div>
+        </Card>
+
         <Card class="p-6">
           <div class="flex flex-col gap-6 lg:flex-row lg:divide-x lg:divide-border">
             <div class="flex flex-col lg:w-1/2 lg:pr-6">
@@ -221,7 +244,7 @@ onMounted(async () => {
 
             <div class="flex flex-col lg:w-1/2 lg:pl-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
-                <Wallet class="size-4 text-primary" />
+                <Banknote class="size-4 text-primary" />
                 Стоимость проживания
               </div>
               <p v-if="hostelInfoError" class="mt-3 text-sm text-red-500">{{ hostelInfoError }}</p>
@@ -299,7 +322,7 @@ onMounted(async () => {
           <div class="flex flex-col gap-6 lg:flex-row lg:divide-x lg:divide-border">
             <div class="flex flex-col gap-3 lg:w-1/2 lg:pr-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
-                <Phone class="size-4 text-primary" />
+                <Contact class="size-4 text-primary" />
                 Контакты администрации
               </div>
               <div class="flex flex-col gap-2">
@@ -330,6 +353,7 @@ onMounted(async () => {
               </div>
               <div class="flex flex-col gap-2">
                 <div v-for="d in ddm" :key="d.label" class="flex items-start gap-2 text-sm">
+                  <component :is="d.icon" class="size-4 shrink-0 text-primary" />
                   <span class="w-32 shrink-0 text-muted-foreground">{{ d.label }}</span>
                   <span>{{ d.value }}</span>
                 </div>
