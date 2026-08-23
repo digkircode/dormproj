@@ -101,6 +101,7 @@ const data = {
       items: [
         { title: 'Сотрудники', url: '/users' },
         { title: 'Роли', url: '/roles' },
+        { title: 'Список пользователей', url: '/users-all' },
       ],
     },
   ],

@@ -12,6 +12,8 @@ import {
   Phone,
   Mail,
   MapPin,
+  Pencil,
+  History,
 } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -21,6 +23,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import PassportTable from '@/components/PassportTable.vue'
 import StudentFields from '@/components/StudentFields.vue'
 import CreateContractDialog from '@/components/CreateContractDialog.vue'
+import EditIndividualDialog from '@/components/EditIndividualDialog.vue'
+import IndividualHistoryDialog from '@/components/IndividualHistoryDialog.vue'
 import { fetchIndividualDetail, syncIndividual, type IndividualDetail, type IndividualPassport } from '@/lib/individuals-api'
 import { copyToClipboard, goBack } from '@/lib/utils'
 import { breadcrumbOverride } from '@/lib/breadcrumb-state'
@@ -139,6 +143,14 @@ let syncFeedbackTimeout: ReturnType<typeof setTimeout> | undefined
 const isSyncIconAnimating = ref(false)
 
 const createDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(null)
+const editDialogRef = ref<InstanceType<typeof EditIndividualDialog> | null>(null)
+const historyDialogRef = ref<InstanceType<typeof IndividualHistoryDialog> | null>(null)
+
+// После сохранения правки перечитываем всю карточку (проще, чем точечно
+// синхронизировать локальное состояние с тем, что реально записалось в БД).
+async function onIndividualSaved() {
+  detail.value = await fetchIndividualDetail(uid.value)
+}
 
 // Перезапрашиваем всю карточку после успешной синхронизации — синхрон затрагивает
 // сразу 5 источников (студент/физлицо/гражданство/паспорт/контакты), проще перечитать
@@ -273,6 +285,14 @@ onUnmounted(() => {
               <FileSignature />
               Создать договор
             </Button>
+            <Button variant="outline" size="sm" @click="detail && editDialogRef?.open(detail)">
+              <Pencil />
+              Редактировать
+            </Button>
+            <Button variant="outline" size="sm" @click="historyDialogRef?.open(uid)">
+              <History />
+              История изменений
+            </Button>
           </div>
           <p v-if="syncError" class="text-sm text-red-500">{{ syncError }}</p>
         </div>
@@ -367,5 +387,7 @@ onUnmounted(() => {
     </template>
 
     <CreateContractDialog ref="createDialogRef" />
+    <EditIndividualDialog ref="editDialogRef" @saved="onIndividualSaved" />
+    <IndividualHistoryDialog ref="historyDialogRef" />
   </div>
 </template>

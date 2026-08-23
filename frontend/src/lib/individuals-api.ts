@@ -140,6 +140,60 @@ export async function fetchIndividualDetail(uid: string): Promise<IndividualDeta
   return response.json()
 }
 
+// "Критическая правка" — пишет напрямую в синхронные таблицы (ContactInfo/Passport/
+// Citizenship), не в manual-поля Individual (см. backend/src/individuals/individual-edit.ts).
+// Осознанный аварийный костыль: ближайший ночной синхрон синхронизируемых физлиц
+// перезапишет эти значения обратно из 1С — это ожидаемо, не баг.
+export interface UpdateIndividualInput {
+  surname: string
+  name: string
+  otchestvo?: string | null
+  birthDate: string
+  gender?: 'Мужской' | 'Женский' | null
+  citizenship?: string | null
+  birthPlace?: string | null
+  registrationAddress?: string | null
+  residenceAddress?: string | null
+  phone?: string | null
+  email?: string | null
+  snils?: string | null
+  inn?: string | null
+  passportSeries?: string | null
+  passportNumber?: string | null
+  passportIssuedBy?: string | null
+  passportIssuedCode?: string | null
+  passportIssuedAt?: string | null
+}
+
+export async function updateIndividual(uid: string, input: UpdateIndividualInput): Promise<IndividualDetail> {
+  const response = await apiFetch(`/individuals/${encodeURIComponent(uid)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!response.ok) {
+    const body: { message?: string } = await response.json().catch(() => ({}))
+    throw new Error(body.message ?? `Не удалось сохранить изменения (${response.status})`)
+  }
+  return response.json()
+}
+
+export interface IndividualAuditLogEntry {
+  id: number
+  userFullName: string
+  action: 'CREATE' | 'UPDATE' | 'DELETE'
+  changes: Record<string, { before: unknown; after: unknown }> | null
+  createdAt: string
+}
+
+export async function fetchIndividualAuditLog(uid: string): Promise<IndividualAuditLogEntry[]> {
+  const response = await apiFetch(`/individuals/${encodeURIComponent(uid)}/audit-log`)
+  if (!response.ok) {
+    throw new Error(`Не удалось получить историю изменений (${response.status})`)
+  }
+  return response.json()
+}
+
 export interface IndividualSyncResult {
   status: 'SUCCESS'
   fetchedCount: number

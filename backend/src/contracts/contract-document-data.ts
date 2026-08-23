@@ -235,8 +235,9 @@ export function buildDocumentData(
     residentCourseLine,
     residentFacultetLine,
     // Бланк несовершеннолетнего печатает курс+институт в одной широкой ячейке (нет
-    // отдельной строки-заготовки под институт, как в обычном бланке) — переносом строки.
-    residentInstituteCourseStacked: [residentCourseLine, residentFacultetLine].filter(Boolean).join('\n'),
+    // отдельной строки-заготовки под институт, как в обычном бланке) — одной строкой
+    // (было переносом на 2 строки, поправлено по просьбе 2026-08-23).
+    residentInstituteCourseStacked: [residentCourseLine, residentFacultetLine].filter(Boolean).join(', '),
     residentFormObuch: resident.formObuch ?? '',
 
     legalRepFullName: contract.legalRepName ?? '',

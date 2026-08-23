@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Controller, Get, HttpCode, NotFoundException, Param, Post, Body, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, ConflictException, Controller, Get, HttpCode, NotFoundException, Param, Patch, Post, Body, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
@@ -13,6 +13,18 @@ import { sortPassportsByPriority } from './passport-priority';
 import { pickLatestContactInfo } from './contact-info-priority';
 import { IndividualSyncService, type IndividualSyncResult } from '../individual-sync/individual-sync.service';
 import { SyncAlreadyRunningError } from '../sync/sync.errors';
+import {
+  BIRTH_PLACE_TYPE,
+  REGISTRATION_ADDRESS_TYPE,
+  RESIDENCE_ADDRESS_TYPE,
+  PHONE_TYPE,
+  EMAIL_TYPE,
+  upsertContactInfo,
+  deleteContactInfoIfExists,
+  upsertPassport,
+  upsertCitizenship,
+  buildEditableSnapshot,
+} from './individual-edit';
 
 // Поля, участвующие в diff'е истории изменений (AuditLogService) — служебные (createdAt/
 // updatedAt/isManual/deleteMark/code/photoCode) намеренно не отслеживаются.
@@ -35,6 +47,60 @@ const AUDITED_INDIVIDUAL_FIELDS = [
   'passportIssuedCode',
   'passportIssuedAt',
 ];
+
+// "Критическая правка" уже существующего физлица (STAFF/ADMIN, IndividualDetail.vue,
+// кнопка "Редактировать") — по прямой просьбе 2026-08-23, закрывает известный пробел
+// "нет эндпоинта на изменение физлица". В отличие от AUDITED_INDIVIDUAL_FIELDS (создание
+// вручную, всё на самом Individual) — здесь адрес разбит на регистрацию/проживание (у
+// них разные ContactInfo.type), добавлено место рождения, см. individual-edit.ts.
+const AUDITED_INDIVIDUAL_UPDATE_FIELDS = [
+  'fullName',
+  'birthDate',
+  'gender',
+  'citizenship',
+  'birthPlace',
+  'registrationAddress',
+  'residenceAddress',
+  'phone',
+  'email',
+  'snils',
+  'inn',
+  'passportSeries',
+  'passportNumber',
+  'passportIssuedBy',
+  'passportIssuedCode',
+  'passportIssuedAt',
+];
+
+// Пустая строка/undefined — "поле очищено", null (не отправлено) — не трогать. Форма
+// правки всегда шлёт целиком текущее+изменённое состояние (как и форма создания), не
+// частичный PATCH — поэтому именно "пусто = очистить", а не "пусто = не менять".
+const clearableText = z
+  .string()
+  .trim()
+  .optional()
+  .transform((v) => (v && v.length > 0 ? v : null));
+
+const updateIndividualSchema = z.object({
+  surname: z.string().trim().min(1),
+  name: z.string().trim().min(1),
+  otchestvo: clearableText,
+  birthDate: z.coerce.date(),
+  gender: z.enum(['Мужской', 'Женский']).nullish(),
+  citizenship: clearableText,
+  birthPlace: clearableText,
+  registrationAddress: clearableText,
+  residenceAddress: clearableText,
+  phone: clearableText,
+  email: z.union([z.literal(''), z.string().trim().email()]).optional().transform((v) => (v ? v : null)),
+  snils: clearableText,
+  inn: clearableText,
+  passportSeries: clearableText,
+  passportNumber: clearableText,
+  passportIssuedBy: clearableText,
+  passportIssuedCode: clearableText,
+  passportIssuedAt: z.coerce.date().nullish(),
+});
 
 // Форма "Новое физическое лицо" (Individuals.vue) — заводит физлицо руками, не через
 // синхрон 1С. Детерминированного uid тут нет (в отличие от manual-parent-* в
@@ -200,6 +266,110 @@ export class IndividualsController {
     });
   }
 
+  // "Критическая правка" — пишет напрямую в те же таблицы, что и ночной синхрон 1С
+  // (ContactInfo/Passport/Citizenship), не в отдельные manual-поля Individual (см.
+  // individual-edit.ts). Осознанный аварийный костыль: следующий синхрон синхронизируемых
+  // физлиц перезапишет эти значения обратно из 1С — это ожидаемо, не баг. Доступно любому
+  // физлицу (и isManual, и синхронизируемому) — до этого эндпоинта на изменение вообще
+  // не было ни у кого (известный пробел проекта).
+  @Patch(':uid')
+  async update(@Param('uid') uid: string, @Body() body: unknown, @Req() req: Request) {
+    const parsed = updateIndividualSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.message);
+    }
+    if (!req.user) {
+      throw new BadRequestException('Не удалось определить пользователя сессии');
+    }
+    const data = parsed.data;
+    const fullName = [data.surname, data.name, data.otchestvo].filter(Boolean).join(' ');
+
+    const existing = await this.prisma.individual.findUnique({ where: { fizicheskoyeLitsoUid: uid } });
+    if (!existing) {
+      throw new NotFoundException('Физлицо не найдено');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const before = await buildEditableSnapshot(tx, uid);
+
+      await tx.individual.update({
+        where: { fizicheskoyeLitsoUid: uid },
+        data: {
+          fullName,
+          surname: data.surname,
+          name: data.name,
+          otchestvo: data.otchestvo,
+          birthDate: data.birthDate,
+          gender: data.gender ?? null,
+          snils: data.snils,
+          inn: data.inn,
+        },
+      });
+
+      if (data.citizenship) {
+        await upsertCitizenship(tx, uid, data.citizenship);
+      }
+
+      if (data.birthPlace) {
+        await upsertContactInfo(tx, uid, BIRTH_PLACE_TYPE, data.birthPlace);
+      } else {
+        await deleteContactInfoIfExists(tx, uid, BIRTH_PLACE_TYPE);
+      }
+      if (data.registrationAddress) {
+        await upsertContactInfo(tx, uid, REGISTRATION_ADDRESS_TYPE, data.registrationAddress);
+      } else {
+        await deleteContactInfoIfExists(tx, uid, REGISTRATION_ADDRESS_TYPE);
+      }
+      if (data.residenceAddress) {
+        await upsertContactInfo(tx, uid, RESIDENCE_ADDRESS_TYPE, data.residenceAddress);
+      } else {
+        await deleteContactInfoIfExists(tx, uid, RESIDENCE_ADDRESS_TYPE);
+      }
+      if (data.phone) {
+        await upsertContactInfo(tx, uid, PHONE_TYPE, data.phone, { phoneNumber: data.phone, phoneNumberNoCode: data.phone.replace(/^\+?\d/, '') });
+      } else {
+        await deleteContactInfoIfExists(tx, uid, PHONE_TYPE);
+      }
+      if (data.email) {
+        await upsertContactInfo(tx, uid, EMAIL_TYPE, data.email, { email: data.email });
+      } else {
+        await deleteContactInfoIfExists(tx, uid, EMAIL_TYPE);
+      }
+
+      // Паспорт — блок из нескольких полей сразу, трогаем его только если реально
+      // указан номер (иначе непонятно, что здесь вообще "изменение" — можно случайно
+      // затереть существующий паспорт пустой формой, где эти поля просто не заполняли).
+      if (data.passportNumber) {
+        await upsertPassport(tx, uid, {
+          series: data.passportSeries,
+          number: data.passportNumber,
+          issuedBy: data.passportIssuedBy,
+          issuedCode: data.passportIssuedCode,
+          issuedAt: data.passportIssuedAt ?? new Date(),
+        });
+      }
+
+      const after = await buildEditableSnapshot(tx, uid);
+
+      const userId = await ensureUserRecord(tx, req.user!);
+      await this.auditLog.log(tx, {
+        userId,
+        action: 'UPDATE',
+        entityType: 'Individual',
+        entityId: uid,
+        entityLabel: fullName,
+        before: { ...before },
+        after: { ...after },
+        fields: AUDITED_INDIVIDUAL_UPDATE_FIELDS,
+      });
+    });
+
+    // this.prisma (не tx) — транзакция выше уже закоммичена к этому моменту, detail()
+    // должен увидеть только что записанные данные, а не читать их же соединением tx
+    // ДО commit (см. известную ловушку — за пределами транзакции detail() безопасен).
+    return this.detail(uid);
+  }
+
   @Get('facets/:field')
   async facetValues(@Param('field') field: string) {
     if (!isFilterableField(field)) {
@@ -255,6 +425,28 @@ export class IndividualsController {
       contactInfos: pickLatestContactInfo(individual.contactInfos),
       students,
     };
+  }
+
+  // История изменений одного физлица — кнопка "История изменений" на карточке
+  // (IndividualDetail.vue). Отдельно от общего /audit-log (тот — только ADMIN, показывает
+  // все типы сущностей сразу) — здесь тот же уровень доступа, что и у самой карточки
+  // (STAFF/ADMIN), т.к. это просто история по уже открытой записи, не отдельная
+  // административная возможность. Без пагинации — объём на одно физлицо небольшой.
+  @Get(':uid/audit-log')
+  async individualAuditLog(@Param('uid') uid: string) {
+    const rows = await this.prisma.auditLog.findMany({
+      where: { entityType: 'Individual', entityId: uid },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      include: { user: { select: { fullName: true } } },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      userFullName: row.user.fullName,
+      action: row.action,
+      changes: row.changes,
+      createdAt: row.createdAt,
+    }));
   }
 
   // Кнопка "Синхронизировать" на карточке физлица — единственный способ запустить

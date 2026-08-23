@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { roleLabel, roleIcon } from '@/lib/roles-api'
-import type { UserRow } from '@/lib/users-api'
+import type { Role } from '@/lib/roles-api'
 
-defineProps<{ value: unknown; row?: UserRow }>()
+// row — не жёстко UserRow, а любая строка с полем roles (см. UsersList.vue, тот же
+// рендерер переиспользован для AllUsersRow — она тоже содержит roles: Role[]).
+defineProps<{ value: unknown; row?: { roles: Role[] } }>()
 </script>
 
 <template>

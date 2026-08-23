@@ -9,6 +9,7 @@ import { OAUTH_STATE_COOKIE_NAME, OAUTH_STATE_MAX_AGE_MS } from './auth.constant
 import { RosnouIdService } from './rosnou-id.service';
 import { SessionService } from './session.service';
 import type { RoleName, SessionUser } from './types';
+import { syncResidentRoles } from '../users/resident-role-sync';
 
 const STATE_COOKIE_OPTIONS: CookieOptions = {
   httpOnly: true,
@@ -34,14 +35,20 @@ export class AuthController {
   // если строки с этим id ещё нет, роли назначить некому. email/fullName берём из
   // фолбека rosnou-id (SessionUser) — другого источника личных данных сотрудника
   // (не физлица из 1С) в проекте нет. Ошибку апсёрта не даём завалить сам логин —
-  // это вспомогательная прописка, не критичный для входа шаг.
+  // это вспомогательная прописка, не критичный для входа шаг. fullName обновляется
+  // тоже (не только email) — по прямой просьбе 2026-08-23, раньше при смене ФИО на
+  // стороне rosnou-id запись в users так и оставалась со старым именем навсегда.
   private async upsertUser(sessionUser: Omit<SessionUser, 'roles'>): Promise<void> {
     try {
       await this.prisma.user.upsert({
         where: { id: sessionUser.id },
         create: { id: sessionUser.id, fullName: sessionUser.fullName, email: sessionUser.email },
-        update: { email: sessionUser.email },
+        update: { fullName: sessionUser.fullName, email: sessionUser.email },
       });
+      // Роль "Проживающий" следует за Student — точечно для залогинившегося (массовый
+      // пересчёт для всех — после полного синка студентов, см. sync.service.ts).
+      // Не должна ронять логин при сбое — тот же принцип, что у апсёрта выше.
+      await syncResidentRoles(this.prisma, { userId: sessionUser.id });
     } catch (error) {
       this.logger.error(`Не удалось прописать/обновить users при логине (id=${sessionUser.id})`, error instanceof Error ? error.stack : error);
     }

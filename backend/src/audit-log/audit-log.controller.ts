@@ -27,6 +27,7 @@ const ENTITY_TYPE_LABELS: Record<string, string> = {
   DormitoryInfo: 'Настройки общежития',
   Role: 'Роль',
   UserRole: 'Роль пользователя',
+  User: 'Пользователь',
 };
 
 const SEARCHABLE_FIELDS = ['entityLabel', 'action', 'entityType'] as const;

@@ -48,3 +48,34 @@ export async function revokeRole(userId: number, roleId: number): Promise<UserRo
   }
   return response.json()
 }
+
+// "Список пользователей" — сырые users+users_roles, ВСЕ строки (не только с ролью,
+// см. бэкенд) — для страницы /users/all, отдельно от "Сотрудники" (UsersStaff.vue).
+export interface AllUsersRow {
+  id: number
+  bindId: string | null
+  azureId: string | null
+  univerId: string | null
+  fullName: string
+  email: string | null
+  roles: Role[]
+  createdAt: string
+  updatedAt: string
+}
+
+export function fetchAllUsersPage(options: ListOptions): Promise<ListPage<AllUsersRow>> {
+  return fetchListPage<AllUsersRow>('/users/all', options)
+}
+
+export async function updateUserLinks(id: number, data: { azureId: string | null; univerId: string | null }): Promise<AllUsersRow> {
+  const response = await apiFetch(`/users/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!response.ok) {
+    const body: { message?: string } = await response.json().catch(() => ({}))
+    throw new Error(body.message ?? `Не удалось сохранить (${response.status})`)
+  }
+  return response.json()
+}

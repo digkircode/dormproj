@@ -15,6 +15,7 @@ import {
   TRANSACTION_TIMEOUT_MS,
 } from './sync.constants';
 import { listSyncLogs, syncLogFacetValues, type SyncLogsListQuery } from './sync-logs-list';
+import { syncResidentRoles } from '../users/resident-role-sync';
 
 export type SyncTriggerType = 'CRON' | 'MANUAL';
 
@@ -98,6 +99,19 @@ export class SyncService {
       this.logger.log(
         `Синхронизация студентов завершена: очищено ${removed}, записано ${added}`,
       );
+
+      // Роль "Проживающий" следует за Student — массовый пересчёт по всем аккаунтам
+      // сразу после полного синка (см. resident-role-sync.ts; точечно при логине —
+      // отдельный вызов в auth.controller.ts). Не должен ронять сам синк при сбое —
+      // студенты уже успешно записаны, роли можно досчитать и на следующий прогон.
+      try {
+        const { granted, revoked } = await syncResidentRoles(this.prisma);
+        if (granted > 0 || revoked > 0) {
+          this.logger.log(`Роль "Проживающий": выдано ${granted}, отозвано ${revoked}`);
+        }
+      } catch (roleSyncError) {
+        this.logger.error('Не удалось пересчитать роль "Проживающий" после синка студентов', roleSyncError instanceof Error ? roleSyncError.stack : roleSyncError);
+      }
 
       return {
         status: 'SUCCESS',
