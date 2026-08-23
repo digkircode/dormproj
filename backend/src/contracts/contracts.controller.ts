@@ -335,6 +335,16 @@ export class ContractsController {
       throw new NotFoundException('Комната не найдена');
     }
 
+    // Комната без обеих месячных характеристик "Стоимость (из/не из вуза)" — целиком
+    // посуточная (112-2/410-2 на момент введения, см. миграцию room_price_by_university_category
+    // и billing/accrual-generation.ts). Признак специально не хардкодится по id/номеру комнаты —
+    // источник истины остаётся в EAV-характеристиках, как и остальная модель комнат.
+    const roomPriceCharacteristic = await this.prisma.roomCharacteristicValue.findFirst({
+      where: { roomId: data.roomId, definition: { name: { in: ['Стоимость (из вуза)', 'Стоимость (не из вуза)'] } } },
+      select: { id: true },
+    });
+    const isDailyOnlyRoom = !roomPriceCharacteristic;
+
     // Несовершеннолетие — на дату ДОГОВОРА (contractDate), как и во фронтовом computed
     // isMinor (Contracts.vue). Раньше здесь не было никакой серверной проверки блока
     // родителя вообще (см. известную проблему в промпте проекта) — прямой запрос мимо
@@ -352,8 +362,11 @@ export class ContractsController {
       throw new BadRequestException('Укажите причину проживания');
     }
 
-    const rentAmount = new Prisma.Decimal(data.rentAmount);
-    const utilitiesAmount = new Prisma.Decimal(data.utilitiesAmount);
+    // Посуточная комната — месячной ставки нет вообще, игнорируем rentAmount/utilitiesAmount
+    // из запроса (форма их для такой комнаты и не показывает), чтобы в ContractTerms/печати/
+    // отчётах не осел случайный "остаточный" месячный номер.
+    const rentAmount = isDailyOnlyRoom ? new Prisma.Decimal(0) : new Prisma.Decimal(data.rentAmount);
+    const utilitiesAmount = isDailyOnlyRoom ? new Prisma.Decimal(0) : new Prisma.Decimal(data.utilitiesAmount);
     const dailyRateAmount = new Prisma.Decimal(data.dailyRateAmount);
 
     try {
@@ -439,6 +452,7 @@ export class ContractsController {
             coveredTo: data.matCapitalCoveredTo ?? null,
             deferredUntil: data.matCapitalDeferredUntil ?? null,
           },
+          dailyOnly: isDailyOnlyRoom,
         });
         if (generated.length > 0) {
           await tx.accrual.createMany({

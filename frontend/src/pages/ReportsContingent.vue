@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft } from 'lucide-vue-next'
+import { ArrowLeft, Download } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import EntityTable from '@/components/EntityTable.vue'
 import ResidentLinkCell from '@/components/ResidentLinkCell.vue'
 import ContractLinkCell from '@/components/ContractLinkCell.vue'
 import DatePickerField from '@/components/DatePickerField.vue'
 import { createAppColumnHelper } from '@/lib/table'
-import { fetchContingentPage, fetchContingentFacets, type ContingentRow, type ListOptions } from '@/lib/reports-api'
+import { fetchContingentPage, fetchContingentFacets, exportContingentExcel, type ContingentRow, type ListOptions } from '@/lib/reports-api'
 import { goBack } from '@/lib/utils'
 
 const router = useRouter()
@@ -67,6 +67,20 @@ function fetchPage(options: ListOptions) {
 
 const entityTable = ref<{ refresh: () => void } | null>(null)
 watch(asOf, () => entityTable.value?.refresh())
+
+const isExporting = ref(false)
+const exportError = ref('')
+async function onExport() {
+  exportError.value = ''
+  isExporting.value = true
+  try {
+    await exportContingentExcel(asOf.value)
+  } catch (error) {
+    exportError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isExporting.value = false
+  }
+}
 </script>
 
 <template>
@@ -97,7 +111,12 @@ watch(asOf, () => entityTable.value?.refresh())
       <template #actions>
         <span class="text-sm text-muted-foreground">На дату</span>
         <DatePickerField v-model="asOf" />
+        <Button variant="outline" size="sm" :loading="isExporting" @click="onExport">
+          <Download class="size-4" />
+          Экспорт в Excel
+        </Button>
       </template>
     </EntityTable>
+    <p v-if="exportError" class="text-sm text-red-500">{{ exportError }}</p>
   </div>
 </template>

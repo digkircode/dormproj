@@ -65,7 +65,10 @@ export interface ListPage<T> {
   pageSize: number;
 }
 
-export function paginateInMemory<T extends object>(
+// Общая часть paginateInMemory/filterAndSortInMemory — поиск+фильтры+сортировка без
+// среза по странице, чтобы экспорт в Excel (см. excel-export.ts) мог получить ВСЕ
+// отфильтрованные строки, а не только текущую страницу таблицы.
+function filterAndSort<T extends object>(
   items: T[],
   options: InMemoryListOptions,
   config: {
@@ -73,7 +76,7 @@ export function paginateInMemory<T extends object>(
     sortableFields: (keyof T)[];
     filterFields?: (keyof T)[];
   },
-): ListPage<T> {
+): T[] {
   const get = (item: T, field: keyof T): unknown => (item as Record<string, unknown>)[field as string];
 
   let filtered = items;
@@ -89,14 +92,39 @@ export function paginateInMemory<T extends object>(
   }
 
   const sortField = config.sortableFields.includes(options.sortBy as keyof T) ? (options.sortBy as keyof T) : config.sortableFields[0];
-  const sorted = [...filtered].sort((a, b) => {
+  return [...filtered].sort((a, b) => {
     const cmp = compareValues(get(a, sortField), get(b, sortField));
     return options.sortDir === 'desc' ? -cmp : cmp;
   });
+}
 
+export function paginateInMemory<T extends object>(
+  items: T[],
+  options: InMemoryListOptions,
+  config: {
+    searchFields: (keyof T)[];
+    sortableFields: (keyof T)[];
+    filterFields?: (keyof T)[];
+  },
+): ListPage<T> {
+  const sorted = filterAndSort(items, options, config);
   const total = sorted.length;
   const start = (options.page - 1) * options.pageSize;
   return { data: sorted.slice(start, start + options.pageSize), total, page: options.page, pageSize: options.pageSize };
+}
+
+// То же самое, но без пагинации — для экспорта в Excel (см. excel-export.ts): весь
+// отфильтрованный и отсортированный набор, каким бы он показался на всех страницах разом.
+export function filterAndSortInMemory<T extends object>(
+  items: T[],
+  options: InMemoryListOptions,
+  config: {
+    searchFields: (keyof T)[];
+    sortableFields: (keyof T)[];
+    filterFields?: (keyof T)[];
+  },
+): T[] {
+  return filterAndSort(items, options, config);
 }
 
 export interface FacetOption {

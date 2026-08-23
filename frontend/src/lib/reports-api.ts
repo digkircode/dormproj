@@ -159,6 +159,27 @@ async function getJson<T>(path: string): Promise<T> {
   return response.json()
 }
 
+// Скачивание .xlsx — тот же приём, что downloadContractDocument в contracts-api.ts:
+// apiFetch не подходит для обычной ссылки (нужна кука авторизации), поэтому сами
+// получаем blob и эмулируем клик по <a download>. Экспорт учитывает только "на дату"/
+// период отчёта (то, что видит и сама эта страница вне EntityTable) — поиск/сортировку/
+// фильтры колонок EntityTable намеренно не пробрасывает наружу, см. EntityTable.vue.
+async function downloadFile(path: string, filename: string): Promise<void> {
+  const response = await apiFetch(path)
+  if (!response.ok) {
+    throw new Error(`Не удалось сформировать файл (${response.status})`)
+  }
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
 // --- Финансовый отчёт (бывшая "Задолженность") ---
 export function fetchDebtorsPage(options: ListOptions, asOf: string): Promise<ListPage<DebtorRow>> {
   return fetchListPage<DebtorRow>('/reports/debtors', options, { asOf })
@@ -174,6 +195,9 @@ export function fetchDebtorBreakdown(contractId: number, asOf: string): Promise<
 }
 export function fetchDebtorPenaltyLog(contractId: number, asOf: string): Promise<DebtorPenaltyLog> {
   return getJson(`/reports/debtors/${contractId}/penalty-log?asOf=${asOf}`)
+}
+export function exportDebtorsExcel(asOf: string): Promise<void> {
+  return downloadFile(`/reports/debtors/export?asOf=${asOf}`, `Финансовый отчёт на ${asOf}.xlsx`)
 }
 
 export function fetchUpcomingPayments(days = 7): Promise<UpcomingPaymentRow[]> {
@@ -192,6 +216,9 @@ export function fetchContingentPage(options: ListOptions, asOf: string): Promise
 export function fetchContingentFacets(field: string): Promise<FacetOption[]> {
   return fetchListFacets('/reports/contingent', field)
 }
+export function exportContingentExcel(asOf: string): Promise<void> {
+  return downloadFile(`/reports/contingent/export?asOf=${asOf}`, `Реестр проживающих на ${asOf}.xlsx`)
+}
 
 // --- Реестр договоров ---
 export function fetchContractsRegistryPage(options: ListOptions): Promise<ListPage<ContractRegistryRow>> {
@@ -202,6 +229,9 @@ export function fetchContractsRegistryFacets(field: string): Promise<FacetOption
 }
 export function fetchContractsRegistrySummary(): Promise<ContractsRegistrySummary> {
   return getJson('/reports/contracts-registry/summary')
+}
+export function exportContractsRegistryExcel(): Promise<void> {
+  return downloadFile('/reports/contracts-registry/export', 'Реестр договоров.xlsx')
 }
 
 // --- Заселение / выселение ---
@@ -214,4 +244,8 @@ export function fetchMovementsFacets(field: string): Promise<FacetOption[]> {
 export function fetchMovementsSummary(from: string, to: string): Promise<MovementsSummary> {
   const params = new URLSearchParams({ from, to })
   return getJson(`/reports/movements/summary?${params}`)
+}
+export function exportMovementsExcel(from: string, to: string): Promise<void> {
+  const params = new URLSearchParams({ to, ...(from ? { from } : {}) })
+  return downloadFile(`/reports/movements/export?${params}`, 'Движение проживающих.xlsx')
 }

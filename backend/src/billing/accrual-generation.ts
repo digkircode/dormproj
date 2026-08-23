@@ -104,14 +104,28 @@ export interface GeneratedAccrual {
   utilitiesAmount: DecimalLike;
 }
 
+// Комнаты без месячной "Стоимости" (см. room-characteristic-definitions) — целиком
+// посуточные (112-2/410-2 на момент введения, но список комнат не хардкодим нигде в этом
+// файле, признак — отсутствие обеих характеристик "Стоимость (из/не из вуза)" у комнаты,
+// см. contracts.controller.ts). В отличие от обычного договора, где посуточно считается
+// только неполный крайний месяц (см. computeAccrualAmounts), здесь КАЖДЫЙ период — посуточно
+// и без потолка "не больше полной месячной суммы" (полной месячной суммы просто нет).
+export function computeDailyOnlyAccrualAmount(period: AccrualPeriod, dailyRateAmount: DecimalLike): DecimalLike {
+  const days = daysBetweenInclusive(period.periodStart, period.periodEnd);
+  return dailyRateAmount.times(days).toDecimalPlaces(2);
+}
+
 export function buildAccrualsForContract(params: {
   startDate: Date;
   endDate: Date;
   terms: AccrualTerms & { paymentDueDay: number };
   matCapital?: MatCapitalWindow;
+  dailyOnly?: boolean;
 }): GeneratedAccrual[] {
   return generateMonthlyPeriods(params.startDate, params.endDate).map((period) => {
-    const { rentAmount, utilitiesAmount } = computeAccrualAmounts(period, params.terms);
+    const { rentAmount, utilitiesAmount } = params.dailyOnly
+      ? { rentAmount: computeDailyOnlyAccrualAmount(period, params.terms.dailyRateAmount), utilitiesAmount: new Decimal(0) }
+      : computeAccrualAmounts(period, params.terms);
     const dueDate = computeDueDate(period, params.terms.paymentDueDay, params.matCapital);
     return { periodStart: period.periodStart, periodEnd: period.periodEnd, dueDate, rentAmount, utilitiesAmount };
   });

@@ -18,7 +18,7 @@ const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
 // Тот же порядок, что и в RoomInfoTrigger.vue/RoomDetailPanel.vue — сначала стартовые
 // защищённые характеристики в фиксированном порядке, потом остальные по алфавиту.
-const CORE_ORDER = ['Этаж', 'Жилое помещение', 'Количество мест', 'Площадь', 'Стоимость']
+const CORE_ORDER = ['Этаж', 'Жилое помещение', 'Количество мест', 'Площадь', 'Стоимость (из вуза)', 'Стоимость (не из вуза)']
 
 const report = ref<OccupancyReport | null>(null)
 const isLoading = ref(true)

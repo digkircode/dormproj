@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, CircleCheck, CircleX, Clock } from 'lucide-vue-next'
+import { ArrowLeft, CircleCheck, CircleX, Clock, Download } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import EntityTable from '@/components/EntityTable.vue'
@@ -14,6 +14,7 @@ import {
   fetchContractsRegistryPage,
   fetchContractsRegistryFacets,
   fetchContractsRegistrySummary,
+  exportContractsRegistryExcel,
   type ContractRegistryRow,
   type ContractsRegistrySummary,
 } from '@/lib/reports-api'
@@ -60,6 +61,20 @@ const summary = ref<ContractsRegistrySummary | null>(null)
 onMounted(async () => {
   summary.value = await fetchContractsRegistrySummary()
 })
+
+const isExporting = ref(false)
+const exportError = ref('')
+async function onExport() {
+  exportError.value = ''
+  isExporting.value = true
+  try {
+    await exportContractsRegistryExcel()
+  } catch (error) {
+    exportError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isExporting.value = false
+  }
+}
 </script>
 
 <template>
@@ -109,6 +124,14 @@ onMounted(async () => {
       :cell-renderers="cellRenderers"
       storage-key="reports-contracts-registry"
       accent-icons
-    />
+    >
+      <template #actions>
+        <Button variant="outline" size="sm" :loading="isExporting" @click="onExport">
+          <Download class="size-4" />
+          Экспорт в Excel
+        </Button>
+      </template>
+    </EntityTable>
+    <p v-if="exportError" class="text-sm text-red-500">{{ exportError }}</p>
   </div>
 </template>

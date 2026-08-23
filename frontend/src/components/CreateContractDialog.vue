@@ -71,6 +71,14 @@ const startDate = ref('')
 const endDate = ref('')
 const roomId = ref<number | null>(null)
 const rentAmount = ref<number | undefined>(undefined)
+// Характеристики выбранной комнаты — храним, чтобы пересчитать rentAmount при смене
+// dailyRateCategory без повторного похода на бэк (см. applyRoomPrice/watch ниже).
+const roomCharacteristics = ref<{ name: string; value: unknown }[]>([])
+// Комната без ОБЕИХ характеристик "Стоимость (из/не из вуза)" — целиком посуточная
+// (112-2/410-2 на момент введения, но список комнат нигде не хардкодится, см. applyRoomPrice
+// и backend/src/billing/accrual-generation.ts). Месячная "Стоимость" для таких комнат не
+// показывается вообще — весь срок начисляется по суточной ставке (dailyRateAmount).
+const isDailyOnlyRoom = ref(false)
 // Коммуналка больше не показывается в форме — коммунальные услуги в БД уже включены в
 // "Стоимость" комнаты (см. rentAmount ниже), отдельно их не начисляем, поэтому
 // utilitiesAmount всегда 0 (поле в леджере остаётся под будущий раздельный учёт,
@@ -287,6 +295,8 @@ async function open(prefillIndividual?: Individual) {
   roomQuery.value = ''
   roomResults.value = []
   rentAmount.value = undefined
+  roomCharacteristics.value = []
+  isDailyOnlyRoom.value = false
   residenceReason.value = ''
   dailyRateCategoryKnown.value = false
   legalRepName.value = ''
@@ -333,20 +343,47 @@ watch(dailyRateCategory, (category) => {
   dailyRateAmount.value = (category === 'OWN_UNIVERSITY' ? dormInfo.value.dailyPaymentInternal : dormInfo.value.dailyPaymentOther) ?? undefined
 })
 
-// Подстановка текущей "Стоимости" комнаты как найма по умолчанию (уже с учётом
-// коммунальных услуг) — редактируемо сотрудником, при сохранении обратно в комнату не пишется.
+// Подстановка "Стоимости" комнаты как найма по умолчанию — своя характеристика на
+// dailyRateCategory ("Стоимость (из вуза)"/"Стоимость (не из вуза)"), уже с учётом
+// коммунальных услуг, редактируемо сотрудником, при сохранении обратно в комнату не пишется.
+// Комната без обеих характеристик — целиком посуточная (см. isDailyOnlyRoom выше).
+function applyRoomPrice() {
+  if (roomCharacteristics.value.length === 0) {
+    isDailyOnlyRoom.value = false
+    return
+  }
+  const definitionName = dailyRateCategory.value === 'OWN_UNIVERSITY' ? 'Стоимость (из вуза)' : 'Стоимость (не из вуза)'
+  const costCharacteristic = roomCharacteristics.value.find((c) => c.name === definitionName)
+  if (costCharacteristic && typeof costCharacteristic.value === 'number') {
+    isDailyOnlyRoom.value = false
+    rentAmount.value = costCharacteristic.value
+    return
+  }
+  const hasAnyPrice = roomCharacteristics.value.some(
+    (c) => c.name === 'Стоимость (из вуза)' || c.name === 'Стоимость (не из вуза)',
+  )
+  if (!hasAnyPrice) {
+    isDailyOnlyRoom.value = true
+    rentAmount.value = 0
+  }
+}
+
+// Категория определяется асинхронно (после выбора проживающего, см. pickIndividual) и может
+// смениться уже после того, как комната выбрана — пересчитываем подстановку в обоих случаях.
+watch(dailyRateCategory, applyRoomPrice)
+
 watch(roomId, async (id) => {
   if (id === null) {
     // Комнату убрали (очистили поле поиска) — подставленная по ней цена больше не
     // относится к делу, оставлять её как есть было бы обманчиво.
     rentAmount.value = undefined
+    roomCharacteristics.value = []
+    isDailyOnlyRoom.value = false
     return
   }
   const detail = await fetchRoomDetail(id)
-  const costCharacteristic = detail.characteristics.find((c) => c.name === 'Стоимость')
-  if (costCharacteristic && typeof costCharacteristic.value === 'number') {
-    rentAmount.value = costCharacteristic.value
-  }
+  roomCharacteristics.value = detail.characteristics
+  applyRoomPrice()
 })
 
 async function submitCreate() {
@@ -489,7 +526,15 @@ async function submitCreate() {
               </div>
             </div>
 
-            <div class="flex flex-col gap-2">
+            <!-- Комната без месячной "Стоимости" (112-2/410-2 на момент введения) — целиком
+                 посуточная, поле не показываем вообще (см. isDailyOnlyRoom/applyRoomPrice). -->
+            <div v-if="isDailyOnlyRoom" class="flex flex-col gap-2">
+              <Label>Стоимость</Label>
+              <p class="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
+                Посуточная оплата — {{ dailyRateAmount ?? '—' }} ₽/сутки, месячной ставки нет
+              </p>
+            </div>
+            <div v-else class="flex flex-col gap-2">
               <Label>Стоимость</Label>
               <Input
                 v-model.number="rentAmount"

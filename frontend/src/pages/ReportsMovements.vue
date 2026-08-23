@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, ArrowRightLeft, LogIn, LogOut, Repeat } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRightLeft, Download, LogIn, LogOut, Repeat } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import EntityTable from '@/components/EntityTable.vue'
@@ -15,6 +15,7 @@ import {
   fetchMovementsPage,
   fetchMovementsFacets,
   fetchMovementsSummary,
+  exportMovementsExcel,
   type MovementEvent,
   type MovementsSummary,
   type ListOptions,
@@ -80,6 +81,20 @@ watch([from, to], () => {
   entityTable.value?.refresh()
 })
 onMounted(loadSummary)
+
+const isExporting = ref(false)
+const exportError = ref('')
+async function onExport() {
+  exportError.value = ''
+  isExporting.value = true
+  try {
+    await exportMovementsExcel(from.value, to.value)
+  } catch (error) {
+    exportError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isExporting.value = false
+  }
+}
 </script>
 
 <template>
@@ -141,7 +156,12 @@ onMounted(loadSummary)
       <template #actions>
         <span class="text-sm text-muted-foreground">Период</span>
         <DateRangePickerField v-model:from="from" v-model:to="to" />
+        <Button variant="outline" size="sm" :loading="isExporting" @click="onExport">
+          <Download class="size-4" />
+          Экспорт в Excel
+        </Button>
       </template>
     </EntityTable>
+    <p v-if="exportError" class="text-sm text-red-500">{{ exportError }}</p>
   </div>
 </template>

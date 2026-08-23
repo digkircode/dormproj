@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, provide, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { AlertTriangle, ArrowLeft, Banknote, Info, Percent, Users, Wallet } from 'lucide-vue-next'
+import { AlertTriangle, ArrowLeft, Banknote, Download, Info, Percent, Users, Wallet } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell, TableFooter } from '@/components/ui/table'
@@ -21,6 +21,7 @@ import {
   fetchDebtorsSummary,
   fetchDebtorBreakdown,
   fetchDebtorPenaltyLog,
+  exportDebtorsExcel,
   type DebtorRow,
   type DebtorsSummary,
   type DebtorBreakdown,
@@ -168,6 +169,22 @@ async function openPenaltyLog(contractId: number) {
   }
 }
 provide('openPenaltyLog', openPenaltyLog)
+
+// --- Экспорт в Excel — учитывает только "на дату" (тот же asOf, что и у самого отчёта),
+// поиск/фильтры/сортировку колонок EntityTable не пробрасывает наружу (см. downloadFile).
+const isExporting = ref(false)
+const exportError = ref('')
+async function onExport() {
+  exportError.value = ''
+  isExporting.value = true
+  try {
+    await exportDebtorsExcel(asOf.value)
+  } catch (error) {
+    exportError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isExporting.value = false
+  }
+}
 </script>
 
 <template>
@@ -237,8 +254,13 @@ provide('openPenaltyLog', openPenaltyLog)
       <template #actions>
         <span class="text-sm text-muted-foreground">На дату</span>
         <DatePickerField v-model="asOf" />
+        <Button variant="outline" size="sm" :loading="isExporting" @click="onExport">
+          <Download class="size-4" />
+          Экспорт в Excel
+        </Button>
       </template>
     </EntityTable>
+    <p v-if="exportError" class="text-sm text-red-500">{{ exportError }}</p>
 
     <Dialog :open="breakdownOpen" @update:open="(open) => (breakdownOpen = open)">
       <DialogScrollContent :class="['flex flex-col gap-4 sm:max-w-3xl', DIALOG_ANIMATE_CLASS]">

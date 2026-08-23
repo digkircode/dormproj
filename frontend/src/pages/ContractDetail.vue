@@ -109,9 +109,15 @@ const totalBalance = computed(() =>
   contract.value ? contract.value.accruals.reduce((sum, a) => sum + a.balance, 0) + contract.value.penaltyBalance : 0,
 )
 // Коммунальные услуги в БД уже включены в стоимость комнаты (Room → характеристика
-// "Стоимость"), которая и попадает в rentAmount при создании договора — отдельно
-// прибавлять utilitiesAmount не нужно, это задвоило бы сумму.
+// "Стоимость (из/не из вуза)"), которая и попадает в rentAmount при создании договора —
+// отдельно прибавлять utilitiesAmount не нужно, это задвоило бы сумму.
 const rentAmount = computed(() => contract.value?.terms[0]?.rentAmount ?? 0)
+// rentAmount=0 и utilitiesAmount=0 одновременно — только у полностью посуточных комнат
+// (112-2/410-2 на момент введения, см. backend/src/contracts/contracts.controller.ts
+// #isDailyOnlyRoom), обычная комната всегда имеет ненулевую месячную "Стоимость".
+const isDailyOnlyContract = computed(
+  () => (contract.value?.terms[0]?.rentAmount ?? 0) === 0 && (contract.value?.terms[0]?.utilitiesAmount ?? 0) === 0,
+)
 
 // Блок родителя на карточке договора — плавно раскрывается по клику, не модалка.
 const showParentInfo = ref(false)
@@ -396,7 +402,7 @@ async function confirmReversePayment() {
               </div>
               <div>
                 <p class="text-xs text-muted-foreground">Стоимость комнаты</p>
-                <p class="text-lg font-medium">{{ formatMoney(rentAmount) }}</p>
+                <p class="text-lg font-medium">{{ isDailyOnlyContract ? 'Посуточно' : formatMoney(rentAmount) }}</p>
               </div>
             </div>
             <div class="flex items-center gap-3">

@@ -42,10 +42,12 @@ import {
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
 const NO_SPINNER_CLASS = '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
-// Стартовые 5 характеристик, которые всегда показываем (даже без значения — прочерком) —
+// Стартовые характеристики, которые всегда показываем (даже без значения — прочерком) —
 // то, что заведено миграциями и защищено от удаления (definition.isProtected), а не всё
 // подряд из открытого каталога. Тот же порядок используется и для сортировки истории.
-const CORE_ORDER = ['Этаж', 'Жилое помещение', 'Количество мест', 'Площадь', 'Стоимость']
+// "Стоимость (из/не из вуза)" — 2026-08-23, пустое значение у обеих означает "посуточная
+// комната" (112-2/410-2 на момент введения, см. billing/accrual-generation.ts).
+const CORE_ORDER = ['Этаж', 'Жилое помещение', 'Количество мест', 'Площадь', 'Стоимость (из вуза)', 'Стоимость (не из вуза)']
 
 const props = defineProps<{ roomId: number | null; showDormitoryInfo?: boolean }>()
 const emit = defineEmits<{ deleted: []; changed: [] }>()

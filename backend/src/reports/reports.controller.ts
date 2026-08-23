@@ -1,4 +1,5 @@
-import { BadRequestException, Controller, Get, NotFoundException, Param, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, NotFoundException, Param, Query, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { Prisma, ContractStatus } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -7,7 +8,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { dateOnly, addDays } from '../billing/period-utils';
 import { computePenaltyBalance, sumPenaltyLog } from '../billing/penalty-balance';
 import { fromStoredValue } from '../rooms/characteristic-value';
-import { parseListOptions, paginateInMemory, facetsFromValues, type FacetOption } from './list-helpers';
+import { parseListOptions, paginateInMemory, filterAndSortInMemory, facetsFromValues, type FacetOption } from './list-helpers';
+import { sendExcelReport, type ExcelColumn } from './excel-export';
 
 const { Decimal } = Prisma;
 
@@ -241,6 +243,39 @@ export class ReportsController {
   debtorsFacets(@Param('field') field: string): FacetOption[] {
     if (field !== 'status') return [];
     return (Object.keys(CONTRACT_STATUS_LABELS) as ContractStatus[]).map((value) => ({ value, label: CONTRACT_STATUS_LABELS[value] }));
+  }
+
+  // Экспорт — та же фильтрация/сортировка, что и у обычного списка (debtors() выше), но
+  // без пагинации: весь отфильтрованный набор целиком, не только текущая страница таблицы.
+  @Get('debtors/export')
+  async debtorsExport(
+    @Res() res: Response,
+    @Query('search') searchParam?: string,
+    @Query('sortBy') sortByParam?: string,
+    @Query('sortDir') sortDirParam?: string,
+    @Query('filters') filtersParam?: string,
+    @Query('asOf') asOfParam?: string,
+  ) {
+    const rows = await this.buildDebtorRows(resolveAsOf(asOfParam));
+    const options = parseListOptions(undefined, undefined, searchParam, sortByParam, sortDirParam, filtersParam, 'totalBalance');
+    const sorted = filterAndSortInMemory(rows, options, {
+      searchFields: ['contractNumber', 'residentFullName', 'room'],
+      sortableFields: ['contractNumber', 'residentFullName', 'room', 'createdAt', 'status', 'totalAccrued', 'totalPaid', 'penaltyBalance', 'totalBalance'],
+      filterFields: ['status'],
+    });
+
+    const columns: ExcelColumn<DebtorRow>[] = [
+      { header: '№ договора', value: (r) => r.contractNumber, width: 16 },
+      { header: 'ФИО', value: (r) => r.residentFullName, width: 32 },
+      { header: 'Комната', value: (r) => r.room ?? '', width: 12 },
+      { header: 'Статус', value: (r) => CONTRACT_STATUS_LABELS[r.status], width: 14 },
+      { header: 'Дата создания', value: (r) => r.createdAt, format: 'date', width: 14 },
+      { header: 'Начислено', value: (r) => r.totalAccrued, format: 'money', width: 16 },
+      { header: 'Оплачено', value: (r) => r.totalPaid, format: 'money', width: 16 },
+      { header: 'Пеня', value: (r) => r.penaltyBalance, format: 'money', width: 14 },
+      { header: 'Долг', value: (r) => r.totalBalance, format: 'money', width: 14 },
+    ];
+    await sendExcelReport(res, 'financial-report', 'Финансовый отчёт', columns, sorted);
   }
 
   // Структура долга одного договора по периодам (клик на договор в реестре) — ВСЕ
@@ -573,6 +608,36 @@ export class ReportsController {
     return facetsFromValues(rows.map((r) => r[field]));
   }
 
+  @Get('contingent/export')
+  async contingentExport(
+    @Res() res: Response,
+    @Query('search') searchParam?: string,
+    @Query('sortBy') sortByParam?: string,
+    @Query('sortDir') sortDirParam?: string,
+    @Query('filters') filtersParam?: string,
+    @Query('asOf') asOfParam?: string,
+  ) {
+    const rows = await this.buildContingentRows(resolveAsOf(asOfParam));
+    const options = parseListOptions(undefined, undefined, searchParam, sortByParam, sortDirParam, filtersParam, 'movedInDate');
+    const sorted = filterAndSortInMemory(rows, options, {
+      searchFields: ['residentFullName', 'contractNumber', 'room', 'facultet', 'citizenship'],
+      sortableFields: ['movedInDate', 'residentFullName', 'contractNumber', 'room', 'facultet', 'kursNumber', 'birthDate', 'citizenship'],
+      filterFields: ['facultet', 'kursNumber', 'citizenshipGroup', 'isOwnUniversity'],
+    });
+
+    const columns: ExcelColumn<ContingentRow>[] = [
+      { header: 'Дата заселения', value: (r) => r.movedInDate, format: 'date', width: 14 },
+      { header: 'Проживающий', value: (r) => r.residentFullName, width: 32 },
+      { header: '№ договора', value: (r) => r.contractNumber, width: 16 },
+      { header: 'Комната', value: (r) => r.room, width: 12 },
+      { header: 'Факультет', value: (r) => r.facultet ?? '', width: 24 },
+      { header: 'Курс', value: (r) => r.kursNumber ?? '', width: 8 },
+      { header: 'Дата рождения', value: (r) => r.birthDate, format: 'date', width: 14 },
+      { header: 'Гражданство', value: (r) => r.citizenship ?? '', width: 18 },
+    ];
+    await sendExcelReport(res, 'residents-registry', 'Реестр проживающих', columns, sorted);
+  }
+
   // ===== Отчёт "Реестр договоров" =====
   // bucket — не хранимое поле, а классификация на лету по датам: OVERDUE здесь
   // возникает для договоров, у которых endDate уже прошёл, а сотрудник ещё не расторг
@@ -644,6 +709,36 @@ export class ReportsController {
   contractsRegistryFacets(@Param('field') field: string): FacetOption[] {
     if (field !== 'bucket') return [];
     return (Object.keys(BUCKET_LABELS) as ContractRegistryBucket[]).map((value) => ({ value, label: BUCKET_LABELS[value] }));
+  }
+
+  @Get('contracts-registry/export')
+  async contractsRegistryExport(
+    @Res() res: Response,
+    @Query('search') searchParam?: string,
+    @Query('sortBy') sortByParam?: string,
+    @Query('sortDir') sortDirParam?: string,
+    @Query('filters') filtersParam?: string,
+    @Query('asOf') asOfParam?: string,
+  ) {
+    const rows = await this.buildContractRegistryRows(resolveAsOf(asOfParam));
+    const options = parseListOptions(undefined, undefined, searchParam, sortByParam, sortDirParam, filtersParam, 'endDate');
+    const sorted = filterAndSortInMemory(rows, options, {
+      searchFields: ['contractNumber', 'residentFullName', 'room'],
+      sortableFields: ['contractNumber', 'residentFullName', 'room', 'createdAt', 'startDate', 'endDate', 'bucket'],
+      filterFields: ['bucket'],
+    });
+
+    const columns: ExcelColumn<ContractRegistryRow>[] = [
+      { header: '№ договора', value: (r) => r.contractNumber, width: 16 },
+      { header: 'ФИО', value: (r) => r.residentFullName, width: 32 },
+      { header: 'Комната', value: (r) => r.room ?? '', width: 12 },
+      { header: 'Статус', value: (r) => BUCKET_LABELS[r.bucket], width: 14 },
+      { header: 'Дата создания', value: (r) => r.createdAt, format: 'date', width: 14 },
+      { header: 'Дата начала', value: (r) => r.startDate, format: 'date', width: 14 },
+      { header: 'Дата окончания', value: (r) => r.endDate, format: 'date', width: 14 },
+      { header: 'Дней до окончания', value: (r) => r.daysUntilEnd, width: 16 },
+    ];
+    await sendExcelReport(res, 'contracts-registry', 'Реестр договоров', columns, sorted);
   }
 
   // ===== Отчёт "Движение проживающих" (бывшее "Заселение / выселение") =====
@@ -766,5 +861,37 @@ export class ReportsController {
   movementsFacets(@Param('field') field: string): FacetOption[] {
     if (field !== 'operation') return [];
     return (Object.keys(MOVEMENT_LABELS) as MovementOperationType[]).map((value) => ({ value, label: MOVEMENT_LABELS[value] }));
+  }
+
+  @Get('movements/export')
+  async movementsExport(
+    @Res() res: Response,
+    @Query('search') searchParam?: string,
+    @Query('sortBy') sortByParam?: string,
+    @Query('sortDir') sortDirParam?: string,
+    @Query('filters') filtersParam?: string,
+    @Query('from') fromParam?: string,
+    @Query('to') toParam?: string,
+  ) {
+    const to = resolveAsOf(toParam);
+    const from = fromParam ? dateOnly(new Date(fromParam)) : null;
+    const allEvents = await this.buildMovementEvents();
+    const events = allEvents.filter((e) => e.date <= to && (!from || e.date > from));
+    const options = parseListOptions(undefined, undefined, searchParam, sortByParam, sortDirParam, filtersParam, 'date');
+    const sorted = filterAndSortInMemory(events, options, {
+      searchFields: ['contractNumber', 'residentFullName', 'from', 'to'],
+      sortableFields: ['date', 'contractNumber', 'residentFullName', 'operation', 'from', 'to'],
+      filterFields: ['operation'],
+    });
+
+    const columns: ExcelColumn<MovementEvent>[] = [
+      { header: 'Дата операции', value: (r) => r.date, format: 'date', width: 14 },
+      { header: '№ договора', value: (r) => r.contractNumber, width: 16 },
+      { header: 'ФИО', value: (r) => r.residentFullName, width: 32 },
+      { header: 'Операция', value: (r) => MOVEMENT_LABELS[r.operation], width: 14 },
+      { header: 'Откуда', value: (r) => r.from ?? '', width: 12 },
+      { header: 'Куда', value: (r) => r.to ?? '', width: 12 },
+    ];
+    await sendExcelReport(res, 'movements', 'Движение проживающих', columns, sorted);
   }
 }
