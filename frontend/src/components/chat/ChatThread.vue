@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Check, CheckCheck, FileVideo, Paperclip, SendHorizontal, X } from 'lucide-vue-next'
-import { avatarColorClasses, initials } from '@/lib/avatar-color'
+import { avatarColorClasses, initials, shortName } from '@/lib/avatar-color'
 import {
   chatAttachmentUrl,
   MAX_ATTACHMENTS_PER_MESSAGE,
@@ -119,6 +119,21 @@ function scrollToBottom() {
 watch(
   () => [props.messages.length, pending.value],
   () => scrollToBottom(),
+)
+
+// Убирает оптимистичное сообщение, как только родитель дозагрузил реальный список
+// (messages.length выросло) — раньше pending снимался только в finally() после
+// props.onSend(), а onSend() внутри Chats.vue/MyChat.vue уже успевает обновить messages
+// ДО того, как сам промис зарезолвится. Из-за этого был один кадр с одновременно видимыми
+// pending-пузырём И настоящим сообщением, затем ещё один кадр без pending — визуально
+// "сообщение дважды появляется и дёргается". watch здесь батчится Vue в тот же тик, что и
+// реакция на messages, так что pending пропадает в ТОМ ЖЕ рендере, где появляется реальное
+// сообщение — без промежуточного дублирования.
+watch(
+  () => props.messages.length,
+  (next, prev) => {
+    if (pending.value && next > prev) pending.value = null
+  },
 )
 
 function formatTime(iso: string): string {
@@ -269,35 +284,60 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
             <div v-else class="w-8 shrink-0" />
 
             <div class="flex max-w-[65%] flex-col gap-1" :class="message.senderRole === viewerRole ? 'items-end' : 'items-start'">
-              <span v-if="message.senderFullName" class="px-1 text-xs font-medium text-muted-foreground">{{ message.senderFullName }}</span>
+              <span v-if="message.senderFullName" class="px-1 text-xs font-medium text-muted-foreground">{{ shortName(message.senderFullName) }}</span>
 
-              <div v-if="message.attachments.length" class="flex flex-wrap gap-1.5">
-                <button
-                  v-for="(attachment, index) in message.attachments"
-                  :key="attachment.id"
-                  type="button"
-                  class="block overflow-hidden rounded-lg border transition-transform hover:scale-[1.02]"
-                  @click="openLightbox(message.attachments, index)"
-                >
-                  <img
-                    v-if="attachment.kind === 'IMAGE'"
-                    :src="attachmentUrl(attachment)"
-                    :alt="attachment.fileName"
-                    class="max-h-64 max-w-64 object-cover"
-                  />
-                  <div v-else class="relative">
-                    <video :src="attachmentUrl(attachment)" class="max-h-64 max-w-64" />
-                    <div class="absolute inset-0 flex items-center justify-center bg-black/20">
-                      <div class="rounded-full bg-black/50 p-2.5">
-                        <FileVideo class="size-5 text-white" />
+              <!-- Вложения + подпись — единое "облачко" (по прямой просьбе, как в Telegram):
+                   картинка/видео и текст под ней делят одну и ту же ширину контейнера, а не
+                   раздельные пузыри разной ширины (текстовый — по длине текста, вложение — по
+                   своему intrinsic-размеру). -->
+              <div
+                v-if="message.attachments.length"
+                class="w-64 max-w-full overflow-hidden rounded-2xl"
+                :class="message.senderRole === viewerRole ? 'rounded-tr-sm bg-primary text-primary-foreground' : 'rounded-tl-sm bg-muted text-foreground'"
+              >
+                <div class="grid gap-0.5" :class="message.attachments.length > 1 ? 'grid-cols-2' : ''">
+                  <button
+                    v-for="(attachment, index) in message.attachments"
+                    :key="attachment.id"
+                    type="button"
+                    class="block w-full overflow-hidden transition-transform hover:brightness-95"
+                    @click="openLightbox(message.attachments, index)"
+                  >
+                    <img
+                      v-if="attachment.kind === 'IMAGE'"
+                      :src="attachmentUrl(attachment)"
+                      :alt="attachment.fileName"
+                      class="aspect-square w-full object-cover opacity-0 transition-opacity duration-300"
+                      @load="($event.target as HTMLImageElement).classList.remove('opacity-0')"
+                    />
+                    <div v-else class="relative aspect-square w-full bg-black/10">
+                      <video
+                        :src="attachmentUrl(attachment)"
+                        class="h-full w-full object-cover opacity-0 transition-opacity duration-300"
+                        @loadeddata="($event.target as HTMLVideoElement).classList.remove('opacity-0')"
+                      />
+                      <div class="absolute inset-0 flex items-center justify-center bg-black/20">
+                        <div class="rounded-full bg-black/50 p-2.5">
+                          <FileVideo class="size-5 text-white" />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </button>
+                  </button>
+                </div>
+
+                <div v-if="message.body" class="px-3 pt-2 text-sm whitespace-pre-wrap">{{ message.body }}</div>
+                <div class="flex items-center justify-end gap-0.5 px-3 pt-1 pb-1.5 text-[10px] whitespace-nowrap opacity-70">
+                  {{ formatTime(message.createdAt) }}
+                  <template v-if="message.senderRole === viewerRole">
+                    <Check v-if="message.status === 'pending'" class="size-3 opacity-60" />
+                    <Check v-else-if="message.status === 'delivered'" class="size-3" />
+                    <CheckCheck v-else class="size-3" />
+                  </template>
+                </div>
               </div>
 
               <div
-                v-if="message.body"
+                v-else-if="message.body"
                 class="rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap"
                 :class="
                   message.senderRole === viewerRole
@@ -316,14 +356,6 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
                     <CheckCheck v-else class="size-3" />
                   </template>
                 </span>
-              </div>
-              <div v-else-if="message.attachments.length" class="flex items-center gap-1 px-1 text-[10px] text-muted-foreground">
-                {{ formatTime(message.createdAt) }}
-                <template v-if="message.senderRole === viewerRole">
-                  <Check v-if="message.status === 'pending'" class="size-3 opacity-60" />
-                  <Check v-else-if="message.status === 'delivered'" class="size-3" />
-                  <CheckCheck v-else class="size-3" />
-                </template>
               </div>
             </div>
           </div>
@@ -378,8 +410,9 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
         <Button
           :disabled="!canSend"
           :loading="isSending"
+          variant="ghost"
           size="icon"
-          class="absolute right-1.5 bottom-1.5 size-8"
+          class="absolute right-1.5 bottom-1.5 size-8 text-primary hover:bg-primary/10 hover:text-primary disabled:text-muted-foreground"
           @click="send"
         >
           <SendHorizontal class="size-4" />

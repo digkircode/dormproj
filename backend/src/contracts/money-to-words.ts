@@ -61,12 +61,18 @@ function capitalize(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
 
-// "Девять тысяч пятьсот рублей" — целая часть суммы прописью с правильным
-// склонением "рубль/рубля/рублей" по числу рублей, первая буква заглавная.
+// "Девять тысяч пятьсот" — целая часть суммы прописью, БЕЗ слова "рубль/рубля/рублей"
+// (то печатается отдельным тегом снаружи скобок в бланке, см. rublesCurrencyWord и
+// contract-document-data.ts — раньше "рублей" было внутри скобок вместе с числом, по
+// просьбе 2026-08-24 вынесено наружу). Первая буква заглавная.
 export function rublesInWords(rubles: number): string {
-  const words = integerToWords(rubles);
-  const currency = pluralForm(rubles, ['рубль', 'рубля', 'рублей']);
-  return capitalize(`${words} ${currency}`);
+  return capitalize(integerToWords(rubles));
+}
+
+// "рублей" — склонение по числу рублей, печатается отдельным тегом СНАРУЖИ скобок
+// с числом прописью (см. rublesInWords).
+export function rublesCurrencyWord(rubles: number): string {
+  return pluralForm(rubles, ['рубль', 'рубля', 'рублей']);
 }
 
 // "9 500" — целая часть суммы цифрами с разбивкой по разрядам, без суффикса валюты

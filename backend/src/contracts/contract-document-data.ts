@@ -1,6 +1,6 @@
 import { Prisma } from '../../generated/prisma/client.js';
 import type { ResidentSnapshot } from './resident-snapshot';
-import { formatRublesDigits, rublesInWords, splitRublesAndKopecks } from './money-to-words';
+import { formatRublesDigits, rublesCurrencyWord, rublesInWords, splitRublesAndKopecks } from './money-to-words';
 
 const MONTHS_GENITIVE = [
   'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
@@ -79,11 +79,12 @@ function splitAddressTwoLines(address: string, maxLineLength = 40): { line1: str
   return { line1, line2: words.slice(i).join(' ') };
 }
 
-// {rentAmount}/{rentAmountWords}/{rentAmountKopecks} и аналоги — цифрами, прописью
-// (со склонённым "рублей") и копейками отдельными тегами (см. п.4.1/5.1 бланка).
-function moneyBreakdown(value: Prisma.Decimal): { digits: string; words: string; kopecksText: string } {
+// {rentAmount}/{rentAmountWords}/{rentAmountCurrency}/{rentAmountKopecks} и аналоги —
+// цифрами, прописью (без "рублей" — то печатается отдельным тегом currency СНАРУЖИ скобок
+// в бланке, см. rublesInWords) и копейками отдельными тегами (см. п.4.1/5.1 бланка).
+function moneyBreakdown(value: Prisma.Decimal): { digits: string; words: string; currency: string; kopecksText: string } {
   const { rubles, kopecksText } = splitRublesAndKopecks(value);
-  return { digits: formatRublesDigits(rubles), words: rublesInWords(rubles), kopecksText };
+  return { digits: formatRublesDigits(rubles), words: rublesInWords(rubles), currency: rublesCurrencyWord(rubles), kopecksText };
 }
 
 // "Фамилия И.О." — для строки подписи в самом низу бланка (подписано "Фамилия,
@@ -164,7 +165,11 @@ export function buildDocumentData(
       : 'за период с ______________ по ______________ в сумме _______________________';
 
   const isOwnUniversity = terms?.dailyRateCategory === 'OWN_UNIVERSITY';
-  const residenceReasonText = isOwnUniversity ? 'обучением в АНО ВО «РосНОУ»' : (contract.residenceReason ?? '');
+  const residenceReasonText = isOwnUniversity
+    ? 'обучением в АНО ВО «РосНОУ»'
+    : contract.residenceReason
+      ? `«${contract.residenceReason}»`
+      : '';
 
   // ContractTerms.utilitiesAmount в БД всегда 0 (коммуналка уже включена в rentAmount —
   // см. Contracts.vue/ContractDetail.vue, "стоимость комнаты" из характеристики уже
@@ -180,9 +185,10 @@ export function buildDocumentData(
   const utilitiesForDoc = terms && rawUtilities.lessThan(terms.rentAmount) ? rawUtilities : (terms?.rentAmount ?? new Prisma.Decimal(0));
   const rentForDoc = terms ? terms.rentAmount.minus(utilitiesForDoc) : new Prisma.Decimal(0);
 
-  const rent = terms ? moneyBreakdown(rentForDoc) : { digits: '', words: '', kopecksText: '' };
-  const utilities = terms ? moneyBreakdown(utilitiesForDoc) : { digits: '', words: '', kopecksText: '' };
-  const total = terms ? moneyBreakdown(terms.rentAmount) : { digits: '', words: '', kopecksText: '' };
+  const emptyBreakdown = { digits: '', words: '', currency: '', kopecksText: '' };
+  const rent = terms ? moneyBreakdown(rentForDoc) : emptyBreakdown;
+  const utilities = terms ? moneyBreakdown(utilitiesForDoc) : emptyBreakdown;
+  const total = terms ? moneyBreakdown(terms.rentAmount) : emptyBreakdown;
 
   const residentName = splitSurnameRest(resident.fullName);
   const legalRepNameSplit = splitSurnameRest(contract.legalRepName ?? '');
@@ -203,12 +209,15 @@ export function buildDocumentData(
 
     rentAmount: rent.digits,
     rentAmountWords: rent.words,
+    rentAmountCurrency: rent.currency,
     rentAmountKopecks: rent.kopecksText,
     utilitiesAmount: utilities.digits,
     utilitiesAmountWords: utilities.words,
+    utilitiesAmountCurrency: utilities.currency,
     utilitiesAmountKopecks: utilities.kopecksText,
     totalMonthly: total.digits,
     totalMonthlyWords: total.words,
+    totalMonthlyCurrency: total.currency,
     totalMonthlyKopecks: total.kopecksText,
     dailyRateAmount: terms ? formatMoney(terms.dailyRateAmount) : '',
 

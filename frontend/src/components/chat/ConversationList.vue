@@ -40,7 +40,7 @@ function formatTime(iso: string): string {
         <Search class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input v-model="query" placeholder="Поиск диалогов..." class="pl-9" />
       </div>
-      <Button variant="outline" size="icon" title="Написать проживающим" @click="emit('new-message')">
+      <Button size="icon" title="Написать проживающим" @click="emit('new-message')">
         <MessageSquarePlus class="size-4" />
         <span class="sr-only">Написать проживающим</span>
       </Button>

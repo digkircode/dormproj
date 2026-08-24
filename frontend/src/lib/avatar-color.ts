@@ -32,3 +32,15 @@ export function initials(name: string): string {
     .join('')
     .toUpperCase()
 }
+
+// "Иванов И.И." — та же короткая форма ФИО, что и в печати договора (см. backend
+// surnameWithInitials в money-to-words.ts/contract-document-data.ts), для подписи
+// отправителя в окне чата — полное ФИО там не нужно, аватар рядом уже даёт исходные
+// 2 буквы.
+export function shortName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return ''
+  const [surname, ...rest] = parts
+  const initialsPart = rest.map((p) => `${p.charAt(0).toUpperCase()}.`).join('')
+  return initialsPart ? `${surname} ${initialsPart}` : surname
+}

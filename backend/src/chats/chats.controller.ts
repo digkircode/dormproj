@@ -245,6 +245,7 @@ export class ChatsController {
     });
 
     return {
+      contractId: contract?.id ?? null,
       contractNumber: contract?.number ?? null,
       room: contract?.roomAssignments[0]?.room.room ?? null,
     };

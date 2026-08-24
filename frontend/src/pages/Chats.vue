@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { FileText, Home } from 'lucide-vue-next'
+import { FileText, DoorClosed } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import ConversationList from '@/components/chat/ConversationList.vue'
 import ChatThread from '@/components/chat/ChatThread.vue'
@@ -30,6 +30,9 @@ async function loadConversations() {
 }
 
 async function selectConversation(id: number) {
+  // Клик по уже открытому диалогу — не гонять сеть заново (перезагрузка сообщений/
+  // resident-info/повторная пометка прочитанным без надобности, см. известный баг проекта).
+  if (id === selectedId.value) return
   selectedId.value = id
   residentInfo.value = null
   const [msgs, info] = await Promise.all([fetchConversationMessages(id), fetchResidentInfo(id)])
@@ -83,12 +86,20 @@ onMounted(loadConversations)
              p-3 снаружи + h-10 содержимое), чтобы шапка выровнялась по высоте с ней
              пиксель в пиксель, а не подгонялась на глаз константой. -->
         <div v-if="selectedId" class="flex shrink-0 items-center gap-4 border-b p-3 text-sm text-muted-foreground">
-          <span class="flex h-10 items-center gap-1.5">
+          <RouterLink
+            v-if="residentInfo?.contractId"
+            :to="{ name: 'contract-detail', params: { id: residentInfo.contractId } }"
+            class="-mx-1.5 flex h-10 items-center gap-1.5 rounded-md px-1.5 transition-colors hover:bg-accent hover:text-accent-foreground"
+          >
             <FileText class="size-4 text-primary" />
-            {{ residentInfo?.contractNumber ? `Договор № ${residentInfo.contractNumber}` : 'Нет действующего договора' }}
+            Договор № {{ residentInfo.contractNumber }}
+          </RouterLink>
+          <span v-else class="flex h-10 items-center gap-1.5">
+            <FileText class="size-4 text-primary" />
+            Нет действующего договора
           </span>
           <span v-if="residentInfo?.room" class="flex h-10 items-center gap-1.5">
-            <Home class="size-4 text-primary" />
+            <DoorClosed class="size-4 text-primary" />
             Комната {{ residentInfo.room }}
           </span>
         </div>

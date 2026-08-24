@@ -37,6 +37,7 @@ export interface ChatMessage {
 }
 
 export interface ResidentInfo {
+  contractId: number | null
   contractNumber: string | null
   room: string | null
 }

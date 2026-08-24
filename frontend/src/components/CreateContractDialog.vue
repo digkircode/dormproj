@@ -213,6 +213,11 @@ async function pickIndividual(ind: Individual) {
     dailyRateCategory.value = 'OTHER_UNIVERSITY'
   } finally {
     dailyRateCategoryKnown.value = true
+    // Не полагаться на watch(dailyRateCategory, ...) ниже — он не сработает, если значение
+    // категории не изменилось (например дефолт формы и определённая категория совпали:
+    // 'OTHER_UNIVERSITY' → 'OTHER_UNIVERSITY'), из-за чего суточная ставка оставалась
+    // dailyPaymentInternal, подставленной в open(), даже для проживающих не из вуза.
+    updateDailyRateAmount()
   }
 }
 
@@ -326,7 +331,7 @@ async function open(prefillIndividual?: Individual) {
   const info = await fetchDormitoryInfo()
   dormInfo.value = info
   utilitiesAmount.value = 0
-  dailyRateAmount.value = info.dailyPaymentInternal ?? undefined
+  updateDailyRateAmount()
 
   if (prefillIndividual) {
     await pickIndividual(prefillIndividual)
@@ -339,9 +344,11 @@ defineExpose({ open })
 
 // Категория определяет, какая суточная ставка по умолчанию (см. DormitoryInfo) — при
 // смене категории обновляем подстановку (поле не показывается, но участвует в расчёте пени).
-watch(dailyRateCategory, (category) => {
-  dailyRateAmount.value = (category === 'OWN_UNIVERSITY' ? dormInfo.value.dailyPaymentInternal : dormInfo.value.dailyPaymentOther) ?? undefined
-})
+function updateDailyRateAmount() {
+  dailyRateAmount.value =
+    (dailyRateCategory.value === 'OWN_UNIVERSITY' ? dormInfo.value.dailyPaymentInternal : dormInfo.value.dailyPaymentOther) ?? undefined
+}
+watch(dailyRateCategory, updateDailyRateAmount)
 
 // Подстановка "Стоимости" комнаты как найма по умолчанию — своя характеристика на
 // dailyRateCategory ("Стоимость (из вуза)"/"Стоимость (не из вуза)"), уже с учётом

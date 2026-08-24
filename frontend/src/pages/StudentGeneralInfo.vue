@@ -15,9 +15,11 @@ import {
   FileText,
   Stethoscope,
   GraduationCap,
+  ChevronRight,
 } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { fetchHostelPublicInfo, type HostelPublicInfo } from '@/lib/public-info-api'
 import molPhoto from '@/assets/staff/mol.webp'
@@ -112,6 +114,8 @@ const polyclinicSteps = [
   'Обратиться в ближайшее отделение страховой компании',
 ]
 
+const polyclinicsOpen = ref(false)
+
 const polyclinics = [
   { name: 'Городская поликлиника № 129', address: 'ул. Ладожская, д. 4/6, стр. 1', phone: '+7 499 261-98-71' },
   { name: 'ГБУЗ «ДЦ № 3 ДЗМ», филиал № 3', address: 'Таможенный пр., д. 3', phone: '+7 495 362-85-70' },
@@ -201,26 +205,33 @@ onMounted(async () => {
         </Card>
 
         <Card class="p-6">
-          <div class="flex items-center gap-1.5 text-sm font-medium">
-            <MapPin class="size-4 text-primary" />
-            Как добраться
-          </div>
-          <ul class="mt-3 mb-4 flex flex-col gap-1.5 text-sm">
-            <li>Ближайшее метро — «Авиамоторная» (около 20 минут пешком)</li>
-            <li>От метро «Авиамоторная» — автобус № 695 или с679 до остановки «Андроновское шоссе, 26», далее пешком</li>
-            <li>От главного корпуса (ул. Радио, д. 22) — автобус № 624 от остановки «Лефортовская набережная» до «НИИ прикладной механики», далее пешком</li>
-            <li>От главного корпуса до метро «Авиамоторная» — трамваи Т2 или 50 от остановки «Лефортовская набережная»</li>
-          </ul>
-          <!-- Тот же embed (конструктор Яндекс.Карт), что и на официальной странице
-               rosnou.ru/university/hostel/ — с готовыми пронумерованными маршрутами на
-               карте, не просто геокодированная точка (см. промпт проекта). -->
-          <div class="overflow-hidden rounded-md border">
-            <iframe
-              src="https://yandex.ru/map-widget/v1/?lang=ru_RU&scroll=true&source=constructor-api&um=constructor%3AzKairv6FkwsqRhkpf5bDqYE06Mx3Xtzy"
-              class="block h-[420px] w-full"
-              loading="lazy"
-              title="Как добраться до общежития РосНОУ — карта с маршрутами"
-            />
+          <div class="flex flex-col gap-6 lg:flex-row lg:divide-x lg:divide-border">
+            <div class="flex flex-col lg:w-1/2 lg:pr-6">
+              <div class="flex items-center gap-1.5 text-sm font-medium">
+                <MapPin class="size-4 text-primary" />
+                Как добраться
+              </div>
+              <ul class="mt-3 flex flex-col gap-1.5 text-sm">
+                <li>Ближайшее метро — «Авиамоторная» (около 20 минут пешком)</li>
+                <li>От метро «Авиамоторная» — автобус № 695 или с679 до остановки «Андроновское шоссе, 26», далее пешком</li>
+                <li>От главного корпуса (ул. Радио, д. 22) — автобус № 624 от остановки «Лефортовская набережная» до «НИИ прикладной механики», далее пешком</li>
+                <li>От главного корпуса до метро «Авиамоторная» — трамваи Т2 или 50 от остановки «Лефортовская набережная»</li>
+              </ul>
+            </div>
+
+            <!-- Тот же embed (конструктор Яндекс.Карт), что и на официальной странице
+                 rosnou.ru/university/hostel/ — с готовыми пронумерованными маршрутами на
+                 карте, не просто геокодированная точка (см. промпт проекта). -->
+            <div class="lg:w-1/2 lg:pl-6">
+              <div class="overflow-hidden rounded-md border">
+                <iframe
+                  src="https://yandex.ru/map-widget/v1/?lang=ru_RU&scroll=true&source=constructor-api&um=constructor%3AzKairv6FkwsqRhkpf5bDqYE06Mx3Xtzy"
+                  class="block h-[420px] w-full"
+                  loading="lazy"
+                  title="Как добраться до общежития РосНОУ — карта с маршрутами"
+                />
+              </div>
+            </div>
           </div>
         </Card>
       </TabsContent>
@@ -282,39 +293,56 @@ onMounted(async () => {
         </Card>
 
         <Card class="p-6">
-          <div class="flex items-center gap-1.5 text-sm font-medium">
-            <FileText class="size-4 text-primary" />
-            Временная регистрация
-          </div>
-          <p class="mt-3 mb-2 text-sm text-muted-foreground">
-            Для свидетельства о регистрации по месту пребывания необходимо предоставить (обращение в администрацию
-            общежития или каб. 801):
-          </p>
-          <ul class="flex flex-col gap-1 text-sm">
-            <li v-for="d in tempRegistrationDocuments" :key="d">{{ d }}</li>
-          </ul>
+          <div class="flex flex-col gap-6 lg:flex-row lg:divide-x lg:divide-border">
+            <div class="flex flex-col lg:w-1/2 lg:pr-6">
+              <div class="flex items-center gap-1.5 text-sm font-medium">
+                <Stethoscope class="size-4 text-primary" />
+                Прикрепление к поликлинике
+              </div>
+              <p class="mt-3 mb-2 text-sm text-muted-foreground">
+                Иногородние студенты могут прикрепиться к ближайшей поликлинике при наличии паспорта, студенческого
+                билета, полиса ОМС и временной регистрации.
+              </p>
+              <div class="mb-3 rounded-md border border-dashed p-3">
+                <p class="mb-1.5 text-xs font-medium text-muted-foreground">Шпаргалка: как прикрепиться</p>
+                <ol class="flex flex-col gap-1 text-sm">
+                  <li v-for="(step, i) in polyclinicSteps" :key="step" class="flex gap-2">
+                    <span class="font-medium text-primary">{{ i + 1 }}.</span>
+                    <span>{{ step }}</span>
+                  </li>
+                </ol>
+              </div>
+              <!-- Раскрывающийся список (по прямой просьбе 2026-08-24) — сам список поликлиник
+                   спрятан по умолчанию за тогглом, тот же Collapsible/ChevronRight-паттерн,
+                   что у групп сайдбара (см. NavProjects.vue). -->
+              <Collapsible v-model:open="polyclinicsOpen">
+                <CollapsibleTrigger class="flex w-full items-center gap-1.5 rounded-md py-1 text-sm font-medium hover:text-primary">
+                  <ChevronRight class="size-4 shrink-0 transition-transform duration-200" :class="{ 'rotate-90': polyclinicsOpen }" />
+                  Список поликлиник ({{ polyclinics.length }})
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div class="mt-1 flex flex-col divide-y divide-border pl-5.5">
+                    <div v-for="p in polyclinics" :key="p.name" class="flex flex-col gap-0.5 py-2 text-sm first:pt-0 last:pb-0">
+                      <span class="font-medium">{{ p.name }}</span>
+                      <span class="text-muted-foreground">{{ p.address }}<template v-if="p.phone"> · {{ p.phone }}</template></span>
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
 
-          <div class="mt-4 flex items-center gap-1.5 border-t pt-4 text-sm font-medium">
-            <Stethoscope class="size-4 text-primary" />
-            Прикрепление к поликлинике
-          </div>
-          <p class="mt-3 mb-2 text-sm text-muted-foreground">
-            Иногородние студенты могут прикрепиться к ближайшей поликлинике при наличии паспорта, студенческого
-            билета, полиса ОМС и временной регистрации.
-          </p>
-          <div class="mb-3 rounded-md border border-dashed p-3">
-            <p class="mb-1.5 text-xs font-medium text-muted-foreground">Шпаргалка: как прикрепиться</p>
-            <ol class="flex flex-col gap-1 text-sm">
-              <li v-for="(step, i) in polyclinicSteps" :key="step" class="flex gap-2">
-                <span class="font-medium text-primary">{{ i + 1 }}.</span>
-                <span>{{ step }}</span>
-              </li>
-            </ol>
-          </div>
-          <div class="flex flex-col divide-y divide-border">
-            <div v-for="p in polyclinics" :key="p.name" class="flex flex-col gap-0.5 py-2 text-sm first:pt-0 last:pb-0">
-              <span class="font-medium">{{ p.name }}</span>
-              <span class="text-muted-foreground">{{ p.address }}<template v-if="p.phone"> · {{ p.phone }}</template></span>
+            <div class="flex flex-col lg:w-1/2 lg:pl-6">
+              <div class="flex items-center gap-1.5 text-sm font-medium">
+                <FileText class="size-4 text-primary" />
+                Временная регистрация
+              </div>
+              <p class="mt-3 mb-2 text-sm text-muted-foreground">
+                Для свидетельства о регистрации по месту пребывания необходимо предоставить (обращение в администрацию
+                общежития или каб. 801):
+              </p>
+              <ul class="flex flex-col gap-1 text-sm">
+                <li v-for="d in tempRegistrationDocuments" :key="d">{{ d }}</li>
+              </ul>
             </div>
           </div>
         </Card>
@@ -324,7 +352,7 @@ onMounted(async () => {
       <TabsContent value="contacts" class="mt-4 flex flex-col gap-4">
         <Card class="p-6">
           <div class="flex flex-col gap-6 lg:flex-row lg:divide-x lg:divide-border">
-            <div class="flex flex-col gap-3 lg:w-1/2 lg:pr-6">
+            <div class="flex flex-col gap-3 lg:w-2/3 lg:pr-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
                 <Contact class="size-4 text-primary" />
                 Контакты администрации
@@ -350,7 +378,7 @@ onMounted(async () => {
               </div>
             </div>
 
-            <div class="flex flex-col gap-3 lg:w-1/2 lg:pl-6">
+            <div class="flex flex-col gap-3 lg:w-1/3 lg:pl-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
                 <Users class="size-4 text-primary" />
                 Департамент по делам молодёжи и воспитательной работе
