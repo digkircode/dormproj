@@ -10,6 +10,7 @@ import { RosnouIdService } from './rosnou-id.service';
 import { SessionService } from './session.service';
 import type { RoleName, SessionUser } from './types';
 import { syncResidentRoles } from '../users/resident-role-sync';
+import { fetchUserRoles } from './fetch-user-roles';
 
 const STATE_COOKIE_OPTIONS: CookieOptions = {
   httpOnly: true,
@@ -54,13 +55,15 @@ export class AuthController {
     }
   }
 
-  // Роли — снимок на момент логина, зашивается в JWT (см. types.ts) и не читается
-  // из БД повторно до следующего входа. Ошибку тоже не даём завалить логин — просто
-  // человек временно останется без ролей до следующего успешного запроса/логина.
+  // Роли на момент логина — кладутся в JWT (см. types.ts) для истории/фолбэка, но
+  // с 2026-08-24 это уже не единственный источник: AuthGuard на каждом следующем запросе
+  // перечитывает роли живьём из БД тем же fetchUserRoles (см. auth.guard.ts) — то,
+  // что здесь, влияет только на самый первый ответ сразу после логина. Ошибку тоже не
+  // даём завалить логин — просто человек временно останется без ролей до следующего
+  // успешного запроса (тот уже пойдёт через живую проверку в AuthGuard).
   private async fetchRoles(userId: number): Promise<RoleName[]> {
     try {
-      const rows = await this.prisma.userRole.findMany({ where: { userId }, include: { role: true } });
-      return rows.map((row) => row.role.name as RoleName);
+      return await fetchUserRoles(this.prisma, userId);
     } catch (error) {
       this.logger.error(`Не удалось получить роли пользователя (id=${userId})`, error instanceof Error ? error.stack : error);
       return [];

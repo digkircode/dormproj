@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import { ContractStatus, Prisma } from '../../generated/prisma/client.js';
+import { Prisma } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -30,6 +30,7 @@ import { isMinorAt } from './minor';
 import { buildResidentSnapshot, fillManualFallbacks, type ResidentSnapshot } from './resident-snapshot';
 import { renderContractDocument } from './contract-document';
 import { buildDocumentData } from './contract-document-data';
+import { EXPIRING_WINDOW_DAYS, CONTRACT_DISPLAY_STATUS_LABELS, type ContractDisplayStatus } from './contract-display-status';
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -49,11 +50,11 @@ function isFilterableField(field: string): field is FilterableField {
   return (FILTERABLE_FIELDS as readonly string[]).includes(field);
 }
 
-const STATUS_LABELS: Record<ContractStatus, string> = {
-  ACTIVE: 'Действует',
-  TERMINATED: 'Расторгнут',
-  EXPIRED: 'Истёк',
-};
+// Опции фильтра/facets — включают вычисляемый бакет EXPIRING (не реальный ContractStatus
+// в БД, см. contract-display-status.ts), поэтому это НЕ то же самое, что просто ключи
+// ContractStatus enum. Порядок — тот же, что и в выпадающем списке фильтра на фронте
+// (contracts-format.ts#STATUS_LABELS): "Истекает" сразу после "Действует".
+const STATUS_FACET_LABELS: Record<ContractDisplayStatus, string> = CONTRACT_DISPLAY_STATUS_LABELS;
 
 const legalRepFields = {
   legalRepName: z.string().trim().min(1).nullish(),
@@ -128,6 +129,28 @@ const AUDITED_CONTRACT_FIELDS = [
   'matCapitalDeferredUntil',
 ];
 
+// Разводит "Действует" и "Истекает" в SQL, а не только в отображении (по прямой
+// просьбе — раньше фильтр "Действует" включал в себя и те договоры, что в самой
+// строке таблицы уже показывались как "Истекает", см. ContractStatusCell.vue). EXPIRING
+// не хранится в БД — это тот же вычисляемый бакет (ACTIVE + endDate в ближайшие
+// EXPIRING_WINDOW_DAYS дней), что и на фронте (contract-display-status.ts), просто
+// выраженный здесь через WHERE, а не через JS-функцию после выборки.
+function buildStatusFilterClause(values: string[]): Prisma.ContractWhereInput | undefined {
+  const now = new Date();
+  const windowEnd = new Date(now.getTime() + EXPIRING_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const clauses: Prisma.ContractWhereInput[] = [];
+  for (const value of values) {
+    if (value === 'EXPIRING') {
+      clauses.push({ status: 'ACTIVE', endDate: { gte: now, lte: windowEnd } });
+    } else if (value === 'ACTIVE') {
+      clauses.push({ status: 'ACTIVE', NOT: { endDate: { gte: now, lte: windowEnd } } });
+    } else if (value === 'TERMINATED' || value === 'EXPIRED') {
+      clauses.push({ status: value });
+    }
+  }
+  return clauses.length > 0 ? { OR: clauses } : undefined;
+}
+
 function parseIdParam(idParam: string): number {
   const id = Number.parseInt(idParam, 10);
   if (!Number.isInteger(id)) {
@@ -171,7 +194,8 @@ export class ContractsController {
             }
             const stringValues = values.filter((v): v is string => typeof v === 'string');
             if (stringValues.length === 0) continue;
-            filterClauses.push({ status: { in: stringValues as ContractStatus[] } });
+            const statusClause = buildStatusFilterClause(stringValues);
+            if (statusClause) filterClauses.push(statusClause);
           }
         }
       } catch {
@@ -232,7 +256,7 @@ export class ContractsController {
     if (!isFilterableField(field)) {
       return [];
     }
-    return Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }));
+    return Object.entries(STATUS_FACET_LABELS).map(([value, label]) => ({ value, label }));
   }
 
   // Автоподстановка родителя на новом договоре того же несовершеннолетнего — последний

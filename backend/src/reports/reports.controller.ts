@@ -8,9 +8,17 @@ import { PrismaService } from '../prisma/prisma.service';
 import { dateOnly, addDays } from '../billing/period-utils';
 import { computePenaltyBalance, sumPenaltyLog } from '../billing/penalty-balance';
 import { fromStoredValue } from '../rooms/characteristic-value';
-import { parseListOptions, paginateInMemory, filterAndSortInMemory, facetsFromValues, type FacetOption } from './list-helpers';
+import {
+  parseListOptions,
+  paginateInMemory,
+  filterAndSortInMemory,
+  facetsFromValues,
+  type FacetOption,
+  type InMemoryListOptions,
+} from './list-helpers';
 import { sendExcelReport, type ExcelColumn } from './excel-export';
 import { buildDebtorRows, type DebtorRow } from './debtor-rows';
+import { getContractDisplayStatus, CONTRACT_DISPLAY_STATUS_LABELS, type ContractDisplayStatus } from '../contracts/contract-display-status';
 
 const { Decimal } = Prisma;
 
@@ -23,14 +31,6 @@ const BUCKET_LABELS: Record<ContractRegistryBucket, string> = {
   TERMINATED: 'Расторгнут',
 };
 
-// Та же подпись, что и на карточке договора/в "Реестре договоров" (ContractStatusPill.vue) —
-// не переиспользуем напрямую из contracts.controller.ts (не экспортирован), но значения
-// синхронизированы, менять в обоих местах разом.
-const CONTRACT_STATUS_LABELS: Record<ContractStatus, string> = {
-  ACTIVE: 'Действует',
-  TERMINATED: 'Расторгнут',
-  EXPIRED: 'Истёк',
-};
 
 // Название характеристик комнаты, от которых зависят отчёты "Занятость" — заведены сидом
 // 1С-выгрузки (см. миграции seed_room_characteristics/floor_as_characteristic), не менялись.
@@ -112,6 +112,27 @@ function resolveAsOf(asOfParam?: string): Date {
   return asOfParam ? dateOnly(new Date(asOfParam)) : dateOnly(new Date());
 }
 
+// displayStatus — тот же вычисляемый бакет, что уже показывает колонка "Статус" в
+// таблице (ContractStatusCell.vue на фронте), считается здесь относительно ТОЙ ЖЕ asOf,
+// что и остальные суммы отчёта (не Date.now() — отчёт умеет смотреть на прошлую дату,
+// EXPIRING должен считаться относительно неё же, а не "сегодня").
+type DebtorRowWithDisplayStatus = DebtorRow & { displayStatus: ContractDisplayStatus };
+function withDisplayStatus(rows: DebtorRow[], asOf: Date): DebtorRowWithDisplayStatus[] {
+  return rows.map((r) => ({ ...r, displayStatus: getContractDisplayStatus(r.status, r.endDate, asOf) }));
+}
+
+// Фронт (ReportsDebt.vue) ничего не знает про displayStatus — фильтрует/запрашивает
+// facets по колонке "status", как и раньше (не трогаем фронт под это разведение). Здесь
+// же, перед сопоставлением с полем строки, подменяем ключ фильтра на displayStatus —
+// тот же приём, что и facets ниже (отдают значения ACTIVE/EXPIRING/TERMINATED/EXPIRED
+// под именем "status", хотя реального такого значения ACTIVE+EXPIRING в БД нет).
+function remapStatusFilterKey(options: InMemoryListOptions): void {
+  if (options.filters.status) {
+    options.filters.displayStatus = options.filters.status;
+    delete options.filters.status;
+  }
+}
+
 @Controller('reports')
 @UseGuards(AuthGuard, RolesGuard)
 @Roles('STAFF', 'ADMIN')
@@ -132,12 +153,18 @@ export class ReportsController {
     @Query('filters') filtersParam?: string,
     @Query('asOf') asOfParam?: string,
   ) {
-    const rows = await buildDebtorRows(this.prisma, resolveAsOf(asOfParam));
+    const asOf = resolveAsOf(asOfParam);
+    const rows = withDisplayStatus(await buildDebtorRows(this.prisma, asOf), asOf);
     const options = parseListOptions(pageParam, pageSizeParam, searchParam, sortByParam, sortDirParam, filtersParam, 'totalBalance');
+    remapStatusFilterKey(options);
     return paginateInMemory(rows, options, {
       searchFields: ['contractNumber', 'residentFullName', 'room'],
       sortableFields: ['contractNumber', 'residentFullName', 'room', 'createdAt', 'status', 'totalAccrued', 'totalPaid', 'penaltyBalance', 'totalBalance'],
-      filterFields: ['status'],
+      // displayStatus, не status — разводит "Действует"/"Истекает" в фильтре так же, как
+      // уже разведено в самой колонке (ContractStatusCell.vue), см. contract-display-status.ts
+      // и remapStatusFilterKey (фронт по-прежнему фильтрует и запрашивает facets по
+      // колонке "status", ключ подменяется здесь же, чтобы не трогать фронт вообще).
+      filterFields: ['displayStatus'],
     });
   }
 
@@ -159,7 +186,10 @@ export class ReportsController {
   @Get('debtors/facets/:field')
   debtorsFacets(@Param('field') field: string): FacetOption[] {
     if (field !== 'status') return [];
-    return (Object.keys(CONTRACT_STATUS_LABELS) as ContractStatus[]).map((value) => ({ value, label: CONTRACT_STATUS_LABELS[value] }));
+    return (Object.keys(CONTRACT_DISPLAY_STATUS_LABELS) as ContractDisplayStatus[]).map((value) => ({
+      value,
+      label: CONTRACT_DISPLAY_STATUS_LABELS[value],
+    }));
   }
 
   // Экспорт — та же фильтрация/сортировка, что и у обычного списка (debtors() выше), но
@@ -173,19 +203,21 @@ export class ReportsController {
     @Query('filters') filtersParam?: string,
     @Query('asOf') asOfParam?: string,
   ) {
-    const rows = await buildDebtorRows(this.prisma, resolveAsOf(asOfParam));
+    const asOf = resolveAsOf(asOfParam);
+    const rows = withDisplayStatus(await buildDebtorRows(this.prisma, asOf), asOf);
     const options = parseListOptions(undefined, undefined, searchParam, sortByParam, sortDirParam, filtersParam, 'totalBalance');
+    remapStatusFilterKey(options);
     const sorted = filterAndSortInMemory(rows, options, {
       searchFields: ['contractNumber', 'residentFullName', 'room'],
       sortableFields: ['contractNumber', 'residentFullName', 'room', 'createdAt', 'status', 'totalAccrued', 'totalPaid', 'penaltyBalance', 'totalBalance'],
-      filterFields: ['status'],
+      filterFields: ['displayStatus'],
     });
 
-    const columns: ExcelColumn<DebtorRow>[] = [
+    const columns: ExcelColumn<DebtorRowWithDisplayStatus>[] = [
       { header: '№ договора', value: (r) => r.contractNumber, width: 16 },
       { header: 'ФИО', value: (r) => r.residentFullName, width: 32 },
       { header: 'Комната', value: (r) => r.room ?? '', width: 12 },
-      { header: 'Статус', value: (r) => CONTRACT_STATUS_LABELS[r.status], width: 14 },
+      { header: 'Статус', value: (r) => CONTRACT_DISPLAY_STATUS_LABELS[r.displayStatus], width: 14 },
       { header: 'Дата создания', value: (r) => r.createdAt, format: 'date', width: 14 },
       { header: 'Начислено', value: (r) => r.totalAccrued, format: 'money', width: 16 },
       { header: 'Оплачено', value: (r) => r.totalPaid, format: 'money', width: 16 },
