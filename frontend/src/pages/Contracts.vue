@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ExternalLink, Plus } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import { ArrowLeft, ExternalLink, Plus } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import EntityTable from '@/components/EntityTable.vue'
@@ -8,7 +9,10 @@ import ContractStatusCell from '@/components/ContractStatusCell.vue'
 import RoomCell from '@/components/RoomCell.vue'
 import CreateContractDialog from '@/components/CreateContractDialog.vue'
 import { createAppColumnHelper } from '@/lib/table'
+import { goBack } from '@/lib/utils'
 import { fetchContractsPage, fetchContractFacets, type ContractListItem } from '@/lib/contracts-api'
+
+const router = useRouter()
 
 function formatDateIso(iso: string): string {
   const date = new Date(iso)
@@ -53,7 +57,13 @@ const createDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(nu
 
 <template>
   <div class="flex min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
-    <h1 class="text-lg font-medium">Договоры найма</h1>
+    <div class="flex items-center gap-2">
+      <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
+        <ArrowLeft class="text-primary" />
+        <span class="sr-only">Назад</span>
+      </Button>
+      <h1 class="text-lg font-medium">Договоры найма</h1>
+    </div>
 
     <EntityTable
       :columns="columns"

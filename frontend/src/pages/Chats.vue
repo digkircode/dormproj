@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { FileText, DoorClosed } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import { ArrowLeft, FileText, DoorClosed } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { goBack } from '@/lib/utils'
 import ConversationList from '@/components/chat/ConversationList.vue'
 import ChatThread from '@/components/chat/ChatThread.vue'
 import BroadcastDialog from '@/components/chat/BroadcastDialog.vue'
@@ -18,6 +21,7 @@ import {
   type ResidentInfo,
 } from '@/lib/chat-api'
 
+const router = useRouter()
 const conversations = ref<ChatConversationListItem[]>([])
 const selectedId = ref<number | null>(null)
 const messages = ref<ChatMessage[]>([])
@@ -76,7 +80,13 @@ onMounted(loadConversations)
 
 <template>
   <div class="flex h-full min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
-    <h1 class="shrink-0 text-lg font-medium">Чаты с проживающими</h1>
+    <div class="flex shrink-0 items-center gap-2">
+      <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
+        <ArrowLeft class="text-primary" />
+        <span class="sr-only">Назад</span>
+      </Button>
+      <h1 class="text-lg font-medium">Чаты с проживающими</h1>
+    </div>
 
     <!-- Ширина — не фиксированный max-w (тот оказался слишком узким и не рос с экраном),
          а доля от доступной ширины: убирает ~10% с каждой стороны, но масштабируется вместе

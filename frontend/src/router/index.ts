@@ -4,6 +4,7 @@ import { currentUser, ensureUserLoaded } from '@/lib/auth-state'
 import type { RoleName } from '@/lib/auth-api'
 import Home from '@/pages/Home.vue'
 import Forbidden from '@/pages/Forbidden.vue'
+import NotFound from '@/pages/NotFound.vue'
 import Sync from '@/pages/Sync.vue'
 import SyncLogs from '@/pages/SyncLogs.vue'
 import Students from '@/pages/Students.vue'
@@ -128,6 +129,11 @@ const router = createRouter({
     { path: '/roles', name: 'roles', component: UsersRoles, meta: { title: 'Роли', section: 'admin' } },
     { path: '/users-all', name: 'users-all', component: UsersList, meta: { title: 'Список пользователей', section: 'admin' } },
     { path: '/audit-log', name: 'audit-log', component: AuditLog, meta: { title: 'История изменений', section: 'admin' } },
+
+    // Catch-all — обязательно последним (vue-router matches по порядку регистрации при
+    // равной специфичности). Без section — sectionAllowed() ниже пропускает её как есть,
+    // тот же путь, что у "Главной"/"Общей информации", доступна любому залогиненному.
+    { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFound, meta: { title: 'Страница не найдена' } },
   ],
 })
 

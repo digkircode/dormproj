@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { GripVertical, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import { ArrowLeft, GripVertical, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-vue-next'
 import { VueDraggable, type DraggableEvent } from 'vue-draggable-plus'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -21,6 +22,9 @@ import {
 } from '@/lib/room-characteristic-definitions-api'
 import { DORMITORY_INFO_FIELDS } from '@/lib/dormitory-info-api'
 import type { CharacteristicValueType } from '@/lib/rooms-api'
+import { goBack } from '@/lib/utils'
+
+const router = useRouter()
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
@@ -214,7 +218,13 @@ async function confirmDelete() {
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
     <div class="flex items-center justify-between">
-      <h1 class="text-lg font-medium">Характеристики комнат</h1>
+      <div class="flex items-center gap-2">
+        <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
+          <ArrowLeft class="text-primary" />
+          <span class="sr-only">Назад</span>
+        </Button>
+        <h1 class="text-lg font-medium">Характеристики комнат</h1>
+      </div>
       <Tooltip>
         <TooltipTrigger as-child>
           <Button size="icon" @click="openCreate">

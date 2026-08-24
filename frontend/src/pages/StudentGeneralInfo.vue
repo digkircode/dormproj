@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   MapPin,
   Phone,
@@ -16,12 +17,17 @@ import {
   Stethoscope,
   GraduationCap,
   ChevronRight,
+  ArrowLeft,
 } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { goBack } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { fetchHostelPublicInfo, type HostelPublicInfo } from '@/lib/public-info-api'
+
+const router = useRouter()
 import molPhoto from '@/assets/staff/mol.webp'
 import cicPhoto from '@/assets/staff/cic.webp'
 import jilPhoto from '@/assets/staff/jil.webp'
@@ -156,6 +162,10 @@ onMounted(async () => {
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
     <div class="flex items-center gap-2">
+      <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
+        <ArrowLeft class="text-primary" />
+        <span class="sr-only">Назад</span>
+      </Button>
       <GraduationCap class="size-5 text-primary" />
       <h1 class="text-lg font-medium">Общежитие РосНОУ</h1>
     </div>

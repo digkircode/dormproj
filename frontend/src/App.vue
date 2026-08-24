@@ -36,7 +36,11 @@ onMounted(async () => {
          под высоту хедера — хрупко и разъезжалось при малейшем изменении шапки. Теперь
          высота считается только через flex/min-h-0 от реального SidebarInset, без магических чисел. -->
     <SidebarInset class="h-svh overflow-hidden">
-      <header class="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+      <!-- bg-card — по прямой просьбе "сайдбар как хедер": card и есть тот оттенок,
+           что теперь взял себе сайдбар (см. style.css), header явным классом фиксирует
+           тот же оттенок за собой (раньше держался на унаследованном bg-background,
+           который теперь стал другим — фоном страницы). -->
+      <header class="flex h-14 shrink-0 items-center gap-2 border-b bg-card px-4">
         <SidebarTrigger />
         <Separator orientation="vertical" class="mr-2 h-4" />
         <Breadcrumb>

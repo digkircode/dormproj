@@ -261,11 +261,15 @@ async function send() {
     hasFiles: files.length > 0,
     beforeIds: new Set(props.messages.map((m) => m.id)),
   }
+  // Очищаем поле сразу, не дожидаясь ответа сервера (как в любом мессенджере) — раньше
+  // текст пропадал только ПОСЛЕ await props.onSend(), а если тот падал уже после
+  // фактической отправки (например на дозагрузке списка диалогов), поле так и оставалось
+  // с уже отправленным текстом.
+  draft.value = ''
+  for (const file of files) revokePreviewUrl(file)
+  pendingFiles.value = []
   try {
     await props.onSend(body, files)
-    draft.value = ''
-    for (const file of files) revokePreviewUrl(file)
-    pendingFiles.value = []
     // pending.value уже обнулён (или вот-вот обнулится) watch'ем на props.messages.length
     // выше — не трогаем его здесь, иначе снова словим ключ 'pending-N', уже не совпадающий
     // с тем, что достался настоящему сообщению.

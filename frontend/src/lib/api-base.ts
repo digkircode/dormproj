@@ -6,6 +6,20 @@ export function apiUrl(path: string): string {
 
 // credentials: 'include' обязателен для всех запросов к API — без него браузер
 // не отправит сессионную куку авторизации на кросс-origin бэкенд (другой порт).
-export function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  return fetch(apiUrl(path), { ...init, credentials: 'include' })
+export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const response = await fetch(apiUrl(path), { ...init, credentials: 'include' })
+  // Общий rate-limiting (ThrottlerModule, 100 req/min/IP, см. app.module.ts) отдаёт
+  // дефолтный "ThrottlerException: Too Many Requests" — технично и по-английски.
+  // Подменяем тело ответа здесь, в одной точке, а не в каждом api-файле по отдельности:
+  // весь фронт уже читает {message} из JSON-тела через одинаковый паттерн
+  // (`response.json().catch(() => ({})); body.message ?? fallback`, см. contracts-api.ts/
+  // chat-api.ts и т.п.) — подмена подхватывается везде сама, без правок в каждом месте.
+  if (response.status === 429) {
+    return new Response(JSON.stringify({ message: 'Слишком много запросов — подождите немного и попробуйте ещё раз' }), {
+      status: response.status,
+      statusText: response.statusText,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+  return response
 }
