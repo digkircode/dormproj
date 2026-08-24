@@ -45,10 +45,13 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 
 // Оптимистичное сообщение — рисуется сразу при нажатии "Отправить", пока идёт запрос
-// (статус "sending", 1 невзрачная галочка). clientKey/startedAt — не для отображения, а
+// (статус "sending", 1 невзрачная галочка). clientKey/beforeIds — не для отображения, а
 // чтобы потом опознать "то самое" настоящее сообщение среди props.messages и подменить
-// его БЕЗ анимации, см. resolvedKeys/watch ниже.
-const pending = ref<{ clientKey: string; body: string; hasFiles: boolean; startedAt: string } | null>(null)
+// его БЕЗ анимации, см. resolvedKeys/watch ниже. beforeIds — снимок id'шников ДО отправки
+// (не сравнение по времени: часы клиента и сервера не синхронизированы, сравнение
+// createdAt клиента с created сервера в первой версии этого фикса не срабатывало
+// практически никогда — pending так и не находил себе пару, "перезагрузка" оставалась).
+const pending = ref<{ clientKey: string; body: string; hasFiles: boolean; beforeIds: Set<number> } | null>(null)
 let sendSeq = 0
 // messageId -> ключ, под которым это сообщение уже показывалось как pending. Не reactive
 // (обычный Map, не ref) — читается только внутри renderable, который и так пересчитается
@@ -138,16 +141,16 @@ watch(
 // Убирает оптимистичное сообщение, как только родитель дозагрузил реальный список
 // (messages.length выросло), И одновременно запоминает, под каким ключом настоящее
 // сообщение должно унаследовать вид pending-пузыря (см. resolvedKeys/renderable выше) —
-// это и убирает финальный "скачок как будто перезагрузилось": TransitionGroup видит
-// один и тот же ключ до и после, значит просто патчит содержимое элемента на месте, без
-// enter/leave-анимации. senderRole+startedAt — чтобы случайно не подхватить чужое
-// сообщение, пришедшее по SSE ровно в этот же момент (например ответ второго сотрудника).
+// это и убирает "скачок как будто перезагрузилось": TransitionGroup видит один и тот же
+// ключ до и после, значит просто патчит содержимое элемента на месте, без enter/leave-
+// анимации. Совпадение — по id, которого не было в beforeIds (снимок ДО отправки) И
+// своей роли (senderRole), а не по времени — сравнение часов клиента/сервера ненадёжно.
 watch(
   () => props.messages.length,
   (next, prev) => {
     if (!pending.value || next <= prev) return
     const p = pending.value
-    const match = [...props.messages].reverse().find((m) => m.senderRole === props.viewerRole && m.createdAt >= p.startedAt)
+    const match = [...props.messages].reverse().find((m) => m.senderRole === props.viewerRole && !p.beforeIds.has(m.id))
     if (match) resolvedKeys.set(match.id, p.clientKey)
     pending.value = null
   },
@@ -252,7 +255,12 @@ async function send() {
   sendError.value = ''
   isSending.value = true
   const files = pendingFiles.value
-  pending.value = { clientKey: `pending-${++sendSeq}`, body, hasFiles: files.length > 0, startedAt: new Date().toISOString() }
+  pending.value = {
+    clientKey: `pending-${++sendSeq}`,
+    body,
+    hasFiles: files.length > 0,
+    beforeIds: new Set(props.messages.map((m) => m.id)),
+  }
   try {
     await props.onSend(body, files)
     draft.value = ''
