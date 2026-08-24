@@ -101,6 +101,38 @@ export interface ContractDetail {
   hasPayments: boolean
 }
 
+// Договор самого проживающего (GET /my-contract, RESIDENT-only, без :id в маршруте —
+// см. backend/src/contracts/my-contract.controller.ts) — заметно уже ContractDetail:
+// без legalRep*/matCapital (административные поля не для этого вида) и без hasPayments
+// (странице резидента не нужны кнопки удаления/печати/платежей).
+export interface MyContractDetail {
+  id: number
+  number: string
+  contractDate: string
+  startDate: string
+  endDate: string
+  actualEndDate: string | null
+  status: ContractStatus
+  currentRoom: { id: number; room: string } | null
+  penaltyAmount: number
+  penaltyPaid: number
+  penaltyBalance: number
+  terms: ContractTerms[]
+  accruals: AccrualRow[]
+  payments: PaymentRow[]
+}
+
+// null — у резидента вообще нет ни одного договора (не ошибка, штатный случай — страница
+// показывает соответствующее сообщение, см. MyContract.vue).
+export async function fetchMyContract(): Promise<MyContractDetail | null> {
+  const response = await apiFetch('/my-contract')
+  if (!response.ok) {
+    throw new Error(`Не удалось получить данные договора (${response.status})`)
+  }
+  const data: { contract: MyContractDetail | null } = await response.json()
+  return data.contract
+}
+
 export interface LegalRepPrefill {
   legalRepName: string | null
   legalRepPhone: string | null

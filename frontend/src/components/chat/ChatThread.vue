@@ -150,10 +150,16 @@ function scrollToBottom() {
 
 // При открытии — либо к первому непрочитанному (если есть), либо, как раньше, в самый
 // низ. scrollIntoView сразу без плавной анимации (block:'start') — это открытие
-// диалога, не жест пользователя, дёрганый smooth-скролл тут ни к чему.
+// диалога, не жест пользователя, дёрганый smooth-скролл тут ни к чему. Цель —
+// САМ разделитель "Новые сообщения" (data-unread-divider), а не сообщение под ним:
+// тот рендерится ПЕРЕД сообщением в разметке, и scrollIntoView по самому сообщению
+// уводил разделитель выше верхней границы видимой области — он существовал, но не был
+// виден при открытии (реальный баг, "точка входа есть, а подписи над ней не видно").
 onMounted(() => {
   nextTick(() => {
-    const target = firstUnreadId.value != null ? scrollEl.value?.querySelector<HTMLElement>(`[data-message-id="${firstUnreadId.value}"]`) : null
+    const target =
+      scrollEl.value?.querySelector<HTMLElement>('[data-unread-divider]') ??
+      (firstUnreadId.value != null ? scrollEl.value?.querySelector<HTMLElement>(`[data-message-id="${firstUnreadId.value}"]`) : null)
     if (target) {
       target.scrollIntoView({ block: 'start' })
     } else {
@@ -401,7 +407,12 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
             <template v-for="message in group.items" :key="message.key">
               <!-- Разделитель "новые сообщения" — перед тем сообщением, что было первым
                    непрочитанным на момент открытия (см. firstUnreadId, снимок один раз). -->
-              <div v-if="firstUnreadId !== null && message.id === firstUnreadId" key="unread-divider" class="my-1 flex items-center gap-3">
+              <div
+                v-if="firstUnreadId !== null && message.id === firstUnreadId"
+                key="unread-divider"
+                data-unread-divider
+                class="my-1 flex items-center gap-3"
+              >
                 <div class="h-px flex-1 bg-border" />
                 <span class="shrink-0 text-xs font-medium text-muted-foreground">Новые сообщения</span>
                 <div class="h-px flex-1 bg-border" />

@@ -214,7 +214,9 @@ export async function fetchMyChatUnread(): Promise<boolean> {
 }
 
 // Без contractId (в отличие от ResidentInfo выше) — /contracts/:id доступен только
-// STAFF/ADMIN, проживающему в шапке своего же чата ссылку показывать некуда.
+// STAFF/ADMIN. Клик по номеру договора в MyChat.vue ведёт на /student/contract
+// (contracts-api.ts#fetchMyContract), тот сам резолвит "чей это договор" на бэке по
+// сессии, id ему не нужен вообще.
 export interface MyResidentInfo {
   contractNumber: string | null
   room: string | null

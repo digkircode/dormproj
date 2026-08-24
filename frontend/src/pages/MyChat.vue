@@ -115,9 +115,21 @@ onMounted(load)
         <!-- Та же строка/ширина, что в шапке диалога у сотрудника (Chats.vue) — плюс
              часы работы администрации (по прямой просьбе). -->
         <div class="flex shrink-0 flex-wrap items-center gap-4 border-b p-3 text-sm text-muted-foreground">
-          <span class="flex h-10 items-center gap-1.5">
+          <!-- Кликабельно только когда договор есть — ведёт на свою же страницу
+               "Информация о договоре" (см. router/index.ts: /student/contract, доступна
+               той же роли RESIDENT, что и сам чат, без :id — "чужой по ссылке" не
+               посмотреть, см. my-contract.controller.ts). -->
+          <RouterLink
+            v-if="residentInfo?.contractNumber"
+            to="/student/contract"
+            class="-mx-1.5 -my-0.5 flex h-10 items-center gap-1.5 rounded-md px-1.5 transition-colors hover:bg-accent hover:text-accent-foreground"
+          >
             <FileText class="size-4 text-primary" />
-            {{ residentInfo?.contractNumber ? `Договор № ${residentInfo.contractNumber}` : 'Нет действующего договора' }}
+            Договор № {{ residentInfo.contractNumber }}
+          </RouterLink>
+          <span v-else class="flex h-10 items-center gap-1.5">
+            <FileText class="size-4 text-primary" />
+            Нет действующего договора
           </span>
           <span v-if="residentInfo?.room" class="flex h-10 items-center gap-1.5">
             <DoorClosed class="size-4 text-primary" />
@@ -125,7 +137,7 @@ onMounted(load)
           </span>
           <span class="flex h-10 items-center gap-1.5">
             <Clock class="size-4 text-primary" />
-            Администрация: 9:30–18:00
+            Время работы администрации: 9:30–18:00
           </span>
         </div>
         <ChatThread

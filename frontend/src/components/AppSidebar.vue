@@ -12,6 +12,7 @@ import {
   History,
   Info,
   MessageCircle,
+  FileSignature,
 } from 'lucide-vue-next'
 import NavStudent from '@/components/NavStudent.vue'
 import NavMain from '@/components/NavMain.vue'
@@ -73,7 +74,10 @@ const navStudent = computed(() => [
     icon: Info,
   },
   ...(canSeeResidentChat.value
-    ? [{ title: 'Чат с сотрудниками', url: '/student/chat', icon: MessageCircle, badge: hasUnreadResidentChat.value }]
+    ? [
+        { title: 'Информация о договоре', url: '/student/contract', icon: FileSignature },
+        { title: 'Чат с сотрудниками', url: '/student/chat', icon: MessageCircle, badge: hasUnreadResidentChat.value },
+      ]
     : []),
 ])
 
@@ -86,7 +90,12 @@ async function refreshStaffUnread() {
   }
 }
 async function refreshResidentUnread() {
-  hasUnreadResidentChat.value = await fetchMyChatUnread()
+  try {
+    hasUnreadResidentChat.value = await fetchMyChatUnread()
+  } catch {
+    // Тот же принцип, что и у refreshStaffUnread выше — сетевой сбой не должен ронять
+    // бейджик в тихую ошибку без обновления, просто ждём следующей попытки (SSE/watch).
+  }
 }
 
 watch(canSeeStaffSection, (value) => value && refreshStaffUnread(), { immediate: true })

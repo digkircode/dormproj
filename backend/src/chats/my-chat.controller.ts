@@ -132,9 +132,10 @@ export class MyChatController {
   }
 
   // Комната/договор самого проживающего — шапка его же чата (MyChat.vue), тем же видом,
-  // что у сотрудника (см. residentInfo в chats.controller.ts), но БЕЗ contractId/ссылки —
-  // /contracts/:id доступен только STAFF/ADMIN (router/index.ts), проживающий получил бы
-  // 403 по клику.
+  // что у сотрудника (см. residentInfo в chats.controller.ts). contractId сюда специально
+  // не добавляли — /contracts/:id доступен только STAFF/ADMIN (router/index.ts), клик по
+  // номеру договора в MyChat.vue ведёт на СВОЮ страницу /student/contract (без :id,
+  // см. my-contract.controller.ts), не на эту.
   @Get('resident-info')
   async residentInfo(@Req() req: Request) {
     if (!req.user) {

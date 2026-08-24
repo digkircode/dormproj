@@ -29,6 +29,7 @@ import AuditLog from '@/pages/AuditLog.vue'
 import StudentGeneralInfo from '@/pages/StudentGeneralInfo.vue'
 import Chats from '@/pages/Chats.vue'
 import MyChat from '@/pages/MyChat.vue'
+import MyContract from '@/pages/MyContract.vue'
 
 // Первый этап ролевой модели (см. промпт проекта) — секция страницы определяет, кому
 // она видна: 'staff' — группа "Сотрудник" в сайдбаре (AppSidebar.vue/NavMain.vue),
@@ -46,6 +47,9 @@ const router = createRouter({
     // а только роли RESIDENT (плюс ADMIN по общему для приложения принципу "администратор
     // видит всё") — уточнено с пользователем отдельно при планировании чата.
     { path: '/student/chat', name: 'student-chat', component: MyChat, meta: { title: 'Чат с сотрудниками', section: 'resident' } },
+    // Свой договор — тот же гейт, что у чата (см. sectionAllowed ниже): доступ по
+    // individualUid из сессии на бэке (my-contract.controller.ts), без :id в маршруте.
+    { path: '/student/contract', name: 'student-contract', component: MyContract, meta: { title: 'Информация о договоре', section: 'resident' } },
     { path: '/students', name: 'students', component: Students, meta: { title: 'Контингент', section: 'admin' } },
     { path: '/sync', name: 'sync', component: Sync, meta: { title: 'Синхронизация', section: 'admin' } },
     {
