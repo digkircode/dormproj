@@ -10,6 +10,7 @@ import ChatThread from '@/components/chat/ChatThread.vue'
 import BroadcastDialog from '@/components/chat/BroadcastDialog.vue'
 import { useChatStream, type ChatStreamEvent } from '@/lib/chat-stream'
 import { hasUnreadStaffChats } from '@/lib/chat-unread-state'
+import { appendNewMessages, prependOlderMessages } from '@/lib/chat-message-list'
 import {
   fetchConversationMessages,
   fetchConversations,
@@ -25,8 +26,17 @@ const router = useRouter()
 const conversations = ref<ChatConversationListItem[]>([])
 const selectedId = ref<number | null>(null)
 const messages = ref<ChatMessage[]>([])
+const hasMoreOlder = ref(false)
+const isLoadingOlder = ref(false)
 const residentInfo = ref<ResidentInfo | null>(null)
 const broadcastDialogRef = ref<InstanceType<typeof BroadcastDialog> | null>(null)
+// ChatThread.vue снимает "первое непрочитанное" один раз при монтировании из своего
+// messages-пропа — если смонтировать его СРАЗУ по клику (пока messages ещё не
+// подгрузились с сервера), он захватит пустой/чужой (от предыдущего диалога) список.
+// Это отдельный флаг, а не просто messages.value.length>0 — у диалога может не быть
+// сообщений вовсе, тогда length всегда 0, но "загрузка для этого id завершилась" всё
+// равно наступает.
+const messagesLoadedFor = ref<number | null>(null)
 
 async function loadConversations() {
   conversations.value = await fetchConversations()
@@ -39,8 +49,10 @@ async function selectConversation(id: number) {
   if (id === selectedId.value) return
   selectedId.value = id
   residentInfo.value = null
-  const [msgs, info] = await Promise.all([fetchConversationMessages(id), fetchResidentInfo(id)])
-  messages.value = msgs
+  const [page, info] = await Promise.all([fetchConversationMessages(id), fetchResidentInfo(id)])
+  messages.value = page.messages
+  hasMoreOlder.value = page.hasMore
+  messagesLoadedFor.value = id
   residentInfo.value = info
   await markConversationRead(id)
   const conversation = conversations.value.find((c) => c.id === id)
@@ -48,22 +60,54 @@ async function selectConversation(id: number) {
   hasUnreadStaffChats.value = conversations.value.some((c) => c.unread)
 }
 
+// Подгрузка истории по скроллу вверх (см. ChatThread.vue) — курсор от самого старого уже
+// загруженного сообщения. Не трогает hasMoreOlder/messages, если запрос уже идёт (защита
+// от повторного триггера тем же скролл-событием, пока первый ответ ещё не пришёл).
+async function loadOlderMessages() {
+  if (!selectedId.value || !hasMoreOlder.value || isLoadingOlder.value) return
+  const oldestId = messages.value[0]?.id
+  if (!oldestId) return
+  isLoadingOlder.value = true
+  try {
+    const page = await fetchConversationMessages(selectedId.value, oldestId)
+    messages.value = prependOlderMessages(messages.value, page.messages)
+    hasMoreOlder.value = page.hasMore
+  } finally {
+    isLoadingOlder.value = false
+  }
+}
+
+// id только что отправленных нами сообщений, ещё не подтверждённых своим же эхом по SSE
+// (см. useChatStream ниже) — тот же поток /chats/stream шлёт сотруднику АБСОЛЮТНО все
+// события, включая эхо его собственной отправки. Раньше по этому эху SSE-обработчик
+// параллельно с onSend() запускал ЕЩЁ ОДИН fetchConversationMessages того же диалога —
+// гонка двух почти одновременных фетчей одного и того же (поймано на "дважды
+// отправляется"). Теперь onSend() помечает "это моё", SSE-обработчик такое эхо просто
+// пропускает — apendNewMessages/loadConversations уже отработали в onSend().
+const pendingSelfSentIds = new Set<number>()
+
 async function onSend(body: string, files: File[]) {
   if (!selectedId.value) return
-  await sendStaffMessage(selectedId.value, body, files)
-  messages.value = await fetchConversationMessages(selectedId.value)
+  const sent = await sendStaffMessage(selectedId.value, body, files)
+  pendingSelfSentIds.add(sent.id)
+  const page = await fetchConversationMessages(selectedId.value)
+  messages.value = appendNewMessages(messages.value, page.messages)
   await loadConversations()
 }
 
-// Любое событие из SSE-потока (см. промпт проекта — реалтайм без перезагрузки) рефетчит
-// список диалогов целиком (порядок/непрочитанность) — при небольшом числе диалогов
-// общежития проще и надёжнее, чем инкрементальный мердж состояния на клиенте. Если
-// событие относится к открытому диалогу — дозагружает его сообщения и сразу помечает
-// прочитанным (сотрудник уже смотрит на экран).
+// Любое ЧУЖОЕ событие из SSE-потока (см. промпт проекта — реалтайм без перезагрузки)
+// рефетчит список диалогов целиком (порядок/непрочитанность) — при небольшом числе
+// диалогов общежития проще и надёжнее, чем инкрементальный мердж состояния на клиенте.
+// Если событие относится к открытому диалогу — дозагружает только НОВЫЕ сообщения (не
+// всю историю заново, см. appendNewMessages — раньше полный рефетч затирал бы уже
+// подгруженные по пагинации старые страницы) и сразу помечает прочитанным (сотрудник уже
+// смотрит на экран).
 useChatStream('/chats/stream', async (event: ChatStreamEvent) => {
+  if (event.messageId != null && pendingSelfSentIds.delete(event.messageId)) return
   await loadConversations()
   if (event.conversationId === selectedId.value) {
-    messages.value = await fetchConversationMessages(selectedId.value)
+    const page = await fetchConversationMessages(selectedId.value)
+    messages.value = appendNewMessages(messages.value, page.messages)
     await markConversationRead(selectedId.value)
     const conversation = conversations.value.find((c) => c.id === selectedId.value)
     if (conversation) conversation.unread = false
@@ -88,10 +132,7 @@ onMounted(loadConversations)
       <h1 class="text-lg font-medium">Чаты с проживающими</h1>
     </div>
 
-    <!-- Ширина — не фиксированный max-w (тот оказался слишком узким и не рос с экраном),
-         а доля от доступной ширины: убирает ~10% с каждой стороны, но масштабируется вместе
-         со страницей. Высота — flex-1, во весь доступный экран. -->
-    <Card class="mx-auto flex min-h-0 w-4/5 flex-1 flex-row gap-0 overflow-hidden py-0">
+    <Card class="flex min-h-0 flex-1 flex-row gap-0 overflow-hidden py-0">
       <ConversationList :conversations="conversations" :selected-id="selectedId" @select="selectConversation" @new-message="openBroadcast" />
 
       <div class="flex min-h-0 flex-1 flex-col">
@@ -118,14 +159,16 @@ onMounted(loadConversations)
         </div>
 
         <ChatThread
-          v-if="selectedId"
+          v-if="selectedId && messagesLoadedFor === selectedId"
           :key="selectedId"
           :messages="messages"
+          :has-more-older="hasMoreOlder"
+          :on-load-older="loadOlderMessages"
           viewer-role="STAFF"
           attachment-base-path="/chats/attachments"
           :on-send="onSend"
         />
-        <p v-else class="m-auto text-sm text-muted-foreground">Выберите диалог слева</p>
+        <p v-else class="m-auto text-sm text-muted-foreground">{{ selectedId ? 'Загрузка…' : 'Выберите диалог слева' }}</p>
       </div>
     </Card>
 

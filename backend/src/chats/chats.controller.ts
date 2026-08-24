@@ -40,6 +40,10 @@ import { cleanupUploadedFiles, validateAttachmentSizes, type ValidatedAttachment
 import { isMessageRead } from './chat-read-status';
 
 const MAX_BODY_LENGTH = 4000;
+// Размер страницы истории сообщений — и первая загрузка, и подгрузка по скроллу вверх
+// (см. GET :id/messages ниже). Экспортирована — my-chat.controller.ts переиспользует то
+// же число для симметричной пагинации своего GET /, чтобы не разъехаться на глаз.
+export const MESSAGES_PAGE_SIZE = 50;
 
 function attachmentPreviewLabel(attachments: { kind: string }[]): string {
   if (attachments.length > 1) return `📎 ${attachments.length} файла`;
@@ -192,7 +196,7 @@ export class ChatsController {
     // подчищаем их вместе с исходными (cleanupUploadedFiles), чтобы не оставлять сирот.
     const createdCopyKeys: string[] = [];
     try {
-      const baseAttachments = validateAttachmentSizes(files);
+      const baseAttachments = await validateAttachmentSizes(files);
       const recipients = await chatRecipients(this.prisma, toFilters(data));
       if (recipients.length === 0) {
         throw new BadRequestException('Нет проживающих, подходящих под выбранные фильтры');
@@ -255,6 +259,14 @@ export class ChatsController {
     return this.events.events$.pipe(map((event) => ({ data: event })));
   }
 
+  // before не задан — самая свежая страница (used both для первого открытия и для
+  // подгрузки после присланного нового сообщения); задан — страница СТАРШЕ конкретного id
+  // (подгрузка истории по скроллу вверх, см. ChatThread.vue). take: PAGE_SIZE+1 — не
+  // отдельный count-запрос ради hasMore, просто берём на один больше и отрезаем лишний.
+  // unreadByMe — по conversation.staffLastReadAt ДО того, как фронт отдельным
+  // POST :id/read пометит диалог прочитанным (см. selectConversation в Chats.vue — этот
+  // GET всегда вызывается раньше) — снимок "что было непрочитано на момент открытия",
+  // не пересчитывается на последующих подгрузках истории.
   @Get(':id/messages')
   async messages(@Param('id') idParam: string, @Query('before') beforeParam?: string) {
     const conversationId = parseId(idParam);
@@ -268,22 +280,29 @@ export class ChatsController {
       this.prisma.chatMessage.findMany({
         where: { conversationId, ...(before ? { id: { lt: before } } : {}) },
         orderBy: { createdAt: 'desc' },
-        take: 50,
+        take: MESSAGES_PAGE_SIZE + 1,
         include: { sender: { select: { fullName: true } }, attachments: true },
       }),
     ]);
 
-    return rows
-      .map((row) => ({
-        id: row.id,
-        body: row.body,
-        senderRole: row.senderRole,
-        senderFullName: row.sender.fullName,
-        createdAt: row.createdAt,
-        attachments: row.attachments.map((a) => ({ id: a.id, kind: a.kind, mimeType: a.mimeType, fileName: a.fileName, sizeBytes: a.sizeBytes })),
-        read: isMessageRead(row.senderRole, row.createdAt, conversation),
-      }))
-      .reverse();
+    const hasMore = rows.length > MESSAGES_PAGE_SIZE;
+    const page = hasMore ? rows.slice(0, MESSAGES_PAGE_SIZE) : rows;
+
+    return {
+      hasMore,
+      messages: page
+        .map((row) => ({
+          id: row.id,
+          body: row.body,
+          senderRole: row.senderRole,
+          senderFullName: row.sender.fullName,
+          createdAt: row.createdAt,
+          attachments: row.attachments.map((a) => ({ id: a.id, kind: a.kind, mimeType: a.mimeType, fileName: a.fileName, sizeBytes: a.sizeBytes })),
+          read: isMessageRead(row.senderRole, row.createdAt, conversation),
+          unreadByMe: row.senderRole === 'RESIDENT' && (!conversation?.staffLastReadAt || row.createdAt > conversation.staffLastReadAt),
+        }))
+        .reverse(),
+    };
   }
 
   // Комната/договор проживающего — шапка диалога у сотрудника (по прямой просьбе,
@@ -340,7 +359,7 @@ export class ChatsController {
     // try/catch, чтобы ни один путь отказа не оставлял сиротские файлы (тот же приём,
     // что в my-chat.controller.ts).
     try {
-      const attachments = validateAttachmentSizes(files);
+      const attachments = await validateAttachmentSizes(files);
 
       const conversation = await this.prisma.chatConversation.findUnique({ where: { id: conversationId } });
       if (!conversation) {
@@ -391,13 +410,31 @@ export class ChatsController {
     res.sendFile(filePath);
   }
 
+  // Эмитит событие в тот же SSE-поток, что и новые сообщения (см. ChatEventsService) —
+  // без этого проживающий не видел бы галочки "прочитано" в реальном времени: его
+  // /my-chat/stream получал бы события только на НОВЫЕ сообщения, а не на факт прочтения
+  // уже отправленных им (реальный баг, пойманный на "прочтение не работает у
+  // проживающего"). individualUid — им фильтруется my-chat.controller.ts#stream.
+  // Бамп/эмит — ТОЛЬКО если реально было что читать (иначе резидентский стрим ловит это
+  // событие, тоже рефетчит и тоже бампает residentLastReadAt в GET /my-chat, тот тоже
+  // эмитит обратно сюда — без guard'а это была бы бесконечная пинг-понг рассылка между
+  // двумя открытыми в реальном времени сторонами одного диалога).
   @Post(':id/read')
   async markRead(@Param('id') idParam: string) {
     const conversationId = parseId(idParam);
-    await this.prisma.chatConversation.update({
+    const existing = await this.prisma.chatConversation.findUnique({ where: { id: conversationId } });
+    if (!existing) {
+      throw new NotFoundException('Диалог не найден');
+    }
+    const hasUnread = !existing.staffLastReadAt || existing.lastMessageAt > existing.staffLastReadAt;
+    if (!hasUnread) {
+      return { ok: true };
+    }
+    const conversation = await this.prisma.chatConversation.update({
       where: { id: conversationId },
       data: { staffLastReadAt: new Date() },
     });
+    this.events.emit({ conversationId, individualUid: conversation.individualUid });
     return { ok: true };
   }
 }

@@ -4,7 +4,9 @@ import { apiUrl } from './api-base'
 export interface ChatStreamEvent {
   conversationId: number
   individualUid: string
-  messageId: number
+  // Нет у событий "диалог прочитан" (см. POST /chats/:id/read, GET /my-chat на бэке) —
+  // те не несут новое сообщение, только смену read/unreadByMe у уже существующих.
+  messageId?: number
 }
 
 // EventSource, не WebSocket — направление "сервер -> клиент" здесь единственное, что

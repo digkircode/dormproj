@@ -9,6 +9,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  Query,
   Req,
   Res,
   Sse,
@@ -30,6 +31,7 @@ import { ChatRateLimiterService } from './chat-rate-limiter.service';
 import { CHAT_UPLOADS_DIR, MAX_ATTACHMENTS_PER_MESSAGE, chatAttachmentsMulterOptions } from './chat-attachments-storage';
 import { cleanupUploadedFiles, validateAttachmentSizes } from './chat-attachments';
 import { isMessageRead } from './chat-read-status';
+import { MESSAGES_PAGE_SIZE } from './chats.controller';
 
 const MAX_BODY_LENGTH = 4000;
 
@@ -65,45 +67,67 @@ export class MyChatController {
     return user.univerId;
   }
 
-  // Открытие своего чата = прочтение — бампает residentLastReadAt при каждом вызове,
-  // отдельного POST /my-chat/read поэтому нет (был бы мёртвым кодом, фронт всегда
-  // получает актуальный список сообщений именно через этот эндпоинт). НЕ заводит диалог
-  // сам по себе, если его ещё нет (см. GET /my-chat/unread — тот же принцип) — раньше
-  // заводил через upsert, из-за чего у сотрудников появлялись "диалоги" от людей,
-  // которые просто открыли вкладку, ничего не написав (по прямой просьбе исправлено).
+  // Открытие своего чата = прочтение — бампает residentLastReadAt, отдельного
+  // POST /my-chat/read поэтому нет (был бы мёртвым кодом). Но ТОЛЬКО на первой странице
+  // (before не задан) — подгрузка истории по скроллу вверх (see ChatThread.vue) не
+  // должна каждый раз заново помечать диалог прочитанным. НЕ заводит диалог сам по себе,
+  // если его ещё нет (см. GET /my-chat/unread — тот же принцип) — раньше заводил через
+  // upsert, из-за чего у сотрудников появлялись "диалоги" от людей, которые просто
+  // открыли вкладку, ничего не написав (по прямой просьбе исправлено).
+  // unreadByMe считается по residentLastReadAt ДО бампа выше — снимок "что было
+  // непрочитано на момент открытия", тем же приёмом, что в ChatsController.
   @Get()
-  async myChat(@Req() req: Request) {
+  async myChat(@Req() req: Request, @Query('before') beforeParam?: string) {
     if (!req.user) {
       throw new BadRequestException('Не удалось определить пользователя сессии');
     }
     const individualUid = await this.resolveIndividualUid(req.user.id);
+    const before = beforeParam ? parseId(beforeParam) : undefined;
 
     const existing = await this.prisma.chatConversation.findUnique({ where: { individualUid } });
     if (!existing) {
-      return { conversationId: null, messages: [] };
+      return { conversationId: null, hasMore: false, messages: [] };
     }
-    const conversation = await this.prisma.chatConversation.update({
-      where: { id: existing.id },
-      data: { residentLastReadAt: new Date() },
-    });
 
-    const messages = await this.prisma.chatMessage.findMany({
-      where: { conversationId: conversation.id },
-      orderBy: { createdAt: 'asc' },
+    const rows = await this.prisma.chatMessage.findMany({
+      where: { conversationId: existing.id, ...(before ? { id: { lt: before } } : {}) },
+      orderBy: { createdAt: 'desc' },
+      take: MESSAGES_PAGE_SIZE + 1,
       include: { sender: { select: { fullName: true } }, attachments: true },
     });
+    const hasMore = rows.length > MESSAGES_PAGE_SIZE;
+    const page = hasMore ? rows.slice(0, MESSAGES_PAGE_SIZE) : rows;
+
+    // Бамп/эмит — ТОЛЬКО на первой странице (before не задан, не на каждой подгрузке
+    // истории по скроллу вверх) И только если реально было что читать — тот же guard,
+    // что в chats.controller.ts#markRead, той же причины ради: без него это был бы
+    // бесконечный пинг-понг SSE-событий между обеими открытыми в реальном времени
+    // сторонами одного диалога (каждая сторона рефетчит по чужому событию, попутно сама
+    // бампает и эмитит уже своё).
+    const hasUnreadForResident = !existing.residentLastReadAt || existing.lastMessageAt > existing.residentLastReadAt;
+    const shouldMarkRead = !before && hasUnreadForResident;
+    const conversation = shouldMarkRead
+      ? await this.prisma.chatConversation.update({ where: { id: existing.id }, data: { residentLastReadAt: new Date() } })
+      : existing;
+    if (shouldMarkRead) {
+      this.events.emit({ conversationId: existing.id, individualUid });
+    }
 
     return {
-      conversationId: conversation.id,
-      messages: messages.map((row) => ({
-        id: row.id,
-        body: row.body,
-        senderRole: row.senderRole,
-        senderFullName: row.sender.fullName,
-        createdAt: row.createdAt,
-        attachments: row.attachments.map((a) => ({ id: a.id, kind: a.kind, mimeType: a.mimeType, fileName: a.fileName, sizeBytes: a.sizeBytes })),
-        read: isMessageRead(row.senderRole, row.createdAt, conversation),
-      })),
+      conversationId: existing.id,
+      hasMore,
+      messages: page
+        .map((row) => ({
+          id: row.id,
+          body: row.body,
+          senderRole: row.senderRole,
+          senderFullName: row.sender.fullName,
+          createdAt: row.createdAt,
+          attachments: row.attachments.map((a) => ({ id: a.id, kind: a.kind, mimeType: a.mimeType, fileName: a.fileName, sizeBytes: a.sizeBytes })),
+          read: isMessageRead(row.senderRole, row.createdAt, conversation),
+          unreadByMe: row.senderRole === 'STAFF' && (!existing.residentLastReadAt || row.createdAt > existing.residentLastReadAt),
+        }))
+        .reverse(),
     };
   }
 
@@ -152,7 +176,7 @@ export class MyChatController {
     // физлица, ошибка транзакции) не оставлял сиротские файлы.
     try {
       this.rateLimiter.checkAndRecord(req.user.id, files.length);
-      const attachments = validateAttachmentSizes(files);
+      const attachments = await validateAttachmentSizes(files);
       const individualUid = await this.resolveIndividualUid(req.user.id);
       const now = new Date();
 

@@ -7,7 +7,10 @@ import { Subject } from 'rxjs';
 export interface ChatEvent {
   conversationId: number;
   individualUid: string;
-  messageId: number;
+  // Нет у событий "диалог прочитан" (см. POST /chats/:id/read, GET /my-chat) — те не
+  // несут новое сообщение, только смену read/unreadByMe у уже существующих, но фронт
+  // реагирует на любое событие одинаково (рефетч), см. chat-stream.ts/Chats.vue/MyChat.vue.
+  messageId?: number;
 }
 
 @Injectable()

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { Check, CheckCheck, FileVideo, Paperclip, SendHorizontal, X } from 'lucide-vue-next'
+import { ArrowDown, Check, CheckCheck, FileVideo, Loader, Paperclip, SendHorizontal, X } from 'lucide-vue-next'
 import { avatarColorClasses, initials, shortName } from '@/lib/avatar-color'
 import { currentUser } from '@/lib/auth-state'
 import {
@@ -31,6 +31,11 @@ const props = defineProps<{
   // '/chats/attachments' у сотрудников или '/my-chat/attachments' у проживающего —
   // доступ к файлу проверяется по-разному на бэке (см. chats.controller.ts/my-chat.controller.ts).
   attachmentBasePath: string
+  // Пагинация истории (2026-08-24) — родитель (Chats.vue/MyChat.vue) владеет массивом
+  // messages и знает, есть ли более старая страница; этот компонент только просит
+  // подгрузить её по скроллу вверх, см. loadOlder() ниже.
+  hasMoreOlder?: boolean
+  onLoadOlder?: () => Promise<void>
   disabled?: boolean
   placeholder?: string
 }>()
@@ -60,6 +65,7 @@ const resolvedKeys = new Map<number, string>()
 
 interface RenderableMessage {
   key: string
+  id: number | null
   body: string | null
   senderRole: ChatSenderRole
   senderFullName: string
@@ -76,6 +82,7 @@ const renderable = computed<RenderableMessage[]>(() => {
     // проигрывает enter-анимацию (всплытие+масштаб) на настоящем сообщении, хотя оно
     // визуально должно было просто "проявиться на месте" без скачка.
     key: resolvedKeys.get(m.id) ?? `m-${m.id}`,
+    id: m.id,
     body: m.body,
     senderRole: m.senderRole,
     senderFullName: m.senderFullName,
@@ -86,6 +93,7 @@ const renderable = computed<RenderableMessage[]>(() => {
   if (pending.value) {
     items.push({
       key: pending.value.clientKey,
+      id: null,
       body: pending.value.body || (pending.value.hasFiles ? '📎 Отправка файла…' : ''),
       senderRole: props.viewerRole,
       // Своё же ФИО — то же самое, что подставит настоящее сообщение после отправки
@@ -127,15 +135,44 @@ const groupedByDay = computed(() => {
   return groups
 })
 
+// Снимок "первое непрочитанное лично мной" — считается ОДИН РАЗ при открытии диалога
+// (props.messages на момент создания компонента; т.к. родитель монтирует ChatThread
+// заново на каждый выбранный диалог через :key, это и есть "на момент открытия"), не
+// пересчитывается по ходу сессии — иначе разделитель "прыгал" бы при каждом новом
+// сообщении, которое сам же родитель считает уже прочитанным (see chats.controller.ts).
+const firstUnreadId = ref<number | null>(props.messages.find((m) => m.unreadByMe)?.id ?? null)
+
 function scrollToBottom() {
   nextTick(() => {
     if (scrollEl.value) scrollEl.value.scrollTop = scrollEl.value.scrollHeight
   })
 }
 
+// При открытии — либо к первому непрочитанному (если есть), либо, как раньше, в самый
+// низ. scrollIntoView сразу без плавной анимации (block:'start') — это открытие
+// диалога, не жест пользователя, дёрганый smooth-скролл тут ни к чему.
+onMounted(() => {
+  nextTick(() => {
+    const target = firstUnreadId.value != null ? scrollEl.value?.querySelector<HTMLElement>(`[data-message-id="${firstUnreadId.value}"]`) : null
+    if (target) {
+      target.scrollIntoView({ block: 'start' })
+    } else {
+      scrollToBottom()
+    }
+  })
+})
+
+// Автоскролл вниз при появлении НОВОГО сообщения (не истории сверху, см. isLoadingOlder
+// ниже) — только если пользователь и так был у низа переписки (isNearBottom). Если он
+// отлистал вверх читать историю, новое сообщение снизу не должно дёргать его скролл —
+// вместо этого появляется кнопка "вниз" (см. showScrollToBottomButton).
 watch(
-  () => [props.messages.length, pending.value],
-  () => scrollToBottom(),
+  () => props.messages,
+  (next, prev) => {
+    if (isLoadingOlder.value || !prev || prev.length === 0) return
+    const appended = next[next.length - 1]?.id !== prev[prev.length - 1]?.id
+    if (appended && isNearBottom.value) scrollToBottom()
+  },
 )
 
 // Убирает оптимистичное сообщение, как только родитель дозагрузил реальный список
@@ -155,6 +192,43 @@ watch(
     pending.value = null
   },
 )
+
+// --- Скролл: подгрузка истории вверх + кнопка "вниз" ---
+const isLoadingOlder = ref(false)
+const isNearBottom = ref(true)
+const NEAR_BOTTOM_THRESHOLD = 120
+const NEAR_TOP_THRESHOLD = 80
+
+async function loadOlder() {
+  if (!props.onLoadOlder || !props.hasMoreOlder || isLoadingOlder.value) return
+  const el = scrollEl.value
+  const prevScrollHeight = el?.scrollHeight ?? 0
+  const prevScrollTop = el?.scrollTop ?? 0
+  isLoadingOlder.value = true
+  try {
+    await props.onLoadOlder()
+    await nextTick()
+    // Подгруженные сверху сообщения увеличили scrollHeight — без коррекции видимая
+    // область визуально "прыгнула" бы вниз на эту разницу. Компенсируем, чтобы то же
+    // сообщение осталось под курсором/взглядом.
+    if (el) el.scrollTop = prevScrollTop + (el.scrollHeight - prevScrollHeight)
+  } finally {
+    isLoadingOlder.value = false
+  }
+}
+
+function onScroll() {
+  const el = scrollEl.value
+  if (!el) return
+  const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+  isNearBottom.value = distanceFromBottom < NEAR_BOTTOM_THRESHOLD
+  if (el.scrollTop < NEAR_TOP_THRESHOLD) void loadOlder()
+}
+
+function scrollToBottomClicked() {
+  isNearBottom.value = true
+  scrollToBottom()
+}
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
@@ -268,6 +342,9 @@ async function send() {
   draft.value = ''
   for (const file of files) revokePreviewUrl(file)
   pendingFiles.value = []
+  // Своя отправка — всегда к низу, даже если до этого читали историю выше.
+  isNearBottom.value = true
+  scrollToBottom()
   try {
     await props.onSend(body, files)
     // pending.value уже обнулён (или вот-вот обнулится) watch'ем на props.messages.length
@@ -295,135 +372,164 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
 
 <template>
   <div class="flex min-h-0 flex-1 flex-col">
-    <!-- Лёгкая tint-подложка под primary — по прямой просьбе, полотно переписки не должно
-         сливаться с bg-background/bg-card основного тела сайта. bg-muted тут не годится —
-         "непрочитанные"/"чужие" пузыри и так уже bg-muted (см. ниже), сплошной bg-muted на
-         подложке слил бы их с фоном. Оттенок primary/5 — не соревнуется с серой парой
-         muted/accent/background (см. известную ловушку проекта — они почти неотличимы), а
-         работает и в тёмной теме без отдельного dark:-варианта. -->
-    <div ref="scrollEl" class="flex min-h-0 flex-1 flex-col gap-1 overflow-auto bg-primary/5 p-4">
-      <p v-if="renderable.length === 0" class="m-auto text-sm text-muted-foreground">Сообщений пока нет</p>
-
-      <template v-for="group in groupedByDay" :key="group.label">
-        <!-- sticky — по прямой просьбе: дата "прилипает" сверху во время прокрутки этого
-             дня, следующая дата естественно вытесняет предыдущую (обычный sticky-заголовок
-             внутри overflow-auto контейнера, без JS). -->
-        <div class="sticky top-0 z-10 my-3 flex justify-center first:mt-0">
-          <span class="rounded-full border bg-background/95 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur-sm">
-            {{ group.label }}
-          </span>
+    <!-- relative — якорь для абсолютно спозиционированной кнопки "вниз" внутри именно
+         области сообщений (не всего композера/подвала). -->
+    <div class="relative flex min-h-0 flex-1 flex-col">
+      <!-- Лёгкая tint-подложка под primary — по прямой просьбе, полотно переписки не должно
+           сливаться с bg-background/bg-card основного тела сайта. bg-muted тут не годится —
+           "непрочитанные"/"чужие" пузыри и так уже bg-muted (см. ниже), сплошной bg-muted на
+           подложке слил бы их с фоном. Оттенок primary/5 — не соревнуется с серой парой
+           muted/accent/background (см. известную ловушку проекта — они почти неотличимы), а
+           работает и в тёмной теме без отдельного dark:-варианта. -->
+      <div ref="scrollEl" class="flex min-h-0 flex-1 flex-col gap-1 overflow-auto bg-primary/5 p-4" @scroll="onScroll">
+        <div v-if="isLoadingOlder" class="flex justify-center py-2">
+          <Loader class="size-4 animate-spin text-muted-foreground" />
         </div>
+        <p v-if="renderable.length === 0" class="m-auto text-sm text-muted-foreground">Сообщений пока нет</p>
 
-        <TransitionGroup name="message-pop" tag="div" class="flex flex-col gap-3">
-          <div
-            v-for="message in group.items"
-            :key="message.key"
-            class="flex items-end gap-2"
-            :class="message.senderRole === viewerRole ? 'flex-row-reverse' : ''"
-          >
-            <Avatar v-if="message.senderFullName" size="sm" :class="avatarColorClasses(message.senderFullName)" class="mb-4 shrink-0">
-              <AvatarFallback :class="avatarColorClasses(message.senderFullName)">{{ initials(message.senderFullName) }}</AvatarFallback>
-            </Avatar>
-            <div v-else class="w-8 shrink-0" />
-
-            <div class="flex max-w-[65%] flex-col gap-1" :class="message.senderRole === viewerRole ? 'items-end' : 'items-start'">
-              <span v-if="message.senderFullName" class="px-1 text-xs font-medium text-muted-foreground">{{ shortName(message.senderFullName) }}</span>
-
-              <!-- Вложения + подпись — единое "облачко" (по прямой просьбе, как в Telegram):
-                   картинка/видео и текст под ней делят одну и ту же ширину контейнера, а не
-                   раздельные пузыри разной ширины (текстовый — по длине текста, вложение — по
-                   своему intrinsic-размеру). -->
-              <div
-                v-if="message.attachments.length"
-                class="w-64 max-w-full overflow-hidden rounded-2xl"
-                :class="
-                  message.senderRole === viewerRole
-                    ? 'rounded-tr-sm bg-primary text-primary-foreground'
-                    : 'rounded-tl-sm border border-border bg-card text-card-foreground'
-                "
-              >
-                <div class="grid gap-0.5" :class="message.attachments.length > 1 ? 'grid-cols-2' : ''">
-                  <button
-                    v-for="(attachment, index) in message.attachments"
-                    :key="attachment.id"
-                    type="button"
-                    class="block w-full overflow-hidden transition-transform hover:brightness-95"
-                    @click="openLightbox(message.attachments, index)"
-                  >
-                    <img
-                      v-if="attachment.kind === 'IMAGE'"
-                      :src="attachmentUrl(attachment)"
-                      :alt="attachment.fileName"
-                      class="aspect-square w-full object-cover opacity-0 transition-opacity duration-300"
-                      @load="($event.target as HTMLImageElement).classList.remove('opacity-0')"
-                    />
-                    <div v-else class="relative aspect-square w-full bg-black/10">
-                      <video
-                        :src="attachmentUrl(attachment)"
-                        class="h-full w-full object-cover opacity-0 transition-opacity duration-300"
-                        @loadeddata="($event.target as HTMLVideoElement).classList.remove('opacity-0')"
-                      />
-                      <div class="absolute inset-0 flex items-center justify-center bg-black/20">
-                        <div class="rounded-full bg-black/50 p-2.5">
-                          <FileVideo class="size-5 text-white" />
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-
-                <!-- Время/галочки — float-right: контейнер тут ФИКСИРОВАННОЙ ширины (w-64,
-                     под вложение), поэтому короткая подпись с inline-span "сразу после
-                     текста" (как у текстового пузыря ниже, тот сам сжимается по контенту)
-                     оставляла бы время висеть посреди пустой синей полосы, а не у правого
-                     края. float у времени + обычный текст ПОСЛЕ него в разметке — текст
-                     обтекает время, прижимая его к правому краю на своей строке. -->
-                <div v-if="message.body" class="px-3 pt-2 pb-1.5 text-sm whitespace-pre-wrap">
-                  <span class="float-right mt-0.5 ml-2 inline-flex items-center gap-0.5 text-[10px] whitespace-nowrap opacity-70">
-                    {{ formatTime(message.createdAt) }}
-                    <template v-if="message.senderRole === viewerRole">
-                      <Check v-if="message.status === 'pending'" class="size-3 opacity-60" />
-                      <Check v-else-if="message.status === 'delivered'" class="size-3" />
-                      <CheckCheck v-else class="size-3" />
-                    </template>
-                  </span>
-                  {{ message.body }}
-                </div>
-                <div v-else class="flex items-center justify-end gap-0.5 px-3 pt-1 pb-1.5 text-[10px] whitespace-nowrap opacity-70">
-                  {{ formatTime(message.createdAt) }}
-                  <template v-if="message.senderRole === viewerRole">
-                    <Check v-if="message.status === 'pending'" class="size-3 opacity-60" />
-                    <Check v-else-if="message.status === 'delivered'" class="size-3" />
-                    <CheckCheck v-else class="size-3" />
-                  </template>
-                </div>
-              </div>
-
-              <div
-                v-else-if="message.body"
-                class="rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap"
-                :class="
-                  message.senderRole === viewerRole
-                    ? 'rounded-tr-sm bg-primary text-primary-foreground'
-                    : 'rounded-tl-sm border border-border bg-card text-card-foreground'
-                "
-              >
-                {{ message.body }}
-                <span
-                  class="ml-2 inline-flex translate-y-0.5 items-center gap-0.5 align-middle text-[10px] whitespace-nowrap opacity-70"
-                >
-                  {{ formatTime(message.createdAt) }}
-                  <template v-if="message.senderRole === viewerRole">
-                    <Check v-if="message.status === 'pending'" class="size-3 opacity-60" />
-                    <Check v-else-if="message.status === 'delivered'" class="size-3" />
-                    <CheckCheck v-else class="size-3" />
-                  </template>
-                </span>
-              </div>
-            </div>
+        <template v-for="group in groupedByDay" :key="group.label">
+          <!-- sticky — по прямой просьбе: дата "прилипает" сверху во время прокрутки этого
+               дня, следующая дата естественно вытесняет предыдущую (обычный sticky-заголовок
+               внутри overflow-auto контейнера, без JS). -->
+          <div class="sticky top-0 z-10 my-3 flex justify-center first:mt-0">
+            <span class="rounded-full border bg-background/95 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur-sm">
+              {{ group.label }}
+            </span>
           </div>
-        </TransitionGroup>
-      </template>
+
+          <TransitionGroup name="message-pop" tag="div" class="flex flex-col gap-3">
+            <template v-for="message in group.items" :key="message.key">
+              <!-- Разделитель "новые сообщения" — перед тем сообщением, что было первым
+                   непрочитанным на момент открытия (см. firstUnreadId, снимок один раз). -->
+              <div v-if="firstUnreadId !== null && message.id === firstUnreadId" key="unread-divider" class="my-1 flex items-center gap-3">
+                <div class="h-px flex-1 bg-destructive/40" />
+                <span class="shrink-0 text-xs font-medium text-destructive">Новые сообщения</span>
+                <div class="h-px flex-1 bg-destructive/40" />
+              </div>
+
+              <div
+                :data-message-id="message.id"
+                class="flex items-end gap-2"
+                :class="message.senderRole === viewerRole ? 'flex-row-reverse' : ''"
+              >
+                <Avatar v-if="message.senderFullName" size="sm" :class="avatarColorClasses(message.senderFullName)" class="mb-4 shrink-0">
+                  <AvatarFallback :class="avatarColorClasses(message.senderFullName)">{{ initials(message.senderFullName) }}</AvatarFallback>
+                </Avatar>
+                <div v-else class="w-8 shrink-0" />
+
+                <div class="flex max-w-[65%] flex-col gap-1" :class="message.senderRole === viewerRole ? 'items-end' : 'items-start'">
+                  <span v-if="message.senderFullName" class="px-1 text-xs font-medium text-muted-foreground">{{ shortName(message.senderFullName) }}</span>
+
+                  <!-- Вложения + подпись — единое "облачко" (по прямой просьбе, как в Telegram):
+                       картинка/видео и текст под ней делят одну и ту же ширину контейнера, а не
+                       раздельные пузыри разной ширины (текстовый — по длине текста, вложение — по
+                       своему intrinsic-размеру). -->
+                  <div
+                    v-if="message.attachments.length"
+                    class="w-64 max-w-full overflow-hidden rounded-2xl"
+                    :class="
+                      message.senderRole === viewerRole
+                        ? 'rounded-tr-sm bg-primary text-primary-foreground'
+                        : 'rounded-tl-sm border border-border bg-card text-card-foreground'
+                    "
+                  >
+                    <div class="grid gap-0.5" :class="message.attachments.length > 1 ? 'grid-cols-2' : ''">
+                      <button
+                        v-for="(attachment, index) in message.attachments"
+                        :key="attachment.id"
+                        type="button"
+                        class="block w-full overflow-hidden transition-transform hover:brightness-95"
+                        @click="openLightbox(message.attachments, index)"
+                      >
+                        <img
+                          v-if="attachment.kind === 'IMAGE'"
+                          :src="attachmentUrl(attachment)"
+                          :alt="attachment.fileName"
+                          class="aspect-square w-full object-cover opacity-0 transition-opacity duration-300"
+                          @load="($event.target as HTMLImageElement).classList.remove('opacity-0')"
+                        />
+                        <div v-else class="relative aspect-square w-full bg-black/10">
+                          <video
+                            :src="attachmentUrl(attachment)"
+                            class="h-full w-full object-cover opacity-0 transition-opacity duration-300"
+                            @loadeddata="($event.target as HTMLVideoElement).classList.remove('opacity-0')"
+                          />
+                          <div class="absolute inset-0 flex items-center justify-center bg-black/20">
+                            <div class="rounded-full bg-black/50 p-2.5">
+                              <FileVideo class="size-5 text-white" />
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+
+                    <!-- Время/галочки — float-right: контейнер тут ФИКСИРОВАННОЙ ширины (w-64,
+                         под вложение), поэтому короткая подпись с inline-span "сразу после
+                         текста" (как у текстового пузыря ниже, тот сам сжимается по контенту)
+                         оставляла бы время висеть посреди пустой синей полосы, а не у правого
+                         края. float у времени + обычный текст ПОСЛЕ него в разметке — текст
+                         обтекает время, прижимая его к правому краю на своей строке. -->
+                    <div v-if="message.body" class="px-3 pt-2 pb-1.5 text-sm whitespace-pre-wrap">
+                      <span class="float-right mt-0.5 ml-2 inline-flex items-center gap-0.5 text-[10px] whitespace-nowrap opacity-70">
+                        {{ formatTime(message.createdAt) }}
+                        <template v-if="message.senderRole === viewerRole">
+                          <Check v-if="message.status === 'pending'" class="size-3 opacity-60" />
+                          <Check v-else-if="message.status === 'delivered'" class="size-3" />
+                          <CheckCheck v-else class="size-3" />
+                        </template>
+                      </span>
+                      {{ message.body }}
+                    </div>
+                    <div v-else class="flex items-center justify-end gap-0.5 px-3 pt-1 pb-1.5 text-[10px] whitespace-nowrap opacity-70">
+                      {{ formatTime(message.createdAt) }}
+                      <template v-if="message.senderRole === viewerRole">
+                        <Check v-if="message.status === 'pending'" class="size-3 opacity-60" />
+                        <Check v-else-if="message.status === 'delivered'" class="size-3" />
+                        <CheckCheck v-else class="size-3" />
+                      </template>
+                    </div>
+                  </div>
+
+                  <div
+                    v-else-if="message.body"
+                    class="rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap"
+                    :class="
+                      message.senderRole === viewerRole
+                        ? 'rounded-tr-sm bg-primary text-primary-foreground'
+                        : 'rounded-tl-sm border border-border bg-card text-card-foreground'
+                    "
+                  >
+                    {{ message.body }}
+                    <span
+                      class="ml-2 inline-flex translate-y-0.5 items-center gap-0.5 align-middle text-[10px] whitespace-nowrap opacity-70"
+                    >
+                      {{ formatTime(message.createdAt) }}
+                      <template v-if="message.senderRole === viewerRole">
+                        <Check v-if="message.status === 'pending'" class="size-3 opacity-60" />
+                        <Check v-else-if="message.status === 'delivered'" class="size-3" />
+                        <CheckCheck v-else class="size-3" />
+                      </template>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </TransitionGroup>
+        </template>
+      </div>
+
+      <!-- Кнопка "вниз" — по прямой просьбе, появляется, когда пользователь отлистал от
+           низа переписки (см. isNearBottom/onScroll). -->
+      <button
+        v-if="!isNearBottom"
+        type="button"
+        title="Вниз"
+        class="absolute right-3 bottom-3 z-20 flex size-9 items-center justify-center rounded-full border bg-card text-foreground shadow-md transition-colors hover:bg-accent"
+        @click="scrollToBottomClicked"
+      >
+        <ArrowDown class="size-4" />
+        <span class="sr-only">Вниз, к последним сообщениям</span>
+      </button>
     </div>
 
     <div v-if="pendingFiles.length" class="flex flex-wrap gap-2 border-t px-3 pt-3">

@@ -34,6 +34,16 @@ export interface ChatMessage {
   // (клиент ещё не получил ответ сервера), 1 закрашенная — есть на сервере, 2
   // закрашенные — read=true.
   read: boolean
+  // Непрочитано ЛИЧНО текущим зрителем (в отличие от read выше — тот про "прочитано той
+  // стороной", для галочек) — снимок на момент открытия диалога/чата, не пересчитывается
+  // при подгрузке истории или по ходу сессии. Только на этом флаге строится разделитель
+  // "новые сообщения" и автоскролл к первому непрочитанному, см. ChatThread.vue.
+  unreadByMe: boolean
+}
+
+export interface ChatMessagesPage {
+  messages: ChatMessage[]
+  hasMore: boolean
 }
 
 export interface ResidentInfo {
@@ -96,7 +106,7 @@ export async function fetchConversations(): Promise<ChatConversationListItem[]> 
   return response.json()
 }
 
-export async function fetchConversationMessages(conversationId: number, before?: number): Promise<ChatMessage[]> {
+export async function fetchConversationMessages(conversationId: number, before?: number): Promise<ChatMessagesPage> {
   const query = before ? `?before=${before}` : ''
   const response = await apiFetch(`/chats/${conversationId}/messages${query}`)
   if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось получить сообщения'))
@@ -113,12 +123,17 @@ function messageFormData(body: string, files: File[]): FormData {
   return form
 }
 
-export async function sendStaffMessage(conversationId: number, body: string, files: File[] = []): Promise<void> {
+// Возвращает id только что созданного сообщения — Chats.vue отмечает его "своим",
+// чтобы не обрабатывать эхо этого же сообщения ещё раз, когда оно придёт по SSE
+// (см. useChatStream в Chats.vue — гонка двух параллельных фетчей одного диалога была
+// поймана на "дважды отправляется").
+export async function sendStaffMessage(conversationId: number, body: string, files: File[] = []): Promise<{ id: number; createdAt: string }> {
   const response = await apiFetch(`/chats/${conversationId}/messages`, {
     method: 'POST',
     body: messageFormData(body, files),
   })
   if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось отправить сообщение'))
+  return response.json()
 }
 
 export async function markConversationRead(conversationId: number): Promise<void> {
@@ -176,10 +191,15 @@ export interface MyChatResponse {
   // GET / больше не заводит диалог сам по себе за факт открытия вкладки).
   conversationId: number | null
   messages: ChatMessage[]
+  hasMore: boolean
 }
 
-export async function fetchMyChat(): Promise<MyChatResponse> {
-  const response = await apiFetch('/my-chat')
+// before — подгрузка истории по скроллу вверх (см. ChatThread.vue); бампает
+// residentLastReadAt (открытие = прочтение) только на первой странице, см.
+// my-chat.controller.ts.
+export async function fetchMyChat(before?: number): Promise<MyChatResponse> {
+  const query = before ? `?before=${before}` : ''
+  const response = await apiFetch(`/my-chat${query}`)
   if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось получить чат'))
   return response.json()
 }
@@ -193,10 +213,13 @@ export async function fetchMyChatUnread(): Promise<boolean> {
   return data.unread
 }
 
-export async function sendMyMessage(body: string, files: File[] = []): Promise<void> {
+// Возвращает id только что созданного сообщения — та же причина, что у sendStaffMessage
+// выше (дедуп собственного эха по SSE в MyChat.vue).
+export async function sendMyMessage(body: string, files: File[] = []): Promise<{ id: number; createdAt: string }> {
   const response = await apiFetch('/my-chat/messages', {
     method: 'POST',
     body: messageFormData(body, files),
   })
   if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось отправить сообщение'))
+  return response.json()
 }
