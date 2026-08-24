@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Check, CheckCheck, FileVideo, Paperclip, SendHorizontal, X } from 'lucide-vue-next'
 import { avatarColorClasses, initials, shortName } from '@/lib/avatar-color'
+import { currentUser } from '@/lib/auth-state'
 import {
   chatAttachmentUrl,
   MAX_ATTACHMENTS_PER_MESSAGE,
@@ -75,7 +76,11 @@ const renderable = computed<RenderableMessage[]>(() => {
       key: 'pending',
       body: pending.value.body || (pending.value.hasFiles ? '📎 Отправка файла…' : ''),
       senderRole: props.viewerRole,
-      senderFullName: '',
+      // Своё же ФИО — то же самое, что подставит настоящее сообщение после отправки
+      // (senderFullName от сервера будет тем же именем). Раньше здесь была пустая строка,
+      // из-за чего аватарка+подпись отсутствовали у pending-пузыря и "выскакивали" только
+      // у настоящего сообщения — заметный скачок вёрстки при подмене.
+      senderFullName: currentUser.value?.fullName ?? '',
       createdAt: new Date().toISOString(),
       attachments: [],
       status: 'pending',
@@ -261,7 +266,13 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
 
 <template>
   <div class="flex min-h-0 flex-1 flex-col">
-    <div ref="scrollEl" class="flex min-h-0 flex-1 flex-col gap-1 overflow-auto p-4">
+    <!-- Лёгкая tint-подложка под primary — по прямой просьбе, полотно переписки не должно
+         сливаться с bg-background/bg-card основного тела сайта. bg-muted тут не годится —
+         "непрочитанные"/"чужие" пузыри и так уже bg-muted (см. ниже), сплошной bg-muted на
+         подложке слил бы их с фоном. Оттенок primary/5 — не соревнуется с серой парой
+         muted/accent/background (см. известную ловушку проекта — они почти неотличимы), а
+         работает и в тёмной теме без отдельного dark:-варианта. -->
+    <div ref="scrollEl" class="flex min-h-0 flex-1 flex-col gap-1 overflow-auto bg-primary/5 p-4">
       <p v-if="renderable.length === 0" class="m-auto text-sm text-muted-foreground">Сообщений пока нет</p>
 
       <template v-for="group in groupedByDay" :key="group.label">
@@ -325,8 +336,22 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
                   </button>
                 </div>
 
-                <div v-if="message.body" class="px-3 pt-2 text-sm whitespace-pre-wrap">{{ message.body }}</div>
-                <div class="flex items-center justify-end gap-0.5 px-3 pt-1 pb-1.5 text-[10px] whitespace-nowrap opacity-70">
+                <!-- Время/галочки — тем же приёмом, что у текстового пузыря ниже: inline-span
+                     сразу после текста, ЕГО же строкой, а не отдельным блоком под ним. -->
+                <div v-if="message.body" class="px-3 pt-2 pb-1.5 text-sm whitespace-pre-wrap">
+                  {{ message.body }}
+                  <span
+                    class="ml-2 inline-flex translate-y-0.5 items-center gap-0.5 align-middle text-[10px] whitespace-nowrap opacity-70"
+                  >
+                    {{ formatTime(message.createdAt) }}
+                    <template v-if="message.senderRole === viewerRole">
+                      <Check v-if="message.status === 'pending'" class="size-3 opacity-60" />
+                      <Check v-else-if="message.status === 'delivered'" class="size-3" />
+                      <CheckCheck v-else class="size-3" />
+                    </template>
+                  </span>
+                </div>
+                <div v-else class="flex items-center justify-end gap-0.5 px-3 pt-1 pb-1.5 text-[10px] whitespace-nowrap opacity-70">
                   {{ formatTime(message.createdAt) }}
                   <template v-if="message.senderRole === viewerRole">
                     <Check v-if="message.status === 'pending'" class="size-3 opacity-60" />

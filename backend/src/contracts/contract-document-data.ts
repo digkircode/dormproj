@@ -254,7 +254,6 @@ export function buildDocumentData(
     legalRepFullNameSurname: legalRepNameSplit.surname,
     legalRepFullNameRest: legalRepNameSplit.rest,
     legalRepPhone: formatRussianPhone(contract.legalRepPhone),
-    legalRepNameAndPhone: [contract.legalRepName, formatRussianPhone(contract.legalRepPhone) || null].filter(Boolean).join(', '),
     legalRepBirthDateShort: formatDateShort(contract.legalRepBirthDate),
     legalRepPassportSeries: contract.legalRepPassportSeries ?? '',
     legalRepPassportNumber: contract.legalRepPassportNumber ?? '',
