@@ -45,11 +45,15 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 
 // Оптимистичное сообщение — рисуется сразу при нажатии "Отправить", пока идёт запрос
-// (статус "sending", 1 невзрачная галочка), убирается, как только props.onSend()
-// зарезолвится: к этому моменту у обеих Chats.vue/MyChat.vue onSend уже успевает
-// перезапросить реальные сообщения, так что настоящее (со статусом delivered) уже
-// будет в props.messages к моменту, когда pending пропадает — подмены не видно.
-const pending = ref<{ body: string; hasFiles: boolean } | null>(null)
+// (статус "sending", 1 невзрачная галочка). clientKey/startedAt — не для отображения, а
+// чтобы потом опознать "то самое" настоящее сообщение среди props.messages и подменить
+// его БЕЗ анимации, см. resolvedKeys/watch ниже.
+const pending = ref<{ clientKey: string; body: string; hasFiles: boolean; startedAt: string } | null>(null)
+let sendSeq = 0
+// messageId -> ключ, под которым это сообщение уже показывалось как pending. Не reactive
+// (обычный Map, не ref) — читается только внутри renderable, который и так пересчитается
+// вместе с обнулением pending.value ниже в том же тике.
+const resolvedKeys = new Map<number, string>()
 
 interface RenderableMessage {
   key: string
@@ -63,7 +67,12 @@ interface RenderableMessage {
 
 const renderable = computed<RenderableMessage[]>(() => {
   const items: RenderableMessage[] = props.messages.map((m) => ({
-    key: `m-${m.id}`,
+    // Сообщение, которое только что было pending-пузырём — рендерим под ТЕМ ЖЕ ключом,
+    // что и pending (см. resolvedKeys/watch ниже). Иначе TransitionGroup видит смену
+    // ключа 'pending' -> 'm-<id>' как удаление одного элемента и вставку другого — и
+    // проигрывает enter-анимацию (всплытие+масштаб) на настоящем сообщении, хотя оно
+    // визуально должно было просто "проявиться на месте" без скачка.
+    key: resolvedKeys.get(m.id) ?? `m-${m.id}`,
     body: m.body,
     senderRole: m.senderRole,
     senderFullName: m.senderFullName,
@@ -73,7 +82,7 @@ const renderable = computed<RenderableMessage[]>(() => {
   }))
   if (pending.value) {
     items.push({
-      key: 'pending',
+      key: pending.value.clientKey,
       body: pending.value.body || (pending.value.hasFiles ? '📎 Отправка файла…' : ''),
       senderRole: props.viewerRole,
       // Своё же ФИО — то же самое, что подставит настоящее сообщение после отправки
@@ -127,17 +136,20 @@ watch(
 )
 
 // Убирает оптимистичное сообщение, как только родитель дозагрузил реальный список
-// (messages.length выросло) — раньше pending снимался только в finally() после
-// props.onSend(), а onSend() внутри Chats.vue/MyChat.vue уже успевает обновить messages
-// ДО того, как сам промис зарезолвится. Из-за этого был один кадр с одновременно видимыми
-// pending-пузырём И настоящим сообщением, затем ещё один кадр без pending — визуально
-// "сообщение дважды появляется и дёргается". watch здесь батчится Vue в тот же тик, что и
-// реакция на messages, так что pending пропадает в ТОМ ЖЕ рендере, где появляется реальное
-// сообщение — без промежуточного дублирования.
+// (messages.length выросло), И одновременно запоминает, под каким ключом настоящее
+// сообщение должно унаследовать вид pending-пузыря (см. resolvedKeys/renderable выше) —
+// это и убирает финальный "скачок как будто перезагрузилось": TransitionGroup видит
+// один и тот же ключ до и после, значит просто патчит содержимое элемента на месте, без
+// enter/leave-анимации. senderRole+startedAt — чтобы случайно не подхватить чужое
+// сообщение, пришедшее по SSE ровно в этот же момент (например ответ второго сотрудника).
 watch(
   () => props.messages.length,
   (next, prev) => {
-    if (pending.value && next > prev) pending.value = null
+    if (!pending.value || next <= prev) return
+    const p = pending.value
+    const match = [...props.messages].reverse().find((m) => m.senderRole === props.viewerRole && m.createdAt >= p.startedAt)
+    if (match) resolvedKeys.set(match.id, p.clientKey)
+    pending.value = null
   },
 )
 
@@ -240,16 +252,21 @@ async function send() {
   sendError.value = ''
   isSending.value = true
   const files = pendingFiles.value
-  pending.value = { body, hasFiles: files.length > 0 }
+  pending.value = { clientKey: `pending-${++sendSeq}`, body, hasFiles: files.length > 0, startedAt: new Date().toISOString() }
   try {
     await props.onSend(body, files)
     draft.value = ''
     for (const file of files) revokePreviewUrl(file)
     pendingFiles.value = []
+    // pending.value уже обнулён (или вот-вот обнулится) watch'ем на props.messages.length
+    // выше — не трогаем его здесь, иначе снова словим ключ 'pending-N', уже не совпадающий
+    // с тем, что достался настоящему сообщению.
   } catch (error) {
     sendError.value = error instanceof Error ? error.message : String(error)
-  } finally {
+    // А вот тут обнулить обязательно — если запрос не долетел, watch никогда не сработает
+    // (messages.length не изменится), пузырь иначе завис бы в "отправляется" навсегда.
     pending.value = null
+  } finally {
     isSending.value = false
   }
 }
@@ -276,10 +293,13 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
       <p v-if="renderable.length === 0" class="m-auto text-sm text-muted-foreground">Сообщений пока нет</p>
 
       <template v-for="group in groupedByDay" :key="group.label">
-        <div class="my-3 flex items-center gap-3 first:mt-0">
-          <div class="h-px flex-1 bg-border" />
-          <span class="shrink-0 text-xs font-medium text-muted-foreground">{{ group.label }}</span>
-          <div class="h-px flex-1 bg-border" />
+        <!-- sticky — по прямой просьбе: дата "прилипает" сверху во время прокрутки этого
+             дня, следующая дата естественно вытесняет предыдущую (обычный sticky-заголовок
+             внутри overflow-auto контейнера, без JS). -->
+        <div class="sticky top-0 z-10 my-3 flex justify-center first:mt-0">
+          <span class="rounded-full border bg-background/95 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur-sm">
+            {{ group.label }}
+          </span>
         </div>
 
         <TransitionGroup name="message-pop" tag="div" class="flex flex-col gap-3">
@@ -304,7 +324,11 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
               <div
                 v-if="message.attachments.length"
                 class="w-64 max-w-full overflow-hidden rounded-2xl"
-                :class="message.senderRole === viewerRole ? 'rounded-tr-sm bg-primary text-primary-foreground' : 'rounded-tl-sm bg-muted text-foreground'"
+                :class="
+                  message.senderRole === viewerRole
+                    ? 'rounded-tr-sm bg-primary text-primary-foreground'
+                    : 'rounded-tl-sm border border-border bg-card text-card-foreground'
+                "
               >
                 <div class="grid gap-0.5" :class="message.attachments.length > 1 ? 'grid-cols-2' : ''">
                   <button
@@ -336,13 +360,14 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
                   </button>
                 </div>
 
-                <!-- Время/галочки — тем же приёмом, что у текстового пузыря ниже: inline-span
-                     сразу после текста, ЕГО же строкой, а не отдельным блоком под ним. -->
+                <!-- Время/галочки — float-right: контейнер тут ФИКСИРОВАННОЙ ширины (w-64,
+                     под вложение), поэтому короткая подпись с inline-span "сразу после
+                     текста" (как у текстового пузыря ниже, тот сам сжимается по контенту)
+                     оставляла бы время висеть посреди пустой синей полосы, а не у правого
+                     края. float у времени + обычный текст ПОСЛЕ него в разметке — текст
+                     обтекает время, прижимая его к правому краю на своей строке. -->
                 <div v-if="message.body" class="px-3 pt-2 pb-1.5 text-sm whitespace-pre-wrap">
-                  {{ message.body }}
-                  <span
-                    class="ml-2 inline-flex translate-y-0.5 items-center gap-0.5 align-middle text-[10px] whitespace-nowrap opacity-70"
-                  >
+                  <span class="float-right mt-0.5 ml-2 inline-flex items-center gap-0.5 text-[10px] whitespace-nowrap opacity-70">
                     {{ formatTime(message.createdAt) }}
                     <template v-if="message.senderRole === viewerRole">
                       <Check v-if="message.status === 'pending'" class="size-3 opacity-60" />
@@ -350,6 +375,7 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
                       <CheckCheck v-else class="size-3" />
                     </template>
                   </span>
+                  {{ message.body }}
                 </div>
                 <div v-else class="flex items-center justify-end gap-0.5 px-3 pt-1 pb-1.5 text-[10px] whitespace-nowrap opacity-70">
                   {{ formatTime(message.createdAt) }}
@@ -367,7 +393,7 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
                 :class="
                   message.senderRole === viewerRole
                     ? 'rounded-tr-sm bg-primary text-primary-foreground'
-                    : 'rounded-tl-sm bg-muted text-foreground'
+                    : 'rounded-tl-sm border border-border bg-card text-card-foreground'
                 "
               >
                 {{ message.body }}

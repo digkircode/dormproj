@@ -49,7 +49,7 @@ onMounted(load)
 <template>
   <div class="flex h-full min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
     <h1 class="text-lg font-medium">Чат с сотрудниками</h1>
-    <Card class="flex h-[34rem] max-h-[70vh] shrink-0 flex-col overflow-hidden py-0">
+    <Card class="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col overflow-hidden py-0">
       <p v-if="isLoading" class="m-auto text-sm text-muted-foreground">Загрузка…</p>
       <p v-else-if="loadError" class="m-auto max-w-md text-center text-sm text-red-500">{{ loadError }}</p>
       <ChatThread v-else :messages="messages" viewer-role="RESIDENT" attachment-base-path="/my-chat/attachments" :on-send="onSend" />

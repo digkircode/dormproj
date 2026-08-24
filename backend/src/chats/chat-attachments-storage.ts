@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync } from 'fs';
+import { copyFile, unlink } from 'fs/promises';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { diskStorage } from 'multer';
@@ -44,6 +45,23 @@ function generateStorageKey(originalName: string): string {
   const ext = originalName.includes('.') ? originalName.slice(originalName.lastIndexOf('.')) : '';
   const safeExt = /^\.[a-zA-Z0-9]{1,10}$/.test(ext) ? ext : '';
   return `${randomUUID()}${safeExt}`;
+}
+
+// Рассылка (см. chats.controller.ts#broadcast) — один и тот же файл уходит нескольким
+// получателям, а ChatAttachment.storageKey уникален в схеме (@@unique), поэтому одну
+// запись на несколько диалогов не переиспользовать — физически копируем файл под новым
+// случайным именем на каждого получателя, кроме первого (тот получает оригинал как есть).
+// Осознанный компромисс: дороже по месту на диске, зато без миграции схемы под shared-
+// storageKey (и без будущей возни с подсчётом ссылок при удалении).
+export async function duplicateStoredFile(sourceStorageKey: string): Promise<string> {
+  const ext = sourceStorageKey.includes('.') ? sourceStorageKey.slice(sourceStorageKey.lastIndexOf('.')) : '';
+  const newKey = `${randomUUID()}${ext}`;
+  await copyFile(join(CHAT_UPLOADS_DIR, sourceStorageKey), join(CHAT_UPLOADS_DIR, newKey));
+  return newKey;
+}
+
+export async function cleanupStorageKeys(storageKeys: string[]): Promise<void> {
+  await Promise.all(storageKeys.map((key) => unlink(join(CHAT_UPLOADS_DIR, key)).catch(() => {})));
 }
 
 export function chatAttachmentsMulterOptions() {

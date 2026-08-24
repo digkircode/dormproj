@@ -29,8 +29,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ensureUserRecord } from '../users/ensure-user';
 import { ChatEventsService } from './chat-events.service';
 import { chatRecipientFacets, chatRecipients, type ChatRecipientFilters } from './chat-recipients';
-import { CHAT_UPLOADS_DIR, MAX_ATTACHMENTS_PER_MESSAGE, chatAttachmentsMulterOptions } from './chat-attachments-storage';
-import { cleanupUploadedFiles, validateAttachmentSizes } from './chat-attachments';
+import {
+  CHAT_UPLOADS_DIR,
+  MAX_ATTACHMENTS_PER_MESSAGE,
+  chatAttachmentsMulterOptions,
+  cleanupStorageKeys,
+  duplicateStoredFile,
+} from './chat-attachments-storage';
+import { cleanupUploadedFiles, validateAttachmentSizes, type ValidatedAttachment } from './chat-attachments';
 import { isMessageRead } from './chat-read-status';
 
 const MAX_BODY_LENGTH = 4000;
@@ -40,6 +46,10 @@ function attachmentPreviewLabel(attachments: { kind: string }[]): string {
   return attachments[0].kind === 'VIDEO' ? '🎥 Видео' : '📷 Фото';
 }
 
+// Тело + фильтры получателей — раньше приходили одним JSON (application/json), теперь
+// эндпоинт multipart/form-data (нужен FilesInterceptor под вложения, см. broadcast()
+// ниже), поэтому JSON-часть (все поля кроме файлов) уходит одним текстовым полем
+// 'filters' и парсится вручную той же схемой, что и раньше.
 const broadcastSchema = z.object({
   body: z.string().trim().min(1).max(4000),
   floors: z.array(z.string().trim().min(1)).nullish(),
@@ -145,47 +155,99 @@ export class ChatsController {
   // Сервер сам пересчитывает получателей по фильтрам на момент отправки (не доверяет
   // списку uid от клиента) — превью в диалоге и реальная рассылка используют одну и ту
   // же функцию chatRecipients, поэтому не могут разойтись.
+  // Вложения в рассылке (добавлено 2026-08-24, по прямой просьбе — раньше сознательно не
+  // делали, "один файл на много диалогов сразу это другая модель хранения") — физически
+  // копируем присланный файл под новым storageKey на каждого получателя, кроме первого
+  // (см. duplicateStoredFile в chat-attachments-storage.ts). Дороже по месту на диске при
+  // рассылке на много получателей с тяжёлым видео, зато без миграции схемы под shared
+  // storageKey и без будущей возни с подсчётом ссылок при удалении.
   @Post('broadcast')
-  async broadcast(@Body() body: unknown, @Req() req: Request) {
-    const parsed = broadcastSchema.safeParse(body);
-    if (!parsed.success) {
-      throw new BadRequestException(parsed.error.message);
-    }
+  @UseInterceptors(FilesInterceptor('files', MAX_ATTACHMENTS_PER_MESSAGE, chatAttachmentsMulterOptions()))
+  async broadcast(
+    @UploadedFiles() files: Express.Multer.File[] = [],
+    @Body('body') bodyText: string | undefined,
+    @Body('filters') filtersRaw: string | undefined,
+    @Req() req: Request,
+  ) {
     if (!req.user) {
+      await cleanupUploadedFiles(files);
       throw new BadRequestException('Не удалось определить пользователя сессии');
     }
 
-    const data = parsed.data;
-    const recipients = await chatRecipients(this.prisma, toFilters(data));
-    if (recipients.length === 0) {
-      throw new BadRequestException('Нет проживающих, подходящих под выбранные фильтры');
+    let filtersJson: unknown;
+    try {
+      filtersJson = filtersRaw ? JSON.parse(filtersRaw) : {};
+    } catch {
+      await cleanupUploadedFiles(files);
+      throw new BadRequestException('Некорректные фильтры получателей');
     }
+    const parsed = broadcastSchema.safeParse({ ...(filtersJson as object), body: bodyText });
+    if (!parsed.success) {
+      await cleanupUploadedFiles(files);
+      throw new BadRequestException(parsed.error.message);
+    }
+    const data = parsed.data;
 
-    const now = new Date();
-    const results = await this.prisma.$transaction(async (tx) => {
-      const userId = await ensureUserRecord(tx, req.user!);
-      const created: { conversationId: number; individualUid: string; messageId: number }[] = [];
-
-      for (const recipient of recipients) {
-        const conversation = await tx.chatConversation.upsert({
-          where: { individualUid: recipient.individualUid },
-          create: { individualUid: recipient.individualUid, lastMessageAt: now, staffLastReadAt: now },
-          update: { lastMessageAt: now, staffLastReadAt: now },
-        });
-        const message = await tx.chatMessage.create({
-          data: { conversationId: conversation.id, senderUserId: userId, senderRole: 'STAFF', body: data.body },
-        });
-        created.push({ conversationId: conversation.id, individualUid: recipient.individualUid, messageId: message.id });
+    // Копии физических файлов, созданные для получателей 2..N — если что-то ниже упадёт,
+    // подчищаем их вместе с исходными (cleanupUploadedFiles), чтобы не оставлять сирот.
+    const createdCopyKeys: string[] = [];
+    try {
+      const baseAttachments = validateAttachmentSizes(files);
+      const recipients = await chatRecipients(this.prisma, toFilters(data));
+      if (recipients.length === 0) {
+        throw new BadRequestException('Нет проживающих, подходящих под выбранные фильтры');
       }
 
-      return created;
-    });
+      // Копирование — файловый I/O, вне транзакции БД (не удерживать транзакцию открытой
+      // на время дисковых операций). Первый получатель забирает исходные файлы как есть.
+      const attachmentsPerRecipient: ValidatedAttachment[][] = [baseAttachments];
+      for (let i = 1; i < recipients.length; i++) {
+        const copies: ValidatedAttachment[] = [];
+        for (const attachment of baseAttachments) {
+          const newKey = await duplicateStoredFile(attachment.storageKey);
+          createdCopyKeys.push(newKey);
+          copies.push({ ...attachment, storageKey: newKey });
+        }
+        attachmentsPerRecipient.push(copies);
+      }
 
-    for (const result of results) {
-      this.events.emit(result);
+      const now = new Date();
+      const results = await this.prisma.$transaction(async (tx) => {
+        const userId = await ensureUserRecord(tx, req.user!);
+        const created: { conversationId: number; individualUid: string; messageId: number }[] = [];
+
+        for (let i = 0; i < recipients.length; i++) {
+          const recipient = recipients[i];
+          const conversation = await tx.chatConversation.upsert({
+            where: { individualUid: recipient.individualUid },
+            create: { individualUid: recipient.individualUid, lastMessageAt: now, staffLastReadAt: now },
+            update: { lastMessageAt: now, staffLastReadAt: now },
+          });
+          const message = await tx.chatMessage.create({
+            data: {
+              conversationId: conversation.id,
+              senderUserId: userId,
+              senderRole: 'STAFF',
+              body: data.body,
+              attachments: { create: attachmentsPerRecipient[i] },
+            },
+          });
+          created.push({ conversationId: conversation.id, individualUid: recipient.individualUid, messageId: message.id });
+        }
+
+        return created;
+      });
+
+      for (const result of results) {
+        this.events.emit(result);
+      }
+
+      return { sentCount: results.length };
+    } catch (error) {
+      await cleanupUploadedFiles(files);
+      await cleanupStorageKeys(createdCopyKeys);
+      throw error;
     }
-
-    return { sentCount: results.length };
   }
 
   @Sse('stream')

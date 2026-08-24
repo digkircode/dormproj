@@ -156,12 +156,15 @@ export async function fetchRecipients(filters: ChatRecipientFilters): Promise<Ch
   return response.json()
 }
 
-export async function sendBroadcast(body: string, filters: ChatRecipientFilters): Promise<{ sentCount: number }> {
-  const response = await apiFetch('/chats/broadcast', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ body, ...filters }),
-  })
+// multipart/form-data, а не JSON (2026-08-24, добавлены вложения) — фильтры уходят одним
+// текстовым полем 'filters' (JSON-строка), файлы — тем же 'files', что и у обычной
+// отправки (см. messageFormData/chats.controller.ts#broadcast).
+export async function sendBroadcast(body: string, filters: ChatRecipientFilters, files: File[] = []): Promise<{ sentCount: number }> {
+  const form = new FormData()
+  form.set('body', body)
+  form.set('filters', JSON.stringify(filters))
+  for (const file of files) form.append('files', file)
+  const response = await apiFetch('/chats/broadcast', { method: 'POST', body: form })
   if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось отправить рассылку'))
   return response.json()
 }

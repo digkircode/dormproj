@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
-import { ChevronDown, Users, X } from 'lucide-vue-next'
+import { ChevronDown, FileVideo, Paperclip, Users, X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -13,6 +13,9 @@ import {
   fetchRecipientFacets,
   fetchRecipients,
   sendBroadcast,
+  MAX_ATTACHMENTS_PER_MESSAGE,
+  MAX_IMAGE_BYTES,
+  MAX_VIDEO_BYTES,
   type ChatRecipient,
   type ChatRecipientFacets,
 } from '@/lib/chat-api'
@@ -34,6 +37,68 @@ const floors = ref<string[]>([])
 const corpus = ref<string>('')
 const debtorsOnly = ref(false)
 const body = ref('')
+
+// Вложения (2026-08-24, по прямой просьбе) — тот же композер-приём, что в ChatThread.vue
+// (fileInputRef+превью+object URL), но один набор файлов физически копируется на каждого
+// получателя рассылки (см. broadcast() на бэке) — тут это просто список выбранных файлов.
+const pendingFiles = ref<File[]>([])
+const attachError = ref('')
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const objectUrls = new Map<File, string>()
+function previewUrlFor(file: File): string {
+  let url = objectUrls.get(file)
+  if (!url) {
+    url = URL.createObjectURL(file)
+    objectUrls.set(file, url)
+  }
+  return url
+}
+function revokePreviewUrl(file: File) {
+  const url = objectUrls.get(file)
+  if (url) {
+    URL.revokeObjectURL(url)
+    objectUrls.delete(file)
+  }
+}
+onBeforeUnmount(() => {
+  for (const url of objectUrls.values()) URL.revokeObjectURL(url)
+  objectUrls.clear()
+})
+function openFilePicker() {
+  fileInputRef.value?.click()
+}
+function onFilesSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const selected = Array.from(input.files ?? [])
+  input.value = ''
+  attachError.value = ''
+
+  if (pendingFiles.value.length + selected.length > MAX_ATTACHMENTS_PER_MESSAGE) {
+    attachError.value = `Не больше ${MAX_ATTACHMENTS_PER_MESSAGE} файлов в одном сообщении`
+    return
+  }
+  for (const file of selected) {
+    const isImage = file.type.startsWith('image/')
+    const isVideo = file.type.startsWith('video/')
+    if (!isImage && !isVideo) {
+      attachError.value = `«${file.name}» — недопустимый тип файла`
+      return
+    }
+    const max = isImage ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES
+    if (file.size > max) {
+      attachError.value = `«${file.name}» больше ${Math.round(max / (1024 * 1024))} МБ`
+      return
+    }
+  }
+  pendingFiles.value = [...pendingFiles.value, ...selected]
+}
+function removePendingFile(file: File) {
+  revokePreviewUrl(file)
+  pendingFiles.value = pendingFiles.value.filter((f) => f !== file)
+}
+function formatSize(bytes: number): string {
+  return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} МБ` : `${Math.max(1, Math.round(bytes / 1024))} КБ`
+}
 
 // Явно выбранные получатели по ФИО-поиску ("написать 3 конкретным людям", по прямой
 // просьбе) — если непусто, ПОЛНОСТЬЮ заменяет фильтры этаж/корпус/должники (не
@@ -109,6 +174,9 @@ async function open() {
   personQuery.value = ''
   personSearchResults.value = []
   recipients.value = []
+  for (const file of pendingFiles.value) revokePreviewUrl(file)
+  pendingFiles.value = []
+  attachError.value = ''
   isDialogOpen.value = true
 
   facets.value = await fetchRecipientFacets()
@@ -139,6 +207,7 @@ async function submit() {
             corpus: corpus.value || undefined,
             debtorsOnly: debtorsOnly.value || undefined,
           },
+      pendingFiles.value,
     )
     isDialogOpen.value = false
     emit('sent')
@@ -255,6 +324,32 @@ async function submit() {
             placeholder="Текст сообщения..."
             class="flex w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground transition-shadow focus-visible:outline-none focus-visible:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/20 focus-visible:shadow-sm"
           />
+
+          <input ref="fileInputRef" type="file" multiple accept="image/*,video/*" class="hidden" @change="onFilesSelected" />
+          <div class="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" @click="openFilePicker">
+              <Paperclip class="size-4" />
+              Прикрепить файл
+            </Button>
+            <span class="text-xs text-muted-foreground">Уйдёт каждому получателю рассылки</span>
+          </div>
+          <div v-if="pendingFiles.length" class="flex flex-wrap gap-2">
+            <div v-for="file in pendingFiles" :key="file.name + file.size" class="relative" :title="`${file.name} (${formatSize(file.size)})`">
+              <img v-if="file.type.startsWith('image/')" :src="previewUrlFor(file)" class="size-16 rounded-md border object-cover" />
+              <div v-else class="flex size-16 flex-col items-center justify-center gap-1 rounded-md border bg-muted text-muted-foreground">
+                <FileVideo class="size-5" />
+              </div>
+              <button
+                type="button"
+                class="absolute -top-1.5 -right-1.5 rounded-full border bg-background p-0.5 shadow-sm hover:bg-muted"
+                @click="removePendingFile(file)"
+              >
+                <X class="size-3" />
+                <span class="sr-only">Убрать файл</span>
+              </button>
+            </div>
+          </div>
+          <p v-if="attachError" class="text-sm text-red-500">{{ attachError }}</p>
         </div>
       </div>
 

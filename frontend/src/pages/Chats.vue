@@ -78,9 +78,9 @@ onMounted(loadConversations)
   <div class="flex h-full min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
     <h1 class="shrink-0 text-lg font-medium">Чаты с проживающими</h1>
 
-    <!-- Раньше flex-1 растягивал карточку на всю оставшуюся высоту страницы — по прямой
-         просьбе сделал компактнее, не во весь экран. -->
-    <Card class="flex h-[34rem] max-h-[70vh] shrink-0 flex-row gap-0 overflow-hidden py-0">
+    <!-- По прямой просьбе — компактнее не по высоте (та остаётся flex-1, во всю доступную),
+         а по ширине: max-w вместо растягивания на всю страницу. -->
+    <Card class="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-row gap-0 overflow-hidden py-0">
       <ConversationList :conversations="conversations" :selected-id="selectedId" @select="selectConversation" @new-message="openBroadcast" />
 
       <div class="flex min-h-0 flex-1 flex-col">
