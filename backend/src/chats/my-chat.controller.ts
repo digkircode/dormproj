@@ -131,6 +131,27 @@ export class MyChatController {
     };
   }
 
+  // Комната/договор самого проживающего — шапка его же чата (MyChat.vue), тем же видом,
+  // что у сотрудника (см. residentInfo в chats.controller.ts), но БЕЗ contractId/ссылки —
+  // /contracts/:id доступен только STAFF/ADMIN (router/index.ts), проживающий получил бы
+  // 403 по клику.
+  @Get('resident-info')
+  async residentInfo(@Req() req: Request) {
+    if (!req.user) {
+      throw new BadRequestException('Не удалось определить пользователя сессии');
+    }
+    const individualUid = await this.resolveIndividualUid(req.user.id);
+    const contract = await this.prisma.contract.findFirst({
+      where: { residentIndividualUid: individualUid, status: 'ACTIVE' },
+      orderBy: { contractDate: 'desc' },
+      include: { roomAssignments: { where: { toDate: null }, include: { room: { select: { room: true } } } } },
+    });
+    return {
+      contractNumber: contract?.number ?? null,
+      room: contract?.roomAssignments[0]?.room.room ?? null,
+    };
+  }
+
   // Лёгкая проверка "есть ли непрочитанное", БЕЗ побочного эффекта пометки прочтения
   // (в отличие от GET / выше) — нужна для бейджика в сайдбаре (AppSidebar.vue), который
   // может дёргаться, когда пользователь вообще не на странице чата; вызов обычного GET /

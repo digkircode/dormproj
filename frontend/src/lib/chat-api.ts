@@ -213,6 +213,19 @@ export async function fetchMyChatUnread(): Promise<boolean> {
   return data.unread
 }
 
+// Без contractId (в отличие от ResidentInfo выше) — /contracts/:id доступен только
+// STAFF/ADMIN, проживающему в шапке своего же чата ссылку показывать некуда.
+export interface MyResidentInfo {
+  contractNumber: string | null
+  room: string | null
+}
+
+export async function fetchMyResidentInfo(): Promise<MyResidentInfo> {
+  const response = await apiFetch('/my-chat/resident-info')
+  if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось получить информацию о договоре'))
+  return response.json()
+}
+
 // Возвращает id только что созданного сообщения — та же причина, что у sendStaffMessage
 // выше (дедуп собственного эха по SSE в MyChat.vue).
 export async function sendMyMessage(body: string, files: File[] = []): Promise<{ id: number; createdAt: string }> {

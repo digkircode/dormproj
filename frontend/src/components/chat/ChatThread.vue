@@ -402,9 +402,9 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
               <!-- Разделитель "новые сообщения" — перед тем сообщением, что было первым
                    непрочитанным на момент открытия (см. firstUnreadId, снимок один раз). -->
               <div v-if="firstUnreadId !== null && message.id === firstUnreadId" key="unread-divider" class="my-1 flex items-center gap-3">
-                <div class="h-px flex-1 bg-destructive/40" />
-                <span class="shrink-0 text-xs font-medium text-destructive">Новые сообщения</span>
-                <div class="h-px flex-1 bg-destructive/40" />
+                <div class="h-px flex-1 bg-border" />
+                <span class="shrink-0 text-xs font-medium text-muted-foreground">Новые сообщения</span>
+                <div class="h-px flex-1 bg-border" />
               </div>
 
               <div
@@ -519,12 +519,15 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
       </div>
 
       <!-- Кнопка "вниз" — по прямой просьбе, появляется, когда пользователь отлистал от
-           низа переписки (см. isNearBottom/onScroll). -->
+           низа переписки (см. isNearBottom/onScroll). Размер и отступ — как у аватарок
+           сообщений (Avatar size="sm" = size-10, см. avatarVariant в ui/avatar/index.ts)
+           и того же p-4/mb-4, что и у самих сообщений — кнопка визуально встаёт на место,
+           где была бы аватарка последнего сообщения. -->
       <button
         v-if="!isNearBottom"
         type="button"
         title="Вниз"
-        class="absolute right-3 bottom-3 z-20 flex size-9 items-center justify-center rounded-full border bg-card text-foreground shadow-md transition-colors hover:bg-accent"
+        class="absolute right-4 bottom-4 z-20 flex size-10 items-center justify-center rounded-full border bg-card text-foreground shadow-md transition-colors hover:bg-accent"
         @click="scrollToBottomClicked"
       >
         <ArrowDown class="size-4" />

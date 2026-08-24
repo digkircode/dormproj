@@ -82,9 +82,17 @@ function handleGroupClick(title: string, isActive?: boolean) {
         <SidebarMenuItem v-else>
           <SidebarMenuButton as-child :tooltip="item.title">
             <RouterLink :to="item.url ?? '#'">
-              <component :is="item.icon" v-if="item.icon" class="text-primary" />
-              <span>{{ item.title }}</span>
-              <span v-if="item.badge" class="ml-auto size-2 shrink-0 rounded-full bg-primary" />
+              <!-- Кружок непрочитанного дублирован намеренно — см. подробный комментарий
+                   в NavStudent.vue: в свёрнутом (icon-only) сайдбаре "ml-auto"-вариант
+                   физически рендерился, но обрезался overflow-hidden сжавшейся кнопки —
+                   невидимый кружок (реальный баг, "точечки не появляются"). Второй кружок
+                   висит на самой иконке, виден только в свёрнутом состоянии. -->
+              <span class="relative inline-flex shrink-0">
+                <component :is="item.icon" v-if="item.icon" class="size-4 shrink-0 text-primary" />
+                <span v-if="item.badge" class="absolute -top-0.5 -right-0.5 hidden size-2 rounded-full bg-primary group-data-[collapsible=icon]:block" />
+              </span>
+              <span class="truncate">{{ item.title }}</span>
+              <span v-if="item.badge" class="ml-auto size-2 shrink-0 rounded-full bg-primary group-data-[collapsible=icon]:hidden" />
             </RouterLink>
           </SidebarMenuButton>
         </SidebarMenuItem>

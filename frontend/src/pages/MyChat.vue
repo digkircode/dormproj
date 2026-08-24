@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft } from 'lucide-vue-next'
+import { ArrowLeft, Clock, DoorClosed, FileText } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import ChatThread from '@/components/chat/ChatThread.vue'
 import { useChatStream, type ChatStreamEvent } from '@/lib/chat-stream'
 import { hasUnreadResidentChat } from '@/lib/chat-unread-state'
 import { appendNewMessages, prependOlderMessages } from '@/lib/chat-message-list'
-import { fetchMyChat, sendMyMessage, type ChatMessage } from '@/lib/chat-api'
+import { fetchMyChat, fetchMyResidentInfo, sendMyMessage, type ChatMessage, type MyResidentInfo } from '@/lib/chat-api'
 import { goBack } from '@/lib/utils'
 
 const router = useRouter()
@@ -20,6 +20,10 @@ const hasMoreOlder = ref(false)
 const isLoadingOlder = ref(false)
 const isLoading = ref(true)
 const loadError = ref('')
+// Шапка — та же информация и тот же вид, что у сотрудника в Chats.vue (договор/комната),
+// плюс часы работы администрации (по прямой просьбе — статика, тот же текст, что и на
+// "Общая информация", см. StudentGeneralInfo.vue).
+const residentInfo = ref<MyResidentInfo | null>(null)
 // Пока не известно, что первая загрузка прошла успешно — SSE не открываем (см.
 // useChatStream): аккаунт может быть не привязан к физлицу (например тестовый ADMIN,
 // которому вручную выдали роль RESIDENT без Individual) — тогда /my-chat/stream
@@ -29,9 +33,10 @@ const streamEnabled = ref(false)
 async function load() {
   loadError.value = ''
   try {
-    const chat = await fetchMyChat()
+    const [chat, info] = await Promise.all([fetchMyChat(), fetchMyResidentInfo()])
     messages.value = chat.messages
     hasMoreOlder.value = chat.hasMore
+    residentInfo.value = info
     streamEnabled.value = true
     // Открытие страницы = прочтение (fetchMyChat() уже бампнул residentLastReadAt на
     // бэке) — сбрасываем бейджик в сайдбаре сразу, не дожидаясь следующего SSE-события.
@@ -106,15 +111,32 @@ onMounted(load)
     <Card class="flex min-h-0 flex-1 flex-col overflow-hidden py-0">
       <p v-if="isLoading" class="m-auto text-sm text-muted-foreground">Загрузка…</p>
       <p v-else-if="loadError" class="m-auto max-w-md text-center text-sm text-red-500">{{ loadError }}</p>
-      <ChatThread
-        v-else
-        :messages="messages"
-        :has-more-older="hasMoreOlder"
-        :on-load-older="loadOlderMessages"
-        viewer-role="RESIDENT"
-        attachment-base-path="/my-chat/attachments"
-        :on-send="onSend"
-      />
+      <template v-else>
+        <!-- Та же строка/ширина, что в шапке диалога у сотрудника (Chats.vue) — плюс
+             часы работы администрации (по прямой просьбе). -->
+        <div class="flex shrink-0 flex-wrap items-center gap-4 border-b p-3 text-sm text-muted-foreground">
+          <span class="flex h-10 items-center gap-1.5">
+            <FileText class="size-4 text-primary" />
+            {{ residentInfo?.contractNumber ? `Договор № ${residentInfo.contractNumber}` : 'Нет действующего договора' }}
+          </span>
+          <span v-if="residentInfo?.room" class="flex h-10 items-center gap-1.5">
+            <DoorClosed class="size-4 text-primary" />
+            Комната {{ residentInfo.room }}
+          </span>
+          <span class="flex h-10 items-center gap-1.5">
+            <Clock class="size-4 text-primary" />
+            Администрация: 9:30–18:00
+          </span>
+        </div>
+        <ChatThread
+          :messages="messages"
+          :has-more-older="hasMoreOlder"
+          :on-load-older="loadOlderMessages"
+          viewer-role="RESIDENT"
+          attachment-base-path="/my-chat/attachments"
+          :on-send="onSend"
+        />
+      </template>
     </Card>
   </div>
 </template>
