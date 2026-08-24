@@ -1,7 +1,13 @@
 <script setup lang="ts">
+import { useRouter } from 'vue-router'
+import { ArrowLeft } from 'lucide-vue-next'
+import { Button } from '@/components/ui/button'
 import EntityTable from '@/components/EntityTable.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import { fetchFacetValues, fetchPassports, type Passport } from '@/lib/passport-api'
+import { goBack } from '@/lib/utils'
+
+const router = useRouter()
 
 const columnLabels: Record<string, string> = {
   fullName: 'ФИО',
@@ -46,7 +52,15 @@ const columns = columnHelper.columns([
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-1 flex-col p-4 md:p-6">
+  <div class="flex min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
+    <div class="flex items-center gap-2">
+      <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
+        <ArrowLeft class="text-primary" />
+        <span class="sr-only">Назад</span>
+      </Button>
+      <h1 class="text-lg font-medium">Паспортные данные</h1>
+    </div>
+
     <EntityTable
       :columns="columns"
       :column-labels="columnLabels"

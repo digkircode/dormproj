@@ -78,6 +78,7 @@ export class MyContractController {
         endDate: contractFields.endDate,
         actualEndDate: contractFields.actualEndDate,
         status: contractFields.status,
+        createdAt: contractFields.createdAt,
         currentRoom: roomAssignments.find((a) => a.toDate === null)?.room ?? roomAssignments[0]?.room ?? null,
         penaltyAmount: Number(penaltyAmount),
         penaltyPaid: Number(penaltyPaid),

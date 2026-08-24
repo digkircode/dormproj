@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ExternalLink, Plus } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import { ArrowLeft, ExternalLink, Plus } from 'lucide-vue-next'
 import EntityTable from '@/components/EntityTable.vue'
 import CreateIndividualDialog from '@/components/CreateIndividualDialog.vue'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createAppColumnHelper } from '@/lib/table'
 import { fetchFacetValues, fetchIndividuals, type Individual } from '@/lib/individuals-api'
+import { goBack } from '@/lib/utils'
+
+const router = useRouter()
 
 const columnLabels: Record<string, string> = {
   fullName: 'ФИО',
@@ -45,7 +49,15 @@ const createDialogRef = ref<InstanceType<typeof CreateIndividualDialog> | null>(
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-1 flex-col p-4 md:p-6">
+  <div class="flex min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
+    <div class="flex items-center gap-2">
+      <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
+        <ArrowLeft class="text-primary" />
+        <span class="sr-only">Назад</span>
+      </Button>
+      <h1 class="text-lg font-medium">Физические лица</h1>
+    </div>
+
     <EntityTable
       :columns="columns"
       :column-labels="columnLabels"

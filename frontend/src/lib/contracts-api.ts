@@ -113,6 +113,7 @@ export interface MyContractDetail {
   endDate: string
   actualEndDate: string | null
   status: ContractStatus
+  createdAt: string
   currentRoom: { id: number; room: string } | null
   penaltyAmount: number
   penaltyPaid: number
@@ -251,6 +252,29 @@ export async function downloadContractDocument(id: number, contractNumber: strin
   const link = document.createElement('a')
   link.href = url
   link.download = `Договор №${contractNumber}.docx`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+// Массовая печать — ZIP с отдельным .docx на каждый выбранный договор (тот же бланк,
+// что и у printContractDocument, см. contracts.controller.ts#printBatch), не единый файл.
+export async function printContractsBatch(ids: number[]): Promise<void> {
+  const response = await apiFetch('/contracts/print-batch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  })
+  if (!response.ok) {
+    const body: { message?: string } = await response.json().catch(() => ({}))
+    throw new Error(body.message ?? `Не удалось сформировать договоры (${response.status})`)
+  }
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'Договоры.zip'
   document.body.appendChild(link)
   link.click()
   link.remove()

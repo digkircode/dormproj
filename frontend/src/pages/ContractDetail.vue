@@ -2,7 +2,6 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  AlertTriangle,
   ArrowDown,
   ArrowLeft,
   ArrowUp,
@@ -16,6 +15,7 @@ import {
   History,
   Home,
   MoreVertical,
+  Percent,
   Plus,
   Printer,
   Receipt,
@@ -48,6 +48,7 @@ import {
 } from '@/lib/contracts-api'
 import { createPayment, reversePayment } from '@/lib/billing-api'
 import { fetchDormitoryInfo, type DormitoryInfo } from '@/lib/dormitory-info-api'
+import { getContractDisplayStatus } from '@/lib/contracts-format'
 import { blockNonNumericKeys, goBack } from '@/lib/utils'
 import { breadcrumbOverride } from '@/lib/breadcrumb-state'
 
@@ -102,6 +103,11 @@ const dormInfo = ref<DormitoryInfo | null>(null)
 onMounted(async () => {
   dormInfo.value = await fetchDormitoryInfo()
 })
+
+// Тот же вычисляемый бакет "Истекает" (ACTIVE + endDate в пределах 30 дней), что и в
+// списке договоров/Финансовом отчёте (см. contracts-format.ts) — на карточке договора
+// раньше в пилюлю уходил сырой contract.status, EXPIRING никогда не показывался.
+const displayStatus = computed(() => (contract.value ? getContractDisplayStatus(contract.value.status, contract.value.endDate) : null))
 
 // Пеня — единая сумма на договор (не входит в accrual.balance, см. penalty-balance.ts на
 // бэке) — добавляем её отдельно, иначе общий баланс не совпадал бы с реальным долгом.
@@ -321,7 +327,11 @@ async function confirmReversePayment() {
         <span class="sr-only">Назад</span>
       </Button>
       <h1 class="text-lg font-medium">{{ contract ? `Договор № ${contract.number}` : 'Договор' }}</h1>
-      <ContractStatusPill v-if="contract" :status="contract.status" />
+      <ContractStatusPill v-if="displayStatus" :status="displayStatus" />
+      <span v-if="contract" class="ml-auto flex items-center gap-1.5 text-sm text-muted-foreground">
+        <History class="size-4 shrink-0 text-primary" />
+        Создан {{ formatDate(contract.createdAt) }}
+      </span>
     </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
@@ -378,10 +388,6 @@ async function confirmReversePayment() {
               <CalendarRange class="size-4 shrink-0 text-primary" />
               {{ formatDate(contract.startDate) }} — {{ formatDate(contract.actualEndDate ?? contract.endDate) }}
             </span>
-            <span class="ml-auto flex items-center gap-1.5 text-muted-foreground">
-              <History class="size-4 shrink-0 text-primary" />
-              Создан {{ formatDate(contract.createdAt) }}
-            </span>
           </div>
 
           <div class="grid grid-cols-5 gap-4 border-t pt-4">
@@ -426,11 +432,11 @@ async function confirmReversePayment() {
               </div>
             </div>
             <div class="flex items-center gap-3">
-              <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-red-100 dark:bg-red-500/15">
-                <AlertTriangle class="size-5 text-red-600 dark:text-red-400" />
+              <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-500/15">
+                <Percent class="size-5 text-orange-600 dark:text-orange-400" />
               </div>
               <div>
-                <p class="text-xs text-muted-foreground">Пеня</p>
+                <p class="text-xs text-muted-foreground">Пени</p>
                 <p class="text-lg font-medium" :class="contract.penaltyBalance > 0 ? 'text-red-500' : ''">
                   {{ formatMoney(contract.penaltyBalance) }}
                 </p>

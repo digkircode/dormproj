@@ -111,25 +111,25 @@ useChatStream('/my-chat/stream', refreshResidentUnread, hasResidentRole)
 // что у navStudent выше).
 const navMain = computed(() => [
   {
-    title: 'Физические лица',
-    url: '/individuals',
-    icon: User,
-  },
-  {
-    title: 'Комнаты',
-    url: '/rooms',
-    icon: DoorOpen,
-  },
-  {
     title: 'Договоры',
     url: '/contracts',
     icon: FileText,
+  },
+  {
+    title: 'Физические лица',
+    url: '/individuals',
+    icon: User,
   },
   {
     title: 'Чаты',
     url: '/chats',
     icon: MessageCircle,
     badge: hasUnreadStaffChats.value,
+  },
+  {
+    title: 'Комнаты',
+    url: '/rooms',
+    icon: DoorOpen,
   },
   {
     title: 'Отчёты',
@@ -152,17 +152,6 @@ const data = {
     },
   ],
   projects: [
-    {
-      name: 'Системные таблицы',
-      icon: Table2,
-      items: [
-        { title: 'Контингент', url: '/students' },
-        { title: 'Гражданство', url: '/system-tables/citizenship' },
-        { title: 'Контактная информация', url: '/system-tables/contact-info' },
-        { title: 'Паспортные данные', url: '/system-tables/passport-data' },
-        { title: 'Характеристики комнат', url: '/room-characteristics' },
-      ],
-    },
     { name: 'Синхронизация', url: '/sync', icon: RefreshCw },
     { name: 'История изменений', url: '/audit-log', icon: History },
     {
@@ -172,6 +161,17 @@ const data = {
         { title: 'Список пользователей', url: '/users-all' },
         { title: 'Сотрудники', url: '/users' },
         { title: 'Роли', url: '/roles' },
+      ],
+    },
+    {
+      name: 'Системные таблицы',
+      icon: Table2,
+      items: [
+        { title: 'Контингент студентов', url: '/students' },
+        { title: 'Гражданство', url: '/system-tables/citizenship' },
+        { title: 'Контактная информация', url: '/system-tables/contact-info' },
+        { title: 'Паспортные данные', url: '/system-tables/passport-data' },
+        { title: 'Характеристики комнат', url: '/room-characteristics' },
       ],
     },
   ],

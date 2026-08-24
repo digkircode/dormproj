@@ -68,6 +68,11 @@ const props = withDefaults(
     // родное поведение браузера, новая вкладка), onClick — произвольное действие
     // (открыть модалку и т.п.); передаётся ровно один.
     rowAction?: { icon: Component; label: string; getHref?: (row: TData) => string; onClick?: (row: TData) => void }
+    // Чекбоксы выбора строк (массовая печать договоров и т.п.) — по умолчанию выключены,
+    // остальные таблицы не меняются. Выбор — только в рамках текущей отрисованной страницы
+    // (см. defineModel selected ниже), не копится между страницами/фильтрами/поиском —
+    // осознанно, по прямой просьбе при обсуждении фичи 2026-08-25.
+    selectable?: boolean
     // Если задан — видимость колонок и сортировка сохраняются в localStorage под этим
     // ключом и восстанавливаются при следующем визите. Без ключа поведение как раньше.
     storageKey?: string
@@ -84,6 +89,12 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{ loaded: [rows: TData[]] }>()
+
+// Выбранные строки (только при selectable) — модель наружу, чтобы страница-владелец
+// (Contracts.vue и т.п.) сама решала, что делать с выбором (печать пачкой и т.п.).
+// Объекты строк, не просто id — вызывающей стороне сразу доступны нужные поля (номер
+// договора и т.п.) без повторного похода в исходный список.
+const selected = defineModel<TData[]>('selected', { default: () => [] })
 
 const STORAGE_PREFIX = 'entity-table:'
 
@@ -183,14 +194,20 @@ const table = useAppTable({
 // ширины <col> под table-layout:fixed (все колонки схлопываются в одинаковую ширину,
 // подтверждено замером — резерв под rowAction тоже приходится выражать долей, а не rem).
 const ROW_ACTION_UNITS = 48
+const SELECT_COLUMN_UNITS = 40
 const columnSizeVars = computed(() => {
   const headers = table.getFlatHeaders()
   const dataTotal = headers.reduce((sum, header) => sum + header.getSize(), 0) || 1
-  const totalSize = props.rowAction ? dataTotal + ROW_ACTION_UNITS : dataTotal
+  let totalSize = dataTotal
+  if (props.selectable) totalSize += SELECT_COLUMN_UNITS
+  if (props.rowAction) totalSize += ROW_ACTION_UNITS
   const vars: Record<string, string> = {}
   for (const header of headers) {
     const fraction = header.getSize() / totalSize
     vars[`--col-${header.column.id}-size`] = `calc(100% * ${fraction})`
+  }
+  if (props.selectable) {
+    vars['--col-select-size'] = `calc(100% * ${SELECT_COLUMN_UNITS / totalSize})`
   }
   if (props.rowAction) {
     vars['--col-row-action-size'] = `calc(100% * ${ROW_ACTION_UNITS / totalSize})`
@@ -213,12 +230,35 @@ async function loadPage() {
     })
     rows.value = page.data
     total.value = page.total
+    // Выбор — только в рамках уже показанной страницы (см. selectable выше), поэтому
+    // сбрасывается при любой перезагрузке данных: смена страницы, сортировки, поиска,
+    // фильтра — вместе с самими rows, откуда он и набирался.
+    selected.value = []
     emit('loaded', page.data)
   } catch (error) {
     errorText.value = error instanceof Error ? error.message : String(error)
   } finally {
     isLoading.value = false
   }
+}
+
+// --- Выбор строк чекбоксами (только при selectable, см. проп выше) ---
+function isRowSelected(row: TData): boolean {
+  const id = props.getRowId(row)
+  return selected.value.some((r) => props.getRowId(r) === id)
+}
+function toggleRow(row: TData, checked: boolean) {
+  if (checked) {
+    if (!isRowSelected(row)) selected.value = [...selected.value, row]
+  } else {
+    const id = props.getRowId(row)
+    selected.value = selected.value.filter((r) => props.getRowId(r) !== id)
+  }
+}
+const allRowsSelected = computed(() => rows.value.length > 0 && rows.value.every(isRowSelected))
+const someRowsSelected = computed(() => !allRowsSelected.value && rows.value.some(isRowSelected))
+function toggleAllRows(checked: boolean) {
+  selected.value = checked ? [...rows.value] : []
 }
 
 // Клик по полю в "Добавить фильтр" (новое поле) или по уже существующему чипу
@@ -450,11 +490,20 @@ defineExpose({ refresh: loadPage })
                  в строках уже есть реальные ячейки — колонки визуально "прыгают". colgroup
                  задаёт ширины явно и не зависит от содержимого строк вообще. -->
             <colgroup>
+              <col v-if="selectable" :style="{ width: 'var(--col-select-size)' }" />
               <col v-for="header in table.getFlatHeaders()" :key="header.id" :style="{ width: `var(--col-${header.column.id}-size)` }" />
               <col v-if="rowAction" :style="{ width: 'var(--col-row-action-size)' }" />
             </colgroup>
             <TableHeader class="bg-muted sticky top-0 z-10">
               <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+                <TableHead v-if="selectable" class="p-2 text-center" :style="{ width: 'var(--col-select-size)' }">
+                  <Checkbox
+                    :model-value="allRowsSelected ? true : someRowsSelected ? 'indeterminate' : false"
+                    :disabled="!rows.length"
+                    aria-label="Выбрать все строки на странице"
+                    @update:model-value="(checked) => toggleAllRows(!!checked)"
+                  />
+                </TableHead>
                 <TableHead
                   v-for="header in headerGroup.headers"
                   :key="header.id"
@@ -505,6 +554,13 @@ defineExpose({ refresh: loadPage })
             <TableBody>
               <template v-if="table.getRowModel().rows.length">
                 <TableRow v-for="row in table.getRowModel().rows" :key="row.id">
+                  <TableCell v-if="selectable" class="p-2 text-center" :style="{ width: 'var(--col-select-size)' }">
+                    <Checkbox
+                      :model-value="isRowSelected(row.original)"
+                      aria-label="Выбрать строку"
+                      @update:model-value="(checked) => toggleRow(row.original, !!checked)"
+                    />
+                  </TableCell>
                   <TableCell
                     v-for="cell in row.getVisibleCells()"
                     :key="cell.id"
@@ -539,7 +595,10 @@ defineExpose({ refresh: loadPage })
                 </TableRow>
               </template>
               <TableRow v-else>
-                <TableCell :colspan="rowAction ? columns.length + 1 : columns.length" class="h-24 text-center text-muted-foreground">
+                <TableCell
+                  :colspan="columns.length + (selectable ? 1 : 0) + (rowAction ? 1 : 0)"
+                  class="h-24 text-center text-muted-foreground"
+                >
                   {{ isLoading ? 'Загрузка…' : 'Ничего не найдено' }}
                 </TableCell>
               </TableRow>

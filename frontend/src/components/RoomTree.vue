@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import { Building2, ChevronRight, DoorClosed, Layers, Plus } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import { ArrowLeft, Building2, ChevronRight, DoorClosed, Layers, Plus } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import SearchSelect from '@/components/SearchSelect.vue'
 import type { RoomTreeItem } from '@/lib/rooms-api'
+import { goBack } from '@/lib/utils'
+
+const router = useRouter()
 
 const props = defineProps<{
   items: RoomTreeItem[]
@@ -79,7 +83,13 @@ watch(
     <!-- h-14 + border-b — та же высота и кегль, что и заголовок карточки комнаты
          справа (RoomDetailPanel.vue), чтобы обе панели выглядели единой парой. -->
     <div class="flex h-14 shrink-0 items-center justify-between border-b px-4">
-      <h2 class="text-lg font-medium">Комнаты</h2>
+      <div class="flex items-center gap-2">
+        <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
+          <ArrowLeft class="text-primary" />
+          <span class="sr-only">Назад</span>
+        </Button>
+        <h2 class="text-lg font-medium">Комнаты</h2>
+      </div>
       <Tooltip>
         <TooltipTrigger as-child>
           <Button size="icon" variant="outline" class="size-7" @click="emit('create')">

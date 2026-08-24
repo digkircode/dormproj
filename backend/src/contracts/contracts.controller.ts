@@ -13,6 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import archiver from 'archiver';
 import { z } from 'zod';
 import { Prisma } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
@@ -642,9 +643,10 @@ export class ContractsController {
   // подписания. Для договоров, созданных до этой фичи (residentSnapshot ещё пуст) —
   // best-effort снимок из ТЕКУЩИХ данных физлица строится один раз здесь же и сохраняется,
   // дальше уже не пересчитывается (см. resident-snapshot.ts).
-  @Get(':id/document')
-  async document(@Param('id') idParam: string, @Res() res: Response) {
-    const id = parseIdParam(idParam);
+  // Общая часть печати одного договора — вынесена из document() ниже, чтобы print-batch()
+  // (печать пачкой, см. ниже) переиспользовала ровно ту же сборку данных бланка, а не
+  // держала вторую копию рядом.
+  private async renderContractDocumentBuffer(id: number): Promise<{ buffer: Buffer; number: string }> {
     let contract = await this.prisma.contract.findUnique({
       where: { id },
       include: { terms: { orderBy: { validFrom: 'asc' }, take: 1 }, roomAssignments: { orderBy: { fromDate: 'asc' }, take: 1, include: { room: true } } },
@@ -683,13 +685,62 @@ export class ContractsController {
       buildDocumentData(contract, resident, terms, room, dormitoryInfo?.communalServicesCost ?? null),
     );
 
+    return { buffer, number: contract.number };
+  }
+
+  @Get(':id/document')
+  async document(@Param('id') idParam: string, @Res() res: Response) {
+    const id = parseIdParam(idParam);
+    const { buffer, number } = await this.renderContractDocumentBuffer(id);
+
     // Content-Disposition — только Latin1/ASCII в filename=, иначе Node бросает
     // ERR_INVALID_CHAR (номер договора может содержать кириллицу/что угодно) —
     // ASCII-заглушка в filename= + правильно закодированное имя в filename* (RFC 5987/6266).
-    const asciiFallback = `contract-${contract.number}.docx`.replace(/[^\x20-\x7E]/g, '_');
-    const utf8Name = encodeURIComponent(`Договор № ${contract.number}.docx`);
+    const asciiFallback = `contract-${number}.docx`.replace(/[^\x20-\x7E]/g, '_');
+    const utf8Name = encodeURIComponent(`Договор № ${number}.docx`);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', `attachment; filename="${asciiFallback}"; filename*=UTF-8''${utf8Name}`);
     res.send(buffer);
+  }
+
+  // Массовая печать — выбранные на фронте (только текущая страница списка, см.
+  // Contracts.vue) договоры пачкой, каждый как отдельный .docx (тот же бланк, что и при
+  // печати по одному) внутри одного ZIP. Осознанно не единый .docx на все договоры —
+  // склейка нескольких docxtemplater-документов в один не поддерживается используемым
+  // стеком без хрупких обходов (ломает разрывы страниц/колонтитулы), см. обсуждение с
+  // пользователем при добавлении фичи 2026-08-25.
+  @Post('print-batch')
+  async printBatch(@Body() body: unknown, @Res() res: Response) {
+    const { ids } = z.object({ ids: z.array(z.number().int().positive()).min(1).max(200) }).parse(body);
+
+    // Существование всех id проверяем ДО того, как начнём стримить ZIP — заголовки/тело
+    // ответа уже нельзя было бы превратить в ошибку после archive.pipe(res).
+    const existingCount = await this.prisma.contract.count({ where: { id: { in: ids } } });
+    if (existingCount !== ids.length) {
+      throw new NotFoundException('Один или несколько договоров не найдены');
+    }
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', 'attachment; filename="contracts.zip"');
+
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    archive.pipe(res);
+
+    // Имя файла в архиве — по номеру договора, с дедупликацией: number не имеет
+    // unique-constraint в схеме, два совпадающих номера иначе схлопнулись бы в один файл.
+    const usedNames = new Set<string>();
+    for (const id of ids) {
+      const { buffer, number } = await this.renderContractDocumentBuffer(id);
+      let name = `Договор № ${number}.docx`;
+      let suffix = 2;
+      while (usedNames.has(name)) {
+        name = `Договор № ${number} (${suffix}).docx`;
+        suffix += 1;
+      }
+      usedNames.add(name);
+      archive.append(buffer, { name });
+    }
+
+    await archive.finalize();
   }
 }

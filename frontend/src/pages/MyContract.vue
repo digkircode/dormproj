@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { AlertTriangle, ArrowLeft, CalendarClock, CalendarRange, FileX, Home, Receipt, Wallet } from 'lucide-vue-next'
+import { ArrowLeft, CalendarClock, CalendarRange, FileX, History, Home, Percent, Receipt, Wallet } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import ContractStatusPill from '@/components/ContractStatusPill.vue'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { fetchMyContract, type MyContractDetail } from '@/lib/contracts-api'
+import { getContractDisplayStatus } from '@/lib/contracts-format'
 import { goBack } from '@/lib/utils'
 
 // Та же граница вертикальных разделителей колонок, что и в общих таблицах приложения
@@ -39,6 +40,9 @@ onMounted(load)
 const totalBalance = computed(() =>
   contract.value ? contract.value.accruals.reduce((sum, a) => sum + a.balance, 0) + contract.value.penaltyBalance : 0,
 )
+// Тот же вычисляемый бакет "Истекает", что в ContractDetail.vue/списке договоров — см.
+// contracts-format.ts, держать в актуальном состоянии вместе с остальными местами.
+const displayStatus = computed(() => (contract.value ? getContractDisplayStatus(contract.value.status, contract.value.endDate) : null))
 const rentAmount = computed(() => contract.value?.terms[0]?.rentAmount ?? 0)
 const isDailyOnlyContract = computed(
   () => (contract.value?.terms[0]?.rentAmount ?? 0) === 0 && (contract.value?.terms[0]?.utilitiesAmount ?? 0) === 0,
@@ -61,7 +65,11 @@ function formatMoney(value: number): string {
         <span class="sr-only">Назад</span>
       </Button>
       <h1 class="text-lg font-medium">{{ contract ? `Договор № ${contract.number}` : 'Информация о договоре' }}</h1>
-      <ContractStatusPill v-if="contract" :status="contract.status" />
+      <ContractStatusPill v-if="displayStatus" :status="displayStatus" />
+      <span v-if="contract" class="ml-auto flex items-center gap-1.5 text-sm text-muted-foreground">
+        <History class="size-4 shrink-0 text-primary" />
+        Создан {{ formatDate(contract.createdAt) }}
+      </span>
     </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
@@ -119,11 +127,11 @@ function formatMoney(value: number): string {
             </div>
           </div>
           <div class="flex items-center gap-3">
-            <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-red-100 dark:bg-red-500/15">
-              <AlertTriangle class="size-5 text-red-600 dark:text-red-400" />
+            <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-500/15">
+              <Percent class="size-5 text-orange-600 dark:text-orange-400" />
             </div>
             <div>
-              <p class="text-xs text-muted-foreground">Пеня</p>
+              <p class="text-xs text-muted-foreground">Пени</p>
               <p class="text-lg font-medium" :class="contract.penaltyBalance > 0 ? 'text-red-500' : ''">
                 {{ formatMoney(contract.penaltyBalance) }}
               </p>

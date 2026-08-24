@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, ExternalLink, Plus } from 'lucide-vue-next'
+import { ArrowLeft, ExternalLink, Plus, Printer } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import EntityTable from '@/components/EntityTable.vue'
 import ContractStatusCell from '@/components/ContractStatusCell.vue'
@@ -10,9 +11,29 @@ import RoomCell from '@/components/RoomCell.vue'
 import CreateContractDialog from '@/components/CreateContractDialog.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import { goBack } from '@/lib/utils'
-import { fetchContractsPage, fetchContractFacets, type ContractListItem } from '@/lib/contracts-api'
+import { fetchContractsPage, fetchContractFacets, printContractsBatch, type ContractListItem } from '@/lib/contracts-api'
 
 const router = useRouter()
+
+// Выбор строк чекбоксами — только текущая страница списка (см. EntityTable.vue#selectable),
+// печать пачкой дёргает по одному id за раз на бэке (contracts.controller.ts#printBatch) и
+// отдаёт ZIP с отдельным .docx на каждый договор.
+const selectedContracts = ref<ContractListItem[]>([])
+const isPrinting = ref(false)
+const printError = ref('')
+async function onPrintSelected() {
+  if (!selectedContracts.value.length) return
+  printError.value = ''
+  isPrinting.value = true
+  try {
+    await printContractsBatch(selectedContracts.value.map((c) => c.id))
+    selectedContracts.value = []
+  } catch (error) {
+    printError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isPrinting.value = false
+  }
+}
 
 function formatDateIso(iso: string): string {
   const date = new Date(iso)
@@ -65,7 +86,10 @@ const createDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(nu
       <h1 class="text-lg font-medium">Договоры найма</h1>
     </div>
 
+    <p v-if="printError" class="text-sm text-red-500">{{ printError }}</p>
+
     <EntityTable
+      v-model:selected="selectedContracts"
       :columns="columns"
       :column-labels="columnLabels"
       :filterable-fields="filterableFields"
@@ -78,6 +102,7 @@ const createDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(nu
       :cell-renderers="cellRenderers"
       storage-key="contracts"
       accent-icons
+      selectable
       :row-action="{ icon: ExternalLink, label: 'Открыть договор', getHref: (c: ContractListItem) => `/contracts/${c.id}` }"
     >
       <template #actions>
@@ -90,6 +115,24 @@ const createDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(nu
           </TooltipTrigger>
           <TooltipContent>Новый договор</TooltipContent>
         </Tooltip>
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              size="icon"
+              variant="outline"
+              :disabled="!selectedContracts.length"
+              :loading="isPrinting"
+              @click="onPrintSelected"
+            >
+              <Printer :class="{ 'text-primary': selectedContracts.length }" />
+              <span class="sr-only">Распечатать выбранные договоры</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {{ selectedContracts.length ? `Распечатать выбранные (${selectedContracts.length})` : 'Выберите договоры чекбоксом' }}
+          </TooltipContent>
+        </Tooltip>
+        <Separator orientation="vertical" class="h-6" />
       </template>
     </EntityTable>
 

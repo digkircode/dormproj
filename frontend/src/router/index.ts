@@ -50,7 +50,7 @@ const router = createRouter({
     // Свой договор — тот же гейт, что у чата (см. sectionAllowed ниже): доступ по
     // individualUid из сессии на бэке (my-contract.controller.ts), без :id в маршруте.
     { path: '/student/contract', name: 'student-contract', component: MyContract, meta: { title: 'Информация о договоре', section: 'resident' } },
-    { path: '/students', name: 'students', component: Students, meta: { title: 'Контингент', section: 'admin' } },
+    { path: '/students', name: 'students', component: Students, meta: { title: 'Контингент студентов', section: 'admin' } },
     { path: '/sync', name: 'sync', component: Sync, meta: { title: 'Синхронизация', section: 'admin' } },
     {
       path: '/sync/:slug/logs',
