@@ -7,6 +7,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  Query,
   Req,
   ServiceUnavailableException,
   UseGuards,
@@ -44,6 +45,7 @@ type PaymentIntentWithContract = Prisma.PaymentIntentGetPayload<{ include: { con
 // Телефон убран из формы (по прямой просьбе 2026-08-25) — только email, обязателен.
 const createIntentSchema = z
   .object({
+    contractId: z.number().int().positive().nullish(),
     accrualIds: z.array(z.number().int().positive()).default([]),
     includePenalty: z.boolean().default(false),
     customAmount: z.number().positive().nullish(),
@@ -127,9 +129,12 @@ export class MyPaymentsController {
     return emailContact?.email || null;
   }
 
-  private async findResidentContract(individualUid: string) {
+  // contractId — явный выбор из переключателя договоров (см. my-contract.controller.ts#myContracts,
+  // тот же принцип multi-contract, добавлено 2026-08-25); без него — самый свежий, как раньше.
+  // Принадлежность resident'у проверяется прямо в where.
+  private async findResidentContract(individualUid: string, contractId?: number) {
     const contract = await this.prisma.contract.findFirst({
-      where: { residentIndividualUid: individualUid },
+      where: contractId ? { id: contractId, residentIndividualUid: individualUid } : { residentIndividualUid: individualUid },
       orderBy: { contractDate: 'desc' },
       include: {
         resident: { select: { fullName: true } },
@@ -139,16 +144,28 @@ export class MyPaymentsController {
         },
         payments: true,
         penaltyLogs: true,
+        roomAssignments: { orderBy: { fromDate: 'desc' }, include: { room: { select: { room: true } } } },
       },
     });
     return contract;
   }
 
+  private resolveRoomNumber(roomAssignments: { toDate: Date | null; room: { room: string } }[]): string | null {
+    return (roomAssignments.find((a) => a.toDate === null) ?? roomAssignments[0])?.room.room ?? null;
+  }
+
+  private parseContractId(contractIdParam: string | undefined): number | undefined {
+    if (contractIdParam === undefined) return undefined;
+    const id = Number.parseInt(contractIdParam, 10);
+    if (!Number.isInteger(id)) throw new BadRequestException('Некорректный contractId');
+    return id;
+  }
+
   @Get()
-  async myPayments(@Req() req: Request) {
+  async myPayments(@Query('contractId') contractIdParam: string | undefined, @Req() req: Request) {
     if (!req.user) throw new BadRequestException('Не удалось определить пользователя сессии');
     const individualUid = await this.resolveIndividualUid(req.user.id);
-    const contract = await this.findResidentContract(individualUid);
+    const contract = await this.findResidentContract(individualUid, this.parseContractId(contractIdParam));
     if (!contract) return { contract: null };
 
     const openAccruals = contract.accruals
@@ -173,6 +190,7 @@ export class MyPaymentsController {
         id: contract.id,
         number: contract.number,
         residentFullName: contract.resident.fullName,
+        roomNumber: this.resolveRoomNumber(contract.roomAssignments),
       },
       openAccruals,
       penaltyBalance: Number(penaltyBalance),
@@ -198,7 +216,7 @@ export class MyPaymentsController {
     }
 
     const individualUid = await this.resolveIndividualUid(req.user.id);
-    const contract = await this.findResidentContract(individualUid);
+    const contract = await this.findResidentContract(individualUid, input.contractId ?? undefined);
     if (!contract) throw new NotFoundException('Действующего договора не найдено');
 
     // Правка email прямо из формы оплаты — пишем в Individual.email, он и есть основной

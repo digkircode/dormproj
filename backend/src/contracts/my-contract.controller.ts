@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -32,19 +32,43 @@ export class MyContractController {
     return user.univerId;
   }
 
-  // Самый свежий по дате договор этого проживающего — независимо от статуса (в отличие от
-  // шапки чата/сотруднического resident-info, где нужен именно ДЕЙСТВУЮЩИЙ договор для
-  // быстрого контекста диалога). Здесь это отдельная страница "Информация о договоре" —
-  // расторгнутый договор для резидента тоже осмысленная информация, не только активный.
-  @Get()
-  async myContract(@Req() req: Request) {
+  // Список ВСЕХ договоров проживающего (может быть больше одного одновременно — новый
+  // договор не обязан ждать окончания предыдущего, см. schema.prisma: у Contract нет
+  // uniqueness по residentIndividualUid) — питает переключатель договора на карточке
+  // (MyContract.vue) и в модалке оплаты (CreatePaymentDialog.vue), добавлено 2026-08-25.
+  @Get('list')
+  async myContracts(@Req() req: Request) {
     if (!req.user) {
       throw new BadRequestException('Не удалось определить пользователя сессии');
     }
     const individualUid = await this.resolveIndividualUid(req.user.id);
+    const contracts = await this.prisma.contract.findMany({
+      where: { residentIndividualUid: individualUid },
+      orderBy: { contractDate: 'desc' },
+      select: { id: true, number: true, status: true, contractDate: true, endDate: true },
+    });
+    return { contracts };
+  }
+
+  // Самый свежий по дате договор этого проживающего — независимо от статуса (в отличие от
+  // шапки чата/сотруднического resident-info, где нужен именно ДЕЙСТВУЮЩИЙ договор для
+  // быстрого контекста диалога). Здесь это отдельная страница "Договор/Платежи" — расторгнутый
+  // договор для резидента тоже осмысленная информация, не только активный. contractId — явный
+  // выбор из переключателя (см. myContracts выше); без него — поведение как раньше (самый
+  // свежий). Принадлежность resident'у проверяется прямо в where — чужой id просто не найдётся.
+  @Get()
+  async myContract(@Query('contractId') contractIdParam: string | undefined, @Req() req: Request) {
+    if (!req.user) {
+      throw new BadRequestException('Не удалось определить пользователя сессии');
+    }
+    const individualUid = await this.resolveIndividualUid(req.user.id);
+    const contractId = contractIdParam ? Number.parseInt(contractIdParam, 10) : undefined;
+    if (contractIdParam !== undefined && !Number.isInteger(contractId)) {
+      throw new BadRequestException('Некорректный contractId');
+    }
 
     const contract = await this.prisma.contract.findFirst({
-      where: { residentIndividualUid: individualUid },
+      where: contractId ? { id: contractId, residentIndividualUid: individualUid } : { residentIndividualUid: individualUid },
       orderBy: { contractDate: 'desc' },
       include: {
         terms: { orderBy: { validFrom: 'desc' } },

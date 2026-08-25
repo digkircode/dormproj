@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 import type { SidebarProps } from '@/components/ui/sidebar'
+import { ref } from 'vue'
 import {
   BarChart3,
   Users,
@@ -13,12 +14,14 @@ import {
   Info,
   MessageCircle,
   FileSignature,
+  CreditCard,
 } from 'lucide-vue-next'
 import NavStudent from '@/components/NavStudent.vue'
 import NavMain from '@/components/NavMain.vue'
 import NavProjects from '@/components/NavProjects.vue'
 import NavUser from '@/components/NavUser.vue'
 import TeamSwitcher from '@/components/TeamSwitcher.vue'
+import CreatePaymentDialog from '@/components/CreatePaymentDialog.vue'
 import { currentUser } from '@/lib/auth-state'
 import { useChatStream } from '@/lib/chat-stream'
 import { fetchConversations, fetchMyChatUnread } from '@/lib/chat-api'
@@ -29,8 +32,13 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
   SidebarRail,
 } from '@/components/ui/sidebar'
+
+const paymentDialog = ref<InstanceType<typeof CreatePaymentDialog> | null>(null)
 
 const props = withDefaults(defineProps<SidebarProps>(), {
   collapsible: 'icon',
@@ -75,7 +83,7 @@ const navStudent = computed(() => [
   },
   ...(canSeeResidentChat.value
     ? [
-        { title: 'Информация о договоре', url: '/student/contract', icon: FileSignature },
+        { title: 'Договор/Платежи', url: '/student/contract', icon: FileSignature },
         // "Оплата" (/student/payment) скрыта из навигации по прямой просьбе 2026-08-25 —
         // создание платежа теперь модалкой на карточке договора (см. CreatePaymentDialog.vue),
         // сам роут не удалён — нужен как returnUrl-цель после редиректа из банка
@@ -151,7 +159,7 @@ const navMain = computed(() => [
 const data = {
   teams: [
     {
-      name: 'RosNOU',
+      name: 'РосНОУ',
       plan: 'Общежитие',
     },
   ],
@@ -186,6 +194,22 @@ const data = {
   <Sidebar v-bind="props">
     <SidebarHeader>
       <TeamSwitcher :teams="data.teams" />
+      <!-- Тонкая кнопка "Оплатить" прямо под РосНОУ/Общежитие — по прямой просьбе
+           2026-08-25, делает ровно то же, что кнопка на карточке договора (открывает
+           ту же модалку, contractId не передаём — дефолт "самый свежий договор"). -->
+      <SidebarMenu v-if="canSeeResidentChat">
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            size="sm"
+            class="justify-center bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
+            @click="paymentDialog?.open()"
+          >
+            <CreditCard class="size-4" />
+            <span>Оплатить</span>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+      <CreatePaymentDialog ref="paymentDialog" />
     </SidebarHeader>
     <SidebarContent>
       <NavStudent :items="navStudent" />

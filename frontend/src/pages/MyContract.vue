@@ -6,6 +6,7 @@ import {
   CalendarClock,
   CalendarRange,
   Check,
+  ChevronDown,
   Clock,
   CreditCard,
   ExternalLink,
@@ -19,12 +20,13 @@ import {
 } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import ContractStatusPill from '@/components/ContractStatusPill.vue'
 import CreatePaymentDialog from '@/components/CreatePaymentDialog.vue'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { fetchMyContract, type MyContractDetail } from '@/lib/contracts-api'
-import { getContractDisplayStatus } from '@/lib/contracts-format'
+import { fetchMyContract, fetchMyContracts, type MyContractDetail, type MyContractSummary } from '@/lib/contracts-api'
+import { getContractDisplayStatus, STATUS_LABELS as CONTRACT_STATUS_LABELS } from '@/lib/contracts-format'
 import { fetchMyPayments, type PaymentIntentRow, type PaymentIntentStatus } from '@/lib/my-payments-api'
 import { goBack } from '@/lib/utils'
 
@@ -58,6 +60,12 @@ const contract = ref<MyContractDetail | null>(null)
 const isLoading = ref(true)
 const loadError = ref('')
 
+// У одного человека может быть больше одного договора одновременно (новый не ждёт
+// окончания предыдущего, см. schema.prisma) — переключатель по клику на "Договор № …"
+// (по прямой просьбе 2026-08-25). Без выбора — самый свежий, как и раньше.
+const contracts = ref<MyContractSummary[]>([])
+const selectedContractId = ref<number | undefined>(undefined)
+
 // История платежей (вкладка "Платежи") — намеренно PaymentIntent (см. GET /my-payments),
 // а не леджерные Payment из contract.payments: только тут есть статус конкретной
 // попытки (в т.ч. "Не удалось") и ссылка на чек — перенесено сюда со страницы
@@ -68,14 +76,15 @@ async function load() {
   isLoading.value = true
   loadError.value = ''
   try {
-    contract.value = await fetchMyContract()
+    contract.value = await fetchMyContract(selectedContractId.value)
+    if (!selectedContractId.value && contract.value) selectedContractId.value = contract.value.id
   } catch (error) {
     loadError.value = error instanceof Error ? error.message : String(error)
   } finally {
     isLoading.value = false
   }
   try {
-    const payments = await fetchMyPayments()
+    const payments = await fetchMyPayments(selectedContractId.value)
     paymentHistory.value = payments.history
   } catch {
     // Тихо игнорируем — основная карточка договора важнее, вкладка "Платежи" просто
@@ -83,7 +92,20 @@ async function load() {
   }
 }
 
-onMounted(load)
+async function switchContract(id: number) {
+  selectedContractId.value = id
+  await load()
+}
+
+onMounted(async () => {
+  await load()
+  try {
+    contracts.value = await fetchMyContracts()
+  } catch {
+    // Переключатель просто не появится (единственный видимый договор без выбора) —
+    // основная карточка уже загружена выше и от этого списка не зависит.
+  }
+})
 
 const paymentDialog = ref<InstanceType<typeof CreatePaymentDialog> | null>(null)
 
@@ -114,9 +136,22 @@ function formatMoney(value: number): string {
         <ArrowLeft class="text-primary" />
         <span class="sr-only">Назад</span>
       </Button>
-      <h1 class="text-lg font-medium">{{ contract ? `Договор № ${contract.number}` : 'Информация о договоре' }}</h1>
+      <DropdownMenu v-if="contract && contracts.length > 1">
+        <DropdownMenuTrigger as-child>
+          <button type="button" class="flex items-center gap-1 text-lg font-medium hover:text-primary">
+            Договор № {{ contract.number }}
+            <ChevronDown class="size-4 shrink-0 text-muted-foreground" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuItem v-for="c in contracts" :key="c.id" :class="c.id === selectedContractId ? 'font-medium' : ''" @click="switchContract(c.id)">
+            № {{ c.number }} — {{ CONTRACT_STATUS_LABELS[getContractDisplayStatus(c.status, c.endDate)] }}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <h1 v-else class="text-lg font-medium">{{ contract ? `Договор № ${contract.number}` : 'Договор/Платежи' }}</h1>
       <ContractStatusPill v-if="displayStatus" :status="displayStatus" />
-      <Button v-if="contract" size="sm" class="ml-2 flex items-center gap-2" @click="paymentDialog?.open()">
+      <Button v-if="contract" size="sm" class="ml-2 flex items-center gap-2" @click="paymentDialog?.open(contract!.id)">
         <CreditCard class="size-4 shrink-0" />
         Оплатить
       </Button>
@@ -276,6 +311,18 @@ function formatMoney(value: number): string {
                         Открыть
                         <ExternalLink class="size-3.5" />
                       </a>
+                      <!-- Заглушка: реального чека ещё нет (касса не подключена), но кнопка
+                           уже на месте — по прямой просьбе 2026-08-25 (реальный PDF отдаст
+                           сам ОФД/platformaofd.ru после подключения, свой макет не делаем). -->
+                      <button
+                        v-else-if="row.status === 'SUCCEEDED'"
+                        type="button"
+                        class="flex items-center gap-1 text-primary hover:underline"
+                        title="Заглушка — после подключения кассы здесь будет ссылка на чек от ОФД"
+                      >
+                        Открыть
+                        <ExternalLink class="size-3.5" />
+                      </button>
                       <span v-else class="text-muted-foreground">—</span>
                     </TableCell>
                   </TableRow>

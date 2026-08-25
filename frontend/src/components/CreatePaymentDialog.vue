@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { AlertTriangle, ChevronDown, CreditCard, Percent } from 'lucide-vue-next'
+import { AlertTriangle, ChevronDown, CreditCard, Home, Percent } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -13,6 +14,8 @@ import {
   type MyPaymentsData,
   type OpenAccrualRow,
 } from '@/lib/my-payments-api'
+import { fetchMyContracts, type MyContractSummary } from '@/lib/contracts-api'
+import { getContractDisplayStatus, STATUS_LABELS as CONTRACT_STATUS_LABELS } from '@/lib/contracts-format'
 import { isValidEmailFormat } from '@/lib/utils'
 
 const DIALOG_ANIMATE_CLASS =
@@ -25,6 +28,11 @@ const isDialogOpen = ref(false)
 const isLoading = ref(true)
 const loadError = ref('')
 const data = ref<MyPaymentsData | null>(null)
+
+// Несколько договоров на одного проживающего одновременно — переключатель, тот же
+// принцип, что и на карточке договора (MyContract.vue), добавлено 2026-08-25.
+const contracts = ref<MyContractSummary[]>([])
+const selectedContractId = ref<number | undefined>(undefined)
 
 function monthLabel(periodStart: string): string {
   return new Date(periodStart).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })
@@ -91,7 +99,34 @@ const canSubmit = computed(() => {
 const isSubmitting = ref(false)
 const submitError = ref('')
 
-async function open() {
+// Начисления сортируются от самого раннего к самому позднему (см. GET /my-payments) —
+// по умолчанию выбирается ПЕРВОЕ непогашенное (не последнее — по прямой просьбе
+// 2026-08-25, платёж должен закрывать долг по порядку, как и реальная разноска FIFO,
+// см. allocatePaymentFifo). Остаток по нему уже учитывает частичные платежи (balance =
+// total - сумма allocations, см. serializeAccrual) — не полную стоимость комнаты.
+async function loadPaymentsData(contractId: number | undefined) {
+  isLoading.value = true
+  loadError.value = ''
+  try {
+    data.value = await fetchMyPayments(contractId)
+    selectedContractId.value = data.value.contract?.id
+    const firstUnpaid = data.value.openAccruals[0]
+    selectedAccrualIds.value = firstUnpaid ? [firstUnpaid.id] : []
+    includePenalty.value = false
+    accrualPickerOpen.value = false
+    payerEmail.value = data.value.payerEmail ?? ''
+  } catch (error) {
+    loadError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+async function switchContract(id: number) {
+  await loadPaymentsData(id)
+}
+
+async function open(contractId?: number) {
   amountMode.value = 'select'
   selectedAccrualIds.value = []
   includePenalty.value = false
@@ -102,22 +137,14 @@ async function open() {
   payerEmail.value = ''
   submitAttempted.value = false
   submitError.value = ''
-  loadError.value = ''
   isDialogOpen.value = true
 
-  isLoading.value = true
+  await loadPaymentsData(contractId)
   try {
-    data.value = await fetchMyPayments()
-    // По умолчанию выбрано только последнее (самое свежее) непогашенное начисление —
-    // не все сразу — сумма "К оплате" видна сразу при открытии модалки, но не завышена
-    // (по прямой просьбе 2026-08-25).
-    const lastUnpaid = data.value.openAccruals.at(-1)
-    selectedAccrualIds.value = lastUnpaid ? [lastUnpaid.id] : []
-    payerEmail.value = data.value.payerEmail ?? ''
-  } catch (error) {
-    loadError.value = error instanceof Error ? error.message : String(error)
-  } finally {
-    isLoading.value = false
+    contracts.value = await fetchMyContracts()
+  } catch {
+    // Переключатель просто не появится — сама форма уже загружена выше и от списка
+    // не зависит (тот же принцип, что и в MyContract.vue).
   }
 }
 defineExpose({ open })
@@ -129,6 +156,7 @@ async function submit() {
   submitError.value = ''
   try {
     const { paymentPageUrl } = await createPaymentIntent({
+      contractId: selectedContractId.value,
       accrualIds: amountMode.value === 'select' ? selectedAccrualIds.value : [],
       includePenalty: amountMode.value === 'select' ? includePenalty.value : false,
       customAmount: amountMode.value === 'custom' ? (customAmount.value ?? null) : null,
@@ -147,7 +175,7 @@ async function submit() {
 
 <template>
   <Dialog :open="isDialogOpen" @update:open="(open) => (isDialogOpen = open)">
-    <DialogScrollContent :class="['flex flex-col gap-4 sm:max-w-md', DIALOG_ANIMATE_CLASS]">
+    <DialogScrollContent :class="['flex flex-col gap-5 sm:max-w-lg', DIALOG_ANIMATE_CLASS]">
       <DialogHeader>
         <DialogTitle class="flex items-center gap-1.5">
           <CreditCard class="size-4 text-primary" />
@@ -159,11 +187,37 @@ async function submit() {
       <p v-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
 
       <template v-if="!isLoading && !loadError && data?.contract">
-        <p class="-mt-2 text-sm text-muted-foreground">
-          Договор № {{ data.contract.number }} — {{ data.contract.residentFullName }}
-        </p>
+        <div class="flex flex-col gap-2 rounded-lg border bg-muted/30 p-3">
+          <div class="flex items-center justify-between gap-2">
+            <DropdownMenu v-if="contracts.length > 1">
+              <DropdownMenuTrigger as-child>
+                <button type="button" class="flex items-center gap-1 text-sm font-medium hover:text-primary">
+                  Договор № {{ data.contract.number }}
+                  <ChevronDown class="size-3.5 shrink-0 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem
+                  v-for="c in contracts"
+                  :key="c.id"
+                  :class="c.id === selectedContractId ? 'font-medium' : ''"
+                  @click="switchContract(c.id)"
+                >
+                  № {{ c.number }} — {{ CONTRACT_STATUS_LABELS[getContractDisplayStatus(c.status, c.endDate)] }}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <span v-else class="text-sm font-medium">Договор № {{ data.contract.number }}</span>
+            <span v-if="data.contract.roomNumber" class="flex items-center gap-1 text-sm text-muted-foreground">
+              <Home class="size-3.5 shrink-0" />
+              Комната {{ data.contract.roomNumber }}
+            </span>
+          </div>
+          <p class="text-sm text-muted-foreground">{{ data.contract.residentFullName }}</p>
+        </div>
 
-        <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-3 rounded-lg border p-3">
+          <p class="text-sm font-medium">Сумма</p>
           <div class="flex w-fit items-center gap-1 rounded-md border p-0.5">
             <Button :variant="amountMode === 'select' ? 'default' : 'ghost'" size="sm" @click="amountMode = 'select'">
               Выбрать начисления
@@ -220,37 +274,33 @@ async function submit() {
           <template v-else>
             <div class="flex flex-col gap-2">
               <Label for="custom-amount">Сумма</Label>
-              <Input :class="NO_SPINNER_CLASS" id="custom-amount" v-model.number="customAmount" type="number" min="1" placeholder="0" />
+              <Input :class="NO_SPINNER_CLASS" id="custom-amount" v-model.number="customAmount" type="number" min="1" />
             </div>
           </template>
+        </div>
 
-          <div class="flex flex-col gap-3 border-t pt-4">
-            <div class="flex w-fit items-center gap-1 rounded-md border p-0.5">
-              <Button :variant="payerIsResident ? 'default' : 'ghost'" size="sm" @click="payerIsResident = true"> Я оплачиваю сам(а) </Button>
-              <Button :variant="!payerIsResident ? 'default' : 'ghost'" size="sm" @click="payerIsResident = false"> Оплачивает другой человек </Button>
-            </div>
-            <div v-if="!payerIsResident" class="flex flex-col gap-2">
-              <Label for="representative-name">ФИО плательщика</Label>
-              <Input id="representative-name" v-model="representativeFullName" placeholder="Иванова Мария Петровна" />
-            </div>
-            <div class="flex flex-col gap-2">
-              <Label for="payer-email">Email для чека</Label>
-              <Input
-                id="payer-email"
-                v-model="payerEmail"
-                type="email"
-                placeholder="mail@example.com"
-                :class="emailInvalid ? 'border-red-500' : ''"
-              />
-              <p v-if="emailInvalid" class="text-xs text-red-500">Некорректный email</p>
-            </div>
+        <div class="flex flex-col gap-3 rounded-lg border p-3">
+          <p class="text-sm font-medium">Плательщик</p>
+          <div class="flex w-fit items-center gap-1 rounded-md border p-0.5">
+            <Button :variant="payerIsResident ? 'default' : 'ghost'" size="sm" @click="payerIsResident = true"> Оплачиваю сам(а) </Button>
+            <Button :variant="!payerIsResident ? 'default' : 'ghost'" size="sm" @click="payerIsResident = false"> Оплачивает другой человек </Button>
           </div>
+          <div v-if="!payerIsResident" class="flex flex-col gap-2">
+            <Label for="representative-name">ФИО плательщика</Label>
+            <Input id="representative-name" v-model="representativeFullName" />
+          </div>
+          <div class="flex flex-col gap-2">
+            <Label for="payer-email">Email для чека</Label>
+            <Input id="payer-email" v-model="payerEmail" type="email" :class="emailInvalid ? 'border-red-500' : ''" />
+            <p v-if="emailInvalid" class="text-xs text-red-500">Некорректный email</p>
+          </div>
+        </div>
 
-          <div class="flex items-center justify-between border-t pt-4">
+        <div class="flex flex-col gap-2">
+          <div class="flex items-center justify-between">
             <span class="text-sm text-muted-foreground">К оплате</span>
             <span class="text-lg font-semibold">{{ formatMoney(finalAmount) }}</span>
           </div>
-
           <p v-if="!data.acquiringAvailable" class="flex items-center gap-1.5 text-xs text-muted-foreground">
             <AlertTriangle class="size-3.5 shrink-0 text-orange-500" />
             Оплата картой временно недоступна — эквайринг ещё не подключён.

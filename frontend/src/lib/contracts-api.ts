@@ -124,14 +124,35 @@ export interface MyContractDetail {
 }
 
 // null — у резидента вообще нет ни одного договора (не ошибка, штатный случай — страница
-// показывает соответствующее сообщение, см. MyContract.vue).
-export async function fetchMyContract(): Promise<MyContractDetail | null> {
-  const response = await apiFetch('/my-contract')
+// показывает соответствующее сообщение, см. MyContract.vue). contractId — явный выбор из
+// переключателя договоров (см. fetchMyContracts ниже, добавлено 2026-08-25 под поддержку
+// нескольких одновременных договоров на одного человека); без него — самый свежий.
+export async function fetchMyContract(contractId?: number): Promise<MyContractDetail | null> {
+  const response = await apiFetch(contractId ? `/my-contract?contractId=${contractId}` : '/my-contract')
   if (!response.ok) {
     throw new Error(`Не удалось получить данные договора (${response.status})`)
   }
   const data: { contract: MyContractDetail | null } = await response.json()
   return data.contract
+}
+
+// Краткая сводка по ВСЕМ договорам резидента (не только самому свежему) — питает
+// переключатель на карточке договора и в модалке оплаты, см. GET /my-contract/list.
+export interface MyContractSummary {
+  id: number
+  number: string
+  status: ContractStatus
+  contractDate: string
+  endDate: string
+}
+
+export async function fetchMyContracts(): Promise<MyContractSummary[]> {
+  const response = await apiFetch('/my-contract/list')
+  if (!response.ok) {
+    throw new Error(`Не удалось получить список договоров (${response.status})`)
+  }
+  const data: { contracts: MyContractSummary[] } = await response.json()
+  return data.contracts
 }
 
 export interface LegalRepPrefill {

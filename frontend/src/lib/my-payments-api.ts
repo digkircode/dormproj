@@ -21,7 +21,7 @@ export interface PaymentIntentRow {
 }
 
 export interface MyPaymentsData {
-  contract: { id: number; number: string; residentFullName: string } | null
+  contract: { id: number; number: string; residentFullName: string; roomNumber: string | null } | null
   openAccruals: OpenAccrualRow[]
   penaltyBalance: number
   acquiringAvailable: boolean
@@ -32,6 +32,7 @@ export interface MyPaymentsData {
 }
 
 export interface CreateIntentInput {
+  contractId?: number | null
   accrualIds: number[]
   includePenalty: boolean
   customAmount: number | null
@@ -45,8 +46,10 @@ async function parseError(response: Response, fallback: string): Promise<never> 
   throw new Error(body.message ?? `${fallback} (${response.status})`)
 }
 
-export async function fetchMyPayments(): Promise<MyPaymentsData> {
-  const response = await apiFetch('/my-payments')
+// contractId — явный выбор из переключателя договоров (см. contracts-api.ts#fetchMyContracts);
+// без него бэкенд берёт самый свежий.
+export async function fetchMyPayments(contractId?: number): Promise<MyPaymentsData> {
+  const response = await apiFetch(contractId ? `/my-payments?contractId=${contractId}` : '/my-payments')
   if (!response.ok) return parseError(response, 'Не удалось получить данные оплаты')
   return response.json()
 }
