@@ -381,6 +381,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
             :cell-renderers="accrualCellRenderers"
             storage-key="my-contract-accruals"
             accent-icons
+            hide-search
           />
         </TabsContent>
 
@@ -399,6 +400,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
             :cell-renderers="paymentCellRenderers"
             storage-key="my-contract-payments"
             accent-icons
+            hide-search
           />
         </TabsContent>
       </Tabs>
