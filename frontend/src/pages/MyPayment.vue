@@ -88,12 +88,11 @@ const finalAmount = computed(() => (amountMode.value === 'custom' ? customAmount
 const payerIsResident = ref(true)
 const representativeFullName = ref('')
 const payerEmail = ref('')
-const payerPhone = ref('')
 
 const canSubmit = computed(() => {
   if (finalAmount.value <= 0) return false
   if (!payerIsResident.value && !representativeFullName.value.trim()) return false
-  if (!payerEmail.value.trim() && !payerPhone.value.trim()) return false
+  if (!payerEmail.value.trim()) return false
   return true
 })
 
@@ -111,8 +110,7 @@ async function submit() {
       customAmount: amountMode.value === 'custom' ? (customAmount.value ?? null) : null,
       payerIsResident: payerIsResident.value,
       representativeFullName: payerIsResident.value ? null : representativeFullName.value.trim(),
-      payerEmail: payerEmail.value.trim() || null,
-      payerPhone: payerPhone.value.trim() || null,
+      payerEmail: payerEmail.value.trim(),
     })
     window.location.href = paymentPageUrl
   } catch (error) {
@@ -275,17 +273,10 @@ onMounted(async () => {
             <Label for="representative-name">ФИО плательщика</Label>
             <Input id="representative-name" v-model="representativeFullName" placeholder="Иванова Мария Петровна" />
           </div>
-          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div class="flex flex-col gap-2">
-              <Label for="payer-email">Email для чека</Label>
-              <Input id="payer-email" v-model="payerEmail" type="email" placeholder="mail@example.com" />
-            </div>
-            <div class="flex flex-col gap-2">
-              <Label for="payer-phone">Телефон для чека</Label>
-              <Input id="payer-phone" v-model="payerPhone" type="tel" placeholder="+7 999 123-45-67" />
-            </div>
+          <div class="flex flex-col gap-2">
+            <Label for="payer-email">Email для чека</Label>
+            <Input id="payer-email" v-model="payerEmail" type="email" placeholder="mail@example.com" />
           </div>
-          <p class="text-xs text-muted-foreground">Нужно хотя бы одно поле — email или телефон.</p>
         </div>
 
         <p v-if="submitError" class="text-sm text-red-500">{{ submitError }}</p>

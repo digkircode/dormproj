@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { AlertTriangle, CreditCard, Percent } from 'lucide-vue-next'
+import { AlertTriangle, ChevronDown, CreditCard, Percent } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -12,9 +13,13 @@ import {
   type MyPaymentsData,
   type OpenAccrualRow,
 } from '@/lib/my-payments-api'
+import { isValidEmailFormat } from '@/lib/utils'
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
+// Та же маска, что и у "своей суммы" в CreateContractDialog.vue — прячет нативные
+// стрелочки +/- у <input type="number"> (Chrome/Safari + Firefox).
+const NO_SPINNER_CLASS = '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
 
 const isDialogOpen = ref(false)
 const isLoading = ref(true)
@@ -48,6 +53,17 @@ function toggleAccrual(id: number, checked: boolean) {
   if (!canSelectPenalty.value) includePenalty.value = false
 }
 
+// Список начислений свёрнут по умолчанию — под выбором по умолчанию (последнее
+// неоплаченное, см. open()) обычно ничего менять не нужно, полный чек-лист занимает
+// место зря (по прямой просьбе 2026-08-25). Разворачивается по клику на сводку.
+const accrualPickerOpen = ref(false)
+const selectedAccrualsSummary = computed(() => {
+  const selected = openAccruals.value.filter((a) => selectedAccrualIds.value.includes(a.id))
+  const monthsLabel = selected.map((a) => monthLabel(a.periodStart)).join(', ')
+  if (!monthsLabel) return includePenalty.value ? 'Пеня' : 'Начисления не выбраны'
+  return includePenalty.value ? `${monthsLabel} и пеня` : monthsLabel
+})
+
 const selectedAmount = computed(() => {
   const accrualsSum = openAccruals.value
     .filter((a) => selectedAccrualIds.value.includes(a.id))
@@ -59,12 +75,16 @@ const finalAmount = computed(() => (amountMode.value === 'custom' ? customAmount
 const payerIsResident = ref(true)
 const representativeFullName = ref('')
 const payerEmail = ref('')
-const payerPhone = ref('')
+// Красная рамка у email — только после первой попытки отправить (тот же приём, что
+// submitAttempted/computedInvalid в CreateIndividualDialog.vue), чтобы не встречать
+// пользователя ошибкой на ещё не тронутой форме.
+const submitAttempted = ref(false)
+const emailInvalid = computed(() => submitAttempted.value && !isValidEmailFormat(payerEmail.value.trim()))
 
 const canSubmit = computed(() => {
   if (finalAmount.value <= 0) return false
   if (!payerIsResident.value && !representativeFullName.value.trim()) return false
-  if (!payerEmail.value.trim() && !payerPhone.value.trim()) return false
+  if (!isValidEmailFormat(payerEmail.value.trim())) return false
   return true
 })
 
@@ -75,11 +95,12 @@ async function open() {
   amountMode.value = 'select'
   selectedAccrualIds.value = []
   includePenalty.value = false
+  accrualPickerOpen.value = false
   customAmount.value = undefined
   payerIsResident.value = true
   representativeFullName.value = ''
   payerEmail.value = ''
-  payerPhone.value = ''
+  submitAttempted.value = false
   submitError.value = ''
   loadError.value = ''
   isDialogOpen.value = true
@@ -87,9 +108,12 @@ async function open() {
   isLoading.value = true
   try {
     data.value = await fetchMyPayments()
-    // По умолчанию выбраны все открытые начисления — сумма "К оплате" видна сразу при
-    // открытии модалки, а не только после ручного выбора (по прямой просьбе 2026-08-25).
-    selectedAccrualIds.value = data.value.openAccruals.map((a) => a.id)
+    // По умолчанию выбрано только последнее (самое свежее) непогашенное начисление —
+    // не все сразу — сумма "К оплате" видна сразу при открытии модалки, но не завышена
+    // (по прямой просьбе 2026-08-25).
+    const lastUnpaid = data.value.openAccruals.at(-1)
+    selectedAccrualIds.value = lastUnpaid ? [lastUnpaid.id] : []
+    payerEmail.value = data.value.payerEmail ?? ''
   } catch (error) {
     loadError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -99,6 +123,7 @@ async function open() {
 defineExpose({ open })
 
 async function submit() {
+  submitAttempted.value = true
   if (!canSubmit.value) return
   isSubmitting.value = true
   submitError.value = ''
@@ -109,8 +134,7 @@ async function submit() {
       customAmount: amountMode.value === 'custom' ? (customAmount.value ?? null) : null,
       payerIsResident: payerIsResident.value,
       representativeFullName: payerIsResident.value ? null : representativeFullName.value.trim(),
-      payerEmail: payerEmail.value.trim() || null,
-      payerPhone: payerPhone.value.trim() || null,
+      payerEmail: payerEmail.value.trim(),
     })
     window.location.href = paymentPageUrl
   } catch (error) {
@@ -149,40 +173,54 @@ async function submit() {
 
           <template v-if="amountMode === 'select'">
             <p v-if="!openAccruals.length" class="text-sm text-muted-foreground">Непогашенных начислений нет.</p>
-            <div v-else class="flex flex-col gap-2">
-              <label
-                v-for="accrual in openAccruals"
-                :key="accrual.id"
-                class="flex cursor-pointer items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent"
-              >
-                <span class="flex items-center gap-2">
-                  <Checkbox
-                    :model-value="selectedAccrualIds.includes(accrual.id)"
-                    @update:model-value="(checked) => toggleAccrual(accrual.id, !!checked)"
-                  />
-                  {{ monthLabel(accrual.periodStart) }}
-                </span>
-                <span class="font-medium">{{ formatMoney(accrual.balance) }}</span>
-              </label>
-              <label
-                v-if="penaltyBalance > 0"
-                class="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
-                :class="canSelectPenalty ? 'cursor-pointer hover:bg-accent' : 'cursor-not-allowed opacity-50'"
-                :title="canSelectPenalty ? '' : 'Сначала выберите все открытые начисления — иначе платёж сначала погасит их'"
-              >
-                <span class="flex items-center gap-2">
-                  <Checkbox :model-value="includePenalty" :disabled="!canSelectPenalty" @update:model-value="(v) => (includePenalty = !!v)" />
-                  <Percent class="size-3.5 text-orange-500" />
-                  Пеня целиком
-                </span>
-                <span class="font-medium">{{ formatMoney(penaltyBalance) }}</span>
-              </label>
-            </div>
+            <Collapsible v-else v-model:open="accrualPickerOpen">
+              <CollapsibleTrigger as-child>
+                <button
+                  type="button"
+                  class="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-sm hover:bg-accent"
+                >
+                  <span>{{ selectedAccrualsSummary }}</span>
+                  <span class="flex items-center gap-1.5">
+                    <span class="font-medium">{{ formatMoney(selectedAmount) }}</span>
+                    <ChevronDown class="size-3.5 shrink-0 text-muted-foreground transition-transform duration-200" :class="accrualPickerOpen ? 'rotate-180' : ''" />
+                  </span>
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent class="flex flex-col gap-1 pt-1">
+                <label
+                  v-for="accrual in openAccruals"
+                  :key="accrual.id"
+                  class="flex cursor-pointer items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-sm hover:bg-accent"
+                >
+                  <span class="flex items-center gap-1.5">
+                    <Checkbox
+                      :model-value="selectedAccrualIds.includes(accrual.id)"
+                      @update:model-value="(checked) => toggleAccrual(accrual.id, !!checked)"
+                    />
+                    {{ monthLabel(accrual.periodStart) }}
+                  </span>
+                  <span class="font-medium">{{ formatMoney(accrual.balance) }}</span>
+                </label>
+                <label
+                  v-if="penaltyBalance > 0"
+                  class="flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-sm"
+                  :class="canSelectPenalty ? 'cursor-pointer hover:bg-accent' : 'cursor-not-allowed opacity-50'"
+                  :title="canSelectPenalty ? '' : 'Сначала выберите все открытые начисления — иначе платёж сначала погасит их'"
+                >
+                  <span class="flex items-center gap-1.5">
+                    <Checkbox :model-value="includePenalty" :disabled="!canSelectPenalty" @update:model-value="(v) => (includePenalty = !!v)" />
+                    <Percent class="size-3.5 text-orange-500" />
+                    Пеня целиком
+                  </span>
+                  <span class="font-medium">{{ formatMoney(penaltyBalance) }}</span>
+                </label>
+              </CollapsibleContent>
+            </Collapsible>
           </template>
           <template v-else>
             <div class="flex flex-col gap-2">
               <Label for="custom-amount">Сумма</Label>
-              <Input id="custom-amount" v-model.number="customAmount" type="number" min="1" placeholder="0" />
+              <Input :class="NO_SPINNER_CLASS" id="custom-amount" v-model.number="customAmount" type="number" min="1" placeholder="0" />
             </div>
           </template>
 
@@ -195,17 +233,17 @@ async function submit() {
               <Label for="representative-name">ФИО плательщика</Label>
               <Input id="representative-name" v-model="representativeFullName" placeholder="Иванова Мария Петровна" />
             </div>
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div class="flex flex-col gap-2">
-                <Label for="payer-email">Email для чека</Label>
-                <Input id="payer-email" v-model="payerEmail" type="email" placeholder="mail@example.com" />
-              </div>
-              <div class="flex flex-col gap-2">
-                <Label for="payer-phone">Телефон для чека</Label>
-                <Input id="payer-phone" v-model="payerPhone" type="tel" placeholder="+7 999 123-45-67" />
-              </div>
+            <div class="flex flex-col gap-2">
+              <Label for="payer-email">Email для чека</Label>
+              <Input
+                id="payer-email"
+                v-model="payerEmail"
+                type="email"
+                placeholder="mail@example.com"
+                :class="emailInvalid ? 'border-red-500' : ''"
+              />
+              <p v-if="emailInvalid" class="text-xs text-red-500">Некорректный email</p>
             </div>
-            <p class="text-xs text-muted-foreground">Нужно хотя бы одно поле — email или телефон.</p>
           </div>
 
           <div class="flex items-center justify-between border-t pt-4">
@@ -223,7 +261,7 @@ async function submit() {
       <DialogFooter>
         <p v-if="submitError" class="mr-auto self-center text-sm text-red-500">{{ submitError }}</p>
         <Button variant="outline" @click="isDialogOpen = false">Отмена</Button>
-        <Button :disabled="!canSubmit || !data?.acquiringAvailable" :loading="isSubmitting" @click="submit">
+        <Button :disabled="!data?.acquiringAvailable" :loading="isSubmitting" @click="submit">
           Оплатить {{ formatMoney(finalAmount) }}
         </Button>
       </DialogFooter>

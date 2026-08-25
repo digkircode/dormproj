@@ -26,6 +26,9 @@ export interface MyPaymentsData {
   penaltyBalance: number
   acquiringAvailable: boolean
   history: PaymentIntentRow[]
+  // Email из Individual.email (правится этой же формой) или, если там пусто, из
+  // самой актуальной ContactInfo — см. resolveResidentEmail в my-payments.controller.ts.
+  payerEmail: string | null
 }
 
 export interface CreateIntentInput {
@@ -34,8 +37,7 @@ export interface CreateIntentInput {
   customAmount: number | null
   payerIsResident: boolean
   representativeFullName: string | null
-  payerEmail: string | null
-  payerPhone: string | null
+  payerEmail: string
 }
 
 async function parseError(response: Response, fallback: string): Promise<never> {

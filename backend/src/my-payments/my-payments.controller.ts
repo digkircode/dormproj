@@ -35,11 +35,13 @@ import {
 import { FISCAL_PROVIDER, FiscalNotConfiguredError, type FiscalProvider } from '../fiscal/fiscal.types';
 import { PaymentRateLimiterService } from './payment-rate-limiter.service';
 import { buildPaymentDescription, buildPeriodLabel } from './payment-description';
+import { pickLatestContactInfo } from '../individuals/contact-info-priority';
 
 const { Decimal } = Prisma;
 
 type PaymentIntentWithContract = Prisma.PaymentIntentGetPayload<{ include: { contract: true } }>;
 
+// Телефон убран из формы (по прямой просьбе 2026-08-25) — только email, обязателен.
 const createIntentSchema = z
   .object({
     accrualIds: z.array(z.number().int().positive()).default([]),
@@ -47,16 +49,11 @@ const createIntentSchema = z
     customAmount: z.number().positive().nullish(),
     payerIsResident: z.boolean(),
     representativeFullName: z.string().trim().min(1).max(200).nullish(),
-    payerEmail: z.string().trim().email().nullish(),
-    payerPhone: z.string().trim().min(1).max(20).nullish(),
+    payerEmail: z.string().trim().email(),
   })
   .refine((v) => v.payerIsResident || (v.representativeFullName?.length ?? 0) > 0, {
     message: 'Укажите ФИО того, кто оплачивает',
     path: ['representativeFullName'],
-  })
-  .refine((v) => Boolean(v.payerEmail) || Boolean(v.payerPhone), {
-    message: 'Укажите email или телефон для чека',
-    path: ['payerEmail'],
   });
 
 function parseIdParam(idParam: string): number {
@@ -114,6 +111,22 @@ export class MyPaymentsController {
     return user.univerId;
   }
 
+  // Email для чека — Individual.email как основной источник (туда же пишем правку, см.
+  // createIntent), фолбэк на самую актуальную запись ContactInfo типа "Email" (синк из
+  // 1С, тот же pickLatestContactInfo, что и на карточке физлица) — по прямой просьбе
+  // 2026-08-25: раньше поле было полностью ручным, теперь подтягивается само.
+  private async resolveResidentEmail(individualUid: string): Promise<string | null> {
+    const individual = await this.prisma.individual.findUnique({
+      where: { fizicheskoyeLitsoUid: individualUid },
+      select: { email: true },
+    });
+    if (individual?.email) return individual.email;
+
+    const contactInfos = await this.prisma.contactInfo.findMany({ where: { fizicheskoyeLitsoUid: individualUid } });
+    const emailContact = pickLatestContactInfo(contactInfos).find((c) => c.type === 'Email');
+    return emailContact?.email || null;
+  }
+
   private async findResidentContract(individualUid: string) {
     const contract = await this.prisma.contract.findFirst({
       where: { residentIndividualUid: individualUid },
@@ -165,6 +178,7 @@ export class MyPaymentsController {
       penaltyBalance: Number(penaltyBalance),
       acquiringAvailable: this.acquiring.isConfigured(),
       history: intents.map(serializeIntent),
+      payerEmail: await this.resolveResidentEmail(individualUid),
     };
   }
 
@@ -186,6 +200,17 @@ export class MyPaymentsController {
     const individualUid = await this.resolveIndividualUid(req.user.id);
     const contract = await this.findResidentContract(individualUid);
     if (!contract) throw new NotFoundException('Действующего договора не найдено');
+
+    // Правка email прямо из формы оплаты — пишем в Individual.email, он и есть основной
+    // источник для resolveResidentEmail (см. выше), так что дальше подтягивается уже
+    // отсюда, а не из ContactInfo/1С (по прямой просьбе 2026-08-25). Только когда платит
+    // сам проживающий — email представителя не имеет отношения к его собственной карточке.
+    if (input.payerIsResident) {
+      const currentEmail = await this.resolveResidentEmail(individualUid);
+      if (input.payerEmail !== currentEmail) {
+        await this.prisma.individual.update({ where: { fizicheskoyeLitsoUid: individualUid }, data: { email: input.payerEmail } });
+      }
+    }
 
     const openAccruals = contract.accruals.filter((a) => !a.voidedAt).map(serializeAccrual).filter((a) => a.balance > 0);
     const { penaltyBalance } = computePenaltyBalance({
@@ -239,8 +264,7 @@ export class MyPaymentsController {
         amount: new Decimal(amount),
         description,
         payerFullName,
-        payerEmail: input.payerEmail ?? null,
-        payerPhone: input.payerPhone ?? null,
+        payerEmail: input.payerEmail,
       },
     });
 
