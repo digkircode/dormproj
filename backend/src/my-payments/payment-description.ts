@@ -34,6 +34,10 @@ export function buildPeriodLabel(accrualPeriodStarts: Date[], includePenalty: bo
 // Формат — по прямой просьбе (2026-08-25):
 // проживающий сам: "от Фамилия И.О. за общежитие месяц год"
 // представитель:    "от Фамилия И.О. за Фамилия И.О. за общежитие месяц год"
+// Платёж только пени (periodLabel==='пеню' — единственное место, где buildPeriodLabel
+// возвращает ровно эту строку, см. выше) — отдельная формулировка по прямой просьбе
+// 2026-08-25: "от Фамилия И.О. пени" вместо "...за общежитие пеню" (пеня всегда платится
+// отдельным платежом, не вместе с начислением за месяц — см. промпт проекта).
 export function buildPaymentDescription(
   residentFullName: string,
   payerIsResident: boolean,
@@ -41,9 +45,10 @@ export function buildPaymentDescription(
   periodLabel: string,
 ): string {
   const residentShort = surnameWithInitials(residentFullName);
+  const subject = periodLabel === 'пеню' ? 'пени' : `за общежитие ${periodLabel}`;
   if (payerIsResident) {
-    return `от ${residentShort} за общежитие ${periodLabel}`;
+    return `от ${residentShort} ${subject}`;
   }
   const payerShort = surnameWithInitials(representativeFullName ?? '');
-  return `от ${payerShort} за ${residentShort} за общежитие ${periodLabel}`;
+  return `от ${payerShort} за ${residentShort} ${subject}`;
 }

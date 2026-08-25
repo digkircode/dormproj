@@ -67,8 +67,8 @@ function formatMoney(value: number): string {
       <h1 class="text-lg font-medium">{{ contract ? `Договор № ${contract.number}` : 'Информация о договоре' }}</h1>
       <ContractStatusPill v-if="displayStatus" :status="displayStatus" />
       <Button v-if="contract" size="sm" class="ml-2" as-child>
-        <RouterLink to="/student/payment">
-          <CreditCard class="size-4" />
+        <RouterLink to="/student/payment" class="flex items-center gap-2">
+          <CreditCard class="size-4 shrink-0" />
           Оплатить
         </RouterLink>
       </Button>
