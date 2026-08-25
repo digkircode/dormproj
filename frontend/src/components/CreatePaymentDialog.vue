@@ -2,7 +2,6 @@
 import { computed, ref } from 'vue'
 import { AlertTriangle, CreditCard, Percent } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -88,6 +87,9 @@ async function open() {
   isLoading.value = true
   try {
     data.value = await fetchMyPayments()
+    // По умолчанию выбраны все открытые начисления — сумма "К оплате" видна сразу при
+    // открытии модалки, а не только после ручного выбора (по прямой просьбе 2026-08-25).
+    selectedAccrualIds.value = data.value.openAccruals.map((a) => a.id)
   } catch (error) {
     loadError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -132,13 +134,12 @@ async function submit() {
       <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
       <p v-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
 
-      <template v-if="!isLoading && !loadError && data">
-        <Card v-if="!data.acquiringAvailable" class="flex items-center gap-3 rounded-md border p-4">
-          <AlertTriangle class="size-5 shrink-0 text-orange-500" />
-          <p class="text-sm">Оплата временно недоступна — эквайринг ещё не подключён. Попробуйте позже.</p>
-        </Card>
+      <template v-if="!isLoading && !loadError && data?.contract">
+        <p class="-mt-2 text-sm text-muted-foreground">
+          Договор № {{ data.contract.number }} — {{ data.contract.residentFullName }}
+        </p>
 
-        <div v-else class="flex flex-col gap-4">
+        <div class="flex flex-col gap-4">
           <div class="flex w-fit items-center gap-1 rounded-md border p-0.5">
             <Button :variant="amountMode === 'select' ? 'default' : 'ghost'" size="sm" @click="amountMode = 'select'">
               Выбрать начисления
@@ -211,13 +212,18 @@ async function submit() {
             <span class="text-sm text-muted-foreground">К оплате</span>
             <span class="text-lg font-semibold">{{ formatMoney(finalAmount) }}</span>
           </div>
+
+          <p v-if="!data.acquiringAvailable" class="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <AlertTriangle class="size-3.5 shrink-0 text-orange-500" />
+            Оплата картой временно недоступна — эквайринг ещё не подключён.
+          </p>
         </div>
       </template>
 
       <DialogFooter>
         <p v-if="submitError" class="mr-auto self-center text-sm text-red-500">{{ submitError }}</p>
         <Button variant="outline" @click="isDialogOpen = false">Отмена</Button>
-        <Button v-if="data?.acquiringAvailable" :disabled="!canSubmit" :loading="isSubmitting" @click="submit">
+        <Button :disabled="!canSubmit || !data?.acquiringAvailable" :loading="isSubmitting" @click="submit">
           Оплатить {{ formatMoney(finalAmount) }}
         </Button>
       </DialogFooter>
