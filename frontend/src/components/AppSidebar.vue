@@ -13,7 +13,6 @@ import {
   Info,
   MessageCircle,
   FileSignature,
-  CreditCard,
 } from 'lucide-vue-next'
 import NavStudent from '@/components/NavStudent.vue'
 import NavMain from '@/components/NavMain.vue'
@@ -77,7 +76,10 @@ const navStudent = computed(() => [
   ...(canSeeResidentChat.value
     ? [
         { title: 'Информация о договоре', url: '/student/contract', icon: FileSignature },
-        { title: 'Оплата', url: '/student/payment', icon: CreditCard },
+        // "Оплата" (/student/payment) скрыта из навигации по прямой просьбе 2026-08-25 —
+        // создание платежа теперь модалкой на карточке договора (см. CreatePaymentDialog.vue),
+        // сам роут не удалён — нужен как returnUrl-цель после редиректа из банка
+        // (см. my-payments.controller.ts#createIntent).
         { title: 'Чат с сотрудниками', url: '/student/chat', icon: MessageCircle, badge: hasUnreadResidentChat.value },
       ]
     : []),

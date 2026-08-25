@@ -1,15 +1,50 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, CalendarClock, CalendarRange, CreditCard, FileX, History, Home, Percent, Receipt, Wallet } from 'lucide-vue-next'
+import {
+  ArrowLeft,
+  CalendarClock,
+  CalendarRange,
+  Check,
+  Clock,
+  CreditCard,
+  ExternalLink,
+  FileX,
+  History,
+  Home,
+  Percent,
+  Receipt,
+  Wallet,
+  X,
+} from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import ContractStatusPill from '@/components/ContractStatusPill.vue'
+import CreatePaymentDialog from '@/components/CreatePaymentDialog.vue'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { fetchMyContract, type MyContractDetail } from '@/lib/contracts-api'
 import { getContractDisplayStatus } from '@/lib/contracts-format'
+import { fetchMyPayments, type PaymentIntentRow, type PaymentIntentStatus } from '@/lib/my-payments-api'
 import { goBack } from '@/lib/utils'
+
+const STATUS_LABELS: Record<PaymentIntentStatus, string> = {
+  CREATED: 'Создан',
+  PENDING_BANK: 'Обрабатывается банком',
+  SUCCEEDED: 'Оплачено',
+  FAILED: 'Не удалось',
+  CANCELED: 'Отменено',
+  EXPIRED: 'Истёк',
+}
+const STATUS_ICON = { CREATED: Clock, PENDING_BANK: Clock, SUCCEEDED: Check, FAILED: X, CANCELED: X, EXPIRED: X } as const
+const STATUS_ICON_CLASS: Record<PaymentIntentStatus, string> = {
+  CREATED: 'text-muted-foreground',
+  PENDING_BANK: 'text-orange-500',
+  SUCCEEDED: 'text-emerald-500',
+  FAILED: 'text-red-500',
+  CANCELED: 'text-muted-foreground',
+  EXPIRED: 'text-muted-foreground',
+}
 
 // Та же граница вертикальных разделителей колонок, что и в общих таблицах приложения
 // (EntityTable.vue/ContractDetail.vue) — для визуального единства.
@@ -23,6 +58,12 @@ const contract = ref<MyContractDetail | null>(null)
 const isLoading = ref(true)
 const loadError = ref('')
 
+// История платежей (вкладка "Платежи") — намеренно PaymentIntent (см. GET /my-payments),
+// а не леджерные Payment из contract.payments: только тут есть статус конкретной
+// попытки (в т.ч. "Не удалось") и ссылка на чек — перенесено сюда со страницы
+// /student/payment по прямой просьбе 2026-08-25, страница сама скрыта из навигации.
+const paymentHistory = ref<PaymentIntentRow[]>([])
+
 async function load() {
   isLoading.value = true
   loadError.value = ''
@@ -33,9 +74,18 @@ async function load() {
   } finally {
     isLoading.value = false
   }
+  try {
+    const payments = await fetchMyPayments()
+    paymentHistory.value = payments.history
+  } catch {
+    // Тихо игнорируем — основная карточка договора важнее, вкладка "Платежи" просто
+    // останется пустой при ошибке (тот же принцип, что и остальные вспомогательные секции).
+  }
 }
 
 onMounted(load)
+
+const paymentDialog = ref<InstanceType<typeof CreatePaymentDialog> | null>(null)
 
 const totalBalance = computed(() =>
   contract.value ? contract.value.accruals.reduce((sum, a) => sum + a.balance, 0) + contract.value.penaltyBalance : 0,
@@ -66,12 +116,11 @@ function formatMoney(value: number): string {
       </Button>
       <h1 class="text-lg font-medium">{{ contract ? `Договор № ${contract.number}` : 'Информация о договоре' }}</h1>
       <ContractStatusPill v-if="displayStatus" :status="displayStatus" />
-      <Button v-if="contract" size="sm" class="ml-2" as-child>
-        <RouterLink to="/student/payment" class="flex items-center gap-2">
-          <CreditCard class="size-4 shrink-0" />
-          Оплатить
-        </RouterLink>
+      <Button v-if="contract" size="sm" class="ml-2 flex items-center gap-2" @click="paymentDialog?.open()">
+        <CreditCard class="size-4 shrink-0" />
+        Оплатить
       </Button>
+      <CreatePaymentDialog ref="paymentDialog" />
       <span v-if="contract" class="ml-auto flex items-center gap-1.5 text-sm text-muted-foreground">
         <History class="size-4 shrink-0 text-primary" />
         Создан {{ formatDate(contract.createdAt) }}
@@ -193,21 +242,42 @@ function formatMoney(value: number): string {
 
         <TabsContent value="payments" class="flex min-h-0 flex-1 flex-col">
           <Card class="flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden py-0">
-            <p v-if="!contract.payments.length" class="p-6 text-sm text-muted-foreground">Платежей пока нет</p>
+            <p v-if="!paymentHistory.length" class="p-6 text-sm text-muted-foreground">Платежей пока нет</p>
             <div v-else class="flex min-h-0 flex-1 flex-col">
               <Table>
                 <TableHeader class="sticky top-0 z-10 bg-muted">
                   <TableRow>
                     <TableHead :class="CELL_BORDER_CLASS">Дата</TableHead>
+                    <TableHead :class="CELL_BORDER_CLASS">Описание</TableHead>
                     <TableHead :class="CELL_BORDER_CLASS">Сумма</TableHead>
-                    <TableHead>Комментарий</TableHead>
+                    <TableHead :class="CELL_BORDER_CLASS">Статус</TableHead>
+                    <TableHead>Чек</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow v-for="p in contract.payments" :key="p.id" :class="p.reversedAt ? 'opacity-40' : ''">
-                    <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(p.paidAt) }}</TableCell>
-                    <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(p.amount) }}</TableCell>
-                    <TableCell>{{ p.rawComment ?? '—' }}</TableCell>
+                  <TableRow v-for="row in paymentHistory" :key="row.id">
+                    <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(row.createdAt) }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ row.description }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(row.amount) }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">
+                      <span class="flex items-center gap-1.5">
+                        <component :is="STATUS_ICON[row.status]" class="size-3.5" :class="STATUS_ICON_CLASS[row.status]" />
+                        {{ STATUS_LABELS[row.status] }}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <a
+                        v-if="row.fiscalReceiptUrl"
+                        :href="row.fiscalReceiptUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="flex items-center gap-1 text-primary hover:underline"
+                      >
+                        Открыть
+                        <ExternalLink class="size-3.5" />
+                      </a>
+                      <span v-else class="text-muted-foreground">—</span>
+                    </TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
