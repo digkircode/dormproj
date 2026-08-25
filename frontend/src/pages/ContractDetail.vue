@@ -10,10 +10,9 @@ import {
   CalendarClock,
   CalendarRange,
   ChevronRight,
+  DoorOpen,
   Droplet,
-  FileSignature,
   History,
-  Home,
   MoreVertical,
   Percent,
   Plus,
@@ -340,11 +339,7 @@ async function confirmReversePayment() {
 
     <template v-if="contract">
       <div class="flex flex-col gap-3">
-        <div class="flex items-center justify-between gap-4">
-          <p class="flex items-center gap-1.5 text-sm font-medium">
-            <FileSignature class="size-4 text-primary" />
-            Информация о договоре
-          </p>
+        <div class="flex items-center justify-end gap-4">
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
               <Button variant="outline" size="icon" class="size-7 shrink-0">
@@ -392,8 +387,8 @@ async function confirmReversePayment() {
 
           <div class="grid grid-cols-5 gap-4 border-t pt-4">
             <div class="flex items-center gap-3">
-              <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-500/15">
-                <Wallet class="size-5 text-blue-600 dark:text-blue-400" />
+              <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-green-100 dark:bg-green-500/15">
+                <Wallet class="size-5 text-green-600 dark:text-green-400" />
               </div>
               <div>
                 <p class="text-xs text-muted-foreground">Общий баланс</p>
@@ -403,8 +398,8 @@ async function confirmReversePayment() {
               </div>
             </div>
             <div class="flex items-center gap-3">
-              <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-500/15">
-                <Home class="size-5 text-emerald-600 dark:text-emerald-400" />
+              <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/25">
+                <DoorOpen class="size-5 text-amber-800 dark:text-amber-500" />
               </div>
               <div>
                 <p class="text-xs text-muted-foreground">Стоимость комнаты</p>
@@ -412,8 +407,8 @@ async function confirmReversePayment() {
               </div>
             </div>
             <div class="flex items-center gap-3">
-              <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-500/15">
-                <Droplet class="size-5 text-orange-600 dark:text-orange-400" />
+              <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-500/15">
+                <Droplet class="size-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
                 <p class="text-xs text-muted-foreground">Коммунальные услуги</p>

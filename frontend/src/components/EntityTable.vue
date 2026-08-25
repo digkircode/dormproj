@@ -496,7 +496,7 @@ defineExpose({ refresh: loadPage })
             </colgroup>
             <TableHeader class="bg-muted sticky top-0 z-10">
               <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-                <TableHead v-if="selectable" class="p-2 text-center" :style="{ width: 'var(--col-select-size)' }">
+                <TableHead v-if="selectable" class="py-2 pr-2 pl-3 text-center" :style="{ width: 'var(--col-select-size)' }">
                   <Checkbox
                     :model-value="allRowsSelected ? true : someRowsSelected ? 'indeterminate' : false"
                     :disabled="!rows.length"
@@ -554,7 +554,7 @@ defineExpose({ refresh: loadPage })
             <TableBody>
               <template v-if="table.getRowModel().rows.length">
                 <TableRow v-for="row in table.getRowModel().rows" :key="row.id">
-                  <TableCell v-if="selectable" class="p-2 text-center" :style="{ width: 'var(--col-select-size)' }">
+                  <TableCell v-if="selectable" class="py-2 pr-2 pl-3 text-center" :style="{ width: 'var(--col-select-size)' }">
                     <Checkbox
                       :model-value="isRowSelected(row.original)"
                       aria-label="Выбрать строку"

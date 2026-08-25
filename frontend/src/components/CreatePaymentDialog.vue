@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { AlertTriangle, ChevronDown, CreditCard, Home, Percent } from 'lucide-vue-next'
+import { AlertTriangle, ChevronDown, CreditCard, DoorOpen, Loader, Percent } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -54,7 +54,12 @@ const openAccruals = computed<OpenAccrualRow[]>(() => data.value?.openAccruals ?
 const penaltyBalance = computed(() => data.value?.penaltyBalance ?? 0)
 // Пеню можно выбрать, только если этим же платежом закрываются ВСЕ открытые начисления —
 // иначе деньги по FIFO уйдут сначала на начисления, а не на пеню (см. промпт задачи).
-const canSelectPenalty = computed(() => openAccruals.value.length > 0 && selectedAccrualIds.value.length === openAccruals.value.length)
+// Раньше тут был "openAccruals.length > 0 &&" — из-за него, если начислений вообще не
+// осталось (всё погашено, висит только пеня), 0 === 0 всё равно не проходило проверку и
+// чекбокс был вечно недоступен, хотя бэк такой платёж принимает (см. createIntent — там
+// ровно то же сравнение без лишнего "> 0"). Баг, поймано и исправлено 2026-08-26 — теперь
+// пеню можно оплатить отдельным платежом именно в этом случае (начислений нет, есть пеня).
+const canSelectPenalty = computed(() => selectedAccrualIds.value.length === openAccruals.value.length)
 
 function toggleAccrual(id: number, checked: boolean) {
   selectedAccrualIds.value = checked ? [...selectedAccrualIds.value, id] : selectedAccrualIds.value.filter((v) => v !== id)
@@ -99,13 +104,19 @@ const canSubmit = computed(() => {
 const isSubmitting = ref(false)
 const submitError = ref('')
 
+// silent — переключение договора уже открытой формы (см. switchContract): не прячем
+// текущие данные под "Загрузка…", просто приглушаем блок опacity, пока не придут новые
+// (было резко/дёргано — по прямой просьбе 2026-08-26), тот же приём, что в MyContract.vue.
+const isSwitching = ref(false)
+
 // Начисления сортируются от самого раннего к самому позднему (см. GET /my-payments) —
 // по умолчанию выбирается ПЕРВОЕ непогашенное (не последнее — по прямой просьбе
 // 2026-08-25, платёж должен закрывать долг по порядку, как и реальная разноска FIFO,
 // см. allocatePaymentFifo). Остаток по нему уже учитывает частичные платежи (balance =
 // total - сумма allocations, см. serializeAccrual) — не полную стоимость комнаты.
-async function loadPaymentsData(contractId: number | undefined) {
-  isLoading.value = true
+async function loadPaymentsData(contractId: number | undefined, silent = false) {
+  if (silent) isSwitching.value = true
+  else isLoading.value = true
   loadError.value = ''
   try {
     data.value = await fetchMyPayments(contractId)
@@ -119,11 +130,14 @@ async function loadPaymentsData(contractId: number | undefined) {
     loadError.value = error instanceof Error ? error.message : String(error)
   } finally {
     isLoading.value = false
+    isSwitching.value = false
   }
 }
 
 async function switchContract(id: number) {
-  await loadPaymentsData(id)
+  // Клик по уже выбранному договору — не перезагружать (та же логика, что в MyContract.vue).
+  if (id === selectedContractId.value) return
+  await loadPaymentsData(id, true)
 }
 
 async function open(contractId?: number) {
@@ -139,13 +153,14 @@ async function open(contractId?: number) {
   submitError.value = ''
   isDialogOpen.value = true
 
+  // Список договоров грузим параллельно с основными данными, не после — та же причина,
+  // что и в MyContract.vue (иначе переключатель на пару кадров дорисовывается позже,
+  // видимый "скачок" чипа с обычного текста на кнопку со стрелкой).
+  const contractsPromise = fetchMyContracts().catch(() => [])
   await loadPaymentsData(contractId)
-  try {
-    contracts.value = await fetchMyContracts()
-  } catch {
-    // Переключатель просто не появится — сама форма уже загружена выше и от списка
-    // не зависит (тот же принцип, что и в MyContract.vue).
-  }
+  // Переключатель просто не появится при ошибке (contractsPromise проглатывает её выше) —
+  // сама форма уже загружена и от списка не зависит (тот же принцип, что в MyContract.vue).
+  contracts.value = await contractsPromise
 }
 defineExpose({ open })
 
@@ -186,12 +201,15 @@ async function submit() {
       <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
       <p v-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
 
-      <template v-if="!isLoading && !loadError && data?.contract">
+      <div v-if="!isLoading && !loadError && data?.contract" class="flex flex-col gap-5 transition-opacity duration-200" :class="isSwitching ? 'opacity-50' : ''">
         <div class="flex flex-col gap-2 rounded-lg border bg-muted/30 p-3">
           <div class="flex items-center justify-between gap-2">
             <DropdownMenu v-if="contracts.length > 1">
               <DropdownMenuTrigger as-child>
-                <button type="button" class="flex items-center gap-1 text-sm font-medium hover:text-primary">
+                <button
+                  type="button"
+                  class="flex items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-sm font-medium hover:bg-accent"
+                >
                   Договор № {{ data.contract.number }}
                   <ChevronDown class="size-3.5 shrink-0 text-muted-foreground" />
                 </button>
@@ -208,8 +226,9 @@ async function submit() {
               </DropdownMenuContent>
             </DropdownMenu>
             <span v-else class="text-sm font-medium">Договор № {{ data.contract.number }}</span>
+            <Loader v-if="isSwitching" class="size-3.5 shrink-0 animate-spin text-muted-foreground" />
             <span v-if="data.contract.roomNumber" class="flex items-center gap-1 text-sm text-muted-foreground">
-              <Home class="size-3.5 shrink-0" />
+              <DoorOpen class="size-3.5 shrink-0" />
               Комната {{ data.contract.roomNumber }}
             </span>
           </div>
@@ -231,7 +250,7 @@ async function submit() {
               <CollapsibleTrigger as-child>
                 <button
                   type="button"
-                  class="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-sm hover:bg-accent"
+                  class="flex h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-md border px-3 text-sm hover:bg-accent"
                 >
                   <span>{{ selectedAccrualsSummary }}</span>
                   <span class="flex items-center gap-1.5">
@@ -306,7 +325,7 @@ async function submit() {
             Оплата картой временно недоступна — эквайринг ещё не подключён.
           </p>
         </div>
-      </template>
+      </div>
 
       <DialogFooter>
         <p v-if="submitError" class="mr-auto self-center text-sm text-red-500">{{ submitError }}</p>

@@ -2,17 +2,22 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
+  ArrowDown,
   ArrowLeft,
+  ArrowUp,
+  ArrowUpDown,
   CalendarClock,
   CalendarRange,
   Check,
   ChevronDown,
   Clock,
   CreditCard,
+  DoorOpen,
   ExternalLink,
   FileX,
+  Filter,
   History,
-  Home,
+  Loader,
   Percent,
   Receipt,
   Wallet,
@@ -20,7 +25,13 @@ import {
 } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import ContractStatusPill from '@/components/ContractStatusPill.vue'
 import CreatePaymentDialog from '@/components/CreatePaymentDialog.vue'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
@@ -72,8 +83,14 @@ const selectedContractId = ref<number | undefined>(undefined)
 // /student/payment по прямой просьбе 2026-08-25, страница сама скрыта из навигации.
 const paymentHistory = ref<PaymentIntentRow[]>([])
 
-async function load() {
-  isLoading.value = true
+// silent — переключение УЖЕ выбранного на странице договора (см. switchContract): не
+// прячем текущие данные под "Загрузка…" (было резко и дёргано, по прямой просьбе
+// 2026-08-25), просто приглушаем карточку/вкладки полупрозрачностью, пока не придут новые.
+const isSwitching = ref(false)
+
+async function load(silent = false) {
+  if (silent) isSwitching.value = true
+  else isLoading.value = true
   loadError.value = ''
   try {
     contract.value = await fetchMyContract(selectedContractId.value)
@@ -82,6 +99,7 @@ async function load() {
     loadError.value = error instanceof Error ? error.message : String(error)
   } finally {
     isLoading.value = false
+    isSwitching.value = false
   }
   try {
     const payments = await fetchMyPayments(selectedContractId.value)
@@ -93,18 +111,21 @@ async function load() {
 }
 
 async function switchContract(id: number) {
+  // Клик по уже показанному договору в списке — не перезагружать (по прямой просьбе
+  // 2026-08-25), тот же принцип, что и не дёргать сеть без реальной смены выбора.
+  if (id === selectedContractId.value) return
   selectedContractId.value = id
-  await load()
+  await load(true)
 }
 
 onMounted(async () => {
+  // Список договоров грузим ПАРАЛЛЕЛЬНО с самим договором, а не после (было — стрелочка
+  // переключателя "запаздывала": сначала рисовался обычный заголовок, потом резко
+  // подменялся на выпадающий список, когда список догружался). К моменту, когда основной
+  // load() разрешится (там два последовательных запроса), этот — уже почти наверняка готов.
+  const contractsPromise = fetchMyContracts().catch(() => [])
   await load()
-  try {
-    contracts.value = await fetchMyContracts()
-  } catch {
-    // Переключатель просто не появится (единственный видимый договор без выбора) —
-    // основная карточка уже загружена выше и от этого списка не зависит.
-  }
+  contracts.value = await contractsPromise
 })
 
 const paymentDialog = ref<InstanceType<typeof CreatePaymentDialog> | null>(null)
@@ -127,6 +148,57 @@ function formatDate(value: string | null): string {
 function formatMoney(value: number): string {
   return `${value.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
 }
+
+// --- Сортировка/фильтр таблиц "Начисления"/"Платежи" — тот же паттерн кнопки-заголовка
+// (ArrowUp/ArrowDown/ArrowUpDown), что и в EntityTable.vue, но локально: обе таблицы —
+// уже полностью загруженный в память массив своего резидента (не постранично с сервера,
+// как в EntityTable), полноценный EntityTable под такой источник данных в проекте пока
+// не заведён — по прямой просьбе 2026-08-25 добавлено сюда напрямую, без переиспользования
+// серверной пагинации/фасетов EntityTable, которые тут просто не нужны.
+type SortDir = 'asc' | 'desc'
+type AccrualSortKey = 'periodStart' | 'balance'
+const accrualSort = ref<{ key: AccrualSortKey; dir: SortDir } | null>(null)
+function toggleAccrualSort(key: AccrualSortKey) {
+  if (accrualSort.value?.key !== key) accrualSort.value = { key, dir: 'asc' }
+  else if (accrualSort.value.dir === 'asc') accrualSort.value = { key, dir: 'desc' }
+  else accrualSort.value = null
+}
+const sortedAccruals = computed(() => {
+  const list = contract.value?.accruals ?? []
+  if (!accrualSort.value) return list
+  const { key, dir } = accrualSort.value
+  const sign = dir === 'asc' ? 1 : -1
+  return [...list].sort((a, b) => {
+    if (key === 'periodStart') return sign * a.periodStart.localeCompare(b.periodStart)
+    return sign * (a.balance - b.balance)
+  })
+})
+
+type PaymentSortKey = 'createdAt' | 'amount'
+const paymentSort = ref<{ key: PaymentSortKey; dir: SortDir } | null>(null)
+function togglePaymentSort(key: PaymentSortKey) {
+  if (paymentSort.value?.key !== key) paymentSort.value = { key, dir: 'desc' }
+  else if (paymentSort.value.dir === 'desc') paymentSort.value = { key, dir: 'asc' }
+  else paymentSort.value = null
+}
+const paymentStatusFilter = ref<Set<PaymentIntentStatus>>(new Set())
+const availablePaymentStatuses = computed(
+  () => [...new Set(paymentHistory.value.map((p) => p.status))] as PaymentIntentStatus[],
+)
+function togglePaymentStatusFilter(status: PaymentIntentStatus, checked: boolean) {
+  const next = new Set(paymentStatusFilter.value)
+  if (checked) next.add(status)
+  else next.delete(status)
+  paymentStatusFilter.value = next
+}
+const filteredPaymentHistory = computed(() => {
+  let list = paymentHistory.value
+  if (paymentStatusFilter.value.size > 0) list = list.filter((p) => paymentStatusFilter.value.has(p.status))
+  if (!paymentSort.value) return list
+  const { key, dir } = paymentSort.value
+  const sign = dir === 'asc' ? 1 : -1
+  return [...list].sort((a, b) => (key === 'createdAt' ? sign * a.createdAt.localeCompare(b.createdAt) : sign * (a.amount - b.amount)))
+})
 </script>
 
 <template>
@@ -136,9 +208,15 @@ function formatMoney(value: number): string {
         <ArrowLeft class="text-primary" />
         <span class="sr-only">Назад</span>
       </Button>
+      <!-- Явно кнопочный вид (рамка/фон), не просто текст+стрелка — чтобы возможность
+           сменить договор считывалась сразу, а не терялась среди заголовка (по прямой
+           просьбе 2026-08-25). Виден только когда договоров реально больше одного. -->
       <DropdownMenu v-if="contract && contracts.length > 1">
         <DropdownMenuTrigger as-child>
-          <button type="button" class="flex items-center gap-1 text-lg font-medium hover:text-primary">
+          <button
+            type="button"
+            class="flex items-center gap-1.5 rounded-md border bg-background px-2.5 py-1 text-lg font-medium hover:bg-accent"
+          >
             Договор № {{ contract.number }}
             <ChevronDown class="size-4 shrink-0 text-muted-foreground" />
           </button>
@@ -151,10 +229,7 @@ function formatMoney(value: number): string {
       </DropdownMenu>
       <h1 v-else class="text-lg font-medium">{{ contract ? `Договор № ${contract.number}` : 'Договор/Платежи' }}</h1>
       <ContractStatusPill v-if="displayStatus" :status="displayStatus" />
-      <Button v-if="contract" size="sm" class="ml-2 flex items-center gap-2" @click="paymentDialog?.open(contract!.id)">
-        <CreditCard class="size-4 shrink-0" />
-        Оплатить
-      </Button>
+      <Loader v-if="isSwitching" class="size-4 shrink-0 animate-spin text-muted-foreground" />
       <CreatePaymentDialog ref="paymentDialog" />
       <span v-if="contract" class="ml-auto flex items-center gap-1.5 text-sm text-muted-foreground">
         <History class="size-4 shrink-0 text-primary" />
@@ -174,22 +249,32 @@ function formatMoney(value: number): string {
     </Card>
 
     <template v-if="contract">
+      <!-- opacity/transition — та же смена договора, что и переключатель выше, но резче
+           бросается в глаза именно тут (весь блок цифр), поэтому приглушаем отдельно. -->
+      <div class="flex min-h-0 flex-1 flex-col gap-4 transition-opacity duration-200" :class="isSwitching ? 'opacity-50' : ''">
       <Card class="flex flex-col gap-4 p-4">
         <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           <span v-if="contract.currentRoom" class="flex items-center gap-1.5">
-            <Home class="size-4 shrink-0 text-primary" />
+            <DoorOpen class="size-4 shrink-0 text-primary" />
             Комната {{ contract.currentRoom.room }}
           </span>
           <span class="flex items-center gap-1.5">
             <CalendarRange class="size-4 shrink-0 text-primary" />
             {{ formatDate(contract.startDate) }} — {{ formatDate(contract.actualEndDate ?? contract.endDate) }}
           </span>
+          <!-- Кнопка "Оплатить" — тут, рядом с самой картой баланса/комнаты, а не в общем
+               заголовке страницы (было тесно вперемешку с переключателем/статусом/датой
+               создания, по прямой просьбе 2026-08-25 перенесена сюда). -->
+          <Button size="sm" class="ml-auto flex items-center gap-2" @click="paymentDialog?.open(contract!.id)">
+            <CreditCard class="size-4 shrink-0" />
+            Оплатить
+          </Button>
         </div>
 
         <div class="grid grid-cols-2 gap-4 border-t pt-4 sm:grid-cols-4">
           <div class="flex items-center gap-3">
-            <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-500/15">
-              <Wallet class="size-5 text-blue-600 dark:text-blue-400" />
+            <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-green-100 dark:bg-green-500/15">
+              <Wallet class="size-5 text-green-600 dark:text-green-400" />
             </div>
             <div>
               <p class="text-xs text-muted-foreground">Общий баланс</p>
@@ -199,8 +284,8 @@ function formatMoney(value: number): string {
             </div>
           </div>
           <div class="flex items-center gap-3">
-            <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-500/15">
-              <Home class="size-5 text-emerald-600 dark:text-emerald-400" />
+            <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/25">
+              <DoorOpen class="size-5 text-amber-800 dark:text-amber-500" />
             </div>
             <div>
               <p class="text-xs text-muted-foreground">Стоимость комнаты</p>
@@ -252,15 +337,29 @@ function formatMoney(value: number): string {
               <Table>
                 <TableHeader class="sticky top-0 z-10 bg-muted">
                   <TableRow>
-                    <TableHead :class="CELL_BORDER_CLASS">Период</TableHead>
+                    <TableHead :class="CELL_BORDER_CLASS">
+                      <button type="button" class="flex items-center gap-1.5 hover:text-foreground/80" @click="toggleAccrualSort('periodStart')">
+                        Период
+                        <ArrowUp v-if="accrualSort?.key === 'periodStart' && accrualSort.dir === 'asc'" class="size-3.5 shrink-0" />
+                        <ArrowDown v-else-if="accrualSort?.key === 'periodStart'" class="size-3.5 shrink-0" />
+                        <ArrowUpDown v-else class="size-3.5 shrink-0 text-muted-foreground/50" />
+                      </button>
+                    </TableHead>
                     <TableHead :class="CELL_BORDER_CLASS">Срок оплаты</TableHead>
                     <TableHead :class="CELL_BORDER_CLASS">Найм</TableHead>
                     <TableHead :class="CELL_BORDER_CLASS">Оплачено</TableHead>
-                    <TableHead>Остаток</TableHead>
+                    <TableHead>
+                      <button type="button" class="flex items-center gap-1.5 hover:text-foreground/80" @click="toggleAccrualSort('balance')">
+                        Остаток
+                        <ArrowUp v-if="accrualSort?.key === 'balance' && accrualSort.dir === 'asc'" class="size-3.5 shrink-0" />
+                        <ArrowDown v-else-if="accrualSort?.key === 'balance'" class="size-3.5 shrink-0" />
+                        <ArrowUpDown v-else class="size-3.5 shrink-0 text-muted-foreground/50" />
+                      </button>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow v-for="a in contract.accruals" :key="a.id" :class="a.voidedAt ? 'opacity-40' : ''">
+                  <TableRow v-for="a in sortedAccruals" :key="a.id" :class="a.voidedAt ? 'opacity-40' : ''">
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.periodStart) }} — {{ formatDate(a.periodEnd) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.dueDate) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.rentAmount) }}</TableCell>
@@ -275,22 +374,58 @@ function formatMoney(value: number): string {
           </Card>
         </TabsContent>
 
-        <TabsContent value="payments" class="flex min-h-0 flex-1 flex-col">
+        <TabsContent value="payments" class="flex min-h-0 flex-1 flex-col gap-2">
+          <div v-if="paymentHistory.length" class="flex items-center justify-end">
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <Button variant="outline" size="sm" class="flex items-center gap-1.5">
+                  <Filter class="size-3.5" />
+                  Статус
+                  <span v-if="paymentStatusFilter.size" class="text-primary">({{ paymentStatusFilter.size }})</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuCheckboxItem
+                  v-for="status in availablePaymentStatuses"
+                  :key="status"
+                  :model-value="paymentStatusFilter.has(status)"
+                  @update:model-value="(checked) => togglePaymentStatusFilter(status, !!checked)"
+                >
+                  {{ STATUS_LABELS[status] }}
+                </DropdownMenuCheckboxItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
           <Card class="flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden py-0">
             <p v-if="!paymentHistory.length" class="p-6 text-sm text-muted-foreground">Платежей пока нет</p>
+            <p v-else-if="!filteredPaymentHistory.length" class="p-6 text-sm text-muted-foreground">Нет платежей с выбранным статусом</p>
             <div v-else class="flex min-h-0 flex-1 flex-col">
               <Table>
                 <TableHeader class="sticky top-0 z-10 bg-muted">
                   <TableRow>
-                    <TableHead :class="CELL_BORDER_CLASS">Дата</TableHead>
+                    <TableHead :class="CELL_BORDER_CLASS">
+                      <button type="button" class="flex items-center gap-1.5 hover:text-foreground/80" @click="togglePaymentSort('createdAt')">
+                        Дата
+                        <ArrowUp v-if="paymentSort?.key === 'createdAt' && paymentSort.dir === 'asc'" class="size-3.5 shrink-0" />
+                        <ArrowDown v-else-if="paymentSort?.key === 'createdAt'" class="size-3.5 shrink-0" />
+                        <ArrowUpDown v-else class="size-3.5 shrink-0 text-muted-foreground/50" />
+                      </button>
+                    </TableHead>
                     <TableHead :class="CELL_BORDER_CLASS">Описание</TableHead>
-                    <TableHead :class="CELL_BORDER_CLASS">Сумма</TableHead>
+                    <TableHead :class="CELL_BORDER_CLASS">
+                      <button type="button" class="flex items-center gap-1.5 hover:text-foreground/80" @click="togglePaymentSort('amount')">
+                        Сумма
+                        <ArrowUp v-if="paymentSort?.key === 'amount' && paymentSort.dir === 'asc'" class="size-3.5 shrink-0" />
+                        <ArrowDown v-else-if="paymentSort?.key === 'amount'" class="size-3.5 shrink-0" />
+                        <ArrowUpDown v-else class="size-3.5 shrink-0 text-muted-foreground/50" />
+                      </button>
+                    </TableHead>
                     <TableHead :class="CELL_BORDER_CLASS">Статус</TableHead>
                     <TableHead>Чек</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow v-for="row in paymentHistory" :key="row.id">
+                  <TableRow v-for="row in filteredPaymentHistory" :key="row.id">
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(row.createdAt) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ row.description }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(row.amount) }}</TableCell>
@@ -332,6 +467,7 @@ function formatMoney(value: number): string {
           </Card>
         </TabsContent>
       </Tabs>
+      </div>
     </template>
   </div>
 </template>

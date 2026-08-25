@@ -393,11 +393,15 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
         </div>
         <p v-if="renderable.length === 0" class="m-auto text-sm text-muted-foreground">Сообщений пока нет</p>
 
-        <template v-for="group in groupedByDay" :key="group.label">
-          <!-- sticky — по прямой просьбе: дата "прилипает" сверху во время прокрутки этого
-               дня, следующая дата естественно вытесняет предыдущую (обычный sticky-заголовок
-               внутри overflow-auto контейнера, без JS). -->
-          <div class="sticky top-0 z-10 my-3 flex justify-center first:mt-0">
+        <!-- Обёртка на каждую дату обязательна (не bare <template>) — sticky-заголовок
+             "прилипает" в пределах ближайшего блочного предка, а не просто scroll-контейнера.
+             Без общей обёртки заголовок+сообщения все даты делят один и тот же containing
+             block (сам scrollEl) и несколько прилипших плашек могли встать друг на друга
+             одновременно (реальный баг, поймано на скриншоте — две плашки дат внахлёст).
+             С обёрткой на каждую группу плашка естественно выталкивается началом следующей
+             группы, ровно как задумано. -->
+        <div v-for="(group, groupIndex) in groupedByDay" :key="group.label">
+          <div class="sticky top-0 z-10 my-3 flex justify-center" :class="groupIndex === 0 ? 'mt-0' : ''">
             <span class="rounded-full border bg-background/95 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur-sm">
               {{ group.label }}
             </span>
@@ -526,7 +530,7 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
               </div>
             </template>
           </TransitionGroup>
-        </template>
+        </div>
       </div>
 
       <!-- Кнопка "вниз" — по прямой просьбе, появляется, когда пользователь отлистал от
