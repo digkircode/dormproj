@@ -15,6 +15,28 @@ export const envSchema = z.object({
   ROSNOU_ID_REDIRECT_URI: z.url(),
   FRONTEND_URL: z.url(),
   SESSION_SECRET: z.string().min(32),
+
+  // Эквайринг ГПБ (онлайн-оплата проживающих, см. acquiring/) — все поля опциональны:
+  // пока не заполнены, GazprombankAcquiringProvider.isConfigured() возвращает false и
+  // страница оплаты показывает "временно недоступна", а не падает при старте бэкенда.
+  GPB_ACQUIRING_BASE_URL: z.url().optional(),
+  GPB_ACQUIRING_PORTAL_ID: z.string().min(1).optional(),
+  GPB_ACQUIRING_MERCHANT_ID: z.string().min(1).optional(),
+  GPB_ACQUIRING_ACCOUNT_ID: z.string().min(1).optional(),
+  GPB_ACQUIRING_CLIENT_CERT_PATH: z.string().min(1).optional(),
+  GPB_ACQUIRING_CLIENT_KEY_PATH: z.string().min(1).optional(),
+  GPB_ACQUIRING_CLIENT_KEY_PASSPHRASE: z.string().min(1).optional(),
+
+  // Цифровая касса Эвотор/АТОЛ Онлайн (фискализация чеков, см. fiscal/) — та же логика
+  // опциональности, что и у эквайринга выше.
+  ATOL_KASSA_BASE_URL: z.url().optional(),
+  ATOL_KASSA_LOGIN: z.string().min(1).optional(),
+  ATOL_KASSA_PASSWORD: z.string().min(1).optional(),
+  ATOL_KASSA_GROUP_CODE: z.string().min(1).optional(),
+  ATOL_KASSA_COMPANY_INN: z.string().min(1).optional(),
+  ATOL_KASSA_COMPANY_EMAIL: z.string().min(1).optional(),
+  ATOL_KASSA_COMPANY_SNO: z.string().min(1).optional(),
+  ATOL_KASSA_PAYMENT_ADDRESS: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

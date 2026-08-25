@@ -13,6 +13,7 @@ import {
   Info,
   MessageCircle,
   FileSignature,
+  CreditCard,
 } from 'lucide-vue-next'
 import NavStudent from '@/components/NavStudent.vue'
 import NavMain from '@/components/NavMain.vue'
@@ -76,6 +77,7 @@ const navStudent = computed(() => [
   ...(canSeeResidentChat.value
     ? [
         { title: 'Информация о договоре', url: '/student/contract', icon: FileSignature },
+        { title: 'Оплата', url: '/student/payment', icon: CreditCard },
         { title: 'Чат с сотрудниками', url: '/student/chat', icon: MessageCircle, badge: hasUnreadResidentChat.value },
       ]
     : []),

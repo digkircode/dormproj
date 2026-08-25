@@ -30,6 +30,7 @@ import StudentGeneralInfo from '@/pages/StudentGeneralInfo.vue'
 import Chats from '@/pages/Chats.vue'
 import MyChat from '@/pages/MyChat.vue'
 import MyContract from '@/pages/MyContract.vue'
+import MyPayment from '@/pages/MyPayment.vue'
 
 // Первый этап ролевой модели (см. промпт проекта) — секция страницы определяет, кому
 // она видна: 'staff' — группа "Сотрудник" в сайдбаре (AppSidebar.vue/NavMain.vue),
@@ -50,6 +51,7 @@ const router = createRouter({
     // Свой договор — тот же гейт, что у чата (см. sectionAllowed ниже): доступ по
     // individualUid из сессии на бэке (my-contract.controller.ts), без :id в маршруте.
     { path: '/student/contract', name: 'student-contract', component: MyContract, meta: { title: 'Информация о договоре', section: 'resident' } },
+    { path: '/student/payment', name: 'student-payment', component: MyPayment, meta: { title: 'Оплата', section: 'resident' } },
     { path: '/students', name: 'students', component: Students, meta: { title: 'Контингент студентов', section: 'admin' } },
     { path: '/sync', name: 'sync', component: Sync, meta: { title: 'Синхронизация', section: 'admin' } },
     {

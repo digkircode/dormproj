@@ -30,6 +30,7 @@ import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
 import { PublicInfoModule } from './public-info/public-info.module';
 import { ChatsModule } from './chats/chats.module';
+import { MyPaymentsModule } from './my-payments/my-payments.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { ChatsModule } from './chats/chats.module';
     RolesModule,
     PublicInfoModule,
     ChatsModule,
+    MyPaymentsModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

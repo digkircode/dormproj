@@ -89,7 +89,7 @@ function moneyBreakdown(value: Prisma.Decimal): { digits: string; words: string;
 
 // "Фамилия И.О." — для строки подписи в самом низу бланка (подписано "Фамилия,
 // инициалы", не полное ФИО, в отличие от строки "Ф.И.О. (полностью)" выше по документу).
-function surnameWithInitials(fullName: string): string {
+export function surnameWithInitials(fullName: string): string {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return '';
   const [surname, ...rest] = parts;

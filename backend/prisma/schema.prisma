@@ -537,6 +537,7 @@ model Contract {
   accruals             Accrual[]
   payments             Payment[]
   paymentImportRecords PaymentImportRecord[]
+  paymentIntents       PaymentIntent[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -702,7 +703,8 @@ model Payment {
   createdBy       User? @relation("PaymentCreatedBy", fields: [createdByUserId], references: [id])
 
   allocations PaymentAllocation[]
-  importRecord PaymentImportRecord?
+  importRecord  PaymentImportRecord?
+  paymentIntent PaymentIntent?
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -764,6 +766,58 @@ model PaymentImportRecord {
   @@unique([source, externalId])
   @@index([status])
   @@map("payment_import_records")
+}
+
+enum PaymentIntentStatus {
+  CREATED
+  PENDING_BANK
+  SUCCEEDED
+  FAILED
+  CANCELED
+  EXPIRED
+}
+
+// Попытка онлайн-оплаты проживающего (эквайринг ГПБ) — черновик ДО подтверждения банком.
+// Payment (основной леджер) создаётся только из этой записи и только по факту успешного
+// результата (см. my-payments.controller.ts) — сюда попадают и незавершённые/неудачные
+// попытки, леджер платежей ими не засоряется. payerFullName — ФИО того, кто реально
+// платит (не всегда сам проживающий и не всегда законный представитель из договора,
+// см. промпт проекта) — только для чека кассы, отдельного Individual под него не заводим.
+model PaymentIntent {
+  id         Int      @id @default(autoincrement())
+  contractId Int      @map("contract_id")
+  contract   Contract @relation(fields: [contractId], references: [id])
+
+  amount      Decimal             @db.Decimal(12, 2)
+  status      PaymentIntentStatus @default(CREATED)
+  description String              @map("description")
+
+  payerFullName String  @map("payer_full_name")
+  payerEmail    String? @map("payer_email")
+  payerPhone    String? @map("payer_phone")
+
+  // Идентификатор попытки в нашей системе — то же значение уходит в params.order_id при
+  // старте платежа у ГПБ, чтобы result-статус можно было однозначно связать обратно с этой
+  // строкой независимо от token (см. gazprombank-acquiring.provider.ts).
+  bankToken     String? @unique @map("bank_token")
+  bankRawStatus Json?   @map("bank_raw_status")
+
+  fiscalUuid       String? @map("fiscal_uuid")
+  fiscalStatus     String? @map("fiscal_status")
+  fiscalReceiptUrl String? @map("fiscal_receipt_url")
+
+  failureReason String? @map("failure_reason")
+
+  // Итоговый леджерный платёж — появляется только при status=SUCCEEDED.
+  paymentId Int?     @unique @map("payment_id")
+  payment   Payment? @relation(fields: [paymentId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([contractId])
+  @@index([status])
+  @@map("payment_intents")
 }
 
 // ===== Внутренний чат «проживающий ↔ сотрудники» =====

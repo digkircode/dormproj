@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, CalendarClock, CalendarRange, FileX, History, Home, Percent, Receipt, Wallet } from 'lucide-vue-next'
+import { ArrowLeft, CalendarClock, CalendarRange, CreditCard, FileX, History, Home, Percent, Receipt, Wallet } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import ContractStatusPill from '@/components/ContractStatusPill.vue'
@@ -66,6 +66,12 @@ function formatMoney(value: number): string {
       </Button>
       <h1 class="text-lg font-medium">{{ contract ? `Договор № ${contract.number}` : 'Информация о договоре' }}</h1>
       <ContractStatusPill v-if="displayStatus" :status="displayStatus" />
+      <Button v-if="contract" size="sm" class="ml-2" as-child>
+        <RouterLink to="/student/payment">
+          <CreditCard class="size-4" />
+          Оплатить
+        </RouterLink>
+      </Button>
       <span v-if="contract" class="ml-auto flex items-center gap-1.5 text-sm text-muted-foreground">
         <History class="size-4 shrink-0 text-primary" />
         Создан {{ formatDate(contract.createdAt) }}
