@@ -2,66 +2,52 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  ArrowDown,
   ArrowLeft,
-  ArrowUp,
-  ArrowUpDown,
   CalendarClock,
   CalendarRange,
-  Check,
   ChevronDown,
-  Clock,
   CreditCard,
   DoorOpen,
-  ExternalLink,
   FileX,
-  Filter,
   History,
   Loader,
   Percent,
   Receipt,
   Wallet,
-  X,
 } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import ContractStatusPill from '@/components/ContractStatusPill.vue'
 import CreatePaymentDialog from '@/components/CreatePaymentDialog.vue'
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
+import EntityTable from '@/components/EntityTable.vue'
+import AccrualBalanceCell from '@/components/AccrualBalanceCell.vue'
+import PaymentStatusPillCell from '@/components/PaymentStatusPillCell.vue'
+import PaymentReceiptCell from '@/components/PaymentReceiptCell.vue'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { fetchMyContract, fetchMyContracts, type MyContractDetail, type MyContractSummary } from '@/lib/contracts-api'
+import { createAppColumnHelper } from '@/lib/table'
+import { createClientFetchPage, createClientFacetValues } from '@/lib/client-list'
+import { fetchMyContract, fetchMyContracts, type AccrualRow, type MyContractDetail, type MyContractSummary } from '@/lib/contracts-api'
 import { getContractDisplayStatus, STATUS_LABELS as CONTRACT_STATUS_LABELS } from '@/lib/contracts-format'
-import { fetchMyPayments, type PaymentIntentRow, type PaymentIntentStatus } from '@/lib/my-payments-api'
+import {
+  fetchMyPayments,
+  UNIFIED_PAYMENT_STATUS_LABELS,
+  type PaymentIntentRow,
+  type UnifiedPaymentRow,
+  type UnifiedPaymentStatus,
+} from '@/lib/my-payments-api'
 import { goBack } from '@/lib/utils'
 
-const STATUS_LABELS: Record<PaymentIntentStatus, string> = {
-  CREATED: 'Создан',
-  PENDING_BANK: 'Обрабатывается банком',
-  SUCCEEDED: 'Оплачено',
-  FAILED: 'Не удалось',
-  CANCELED: 'Отменено',
-  EXPIRED: 'Истёк',
+// Та же карта, что и в ContractDetail.vue (сотруднический "Внести платёж") — не вынесена
+// в общий модуль там по той же причине, что и остальные небольшие повторы в проекте
+// (см. промпт), тут тот же принцип.
+const METHOD_LABELS: Record<string, string> = {
+  CASH: 'Наличные',
+  CARD_ACQUIRING: 'Эквайринг',
+  BANK_TRANSFER: 'Банковский перевод',
+  MAT_CAPITAL: 'Материнский капитал',
+  WEBSITE: 'Сайт',
 }
-const STATUS_ICON = { CREATED: Clock, PENDING_BANK: Clock, SUCCEEDED: Check, FAILED: X, CANCELED: X, EXPIRED: X } as const
-const STATUS_ICON_CLASS: Record<PaymentIntentStatus, string> = {
-  CREATED: 'text-muted-foreground',
-  PENDING_BANK: 'text-orange-500',
-  SUCCEEDED: 'text-emerald-500',
-  FAILED: 'text-red-500',
-  CANCELED: 'text-muted-foreground',
-  EXPIRED: 'text-muted-foreground',
-}
-
-// Та же граница вертикальных разделителей колонок, что и в общих таблицах приложения
-// (EntityTable.vue/ContractDetail.vue) — для визуального единства.
-const CELL_BORDER_CLASS = 'border-r border-border last:border-r-0'
 
 const router = useRouter()
 const contract = ref<MyContractDetail | null>(null)
@@ -77,10 +63,8 @@ const loadError = ref('')
 const contracts = ref<MyContractSummary[]>([])
 const selectedContractId = ref<number | undefined>(undefined)
 
-// История платежей (вкладка "Платежи") — намеренно PaymentIntent (см. GET /my-payments),
-// а не леджерные Payment из contract.payments: только тут есть статус конкретной
-// попытки (в т.ч. "Не удалось") и ссылка на чек — перенесено сюда со страницы
-// /student/payment по прямой просьбе 2026-08-25, страница сама скрыта из навигации.
+// Попытки онлайн-оплаты (GET /my-payments) — сырые, дальше объединяются с леджерными
+// contract.payments в unifiedPayments (см. ниже).
 const paymentHistory = ref<PaymentIntentRow[]>([])
 
 // silent — переключение УЖЕ выбранного на странице договора (см. switchContract): не
@@ -145,60 +129,110 @@ function formatDate(value: string | null): string {
   if (!value) return '—'
   return new Date(value).toLocaleDateString('ru-RU')
 }
+function monthLabel(value: string): string {
+  return new Date(value).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })
+}
 function formatMoney(value: number): string {
   return `${value.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
 }
 
-// --- Сортировка/фильтр таблиц "Начисления"/"Платежи" — тот же паттерн кнопки-заголовка
-// (ArrowUp/ArrowDown/ArrowUpDown), что и в EntityTable.vue, но локально: обе таблицы —
-// уже полностью загруженный в память массив своего резидента (не постранично с сервера,
-// как в EntityTable), полноценный EntityTable под такой источник данных в проекте пока
-// не заведён — по прямой просьбе 2026-08-25 добавлено сюда напрямую, без переиспользования
-// серверной пагинации/фасетов EntityTable, которые тут просто не нужны.
-type SortDir = 'asc' | 'desc'
-type AccrualSortKey = 'periodStart' | 'balance'
-const accrualSort = ref<{ key: AccrualSortKey; dir: SortDir } | null>(null)
-function toggleAccrualSort(key: AccrualSortKey) {
-  if (accrualSort.value?.key !== key) accrualSort.value = { key, dir: 'asc' }
-  else if (accrualSort.value.dir === 'asc') accrualSort.value = { key, dir: 'desc' }
-  else accrualSort.value = null
+// --- Начисления — та же EntityTable, что и во всех остальных таблицах приложения (по
+// прямой просьбе 2026-08-26 — раньше тут были самодельные кнопки-заголовки без настроек
+// колонок/поиска). fetchPage/fetchFacetValues — клиентский адаптер (см. lib/client-list.ts):
+// начисления уже целиком в памяти (не постранично с сервера, как у остальных таблиц). ---
+const accrualColumnHelper = createAppColumnHelper<AccrualRow>()
+const accrualColumnLabels: Record<string, string> = {
+  periodStart: 'Период',
+  dueDate: 'Срок оплаты',
+  rentAmount: 'Найм',
+  paid: 'Оплачено',
+  balance: 'Остаток',
 }
-const sortedAccruals = computed(() => {
-  const list = contract.value?.accruals ?? []
-  if (!accrualSort.value) return list
-  const { key, dir } = accrualSort.value
-  const sign = dir === 'asc' ? 1 : -1
-  return [...list].sort((a, b) => {
-    if (key === 'periodStart') return sign * a.periodStart.localeCompare(b.periodStart)
-    return sign * (a.balance - b.balance)
-  })
+const accrualColumns = accrualColumnHelper.columns([
+  accrualColumnHelper.accessor('periodStart', { header: accrualColumnLabels.periodStart, size: 160, minSize: 130 }),
+  accrualColumnHelper.accessor('dueDate', { header: accrualColumnLabels.dueDate, enableSorting: false, size: 140, minSize: 110 }),
+  accrualColumnHelper.accessor('rentAmount', { header: accrualColumnLabels.rentAmount, enableSorting: false, size: 120, minSize: 100 }),
+  accrualColumnHelper.accessor('paid', { header: accrualColumnLabels.paid, enableSorting: false, size: 120, minSize: 100 }),
+  accrualColumnHelper.accessor('balance', { header: accrualColumnLabels.balance, size: 120, minSize: 100 }),
+])
+function accrualCellText(columnId: string, value: unknown): string {
+  if (columnId === 'periodStart' && typeof value === 'string') return monthLabel(value)
+  if (columnId === 'dueDate' && typeof value === 'string') return formatDate(value)
+  if ((columnId === 'rentAmount' || columnId === 'paid') && typeof value === 'number') return formatMoney(value)
+  return String(value ?? '')
+}
+const accrualCellRenderers = { balance: AccrualBalanceCell }
+const fetchAccrualsPage = createClientFetchPage(() => contract.value?.accruals ?? [], {
+  searchText: (a) => `${monthLabel(a.periodStart)} ${formatDate(a.dueDate)}`,
+  sortValue: (a, sortBy) => (a as unknown as Record<string, string | number>)[sortBy],
+})
+async function fetchAccrualFacets() {
+  return []
+}
+
+// --- Платежи — объединённый леджер (Payment, в т.ч. внесённые сотрудником вручную и уже
+// успешно проведённые онлайн) + попытки, которые деньгами не закончились (см. тип
+// UnifiedPaymentRow) — по прямой просьбе 2026-08-26: раньше вкладка видела только
+// PaymentIntent и не показывала оплаты, внесённые сотрудником. ---
+const unifiedPayments = computed<UnifiedPaymentRow[]>(() => {
+  const ledgerRows: UnifiedPaymentRow[] = (contract.value?.payments ?? []).map((p) => ({
+    id: `payment-${p.id}`,
+    date: p.paidAt,
+    description: p.rawComment || METHOD_LABELS[p.method] || p.method,
+    amount: p.amount,
+    status: p.reversedAt ? 'REVERSED' : 'PAID',
+    // Заглушка чека — только для того, что реально прошло как онлайн-оплата (эквайринг/
+    // сайт); у ручных наличных/переводом сотрудник чек не выписывает, показывать кнопку
+    // там было бы вводящей в заблуждение.
+    showReceiptButton: !p.reversedAt && (p.method === 'CARD_ACQUIRING' || p.method === 'WEBSITE'),
+    fiscalReceiptUrl: null,
+  }))
+  const intentRows: UnifiedPaymentRow[] = paymentHistory.value
+    .filter((row): row is PaymentIntentRow & { status: Exclude<PaymentIntentRow['status'], 'SUCCEEDED'> } => row.status !== 'SUCCEEDED')
+    .map((row) => ({
+      id: `intent-${row.id}`,
+      date: row.createdAt,
+      description: row.description,
+      amount: row.amount,
+      status: row.status,
+      showReceiptButton: false,
+      fiscalReceiptUrl: row.fiscalReceiptUrl,
+    }))
+  return [...ledgerRows, ...intentRows]
 })
 
-type PaymentSortKey = 'createdAt' | 'amount'
-const paymentSort = ref<{ key: PaymentSortKey; dir: SortDir } | null>(null)
-function togglePaymentSort(key: PaymentSortKey) {
-  if (paymentSort.value?.key !== key) paymentSort.value = { key, dir: 'desc' }
-  else if (paymentSort.value.dir === 'desc') paymentSort.value = { key, dir: 'asc' }
-  else paymentSort.value = null
+const paymentColumnHelper = createAppColumnHelper<UnifiedPaymentRow>()
+const paymentColumnLabels: Record<string, string> = {
+  date: 'Дата',
+  description: 'Описание',
+  amount: 'Сумма',
+  status: 'Статус',
+  fiscalReceiptUrl: 'Чек',
 }
-const paymentStatusFilter = ref<Set<PaymentIntentStatus>>(new Set())
-const availablePaymentStatuses = computed(
-  () => [...new Set(paymentHistory.value.map((p) => p.status))] as PaymentIntentStatus[],
-)
-function togglePaymentStatusFilter(status: PaymentIntentStatus, checked: boolean) {
-  const next = new Set(paymentStatusFilter.value)
-  if (checked) next.add(status)
-  else next.delete(status)
-  paymentStatusFilter.value = next
+const paymentColumns = paymentColumnHelper.columns([
+  paymentColumnHelper.accessor('date', { header: paymentColumnLabels.date, size: 140, minSize: 110 }),
+  paymentColumnHelper.accessor('description', { header: paymentColumnLabels.description, enableSorting: false, size: 260, minSize: 160 }),
+  paymentColumnHelper.accessor('amount', { header: paymentColumnLabels.amount, size: 120, minSize: 100 }),
+  paymentColumnHelper.accessor('status', { header: paymentColumnLabels.status, enableSorting: false, size: 170, minSize: 150 }),
+  paymentColumnHelper.accessor('fiscalReceiptUrl', { header: paymentColumnLabels.fiscalReceiptUrl, enableSorting: false, enableHiding: false, size: 120, minSize: 100 }),
+])
+function paymentCellText(columnId: string, value: unknown): string {
+  if (columnId === 'date' && typeof value === 'string') return formatDate(value)
+  if (columnId === 'amount' && typeof value === 'number') return formatMoney(value)
+  return String(value ?? '')
 }
-const filteredPaymentHistory = computed(() => {
-  let list = paymentHistory.value
-  if (paymentStatusFilter.value.size > 0) list = list.filter((p) => paymentStatusFilter.value.has(p.status))
-  if (!paymentSort.value) return list
-  const { key, dir } = paymentSort.value
-  const sign = dir === 'asc' ? 1 : -1
-  return [...list].sort((a, b) => (key === 'createdAt' ? sign * a.createdAt.localeCompare(b.createdAt) : sign * (a.amount - b.amount)))
+const paymentCellRenderers = { status: PaymentStatusPillCell, fiscalReceiptUrl: PaymentReceiptCell }
+const paymentFilterableFields = ['status']
+const fetchPaymentsPage = createClientFetchPage(() => unifiedPayments.value, {
+  searchText: (row) => row.description,
+  sortValue: (row, sortBy) => (row as unknown as Record<string, string | number>)[sortBy],
+  filterValue: (row, field) => (field === 'status' ? row.status : ''),
 })
+const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
+  () => unifiedPayments.value,
+  (row, field) => (field === 'status' ? row.status : ''),
+  (field, value) => (field === 'status' ? UNIFIED_PAYMENT_STATUS_LABELS[value as UnifiedPaymentStatus] : value),
+)
 </script>
 
 <template>
@@ -230,11 +264,13 @@ const filteredPaymentHistory = computed(() => {
       <h1 v-else class="text-lg font-medium">{{ contract ? `Договор № ${contract.number}` : 'Договор/Платежи' }}</h1>
       <ContractStatusPill v-if="displayStatus" :status="displayStatus" />
       <Loader v-if="isSwitching" class="size-4 shrink-0 animate-spin text-muted-foreground" />
+      <!-- Тут же, на уровне номера договора — было тесно вперемешку с датой создания,
+           та переехала в карточку ниже (по прямой просьбе 2026-08-26). -->
+      <Button v-if="contract" size="sm" class="ml-auto flex items-center gap-2" @click="paymentDialog?.open(contract.id)">
+        <CreditCard class="size-4 shrink-0" />
+        Оплатить
+      </Button>
       <CreatePaymentDialog ref="paymentDialog" />
-      <span v-if="contract" class="ml-auto flex items-center gap-1.5 text-sm text-muted-foreground">
-        <History class="size-4 shrink-0 text-primary" />
-        Создан {{ formatDate(contract.createdAt) }}
-      </span>
     </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
@@ -262,13 +298,12 @@ const filteredPaymentHistory = computed(() => {
             <CalendarRange class="size-4 shrink-0 text-primary" />
             {{ formatDate(contract.startDate) }} — {{ formatDate(contract.actualEndDate ?? contract.endDate) }}
           </span>
-          <!-- Кнопка "Оплатить" — тут, рядом с самой картой баланса/комнаты, а не в общем
-               заголовке страницы (было тесно вперемешку с переключателем/статусом/датой
-               создания, по прямой просьбе 2026-08-25 перенесена сюда). -->
-          <Button size="sm" class="ml-auto flex items-center gap-2" @click="paymentDialog?.open(contract!.id)">
-            <CreditCard class="size-4 shrink-0" />
-            Оплатить
-          </Button>
+          <!-- Дата создания — тут же, в карточке (была в общем заголовке страницы, но там
+               теперь кнопка "Оплатить", по прямой просьбе 2026-08-26). -->
+          <span class="ml-auto flex items-center gap-1.5 text-muted-foreground">
+            <History class="size-4 shrink-0 text-primary" />
+            Создан {{ formatDate(contract.createdAt) }}
+          </span>
         </div>
 
         <div class="grid grid-cols-2 gap-4 border-t pt-4 sm:grid-cols-4">
@@ -284,8 +319,8 @@ const filteredPaymentHistory = computed(() => {
             </div>
           </div>
           <div class="flex items-center gap-3">
-            <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/25">
-              <DoorOpen class="size-5 text-amber-800 dark:text-amber-500" />
+            <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-stone-200 dark:bg-stone-500/20">
+              <DoorOpen class="size-5 text-stone-700 dark:text-stone-400" />
             </div>
             <div>
               <p class="text-xs text-muted-foreground">Стоимость комнаты</p>
@@ -332,139 +367,39 @@ const filteredPaymentHistory = computed(() => {
         </TabsList>
 
         <TabsContent value="accruals" class="flex min-h-0 flex-1 flex-col">
-          <Card class="flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden py-0">
-            <div class="flex min-h-0 flex-1 flex-col">
-              <Table>
-                <TableHeader class="sticky top-0 z-10 bg-muted">
-                  <TableRow>
-                    <TableHead :class="CELL_BORDER_CLASS">
-                      <button type="button" class="flex items-center gap-1.5 hover:text-foreground/80" @click="toggleAccrualSort('periodStart')">
-                        Период
-                        <ArrowUp v-if="accrualSort?.key === 'periodStart' && accrualSort.dir === 'asc'" class="size-3.5 shrink-0" />
-                        <ArrowDown v-else-if="accrualSort?.key === 'periodStart'" class="size-3.5 shrink-0" />
-                        <ArrowUpDown v-else class="size-3.5 shrink-0 text-muted-foreground/50" />
-                      </button>
-                    </TableHead>
-                    <TableHead :class="CELL_BORDER_CLASS">Срок оплаты</TableHead>
-                    <TableHead :class="CELL_BORDER_CLASS">Найм</TableHead>
-                    <TableHead :class="CELL_BORDER_CLASS">Оплачено</TableHead>
-                    <TableHead>
-                      <button type="button" class="flex items-center gap-1.5 hover:text-foreground/80" @click="toggleAccrualSort('balance')">
-                        Остаток
-                        <ArrowUp v-if="accrualSort?.key === 'balance' && accrualSort.dir === 'asc'" class="size-3.5 shrink-0" />
-                        <ArrowDown v-else-if="accrualSort?.key === 'balance'" class="size-3.5 shrink-0" />
-                        <ArrowUpDown v-else class="size-3.5 shrink-0 text-muted-foreground/50" />
-                      </button>
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow v-for="a in sortedAccruals" :key="a.id" :class="a.voidedAt ? 'opacity-40' : ''">
-                    <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.periodStart) }} — {{ formatDate(a.periodEnd) }}</TableCell>
-                    <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.dueDate) }}</TableCell>
-                    <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.rentAmount) }}</TableCell>
-                    <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.paid) }}</TableCell>
-                    <TableCell :class="a.balance > 0 ? 'text-red-500' : ''">
-                      {{ a.voidedAt ? 'отменено' : formatMoney(a.balance) }}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-          </Card>
+          <EntityTable
+            :key="`accruals-${contract.id}`"
+            :columns="accrualColumns"
+            :column-labels="accrualColumnLabels"
+            :filterable-fields="[]"
+            :default-sort="{ id: 'periodStart', desc: false }"
+            :fetch-page="fetchAccrualsPage"
+            :fetch-facet-values="fetchAccrualFacets"
+            :get-row-id="(a: AccrualRow) => String(a.id)"
+            total-label="начислений"
+            :cell-text="accrualCellText"
+            :cell-renderers="accrualCellRenderers"
+            storage-key="my-contract-accruals"
+            accent-icons
+          />
         </TabsContent>
 
-        <TabsContent value="payments" class="flex min-h-0 flex-1 flex-col gap-2">
-          <div v-if="paymentHistory.length" class="flex items-center justify-end">
-            <DropdownMenu>
-              <DropdownMenuTrigger as-child>
-                <Button variant="outline" size="sm" class="flex items-center gap-1.5">
-                  <Filter class="size-3.5" />
-                  Статус
-                  <span v-if="paymentStatusFilter.size" class="text-primary">({{ paymentStatusFilter.size }})</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuCheckboxItem
-                  v-for="status in availablePaymentStatuses"
-                  :key="status"
-                  :model-value="paymentStatusFilter.has(status)"
-                  @update:model-value="(checked) => togglePaymentStatusFilter(status, !!checked)"
-                >
-                  {{ STATUS_LABELS[status] }}
-                </DropdownMenuCheckboxItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          <Card class="flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden py-0">
-            <p v-if="!paymentHistory.length" class="p-6 text-sm text-muted-foreground">Платежей пока нет</p>
-            <p v-else-if="!filteredPaymentHistory.length" class="p-6 text-sm text-muted-foreground">Нет платежей с выбранным статусом</p>
-            <div v-else class="flex min-h-0 flex-1 flex-col">
-              <Table>
-                <TableHeader class="sticky top-0 z-10 bg-muted">
-                  <TableRow>
-                    <TableHead :class="CELL_BORDER_CLASS">
-                      <button type="button" class="flex items-center gap-1.5 hover:text-foreground/80" @click="togglePaymentSort('createdAt')">
-                        Дата
-                        <ArrowUp v-if="paymentSort?.key === 'createdAt' && paymentSort.dir === 'asc'" class="size-3.5 shrink-0" />
-                        <ArrowDown v-else-if="paymentSort?.key === 'createdAt'" class="size-3.5 shrink-0" />
-                        <ArrowUpDown v-else class="size-3.5 shrink-0 text-muted-foreground/50" />
-                      </button>
-                    </TableHead>
-                    <TableHead :class="CELL_BORDER_CLASS">Описание</TableHead>
-                    <TableHead :class="CELL_BORDER_CLASS">
-                      <button type="button" class="flex items-center gap-1.5 hover:text-foreground/80" @click="togglePaymentSort('amount')">
-                        Сумма
-                        <ArrowUp v-if="paymentSort?.key === 'amount' && paymentSort.dir === 'asc'" class="size-3.5 shrink-0" />
-                        <ArrowDown v-else-if="paymentSort?.key === 'amount'" class="size-3.5 shrink-0" />
-                        <ArrowUpDown v-else class="size-3.5 shrink-0 text-muted-foreground/50" />
-                      </button>
-                    </TableHead>
-                    <TableHead :class="CELL_BORDER_CLASS">Статус</TableHead>
-                    <TableHead>Чек</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow v-for="row in filteredPaymentHistory" :key="row.id">
-                    <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(row.createdAt) }}</TableCell>
-                    <TableCell :class="CELL_BORDER_CLASS">{{ row.description }}</TableCell>
-                    <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(row.amount) }}</TableCell>
-                    <TableCell :class="CELL_BORDER_CLASS">
-                      <span class="flex items-center gap-1.5">
-                        <component :is="STATUS_ICON[row.status]" class="size-3.5" :class="STATUS_ICON_CLASS[row.status]" />
-                        {{ STATUS_LABELS[row.status] }}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <a
-                        v-if="row.fiscalReceiptUrl"
-                        :href="row.fiscalReceiptUrl"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="flex items-center gap-1 text-primary hover:underline"
-                      >
-                        Открыть
-                        <ExternalLink class="size-3.5" />
-                      </a>
-                      <!-- Заглушка: реального чека ещё нет (касса не подключена), но кнопка
-                           уже на месте — по прямой просьбе 2026-08-25 (реальный PDF отдаст
-                           сам ОФД/platformaofd.ru после подключения, свой макет не делаем). -->
-                      <button
-                        v-else-if="row.status === 'SUCCEEDED'"
-                        type="button"
-                        class="flex items-center gap-1 text-primary hover:underline"
-                        title="Заглушка — после подключения кассы здесь будет ссылка на чек от ОФД"
-                      >
-                        Открыть
-                        <ExternalLink class="size-3.5" />
-                      </button>
-                      <span v-else class="text-muted-foreground">—</span>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-          </Card>
+        <TabsContent value="payments" class="flex min-h-0 flex-1 flex-col">
+          <EntityTable
+            :key="`payments-${contract.id}`"
+            :columns="paymentColumns"
+            :column-labels="paymentColumnLabels"
+            :filterable-fields="paymentFilterableFields"
+            :default-sort="{ id: 'date', desc: true }"
+            :fetch-page="fetchPaymentsPage"
+            :fetch-facet-values="fetchPaymentFacets"
+            :get-row-id="(r: UnifiedPaymentRow) => r.id"
+            total-label="платежей"
+            :cell-text="paymentCellText"
+            :cell-renderers="paymentCellRenderers"
+            storage-key="my-contract-payments"
+            accent-icons
+          />
         </TabsContent>
       </Tabs>
       </div>

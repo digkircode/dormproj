@@ -31,6 +31,35 @@ export interface MyPaymentsData {
   payerEmail: string | null
 }
 
+// Объединённая история платежей на карточке договора у резидента (вкладка "Платежи",
+// см. MyContract.vue) — реальный леджер (Payment, в т.ч. внесённые сотрудником вручную и
+// уже успешно проведённые онлайн-платежи) плюс попытки онлайн-оплаты, которые деньгами
+// не закончились (FAILED/PENDING_BANK/CREATED/CANCELED/EXPIRED у PaymentIntent). SUCCEEDED
+// intent НЕ включается отдельной строкой — его деньги уже видны как леджерный PAID (иначе
+// был бы задвоенный платёж), см. сборку в MyContract.vue. Добавлено 2026-08-26 по прямой
+// просьбе — раньше вкладка показывала только PaymentIntent и не видела оплаты сотрудников.
+export type UnifiedPaymentStatus = 'PAID' | 'REVERSED' | Exclude<PaymentIntentStatus, 'SUCCEEDED'>
+
+export interface UnifiedPaymentRow {
+  id: string
+  date: string
+  description: string
+  amount: number
+  status: UnifiedPaymentStatus
+  showReceiptButton: boolean
+  fiscalReceiptUrl: string | null
+}
+
+export const UNIFIED_PAYMENT_STATUS_LABELS: Record<UnifiedPaymentStatus, string> = {
+  PAID: 'Оплачено',
+  REVERSED: 'Сторнировано',
+  CREATED: 'Создан',
+  PENDING_BANK: 'Обрабатывается банком',
+  FAILED: 'Не удалось',
+  CANCELED: 'Отменено',
+  EXPIRED: 'Истёк',
+}
+
 export interface CreateIntentInput {
   contractId?: number | null
   accrualIds: number[]

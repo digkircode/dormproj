@@ -327,10 +327,37 @@ async function confirmReversePayment() {
       </Button>
       <h1 class="text-lg font-medium">{{ contract ? `Договор № ${contract.number}` : 'Договор' }}</h1>
       <ContractStatusPill v-if="displayStatus" :status="displayStatus" />
-      <span v-if="contract" class="ml-auto flex items-center gap-1.5 text-sm text-muted-foreground">
-        <History class="size-4 shrink-0 text-primary" />
-        Создан {{ formatDate(contract.createdAt) }}
-      </span>
+      <!-- Меню действий — тут же, на уровне номера договора (было отдельной тонкой строкой
+           над карточкой, легко теряющейся), с текстовой подписью — заметнее, чем голая
+           иконка (по прямой просьбе 2026-08-26). -->
+      <DropdownMenu v-if="contract">
+        <DropdownMenuTrigger as-child>
+          <Button variant="outline" size="sm" class="ml-auto flex items-center gap-1.5">
+            <MoreVertical class="size-4 text-primary" />
+            Действия
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem :disabled="isDownloading" @click="downloadDocument">
+            <Printer class="text-primary" />
+            Печать договора
+          </DropdownMenuItem>
+          <DropdownMenuItem @click="openPayment">
+            <Plus class="text-primary" />
+            Внести платёж
+          </DropdownMenuItem>
+          <DropdownMenuItem :disabled="contract.status !== 'ACTIVE'" @click="openTerminate">
+            <Ban class="text-red-500" />
+            Расторгнуть договор
+          </DropdownMenuItem>
+          <!-- Удаление доступно, только пока по договору не было ни одной оплаты — см.
+               contract.hasPayments (backend блокирует то же самое на DELETE /contracts/:id). -->
+          <DropdownMenuItem :disabled="contract.hasPayments" @click="openDelete">
+            <Trash2 class="text-red-500" />
+            Удалить договор
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
@@ -339,36 +366,6 @@ async function confirmReversePayment() {
 
     <template v-if="contract">
       <div class="flex flex-col gap-3">
-        <div class="flex items-center justify-end gap-4">
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <Button variant="outline" size="icon" class="size-7 shrink-0">
-                <MoreVertical class="text-primary" />
-                <span class="sr-only">Действия с договором</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem :disabled="isDownloading" @click="downloadDocument">
-                <Printer class="text-primary" />
-                Печать договора
-              </DropdownMenuItem>
-              <DropdownMenuItem @click="openPayment">
-                <Plus class="text-primary" />
-                Внести платёж
-              </DropdownMenuItem>
-              <DropdownMenuItem :disabled="contract.status !== 'ACTIVE'" @click="openTerminate">
-                <Ban class="text-red-500" />
-                Расторгнуть договор
-              </DropdownMenuItem>
-              <!-- Удаление доступно, только пока по договору не было ни одной оплаты — см.
-                   contract.hasPayments (backend блокирует то же самое на DELETE /contracts/:id). -->
-              <DropdownMenuItem :disabled="contract.hasPayments" @click="openDelete">
-                <Trash2 class="text-red-500" />
-                Удалить договор
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
         <Card class="flex flex-col gap-4 p-4">
           <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
             <RouterLink
@@ -382,6 +379,12 @@ async function confirmReversePayment() {
             <span class="flex items-center gap-1.5">
               <CalendarRange class="size-4 shrink-0 text-primary" />
               {{ formatDate(contract.startDate) }} — {{ formatDate(contract.actualEndDate ?? contract.endDate) }}
+            </span>
+            <!-- Дата создания — тут же, в карточке (была в общем заголовке страницы, но
+                 там теперь меню действий, по прямой просьбе 2026-08-26). -->
+            <span class="ml-auto flex items-center gap-1.5 text-muted-foreground">
+              <History class="size-4 shrink-0 text-primary" />
+              Создан {{ formatDate(contract.createdAt) }}
             </span>
           </div>
 
@@ -398,8 +401,8 @@ async function confirmReversePayment() {
               </div>
             </div>
             <div class="flex items-center gap-3">
-              <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/25">
-                <DoorOpen class="size-5 text-amber-800 dark:text-amber-500" />
+              <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-stone-200 dark:bg-stone-500/20">
+                <DoorOpen class="size-5 text-stone-700 dark:text-stone-400" />
               </div>
               <div>
                 <p class="text-xs text-muted-foreground">Стоимость комнаты</p>
