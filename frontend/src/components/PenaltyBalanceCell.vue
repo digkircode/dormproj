@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { inject } from 'vue'
+import { dateLocaleTag } from '@/lib/format-locale'
 
 const props = defineProps<{ value: unknown; row?: { contractId: number } }>()
 
@@ -10,7 +11,7 @@ const props = defineProps<{ value: unknown; row?: { contractId: number } }>()
 const openPenaltyLog = inject<(contractId: number) => void>('openPenaltyLog')
 
 function formatMoney(value: number): string {
-  return `${value.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
+  return `${value.toLocaleString(dateLocaleTag(), { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
 }
 </script>
 

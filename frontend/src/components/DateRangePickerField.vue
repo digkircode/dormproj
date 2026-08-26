@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import { CalendarDate, parseDate, type DateValue } from '@internationalized/date'
 import {
@@ -25,6 +26,10 @@ import { cn, digitsToDateTemplate, handleDateMaskKeydown } from '@/lib/utils'
 const INPUT_CLASS =
   'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground transition-shadow focus-visible:outline-none focus-visible:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/20 focus-visible:shadow-sm disabled:cursor-not-allowed disabled:opacity-50'
 
+const { t, locale } = useI18n()
+
+// Маска дд.мм.гггг — тот же осознанный выбор, что в DatePickerField.vue, не меняется
+// с языком интерфейса.
 defineProps<{ placeholder?: string; invalid?: boolean }>()
 // Два ISO-поля (YYYY-MM-DD), как везде в проекте, а не Date/DateRange — компонент
 // снаружи выглядит как два обычных v-model-поля, только UI один period-пикер.
@@ -186,14 +191,14 @@ const CELL_TRIGGER_CLASS = cn(
         <PopoverTrigger as-child>
           <Button type="button" variant="ghost" size="icon" class="absolute right-0 size-10 shrink-0 hover:bg-transparent">
             <CalendarIcon class="size-4" :class="invalid ? 'text-red-500' : 'text-primary'" />
-            <span class="sr-only">Открыть календарь</span>
+            <span class="sr-only">{{ t('datePicker.openCalendar') }}</span>
           </Button>
         </PopoverTrigger>
         <PopoverContent class="w-auto p-0">
         <RangeCalendarRoot
           v-slot="{ grid, weekDays }"
           class="p-3"
-          locale="ru"
+          :locale="locale"
           :model-value="rangeValue"
           :min-value="MIN_DATE"
           @update:model-value="onRangeUpdate"

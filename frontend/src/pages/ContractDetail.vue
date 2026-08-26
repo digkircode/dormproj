@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowDown,
@@ -50,6 +51,7 @@ import { fetchDormitoryInfo, type DormitoryInfo } from '@/lib/dormitory-info-api
 import { getContractDisplayStatus } from '@/lib/contracts-format'
 import { blockNonNumericKeys, goBack } from '@/lib/utils'
 import { breadcrumbOverride } from '@/lib/breadcrumb-state'
+import { dateLocaleTag } from '@/lib/format-locale'
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
@@ -61,13 +63,7 @@ const CELL_BORDER_CLASS = 'border-r border-border last:border-r-0'
 // проекта — этот повтор по той же причине).
 const NO_SPINNER_CLASS = '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
 
-const METHOD_LABELS: Record<string, string> = {
-  CASH: 'Наличные',
-  CARD_ACQUIRING: 'Эквайринг',
-  BANK_TRANSFER: 'Банковский перевод',
-  MAT_CAPITAL: 'Материнский капитал',
-  WEBSITE: 'Сайт',
-}
+const { t } = useI18n()
 
 const route = useRoute()
 const router = useRouter()
@@ -82,7 +78,7 @@ async function load() {
   loadError.value = ''
   try {
     contract.value = await fetchContractDetail(contractId.value)
-    breadcrumbOverride.value = `Договор № ${contract.value.number}`
+    breadcrumbOverride.value = t('contracts.detail.titleWithNumber', { number: contract.value.number })
   } catch (error) {
     loadError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -153,25 +149,25 @@ function sortIcon(sort: { id: string; desc: boolean }, id: string) {
   return sort.desc ? ArrowDown : ArrowUp
 }
 
-const ACCRUAL_COLUMNS: { id: keyof AccrualRow; label: string }[] = [
-  { id: 'periodStart', label: 'Период' },
-  { id: 'dueDate', label: 'Срок оплаты' },
-  { id: 'rentAmount', label: 'Найм' },
-  { id: 'adjustmentAmount', label: 'Корректировка' },
-  { id: 'paid', label: 'Оплачено' },
-  { id: 'balance', label: 'Остаток' },
-]
+const ACCRUAL_COLUMNS = computed<{ id: keyof AccrualRow; label: string }[]>(() => [
+  { id: 'periodStart', label: t('contracts.detail.colPeriod') },
+  { id: 'dueDate', label: t('contracts.detail.colDueDate') },
+  { id: 'rentAmount', label: t('contracts.detail.colRent') },
+  { id: 'adjustmentAmount', label: t('contracts.detail.colAdjustment') },
+  { id: 'paid', label: t('contracts.detail.colPaid') },
+  { id: 'balance', label: t('contracts.detail.colBalance') },
+])
 const { sort: accrualSort, sorted: sortedAccruals, toggle: toggleAccrualSort } = useLocalSort(
   () => contract.value?.accruals ?? [],
   'periodStart' satisfies keyof AccrualRow,
 )
 
-const PAYMENT_COLUMNS: { id: keyof PaymentRow; label: string }[] = [
-  { id: 'paidAt', label: 'Дата' },
-  { id: 'amount', label: 'Сумма' },
-  { id: 'method', label: 'Способ' },
-  { id: 'rawComment', label: 'Комментарий' },
-]
+const PAYMENT_COLUMNS = computed<{ id: keyof PaymentRow; label: string }[]>(() => [
+  { id: 'paidAt', label: t('contracts.detail.colDate') },
+  { id: 'amount', label: t('contracts.detail.colAmount') },
+  { id: 'method', label: t('contracts.detail.colMethod') },
+  { id: 'rawComment', label: t('contracts.detail.colComment') },
+])
 const { sort: paymentSort, sorted: sortedPayments, toggle: togglePaymentSort } = useLocalSort(
   () => contract.value?.payments ?? [],
   'paidAt' satisfies keyof PaymentRow,
@@ -179,10 +175,10 @@ const { sort: paymentSort, sorted: sortedPayments, toggle: togglePaymentSort } =
 
 function formatDate(value: string | null): string {
   if (!value) return '—'
-  return new Date(value).toLocaleDateString('ru-RU')
+  return new Date(value).toLocaleDateString(dateLocaleTag())
 }
 function formatMoney(value: number): string {
-  return `${value.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
+  return `${value.toLocaleString(dateLocaleTag(), { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
 }
 
 // --- Расторжение ---
@@ -272,7 +268,7 @@ function openPayment() {
 }
 async function submitPayment() {
   if (!paymentAmount.value || paymentAmount.value <= 0 || !paymentDate.value) {
-    paymentError.value = 'Укажите сумму и дату'
+    paymentError.value = t('contracts.detail.amountAndDateRequired')
     return
   }
   isSavingPayment.value = true
@@ -323,9 +319,11 @@ async function confirmReversePayment() {
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/contracts')">
         <ArrowLeft class="text-primary" />
-        <span class="sr-only">Назад</span>
+        <span class="sr-only">{{ t('contracts.list.back') }}</span>
       </Button>
-      <h1 class="text-lg font-medium">{{ contract ? `Договор № ${contract.number}` : 'Договор' }}</h1>
+      <h1 class="text-lg font-medium">
+        {{ contract ? t('contracts.detail.titleWithNumber', { number: contract.number }) : t('contracts.detail.titleFallback') }}
+      </h1>
       <ContractStatusPill v-if="displayStatus" :status="displayStatus" />
       <!-- Меню действий — тут же, на уровне номера договора (было отдельной тонкой строкой
            над карточкой, легко теряющейся), с текстовой подписью — заметнее, чем голая
@@ -334,27 +332,27 @@ async function confirmReversePayment() {
         <DropdownMenuTrigger as-child>
           <Button variant="outline" size="sm" class="ml-auto flex items-center gap-1.5">
             <MoreVertical class="size-4 text-primary" />
-            Действия
+            {{ t('contracts.detail.actions') }}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem :disabled="isDownloading" @click="downloadDocument">
             <Printer class="text-primary" />
-            Печать договора
+            {{ t('contracts.detail.printContract') }}
           </DropdownMenuItem>
           <DropdownMenuItem @click="openPayment">
             <Plus class="text-primary" />
-            Внести платёж
+            {{ t('contracts.detail.addPayment') }}
           </DropdownMenuItem>
           <DropdownMenuItem :disabled="contract.status !== 'ACTIVE'" @click="openTerminate">
             <Ban class="text-red-500" />
-            Расторгнуть договор
+            {{ t('contracts.detail.terminateContract') }}
           </DropdownMenuItem>
           <!-- Удаление доступно, только пока по договору не было ни одной оплаты — см.
                contract.hasPayments (backend блокирует то же самое на DELETE /contracts/:id). -->
           <DropdownMenuItem :disabled="contract.hasPayments" @click="openDelete">
             <Trash2 class="text-red-500" />
-            Удалить договор
+            {{ t('contracts.detail.deleteContract') }}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -362,7 +360,7 @@ async function confirmReversePayment() {
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
     <p v-if="downloadError" class="text-sm text-red-500">{{ downloadError }}</p>
-    <p v-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
+    <p v-if="isLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
 
     <template v-if="contract">
       <div class="flex flex-col gap-3">
@@ -384,7 +382,7 @@ async function confirmReversePayment() {
                  там теперь меню действий, по прямой просьбе 2026-08-26). -->
             <span class="ml-auto flex items-center gap-1.5 text-muted-foreground">
               <History class="size-4 shrink-0 text-primary" />
-              Создан {{ formatDate(contract.createdAt) }}
+              {{ t('contracts.detail.createdOn', { date: formatDate(contract.createdAt) }) }}
             </span>
           </div>
 
@@ -394,7 +392,7 @@ async function confirmReversePayment() {
                 <Wallet class="size-5 text-green-600 dark:text-green-400" />
               </div>
               <div>
-                <p class="text-xs text-muted-foreground">Общий баланс</p>
+                <p class="text-xs text-muted-foreground">{{ t('contracts.detail.totalBalance') }}</p>
                 <p class="text-lg font-semibold" :class="totalBalance > 0 ? 'text-red-500' : 'text-green-600'">
                   {{ formatMoney(totalBalance) }}
                 </p>
@@ -405,8 +403,8 @@ async function confirmReversePayment() {
                 <DoorOpen class="size-5 text-sky-600 dark:text-sky-400" />
               </div>
               <div>
-                <p class="text-xs text-muted-foreground">Стоимость комнаты</p>
-                <p class="text-lg font-medium">{{ isDailyOnlyContract ? 'Посуточно' : formatMoney(rentAmount) }}</p>
+                <p class="text-xs text-muted-foreground">{{ t('contracts.detail.roomCost') }}</p>
+                <p class="text-lg font-medium">{{ isDailyOnlyContract ? t('contracts.detail.dailyRateOnly') : formatMoney(rentAmount) }}</p>
               </div>
             </div>
             <div class="flex items-center gap-3">
@@ -414,7 +412,7 @@ async function confirmReversePayment() {
                 <Droplet class="size-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <p class="text-xs text-muted-foreground">Коммунальные услуги</p>
+                <p class="text-xs text-muted-foreground">{{ t('contracts.detail.utilities') }}</p>
                 <p class="text-lg font-medium">
                   {{ dormInfo?.communalServicesCost != null ? formatMoney(dormInfo.communalServicesCost) : '—' }}
                 </p>
@@ -425,7 +423,7 @@ async function confirmReversePayment() {
                 <CalendarClock class="size-5 text-violet-600 dark:text-violet-400" />
               </div>
               <div>
-                <p class="text-xs text-muted-foreground">Суточная ставка</p>
+                <p class="text-xs text-muted-foreground">{{ t('contracts.detail.dailyRate') }}</p>
                 <p class="text-lg font-medium">{{ formatMoney(contract.terms[0]?.dailyRateAmount ?? 0) }}</p>
               </div>
             </div>
@@ -434,7 +432,7 @@ async function confirmReversePayment() {
                 <Percent class="size-5 text-orange-600 dark:text-orange-400" />
               </div>
               <div>
-                <p class="text-xs text-muted-foreground">Пени</p>
+                <p class="text-xs text-muted-foreground">{{ t('contracts.detail.penalty') }}</p>
                 <p class="text-lg font-medium" :class="contract.penaltyBalance > 0 ? 'text-red-500' : ''">
                   {{ formatMoney(contract.penaltyBalance) }}
                 </p>
@@ -449,7 +447,7 @@ async function confirmReversePayment() {
               @click="showParentInfo = !showParentInfo"
             >
               <Users class="size-4 text-primary" />
-              Информация о родителе
+              {{ t('contracts.detail.parentInfo') }}
               <ChevronRight class="size-3.5 transition-transform" :class="showParentInfo ? '' : 'rotate-90'" />
             </button>
             <!-- Раскрывается вбок, а не вниз — grid-template-columns 0fr→1fr, тот же приём,
@@ -461,8 +459,8 @@ async function confirmReversePayment() {
             >
               <div class="overflow-hidden">
                 <div class="flex items-center gap-x-6 whitespace-nowrap pl-4 text-sm">
-                  <span><span class="text-muted-foreground">ФИО:</span> {{ contract.legalRepName ?? '—' }}</span>
-                  <span><span class="text-muted-foreground">Телефон:</span> {{ contract.legalRepPhone ?? '—' }}</span>
+                  <span><span class="text-muted-foreground">{{ t('contracts.detail.fullName') }}</span> {{ contract.legalRepName ?? '—' }}</span>
+                  <span><span class="text-muted-foreground">{{ t('contracts.detail.phone') }}</span> {{ contract.legalRepPhone ?? '—' }}</span>
                 </div>
               </div>
             </div>
@@ -475,13 +473,13 @@ async function confirmReversePayment() {
           <TabsTrigger value="accruals">
             <span class="flex items-center gap-1.5">
               <Receipt class="size-4 text-primary" />
-              Начисления
+              {{ t('contracts.detail.tabAccruals') }}
             </span>
           </TabsTrigger>
           <TabsTrigger value="payments">
             <span class="flex items-center gap-1.5">
               <Wallet class="size-4 text-primary" />
-              Платежи
+              {{ t('contracts.detail.tabPayments') }}
             </span>
           </TabsTrigger>
         </TabsList>
@@ -520,7 +518,7 @@ async function confirmReversePayment() {
                     <TableCell :class="CELL_BORDER_CLASS">{{ a.adjustmentAmount ? formatMoney(a.adjustmentAmount) : '—' }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.paid) }}</TableCell>
                     <TableCell :class="a.balance > 0 ? 'text-red-500' : ''">
-                      {{ a.voidedAt ? 'отменено' : formatMoney(a.balance) }}
+                      {{ a.voidedAt ? t('contracts.detail.voided') : formatMoney(a.balance) }}
                     </TableCell>
                   </TableRow>
                 </TableBody>
@@ -531,7 +529,7 @@ async function confirmReversePayment() {
 
         <TabsContent value="payments" class="flex min-h-0 flex-1 flex-col">
           <Card class="flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden py-0">
-            <p v-if="!contract.payments.length" class="p-6 text-sm text-muted-foreground">Платежей пока нет</p>
+            <p v-if="!contract.payments.length" class="p-6 text-sm text-muted-foreground">{{ t('contracts.detail.noPaymentsYet') }}</p>
             <div v-else class="flex min-h-0 flex-1 flex-col">
               <Table>
                 <TableHeader class="sticky top-0 z-10 bg-muted">
@@ -557,13 +555,13 @@ async function confirmReversePayment() {
                   <TableRow v-for="p in sortedPayments" :key="p.id" :class="p.reversedAt ? 'opacity-40' : ''">
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(p.paidAt) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(p.amount) }}</TableCell>
-                    <TableCell :class="CELL_BORDER_CLASS">{{ METHOD_LABELS[p.method] ?? p.method }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ t(`payment.method.${p.method}`) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ p.rawComment ?? '—' }}</TableCell>
                     <TableCell class="text-right">
-                      <span v-if="p.reversedAt" class="text-xs text-muted-foreground">сторнирован</span>
+                      <span v-if="p.reversedAt" class="text-xs text-muted-foreground">{{ t('contracts.detail.reversed') }}</span>
                       <Button v-else variant="ghost" size="icon" class="size-7" @click="openReverseConfirm(p)">
                         <Ban class="text-red-500" />
-                        <span class="sr-only">Сторнировать</span>
+                        <span class="sr-only">{{ t('contracts.detail.reverse') }}</span>
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -578,16 +576,16 @@ async function confirmReversePayment() {
     <Dialog :open="isTerminateOpen" @update:open="(open) => (isTerminateOpen = open)">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
-          <DialogTitle>Расторгнуть договор</DialogTitle>
+          <DialogTitle>{{ t('contracts.detail.terminateDialogTitle') }}</DialogTitle>
         </DialogHeader>
         <div class="flex flex-col gap-2">
-          <Label>Фактическая дата выезда</Label>
+          <Label>{{ t('contracts.detail.actualEndDate') }}</Label>
           <DatePickerField v-model="actualEndDate" />
         </div>
         <p v-if="terminateError" class="text-sm text-red-500">{{ terminateError }}</p>
         <DialogFooter>
-          <Button variant="outline" @click="isTerminateOpen = false">Отмена</Button>
-          <Button :loading="isTerminating" @click="submitTerminate">Расторгнуть</Button>
+          <Button variant="outline" @click="isTerminateOpen = false">{{ t('contracts.detail.cancel') }}</Button>
+          <Button :loading="isTerminating" @click="submitTerminate">{{ t('contracts.detail.terminate') }}</Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>
@@ -595,22 +593,21 @@ async function confirmReversePayment() {
     <Dialog :open="isDeleteOpen" @update:open="(open) => (isDeleteOpen = open)">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
-          <DialogTitle>Удалить договор?</DialogTitle>
+          <DialogTitle>{{ t('contracts.detail.deleteDialogTitle') }}</DialogTitle>
           <DialogDescription>
-            Договор № {{ contract?.number }} будет удалён из базы безвозвратно вместе со всеми начислениями и историей
-            заселения. Отменить это действие нельзя.
+            {{ t('contracts.detail.deleteDialogDescription', { number: contract?.number ?? '' }) }}
           </DialogDescription>
         </DialogHeader>
         <p v-if="deleteError" class="text-sm text-red-500">{{ deleteError }}</p>
         <DialogFooter>
-          <Button variant="outline" @click="isDeleteOpen = false">Отмена</Button>
+          <Button variant="outline" @click="isDeleteOpen = false">{{ t('contracts.detail.cancel') }}</Button>
           <Button
             variant="outline"
             class="border-red-500 text-red-500 hover:text-red-500"
             :loading="isDeleting"
             @click="submitDelete"
           >
-            Да, удалить
+            {{ t('contracts.detail.confirmDelete') }}
           </Button>
         </DialogFooter>
       </DialogScrollContent>
@@ -619,40 +616,40 @@ async function confirmReversePayment() {
     <Dialog :open="isPaymentOpen" @update:open="(open) => (isPaymentOpen = open)">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
-          <DialogTitle>Внести платёж</DialogTitle>
+          <DialogTitle>{{ t('contracts.detail.addPaymentDialogTitle') }}</DialogTitle>
         </DialogHeader>
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-2">
-            <Label>Сумма</Label>
+            <Label>{{ t('contracts.detail.amount') }}</Label>
             <Input v-model.number="paymentAmount" type="number" :class="NO_SPINNER_CLASS" @keydown="blockNonNumericKeys" />
           </div>
           <div class="flex flex-col gap-2">
-            <Label>Дата</Label>
+            <Label>{{ t('contracts.detail.date') }}</Label>
             <DatePickerField v-model="paymentDate" />
           </div>
           <div class="flex flex-col gap-2">
-            <Label>Способ оплаты</Label>
+            <Label>{{ t('contracts.detail.paymentMethod') }}</Label>
             <Select :model-value="paymentMethod" @update:model-value="(v) => (paymentMethod = v as PaymentMethod)">
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="CASH">Наличные</SelectItem>
-                <SelectItem value="CARD_ACQUIRING">Эквайринг</SelectItem>
-                <SelectItem value="BANK_TRANSFER">Банковский перевод</SelectItem>
-                <SelectItem value="MAT_CAPITAL">Материнский капитал</SelectItem>
+                <SelectItem value="CASH">{{ t('payment.method.CASH') }}</SelectItem>
+                <SelectItem value="CARD_ACQUIRING">{{ t('payment.method.CARD_ACQUIRING') }}</SelectItem>
+                <SelectItem value="BANK_TRANSFER">{{ t('payment.method.BANK_TRANSFER') }}</SelectItem>
+                <SelectItem value="MAT_CAPITAL">{{ t('payment.method.MAT_CAPITAL') }}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div class="flex flex-col gap-2">
-            <Label>Комментарий</Label>
+            <Label>{{ t('contracts.detail.comment') }}</Label>
             <Input v-model="paymentComment" />
           </div>
           <p v-if="paymentError" class="text-sm text-red-500">{{ paymentError }}</p>
         </div>
         <DialogFooter>
-          <Button variant="outline" @click="isPaymentOpen = false">Отмена</Button>
-          <Button :loading="isSavingPayment" @click="submitPayment">Сохранить</Button>
+          <Button variant="outline" @click="isPaymentOpen = false">{{ t('contracts.detail.cancel') }}</Button>
+          <Button :loading="isSavingPayment" @click="submitPayment">{{ t('contracts.detail.save') }}</Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>
@@ -660,23 +657,26 @@ async function confirmReversePayment() {
     <Dialog :open="reversingPayment !== null" @update:open="(v) => { if (!v) reversingPayment = null }">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
-          <DialogTitle>Сторнировать платёж?</DialogTitle>
+          <DialogTitle>{{ t('contracts.detail.reverseDialogTitle') }}</DialogTitle>
           <DialogDescription>
-            Платёж {{ reversingPayment ? formatMoney(reversingPayment.amount) : '' }} от
-            {{ reversingPayment ? formatDate(reversingPayment.paidAt) : '' }} будет отмечен как сторнированный,
-            начисления пересчитаются заново. Действие необратимо.
+            {{
+              t('contracts.detail.reverseDialogDescription', {
+                amount: reversingPayment ? formatMoney(reversingPayment.amount) : '',
+                date: reversingPayment ? formatDate(reversingPayment.paidAt) : '',
+              })
+            }}
           </DialogDescription>
         </DialogHeader>
         <p v-if="reverseError" class="text-sm text-red-500">{{ reverseError }}</p>
         <DialogFooter>
-          <Button variant="outline" @click="reversingPayment = null">Отмена</Button>
+          <Button variant="outline" @click="reversingPayment = null">{{ t('contracts.detail.cancel') }}</Button>
           <Button
             variant="outline"
             class="border-red-500 text-red-500 hover:text-red-500"
             :loading="isReversing"
             @click="confirmReversePayment"
           >
-            Да, сторнировать
+            {{ t('contracts.detail.confirmReverse') }}
           </Button>
         </DialogFooter>
       </DialogScrollContent>

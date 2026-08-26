@@ -1,14 +1,21 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ChevronRight, CirclePlus, Pencil, Trash2 } from 'lucide-vue-next'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { fetchIndividualAuditLog, type IndividualAuditLogEntry } from '@/lib/individuals-api'
 
+const { t } = useI18n()
+
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
 
-const ACTION_LABELS: Record<string, string> = { CREATE: 'Создание', UPDATE: 'Изменение', DELETE: 'Удаление' }
+const ACTION_LABELS = computed<Record<string, string>>(() => ({
+  CREATE: t('individuals.history.actionCreate'),
+  UPDATE: t('individuals.history.actionUpdate'),
+  DELETE: t('individuals.history.actionDelete'),
+}))
 const ACTION_ICONS: Record<string, unknown> = { CREATE: CirclePlus, UPDATE: Pencil, DELETE: Trash2 }
 const ACTION_ICON_CLASS: Record<string, string> = {
   CREATE: 'text-emerald-600 dark:text-emerald-400',
@@ -19,28 +26,28 @@ const ACTION_ICON_CLASS: Record<string, string> = {
 // Те же имена полей, что в AUDITED_INDIVIDUAL_FIELDS/AUDITED_INDIVIDUAL_UPDATE_FIELDS на
 // бэкенде (individuals.controller.ts) — иначе они показывались бы как есть по-английски
 // (см. известное упрощение в /audit-log, здесь решили сразу сделать по-русски).
-const FIELD_LABELS: Record<string, string> = {
-  fullName: 'ФИО',
-  surname: 'Фамилия',
-  name: 'Имя',
-  otchestvo: 'Отчество',
-  birthDate: 'Дата рождения',
-  gender: 'Пол',
-  citizenship: 'Гражданство',
-  birthPlace: 'Место рождения',
-  registrationAddress: 'Адрес по прописке',
-  residenceAddress: 'Адрес места проживания',
-  address: 'Адрес',
-  phone: 'Телефон',
-  email: 'Email',
-  snils: 'СНИЛС',
-  inn: 'ИНН',
-  passportSeries: 'Паспорт: серия',
-  passportNumber: 'Паспорт: номер',
-  passportIssuedBy: 'Кем выдан',
-  passportIssuedCode: 'Код подразделения',
-  passportIssuedAt: 'Дата выдачи',
-}
+const FIELD_LABELS = computed<Record<string, string>>(() => ({
+  fullName: t('individuals.history.fieldFullName'),
+  surname: t('individuals.history.fieldSurname'),
+  name: t('individuals.history.fieldName'),
+  otchestvo: t('individuals.history.fieldOtchestvo'),
+  birthDate: t('individuals.history.fieldBirthDate'),
+  gender: t('individuals.history.fieldGender'),
+  citizenship: t('individuals.history.fieldCitizenship'),
+  birthPlace: t('individuals.history.fieldBirthPlace'),
+  registrationAddress: t('individuals.history.fieldRegistrationAddress'),
+  residenceAddress: t('individuals.history.fieldResidenceAddress'),
+  address: t('individuals.history.fieldAddress'),
+  phone: t('individuals.history.fieldPhone'),
+  email: t('individuals.history.fieldEmail'),
+  snils: t('individuals.history.fieldSnils'),
+  inn: t('individuals.history.fieldInn'),
+  passportSeries: t('individuals.history.fieldPassportSeries'),
+  passportNumber: t('individuals.history.fieldPassportNumber'),
+  passportIssuedBy: t('individuals.history.fieldPassportIssuedBy'),
+  passportIssuedCode: t('individuals.history.fieldPassportIssuedCode'),
+  passportIssuedAt: t('individuals.history.fieldPassportIssuedAt'),
+}))
 
 const isOpen = ref(false)
 const isLoading = ref(false)
@@ -82,7 +89,7 @@ function formatDateTime(iso: string): string {
 
 function formatValue(value: unknown): string {
   if (value === null || value === undefined || value === '') return '—'
-  if (typeof value === 'boolean') return value ? 'Да' : 'Нет'
+  if (typeof value === 'boolean') return value ? t('boolean.yes') : t('boolean.no')
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(T|$)/.test(value)) {
     const date = new Date(value)
     const pad = (n: number) => n.toString().padStart(2, '0')
@@ -96,12 +103,12 @@ function formatValue(value: unknown): string {
   <Dialog :open="isOpen" @update:open="(v) => (isOpen = v)">
     <DialogScrollContent :class="['flex flex-col gap-4 sm:max-w-2xl', DIALOG_ANIMATE_CLASS]">
       <DialogHeader>
-        <DialogTitle>История изменений</DialogTitle>
+        <DialogTitle>{{ t('individuals.history.title') }}</DialogTitle>
       </DialogHeader>
 
       <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-      <p v-else-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
-      <p v-else-if="entries.length === 0" class="text-sm text-muted-foreground">Изменений пока не было</p>
+      <p v-else-if="isLoading" class="text-sm text-muted-foreground">{{ t('individuals.history.loading') }}</p>
+      <p v-else-if="entries.length === 0" class="text-sm text-muted-foreground">{{ t('individuals.history.noChanges') }}</p>
 
       <div v-for="entry in entries" :key="entry.id" class="flex flex-col gap-2 rounded-md border p-3">
         <button
@@ -128,9 +135,9 @@ function formatValue(value: unknown): string {
           <Table>
             <TableHeader class="bg-muted">
               <TableRow>
-                <TableHead>Поле</TableHead>
-                <TableHead>Было</TableHead>
-                <TableHead>Стало</TableHead>
+                <TableHead>{{ t('individuals.history.colField') }}</TableHead>
+                <TableHead>{{ t('individuals.history.colBefore') }}</TableHead>
+                <TableHead>{{ t('individuals.history.colAfter') }}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

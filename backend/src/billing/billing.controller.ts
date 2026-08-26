@@ -10,6 +10,7 @@ import { ensureUserRecord } from '../users/ensure-user';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { allocatePaymentFifo } from './payment-allocation';
 import { serializePayment } from '../contracts/serializers';
+import { zodErrorMessage } from '../i18n/zod-error-message';
 
 const createPaymentSchema = z.object({
   amount: z.number().finite().positive(),
@@ -23,7 +24,7 @@ const AUDITED_PAYMENT_FIELDS = ['amount', 'paidAt', 'method', 'source', 'rawComm
 function parseIdParam(idParam: string): number {
   const id = Number.parseInt(idParam, 10);
   if (!Number.isInteger(id)) {
-    throw new BadRequestException('Некорректный id');
+    throw new BadRequestException('contracts.errors.invalidId');
   }
   return id;
 }
@@ -46,15 +47,15 @@ export class BillingController {
     const contractId = parseIdParam(contractIdParam);
     const parsed = createPaymentSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException(parsed.error.message);
+      throw new BadRequestException(zodErrorMessage(parsed.error));
     }
     if (!req.user) {
-      throw new BadRequestException('Не удалось определить пользователя сессии');
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
 
     const contract = await this.prisma.contract.findUnique({ where: { id: contractId } });
     if (!contract) {
-      throw new NotFoundException('Договор не найден');
+      throw new NotFoundException('contracts.errors.contractNotFound');
     }
 
     const amount = new Prisma.Decimal(parsed.data.amount);
@@ -94,14 +95,14 @@ export class BillingController {
   async reversePayment(@Param('paymentId') paymentIdParam: string, @Req() req: Request) {
     const paymentId = parseIdParam(paymentIdParam);
     if (!req.user) {
-      throw new BadRequestException('Не удалось определить пользователя сессии');
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
     const payment = await this.prisma.payment.findUnique({ where: { id: paymentId }, include: { contract: { select: { number: true } } } });
     if (!payment) {
-      throw new NotFoundException('Платёж не найден');
+      throw new NotFoundException('billing.errors.paymentNotFound');
     }
     if (payment.reversedAt) {
-      throw new BadRequestException('Платёж уже сторнирован');
+      throw new BadRequestException('billing.errors.paymentAlreadyReversed');
     }
 
     return this.prisma.$transaction(async (tx) => {

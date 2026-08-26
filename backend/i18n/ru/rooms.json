@@ -1,0 +1,18 @@
+{
+  "errors": {
+    "roomNotFound": "Комната не найдена",
+    "floorCharacteristicMissing": "Характеристика \"Этаж\" не найдена в каталоге",
+    "roomNumberExists": "Комната с таким номером уже существует",
+    "characteristicNotFound": "Характеристика не найдена",
+    "duplicatePeriodValue": "На эту дату уже есть значение этой характеристики для этой комнаты",
+    "valueNotFound": "Значение характеристики не найдено",
+    "valueCannotBeEdited": "Это значение нельзя изменить",
+    "valueCannotBeDeleted": "Это значение нельзя удалить",
+    "definitionNotFound": "Характеристика не найдена",
+    "nameAlreadyExists": "Характеристика с таким названием уже существует",
+    "protectedCannotBeDeleted": "Эту характеристику нельзя удалить",
+    "invalidOptionValue": "Значение должно быть одним из: {options}",
+    "optionsOnlyForText": "Список допустимых значений применим только к типу \"Текст\"",
+    "hasValuesCannotDelete": "Нельзя удалить характеристику, пока у неё есть значения у комнат"
+  }
+}

@@ -1,16 +1,21 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { AlertTriangle, CircleCheck, CircleX, Clock } from 'lucide-vue-next'
 import type { ContractRegistryBucket } from '@/lib/reports-api'
 
 const props = defineProps<{ value: unknown; row?: unknown }>()
 
-const BUCKET_LABELS: Record<ContractRegistryBucket, string> = {
-  ACTIVE: 'Действует',
-  EXPIRING: 'Истекает',
-  OVERDUE: 'Просрочен',
-  TERMINATED: 'Расторгнут',
-}
+const { t } = useI18n()
+
+// Proxy, не обычный объект — тот же приём, что STATUS_LABELS в contracts-format.ts,
+// реактивен к смене языка. ACTIVE/TERMINATED — обычные переводы (см. reports.registryBucket
+// и в бэкенде, BUCKET_LABELS reports.controller.ts, те же ключи). EXPIRING/OVERDUE здесь
+// всегда идут с числом дней (см. label ниже), у них нет отдельного bare-перевода —
+// собираются целиком через reports.registry.expiringLabel/overdueLabel.
+const BUCKET_LABELS: Record<ContractRegistryBucket, string> = new Proxy({} as Record<ContractRegistryBucket, string>, {
+  get: (_target, status: string) => t(`reports.registryBucket.${status}`),
+})
 const BUCKET_ICON = {
   ACTIVE: CircleCheck,
   EXPIRING: Clock,
@@ -29,8 +34,8 @@ const bucket = computed(() => props.value as ContractRegistryBucket)
 const daysUntilEnd = computed(() => (props.row as { daysUntilEnd: number }).daysUntilEnd)
 
 const label = computed(() => {
-  if (bucket.value === 'EXPIRING') return `${BUCKET_LABELS.EXPIRING} (${daysUntilEnd.value} дн.)`
-  if (bucket.value === 'OVERDUE') return `${BUCKET_LABELS.OVERDUE} на ${Math.abs(daysUntilEnd.value)} дн.`
+  if (bucket.value === 'EXPIRING') return t('reports.registry.expiringLabel', { days: daysUntilEnd.value })
+  if (bucket.value === 'OVERDUE') return t('reports.registry.overdueLabel', { days: Math.abs(daysUntilEnd.value) })
   return BUCKET_LABELS[bucket.value]
 })
 </script>

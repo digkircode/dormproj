@@ -1,0 +1,23 @@
+{
+  "errors": {
+    "invalidConversationId": "Invalid conversation id",
+    "invalidRecipientFilters": "Invalid recipient filters",
+    "noMatchingResidents": "No residents match the selected filters",
+    "conversationNotFound": "Conversation not found",
+    "fileNotFound": "File not found",
+    "bodyTooLong": "Message is too long (maximum {max} characters)",
+    "emptyMessage": "Empty message — add text or a file",
+    "accountNotLinkedToIndividual": "Account is not linked to an individual — chat unavailable",
+    "invalidFileType": "Unsupported file type: {type}",
+    "unknownMimeType": "unknown",
+    "fileTooLarge": "File \"{name}\" exceeds the allowed size ({max} MB)",
+    "tooFrequent": "Too fast — please wait a second before the next message",
+    "tooManyMessages": "Too many messages in a row — please slow down",
+    "tooManyAttachments": "Too many files in a row — please slow down"
+  },
+  "preview": {
+    "files": "📎 {count} files",
+    "video": "🎥 Video",
+    "photo": "📷 Photo"
+  }
+}

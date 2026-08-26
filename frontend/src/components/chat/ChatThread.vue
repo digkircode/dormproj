@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { ArrowDown, Check, CheckCheck, FileVideo, Loader, Paperclip, SendHorizontal, X } from 'lucide-vue-next'
@@ -14,6 +15,7 @@ import {
   type ChatMessage,
   type ChatSenderRole,
 } from '@/lib/chat-api'
+import { dateLocaleTag } from '@/lib/format-locale'
 import MediaLightbox from './MediaLightbox.vue'
 
 // Общий для обеих сторон компонент — какая сторона выравнивается вправо ("свои"
@@ -39,6 +41,8 @@ const props = defineProps<{
   disabled?: boolean
   placeholder?: string
 }>()
+
+const { t } = useI18n()
 
 const draft = ref('')
 const pendingFiles = ref<File[]>([])
@@ -94,7 +98,7 @@ const renderable = computed<RenderableMessage[]>(() => {
     items.push({
       key: pending.value.clientKey,
       id: null,
-      body: pending.value.body || (pending.value.hasFiles ? '📎 Отправка файла…' : ''),
+      body: pending.value.body || (pending.value.hasFiles ? t('chat.thread.sendingFile') : ''),
       senderRole: props.viewerRole,
       // Своё же ФИО — то же самое, что подставит настоящее сообщение после отправки
       // (senderFullName от сервера будет тем же именем). Раньше здесь была пустая строка,
@@ -112,13 +116,13 @@ const renderable = computed<RenderableMessage[]>(() => {
 function dayLabel(iso: string): string {
   const date = new Date(iso)
   const now = new Date()
-  if (date.toDateString() === now.toDateString()) return 'Сегодня'
+  if (date.toDateString() === now.toDateString()) return t('chat.thread.today')
   const yesterday = new Date(now)
   yesterday.setDate(yesterday.getDate() - 1)
-  if (date.toDateString() === yesterday.toDateString()) return 'Вчера'
+  if (date.toDateString() === yesterday.toDateString()) return t('chat.thread.yesterday')
   const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long' }
   if (date.getFullYear() !== now.getFullYear()) options.year = 'numeric'
-  return date.toLocaleDateString('ru-RU', options)
+  return date.toLocaleDateString(dateLocaleTag(), options)
 }
 
 const groupedByDay = computed(() => {
@@ -237,11 +241,13 @@ function scrollToBottomClicked() {
 }
 
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleTimeString(dateLocaleTag(), { hour: '2-digit', minute: '2-digit' })
 }
 
 function formatSize(bytes: number): string {
-  return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} МБ` : `${Math.max(1, Math.round(bytes / 1024))} КБ`
+  return bytes >= 1024 * 1024
+    ? t('chat.thread.sizeMb', { size: (bytes / (1024 * 1024)).toFixed(1) })
+    : t('chat.thread.sizeKb', { size: Math.max(1, Math.round(bytes / 1024)) })
 }
 
 function attachmentUrl(attachment: ChatAttachment): string {
@@ -294,19 +300,19 @@ function onFilesSelected(event: Event) {
   attachError.value = ''
 
   if (pendingFiles.value.length + selected.length > MAX_ATTACHMENTS_PER_MESSAGE) {
-    attachError.value = `Не больше ${MAX_ATTACHMENTS_PER_MESSAGE} файлов в одном сообщении`
+    attachError.value = t('chat.thread.attachTooMany', { max: MAX_ATTACHMENTS_PER_MESSAGE })
     return
   }
   for (const file of selected) {
     const isImage = file.type.startsWith('image/')
     const isVideo = file.type.startsWith('video/')
     if (!isImage && !isVideo) {
-      attachError.value = `«${file.name}» — недопустимый тип файла`
+      attachError.value = t('chat.thread.attachInvalidType', { name: file.name })
       return
     }
     const max = isImage ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES
     if (file.size > max) {
-      attachError.value = `«${file.name}» больше ${Math.round(max / (1024 * 1024))} МБ`
+      attachError.value = t('chat.thread.attachTooLarge', { name: file.name, max: Math.round(max / (1024 * 1024)) })
       return
     }
   }
@@ -391,7 +397,7 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
         <div v-if="isLoadingOlder" class="flex justify-center py-2">
           <Loader class="size-4 animate-spin text-muted-foreground" />
         </div>
-        <p v-if="renderable.length === 0" class="m-auto text-sm text-muted-foreground">Сообщений пока нет</p>
+        <p v-if="renderable.length === 0" class="m-auto text-sm text-muted-foreground">{{ t('chat.thread.noMessagesYet') }}</p>
 
         <!-- Обёртка на каждую дату обязательна (не bare <template>) — sticky-заголовок
              "прилипает" в пределах ближайшего блочного предка, а не просто scroll-контейнера.
@@ -418,7 +424,7 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
                 class="my-1 flex items-center gap-3"
               >
                 <div class="h-px flex-1 bg-border" />
-                <span class="shrink-0 text-xs font-medium text-muted-foreground">Новые сообщения</span>
+                <span class="shrink-0 text-xs font-medium text-muted-foreground">{{ t('chat.thread.newMessages') }}</span>
                 <div class="h-px flex-1 bg-border" />
               </div>
 
@@ -541,12 +547,12 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
       <button
         v-if="!isNearBottom"
         type="button"
-        title="Вниз"
+        :title="t('chat.thread.scrollDown')"
         class="absolute right-4 bottom-4 z-20 flex size-10 items-center justify-center rounded-full border bg-card text-foreground shadow-md transition-colors hover:bg-accent"
         @click="scrollToBottomClicked"
       >
         <ArrowDown class="size-4" />
-        <span class="sr-only">Вниз, к последним сообщениям</span>
+        <span class="sr-only">{{ t('chat.thread.scrollDownSr') }}</span>
       </button>
     </div>
 
@@ -562,7 +568,7 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
           @click="removePendingFile(file)"
         >
           <X class="size-3" />
-          <span class="sr-only">Убрать файл</span>
+          <span class="sr-only">{{ t('chat.thread.removeFile') }}</span>
         </button>
       </div>
     </div>
@@ -578,18 +584,18 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
         <button
           type="button"
           :disabled="disabled"
-          title="Прикрепить файл"
+          :title="t('chat.thread.attachFile')"
           class="absolute bottom-1.5 left-1.5 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-50"
           @click="openFilePicker"
         >
           <Paperclip class="size-4" />
-          <span class="sr-only">Прикрепить файл</span>
+          <span class="sr-only">{{ t('chat.thread.attachFile') }}</span>
         </button>
         <textarea
           ref="textareaRef"
           v-model="draft"
           :disabled="disabled"
-          :placeholder="placeholder ?? 'Написать сообщение...'"
+          :placeholder="placeholder ?? t('chat.thread.messagePlaceholder')"
           rows="1"
           class="max-h-40 min-h-10 w-full resize-none bg-transparent py-2.5 pr-11 pl-11 text-sm placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           @keydown="onKeydown"

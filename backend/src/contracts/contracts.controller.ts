@@ -32,6 +32,7 @@ import { buildResidentSnapshot, fillManualFallbacks, type ResidentSnapshot } fro
 import { renderContractDocument } from './contract-document';
 import { buildDocumentData } from './contract-document-data';
 import { EXPIRING_WINDOW_DAYS, CONTRACT_DISPLAY_STATUS_LABELS, type ContractDisplayStatus } from './contract-display-status';
+import { zodErrorMessage } from '../i18n/zod-error-message';
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -168,7 +169,7 @@ function buildStatusFilterClause(values: string[]): Prisma.ContractWhereInput | 
 function parseIdParam(idParam: string): number {
   const id = Number.parseInt(idParam, 10);
   if (!Number.isInteger(id)) {
-    throw new BadRequestException('Некорректный id');
+    throw new BadRequestException('contracts.errors.invalidId');
   }
   return id;
 }
@@ -322,7 +323,7 @@ export class ContractsController {
       },
     });
     if (!contract) {
-      throw new NotFoundException('Договор не найден');
+      throw new NotFoundException('contracts.errors.contractNotFound');
     }
 
     const { terms, roomAssignments, accruals, payments, penaltyLogs, resident, matCapitalAmount, ...contractFields } = contract;
@@ -361,20 +362,20 @@ export class ContractsController {
   async create(@Body() body: unknown, @Req() req: Request) {
     const parsed = createContractSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException(parsed.error.message);
+      throw new BadRequestException(zodErrorMessage(parsed.error));
     }
     const data = parsed.data;
     if (!req.user) {
-      throw new BadRequestException('Не удалось определить пользователя сессии');
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
 
     const individual = await this.prisma.individual.findUnique({ where: { fizicheskoyeLitsoUid: data.residentIndividualUid } });
     if (!individual) {
-      throw new NotFoundException('Физлицо не найдено');
+      throw new NotFoundException('contracts.errors.individualNotFound');
     }
     const room = await this.prisma.room.findUnique({ where: { id: data.roomId } });
     if (!room) {
-      throw new NotFoundException('Комната не найдена');
+      throw new NotFoundException('contracts.errors.roomNotFound');
     }
 
     // Комната без обеих месячных характеристик "Стоимость (из/не из вуза)" — целиком
@@ -394,14 +395,14 @@ export class ContractsController {
     const contractIsMinor = isMinorAt(individual.birthDate, data.contractDate);
     if (contractIsMinor) {
       if (!data.legalRepBirthDate || !data.legalRepPassportNumber || !data.legalRepPassportIssuedAt) {
-        throw new BadRequestException('Для несовершеннолетнего обязательны дата рождения, номер и дата выдачи паспорта родителя');
+        throw new BadRequestException('contracts.errors.minorParentDataRequired');
       }
     }
 
     // Причина проживания печатается в п.1.2 бланка вместо "обучением в АНО ВО «РосНОУ»" —
     // обязательна только для тех, кто не из своего вуза (см. contract-document-data.ts).
     if (data.dailyRateCategory === 'OTHER_UNIVERSITY' && !data.residenceReason) {
-      throw new BadRequestException('Укажите причину проживания');
+      throw new BadRequestException('contracts.errors.residenceReasonRequired');
     }
 
     // Посуточная комната — месячной ставки нет вообще, игнорируем rentAmount/utilitiesAmount
@@ -473,7 +474,7 @@ export class ContractsController {
           },
         });
         if (overlapping) {
-          throw new BadRequestException('Комната уже занята по другому договору в эти даты');
+          throw new BadRequestException('contracts.errors.roomAlreadyOccupied');
         }
 
         await tx.roomAssignment.create({
@@ -559,7 +560,7 @@ export class ContractsController {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new BadRequestException('Договор с таким номером уже существует');
+        throw new BadRequestException('contracts.errors.numberAlreadyExists');
       }
       throw error;
     }
@@ -573,18 +574,18 @@ export class ContractsController {
     const id = parseIdParam(idParam);
     const parsed = terminateSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException(parsed.error.message);
+      throw new BadRequestException(zodErrorMessage(parsed.error));
     }
     if (!req.user) {
-      throw new BadRequestException('Не удалось определить пользователя сессии');
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
 
     const contract = await this.prisma.contract.findUnique({ where: { id } });
     if (!contract) {
-      throw new NotFoundException('Договор не найден');
+      throw new NotFoundException('contracts.errors.contractNotFound');
     }
     if (parsed.data.actualEndDate < contract.startDate) {
-      throw new BadRequestException('Дата выезда раньше даты начала проживания');
+      throw new BadRequestException('contracts.errors.endDateBeforeStartDate');
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -625,15 +626,15 @@ export class ContractsController {
   async remove(@Param('id') idParam: string, @Req() req: Request) {
     const id = parseIdParam(idParam);
     if (!req.user) {
-      throw new BadRequestException('Не удалось определить пользователя сессии');
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
     const contract = await this.prisma.contract.findUnique({ where: { id } });
     if (!contract) {
-      throw new NotFoundException('Договор не найден');
+      throw new NotFoundException('contracts.errors.contractNotFound');
     }
     const paymentsCount = await this.prisma.payment.count({ where: { contractId: id } });
     if (paymentsCount > 0) {
-      throw new BadRequestException('По договору уже проводились оплаты — удаление недоступно');
+      throw new BadRequestException('contracts.errors.hasPaymentsCannotDelete');
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -669,7 +670,7 @@ export class ContractsController {
       include: { terms: { orderBy: { validFrom: 'asc' }, take: 1 }, roomAssignments: { orderBy: { fromDate: 'asc' }, take: 1, include: { room: true } } },
     });
     if (!contract) {
-      throw new NotFoundException('Договор не найден');
+      throw new NotFoundException('contracts.errors.contractNotFound');
     }
 
     if (!contract.residentSnapshot) {
@@ -734,7 +735,7 @@ export class ContractsController {
     // ответа уже нельзя было бы превратить в ошибку после archive.pipe(res).
     const existingCount = await this.prisma.contract.count({ where: { id: { in: ids } } });
     if (existingCount !== ids.length) {
-      throw new NotFoundException('Один или несколько договоров не найдены');
+      throw new NotFoundException('contracts.errors.contractsNotFound');
     }
 
     res.setHeader('Content-Type', 'application/zip');

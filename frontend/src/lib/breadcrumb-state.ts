@@ -3,6 +3,10 @@ import type { Router, RouteLocationNormalized } from 'vue-router'
 
 export interface BreadcrumbCrumb {
   name: string
+  // Ключ i18n (см. router/index.ts meta.title), не готовый текст — переводится в
+  // App.vue#breadcrumbTrail через t(), чтобы крошки реагировали на смену языка без
+  // повторной навигации. Исключение — override последней крошки (см. breadcrumbOverride
+  // ниже): то уже готовый текст (номер договора, ФИО), не ключ.
   title: string
   path: string
 }
@@ -42,7 +46,7 @@ function buildStaticTrail(router: Router, to: RouteLocationNormalized): Breadcru
     const parentName = current.meta.parent as string | undefined
     current = parentName ? router.getRoutes().find((r) => r.name === parentName) : undefined
   }
-  if (to.name !== 'home') trail.unshift({ name: 'home', title: 'Главная', path: '/' })
+  if (to.name !== 'home') trail.unshift({ name: 'home', title: 'nav.home', path: '/' })
   return trail
 }
 

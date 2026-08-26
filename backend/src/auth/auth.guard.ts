@@ -16,13 +16,13 @@ export class AuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>();
     const token: unknown = request.cookies?.[SESSION_COOKIE_NAME];
     if (typeof token !== 'string' || !token) {
-      throw new UnauthorizedException('Не авторизован');
+      throw new UnauthorizedException('auth.notAuthorized');
     }
     let sessionUser;
     try {
       sessionUser = await this.sessions.verify(token);
     } catch {
-      throw new UnauthorizedException('Сессия недействительна или истекла');
+      throw new UnauthorizedException('auth.sessionExpired');
     }
     // Роли — больше НЕ снимок из JWT (2026-08-24, по прямой просьбе, закрывает известную
     // проблему проекта "роль применяется только после перелогина/до 24ч") — живой SELECT

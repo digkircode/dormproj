@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
   MapPin,
@@ -24,10 +25,12 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { goBack } from '@/lib/utils'
+import { dateLocaleTag } from '@/lib/format-locale'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { fetchHostelPublicInfo, type HostelPublicInfo } from '@/lib/public-info-api'
 
 const router = useRouter()
+const { t, locale } = useI18n()
 import molPhoto from '@/assets/staff/mol.webp'
 import cicPhoto from '@/assets/staff/cic.webp'
 import jilPhoto from '@/assets/staff/jil.webp'
@@ -46,12 +49,15 @@ interface StaffPerson {
   photo?: string
 }
 
-const contacts = [
-  { icon: MapPin, label: 'Адрес', value: 'г. Москва, ул. Авиамоторная, д. 55, корп. 5' },
-  { icon: Phone, label: 'Телефон', value: '+7 (977) 812-81-87, +7 (495) 223-40-49' },
-  { icon: Mail, label: 'Email', value: 'hostel@rosnou.ru' },
-  { icon: Clock, label: 'Время работы', value: '9:30–18:00' },
-]
+// value — фактические контактные данные (адрес/телефон/email), не переводится, как
+// значения других реквизитных полей в проекте (см. "что осознанно НЕ локализуется" в
+// промпте) — только label вокруг них.
+const contacts = computed(() => [
+  { icon: MapPin, label: t('student.contactsAdmin.addressLabel'), value: 'г. Москва, ул. Авиамоторная, д. 55, корп. 5' },
+  { icon: Phone, label: t('student.contactsAdmin.phoneLabel'), value: '+7 (977) 812-81-87, +7 (495) 223-40-49' },
+  { icon: Mail, label: t('student.contactsAdmin.emailLabel'), value: 'hostel@rosnou.ru' },
+  { icon: Clock, label: t('student.contactsAdmin.hoursLabel'), value: '9:30–18:00' },
+])
 
 // photo — файлы получены от пользователя 2026-08-23 с говорящими именами (mol/cic/jil/isa/
 // guz/but — по фамилии), сопоставление подтверждено, не гадали по внешности.
@@ -62,12 +68,12 @@ const staff: StaffPerson[] = [
   { name: 'Исаева Наталья Анатольевна', photo: isaPhoto },
 ]
 
-const ddm = [
-  { icon: MapPin, label: 'Адрес', value: 'г. Москва, ул. Радио, д. 22, каб. 801' },
-  { icon: Phone, label: 'Телефон', value: '+7 (495) 925-03-71 (вн. 211)' },
-  { icon: Mail, label: 'Email', value: 'ddm@rosnou.ru, hostel@rosnou.ru' },
-  { icon: Clock, label: 'Время работы', value: 'Пн–Пт 10:00–18:00' },
-]
+const ddm = computed(() => [
+  { icon: MapPin, label: t('student.contactsAdmin.addressLabel'), value: 'г. Москва, ул. Радио, д. 22, каб. 801' },
+  { icon: Phone, label: t('student.contactsAdmin.phoneLabel'), value: '+7 (495) 925-03-71 (вн. 211)' },
+  { icon: Mail, label: t('student.contactsAdmin.emailLabel'), value: 'ddm@rosnou.ru, hostel@rosnou.ru' },
+  { icon: Clock, label: t('student.contactsAdmin.hoursLabel'), value: 'Пн–Пт 10:00–18:00' },
+])
 
 const ddmStaff: StaffPerson[] = [
   { name: 'Буторова Наталья Владимировна', photo: butPhoto },
@@ -88,37 +94,33 @@ function initials(fullName: string): string {
 // после переноса "Доступности" в правую колонку слева стало заметно меньше текста, чем
 // справа — расписали подробнее, не сокращая присланный пользователем текст про крылья/
 // обстановку комнат до одной строки, как было раньше).
-const buildingParagraphs = [
-  'Общая площадь здания — 12 697 м², в общежитии предусмотрено 617 мест для проживания. Комнаты представлены в двух форматах — блочном и коридорном, с разным уровнем комфорта и планировки.',
-  'В 2014 году в здании был проведён капитальный ремонт, а для безопасности проживающих установлена система видеонаблюдения.',
-  'Здание состоит из двух крыльев, и обустроены они по-разному. На всех этажах правого крыла оборудованы две кухни, три душевые комнаты, четыре холла для отдыха и общения, а также отдельная комната для стирки и сушки белья. В левом крыле — по одной кухне на этаж, а душевые сделаны персональными в каждом блоке, что даёт больше приватности.',
-  'В каждой комнате уже установлена необходимая мебель — кровати, шкафы для одежды, тумбочки и холодильник. Утюги, фены и прочую бытовую технику студенты обычно привозят с собой. С разрешения администратора обстановку можно донастроить под себя: поставить дополнительный шкаф, повесить полки или постелить ковёр.',
-]
+const buildingParagraphs = computed(() => [
+  t('student.building.paragraph1'),
+  t('student.building.paragraph2'),
+  t('student.building.paragraph3'),
+  t('student.building.paragraph4'),
+])
 
-const infrastructure = [
-  'Бесплатный Wi-Fi на всей территории общежития',
-  'Общая кухня на каждом этаже',
-  'Прачечная и сушильная комната — стирка 80 ₽, сушка 80 ₽',
-  'Столовая: Пн–Чт 10:00–19:00, Пт 10:00–18:00, Сб–Вс — выходной',
-  'Спортивный зал',
-  'Читальный зал и библиотека, доступ к компьютерам',
-]
+const infrastructure = computed(() => [
+  t('student.infrastructure.item1'),
+  t('student.infrastructure.item2'),
+  t('student.infrastructure.item3'),
+  t('student.infrastructure.item4'),
+  t('student.infrastructure.item5'),
+  t('student.infrastructure.item6'),
+])
 
-const tempRegistrationDocuments = [
-  'Ксерокопия страниц паспорта (2, 3, 4, 5)',
-  'Выписка из приказа о зачислении',
-  'Справка с места обучения',
-  'Фотография 3×4 см',
-]
+const tempRegistrationDocuments = computed(() => [
+  t('student.tempRegistration.doc1'),
+  t('student.tempRegistration.doc2'),
+  t('student.tempRegistration.doc3'),
+  t('student.tempRegistration.doc4'),
+])
 
 // "Шпаргалка" — добавлено 2026-08-23 по присланному пользователем тексту, сжато до
 // пошагового списка (само собой разумеющееся вступление про иногородних/список
 // документов уже было на странице абзацем выше — не дублировали).
-const polyclinicSteps = [
-  'Оформить временную регистрацию',
-  'Взять с собой полис ОМС, паспорт и СНИЛС',
-  'Обратиться в ближайшее отделение страховой компании',
-]
+const polyclinicSteps = computed(() => [t('student.polyclinic.step1'), t('student.polyclinic.step2'), t('student.polyclinic.step3')])
 
 const polyclinicsOpen = ref(false)
 
@@ -137,15 +139,24 @@ const isHostelInfoLoading = ref(true)
 
 // Склонение "человек" — реальные вместимости комнат в общежитии от 2 до 5, но формула
 // общая (стандартное правило русского числительного), не завязана на этот диапазон.
+// Для EN своя, гораздо более простая пара форм (person/people) — библиотечной
+// (vue-i18n) плюрализации под русские 3 формы в проекте нигде больше не заводили
+// (см. приём с "N дн." в отчётах/синхронизации), поэтому и здесь решается вручную в JS.
 function roomLabel(capacity: number): string {
-  const mod10 = capacity % 10
-  const mod100 = capacity % 100
-  const isFew = mod10 >= 2 && mod10 <= 4 && !(mod100 >= 12 && mod100 <= 14)
-  return `Комната на ${capacity} ${isFew ? 'человека' : 'человек'}`
+  let unit: string
+  if (locale.value === 'en') {
+    unit = capacity === 1 ? t('student.cost.personSingular') : t('student.cost.personPlural')
+  } else {
+    const mod10 = capacity % 10
+    const mod100 = capacity % 100
+    const isFew = mod10 >= 2 && mod10 <= 4 && !(mod100 >= 12 && mod100 <= 14)
+    unit = isFew ? t('student.cost.personFew') : t('student.cost.personMany')
+  }
+  return t('student.cost.roomLabel', { capacity, unit })
 }
 function priceRange(min: number, max: number): string {
-  const fmt = (n: number) => n.toLocaleString('ru-RU')
-  return min === max ? `${fmt(min)} ₽/мес.` : `${fmt(min)}–${fmt(max)} ₽/мес.`
+  const fmt = (n: number) => n.toLocaleString(dateLocaleTag())
+  return min === max ? t('student.cost.priceSingle', { amount: fmt(min) }) : t('student.cost.priceRange', { min: fmt(min), max: fmt(max) })
 }
 
 onMounted(async () => {
@@ -164,17 +175,17 @@ onMounted(async () => {
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
-        <span class="sr-only">Назад</span>
+        <span class="sr-only">{{ t('student.back') }}</span>
       </Button>
       <GraduationCap class="size-5 text-primary" />
-      <h1 class="text-lg font-medium">Общежитие РосНОУ</h1>
+      <h1 class="text-lg font-medium">{{ t('student.title') }}</h1>
     </div>
 
     <Tabs default-value="general">
       <TabsList>
-        <TabsTrigger value="general">Общая информация</TabsTrigger>
-        <TabsTrigger value="payment">Оплата и документы</TabsTrigger>
-        <TabsTrigger value="contacts">Контакты</TabsTrigger>
+        <TabsTrigger value="general">{{ t('student.tabs.general') }}</TabsTrigger>
+        <TabsTrigger value="payment">{{ t('student.tabs.payment') }}</TabsTrigger>
+        <TabsTrigger value="contacts">{{ t('student.tabs.contacts') }}</TabsTrigger>
       </TabsList>
 
       <!-- Вкладка 1 — Здание слева развёрнутым текстом, справа Инфраструктура и под ней
@@ -186,7 +197,7 @@ onMounted(async () => {
             <div class="flex flex-col lg:w-1/2 lg:pr-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
                 <Building2 class="size-4 text-primary" />
-                Здание
+                {{ t('student.building.heading') }}
               </div>
               <p v-for="para in buildingParagraphs" :key="para" class="mt-3 text-sm first:mt-3">{{ para }}</p>
             </div>
@@ -194,7 +205,7 @@ onMounted(async () => {
             <div class="flex flex-col lg:w-1/2 lg:pl-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
                 <Wifi class="size-4 text-primary" />
-                Инфраструктура и услуги
+                {{ t('student.infrastructure.heading') }}
               </div>
               <ul class="mt-3 flex flex-col gap-1.5 text-sm">
                 <li v-for="i in infrastructure" :key="i">{{ i }}</li>
@@ -202,13 +213,13 @@ onMounted(async () => {
 
               <div class="mt-4 flex items-center gap-1.5 border-t pt-4 text-sm font-medium">
                 <Accessibility class="size-4 text-primary" />
-                Доступность для лиц с ограниченными возможностями
+                {{ t('student.accessibility.heading') }}
               </div>
               <ul class="mt-3 flex flex-col gap-1.5 text-sm">
-                <li>Общежитие оснащено оборудованием для проживания лиц с ОВЗ и инвалидов</li>
-                <li>Пандус для беспрепятственного доступа</li>
-                <li>На первом этаже — жилые комнаты, читальный зал, санузлы для лиц с ограниченными возможностями</li>
-                <li>Тактильные таблички со шрифтом Брайля</li>
+                <li>{{ t('student.accessibility.item1') }}</li>
+                <li>{{ t('student.accessibility.item2') }}</li>
+                <li>{{ t('student.accessibility.item3') }}</li>
+                <li>{{ t('student.accessibility.item4') }}</li>
               </ul>
             </div>
           </div>
@@ -219,13 +230,13 @@ onMounted(async () => {
             <div class="flex flex-col lg:w-1/2 lg:pr-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
                 <MapPin class="size-4 text-primary" />
-                Как добраться
+                {{ t('student.directions.heading') }}
               </div>
               <ul class="mt-3 flex flex-col gap-1.5 text-sm">
-                <li>Ближайшее метро — «Авиамоторная» (около 20 минут пешком)</li>
-                <li>От метро «Авиамоторная» — автобус № 695 или с679 до остановки «Андроновское шоссе, 26», далее пешком</li>
-                <li>От главного корпуса (ул. Радио, д. 22) — автобус № 624 от остановки «Лефортовская набережная» до «НИИ прикладной механики», далее пешком</li>
-                <li>От главного корпуса до метро «Авиамоторная» — трамваи Т2 или 50 от остановки «Лефортовская набережная»</li>
+                <li>{{ t('student.directions.item1') }}</li>
+                <li>{{ t('student.directions.item2') }}</li>
+                <li>{{ t('student.directions.item3') }}</li>
+                <li>{{ t('student.directions.item4') }}</li>
               </ul>
             </div>
 
@@ -238,7 +249,7 @@ onMounted(async () => {
                   src="https://yandex.ru/map-widget/v1/?lang=ru_RU&scroll=true&source=constructor-api&um=constructor%3AzKairv6FkwsqRhkpf5bDqYE06Mx3Xtzy"
                   class="block h-[420px] w-full"
                   loading="lazy"
-                  title="Как добраться до общежития РосНОУ — карта с маршрутами"
+                  :title="t('student.directions.mapTitle')"
                 />
               </div>
             </div>
@@ -254,26 +265,26 @@ onMounted(async () => {
             <div class="flex flex-col lg:w-3/5 lg:pr-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
                 <Wallet class="size-4 text-primary" />
-                Оплата
+                {{ t('student.payment.heading') }}
               </div>
               <p class="mt-3 text-sm">
-                Оплата вносится ежемесячно, либо сразу за квартал или полугодие, не позднее 5-го числа расчётного месяца — срок закреплён в договоре найма.
+                {{ t('student.payment.paragraph1') }}
               </p>
               <p class="mt-3 text-sm">
-                Если оплата не поступила вовремя, с 10-го числа месяца, следующего за расчётным периодом, начинает начисляться пеня — 0,14% в день от непогашенной суммы (п. 4.8/5.9 договора).
+                {{ t('student.payment.paragraph2') }}
               </p>
               <p class="mt-3 text-sm">
-                Студенты заочной формы обучения заселяются на время сессии при наличии свободных мест — расчёт стоимости идёт по количеству фактически прожитых дней.
+                {{ t('student.payment.paragraph3') }}
               </p>
             </div>
 
             <div class="flex flex-col lg:w-2/5 lg:pl-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
                 <Banknote class="size-4 text-primary" />
-                Стоимость проживания
+                {{ t('student.cost.heading') }}
               </div>
               <p v-if="hostelInfoError" class="mt-3 text-sm text-red-500">{{ hostelInfoError }}</p>
-              <p v-else-if="isHostelInfoLoading" class="mt-3 text-sm text-muted-foreground">Загрузка…</p>
+              <p v-else-if="isHostelInfoLoading" class="mt-3 text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
               <div v-else class="mt-3 flex flex-col divide-y divide-border">
                 <div
                   v-for="p in hostelInfo?.priceRanges ?? []"
@@ -287,15 +298,15 @@ onMounted(async () => {
                   v-if="hostelInfo?.guestRoomDailyRate != null"
                   class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0"
                 >
-                  <span class="text-muted-foreground">Гостевая комната</span>
-                  <span class="font-medium">{{ hostelInfo.guestRoomDailyRate.toLocaleString('ru-RU') }} ₽/сутки</span>
+                  <span class="text-muted-foreground">{{ t('student.cost.guestRoom') }}</span>
+                  <span class="font-medium">{{ t('student.cost.perDay', { amount: hostelInfo.guestRoomDailyRate.toLocaleString(dateLocaleTag()) }) }}</span>
                 </div>
                 <div
                   v-if="hostelInfo?.passRestorationCost != null"
                   class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0"
                 >
-                  <span class="text-muted-foreground">Восстановление пропускного документа</span>
-                  <span class="font-medium">{{ hostelInfo.passRestorationCost.toLocaleString('ru-RU') }} ₽</span>
+                  <span class="text-muted-foreground">{{ t('student.cost.passRestoration') }}</span>
+                  <span class="font-medium">{{ t('student.cost.amountRub', { amount: hostelInfo.passRestorationCost.toLocaleString(dateLocaleTag()) }) }}</span>
                 </div>
               </div>
             </div>
@@ -307,14 +318,13 @@ onMounted(async () => {
             <div class="flex flex-col lg:w-1/2 lg:pr-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
                 <Stethoscope class="size-4 text-primary" />
-                Прикрепление к поликлинике
+                {{ t('student.polyclinic.heading') }}
               </div>
               <p class="mt-3 mb-2 text-sm text-muted-foreground">
-                Иногородние студенты могут прикрепиться к ближайшей поликлинике при наличии паспорта, студенческого
-                билета, полиса ОМС и временной регистрации.
+                {{ t('student.polyclinic.intro') }}
               </p>
               <div class="mb-3 rounded-md border border-dashed p-3">
-                <p class="mb-1.5 text-xs font-medium text-muted-foreground">Шпаргалка: как прикрепиться</p>
+                <p class="mb-1.5 text-xs font-medium text-muted-foreground">{{ t('student.polyclinic.cheatSheetTitle') }}</p>
                 <ol class="flex flex-col gap-1 text-sm">
                   <li v-for="(step, i) in polyclinicSteps" :key="step" class="flex gap-2">
                     <span class="font-medium text-primary">{{ i + 1 }}.</span>
@@ -328,7 +338,7 @@ onMounted(async () => {
               <Collapsible v-model:open="polyclinicsOpen">
                 <CollapsibleTrigger class="flex w-full items-center gap-1.5 rounded-md py-1 text-sm font-medium hover:text-primary">
                   <ChevronRight class="size-4 shrink-0 transition-transform duration-200" :class="{ 'rotate-90': polyclinicsOpen }" />
-                  Список поликлиник ({{ polyclinics.length }})
+                  {{ t('student.polyclinic.listToggle', { count: polyclinics.length }) }}
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <div class="mt-1 flex flex-col divide-y divide-border pl-5.5">
@@ -344,11 +354,10 @@ onMounted(async () => {
             <div class="flex flex-col lg:w-1/2 lg:pl-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
                 <FileText class="size-4 text-primary" />
-                Временная регистрация
+                {{ t('student.tempRegistration.heading') }}
               </div>
               <p class="mt-3 mb-2 text-sm text-muted-foreground">
-                Для свидетельства о регистрации по месту пребывания необходимо предоставить (обращение в администрацию
-                общежития или каб. 801):
+                {{ t('student.tempRegistration.intro') }}
               </p>
               <ul class="flex flex-col gap-1 text-sm">
                 <li v-for="d in tempRegistrationDocuments" :key="d">{{ d }}</li>
@@ -365,7 +374,7 @@ onMounted(async () => {
             <div class="flex flex-col gap-3 lg:w-2/3 lg:pr-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
                 <Contact class="size-4 text-primary" />
-                Контакты администрации
+                {{ t('student.contactsAdmin.heading') }}
               </div>
               <div class="flex flex-col gap-2">
                 <div v-for="c in contacts" :key="c.label" class="flex items-start gap-2 text-sm">
@@ -375,7 +384,7 @@ onMounted(async () => {
                 </div>
               </div>
               <div class="mt-1 border-t pt-3">
-                <div class="mb-2 text-xs text-muted-foreground">Ответственные сотрудники</div>
+                <div class="mb-2 text-xs text-muted-foreground">{{ t('student.contactsAdmin.responsibleStaff') }}</div>
                 <div class="flex flex-wrap gap-6">
                   <div v-for="p in staff" :key="p.name" class="flex w-56 flex-col items-center gap-2 text-center">
                     <Avatar class="size-56 rounded-full border-4 border-border">
@@ -391,7 +400,7 @@ onMounted(async () => {
             <div class="flex flex-col gap-3 lg:w-1/3 lg:pl-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
                 <Users class="size-4 text-primary" />
-                Департамент по делам молодёжи и воспитательной работе
+                {{ t('student.ddmHeading') }}
               </div>
               <div class="flex flex-col gap-2">
                 <div v-for="d in ddm" :key="d.label" class="flex items-start gap-2 text-sm">
@@ -401,7 +410,7 @@ onMounted(async () => {
                 </div>
               </div>
               <div class="mt-1 border-t pt-3">
-                <div class="mb-2 text-xs text-muted-foreground">Ответственные сотрудники</div>
+                <div class="mb-2 text-xs text-muted-foreground">{{ t('student.contactsAdmin.responsibleStaff') }}</div>
                 <div class="flex flex-wrap gap-6">
                   <div v-for="p in ddmStaff" :key="p.name" class="flex w-56 flex-col items-center gap-2 text-center">
                     <Avatar class="size-56 rounded-full border-4 border-border">

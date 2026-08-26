@@ -1,4 +1,5 @@
 import { apiFetch } from './api-base'
+import { i18n } from '@/i18n'
 
 export interface HostelPriceRange {
   capacity: number
@@ -18,7 +19,7 @@ export interface HostelPublicInfo {
 export async function fetchHostelPublicInfo(): Promise<HostelPublicInfo> {
   const response = await apiFetch('/public-info/hostel')
   if (!response.ok) {
-    throw new Error(`Не удалось получить справочные данные об общежитии (${response.status})`)
+    throw new Error(i18n.global.t('student.errors.fetchHostelInfoFailed', { status: response.status }))
   }
   return response.json()
 }

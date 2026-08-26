@@ -30,9 +30,7 @@ export class PassportSyncController {
       return await this.syncService.runSync('MANUAL');
     } catch (error) {
       if (error instanceof SyncAlreadyRunningError) {
-        throw new ConflictException(
-          'Синхронизация уже выполняется, дождитесь её завершения',
-        );
+        throw new ConflictException('sync.errors.alreadyRunning');
       }
       throw error;
     }

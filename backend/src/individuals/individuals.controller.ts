@@ -26,6 +26,7 @@ import {
   buildEditableSnapshot,
 } from './individual-edit';
 import { OKSM_COUNTRIES, isRussianCitizenship } from './citizenship-list';
+import { zodErrorMessage } from '../i18n/zod-error-message';
 
 // Поля, участвующие в diff'е истории изменений (AuditLogService) — служебные (createdAt/
 // updatedAt/isManual/deleteMark/code/photoCode) намеренно не отслеживаются.
@@ -99,8 +100,8 @@ const SNILS_PATTERN = /^\d{3}-\d{3}-\d{3} \d{2}$/;
 const SUBDIVISION_CODE_PATTERN = /^\d{3}-\d{3}$/;
 const PASSPORT_SERIES_PATTERN = /^\d{2}\s?\d{2}$/;
 const PASSPORT_NUMBER_PATTERN = /^\d{6}$/;
-const RF_PASSPORT_SERIES_MESSAGE = 'Серия паспорта гражданина РФ должна состоять из 4 цифр';
-const RF_PASSPORT_NUMBER_MESSAGE = 'Номер паспорта гражданина РФ должен состоять из 6 цифр';
+const RF_PASSPORT_SERIES_MESSAGE = 'individuals.errors.rfPassportSeriesFormat';
+const RF_PASSPORT_NUMBER_MESSAGE = 'individuals.errors.rfPassportNumberFormat';
 
 function clearableFormattedText(pattern: RegExp, message: string) {
   return z
@@ -114,7 +115,7 @@ function clearableFormattedText(pattern: RegExp, message: string) {
 // Закрытый список — см. citizenship-list.ts (ОКСМ). z.enum ожидает readonly-кортеж не
 // короче одного элемента, OKSM_COUNTRIES заведомо непустой, приведение типа тут безопасно.
 const citizenshipField = z.enum(OKSM_COUNTRIES as unknown as [string, ...string[]], {
-  message: 'Выберите гражданство из списка',
+  message: 'individuals.errors.citizenshipRequired',
 });
 
 const updateIndividualSchema = z
@@ -136,12 +137,12 @@ const updateIndividualSchema = z
     // Необязательное поле без проверки формата (по прямой просьбе 2026-08-23) — раньше
     // строгий z.string().email() отклонял правку, если email не похож на почту.
     email: clearableText,
-    snils: clearableFormattedText(SNILS_PATTERN, 'СНИЛС должен быть в формате 000-000-000 00'),
+    snils: clearableFormattedText(SNILS_PATTERN, 'individuals.errors.snilsFormat'),
     inn: clearableText,
     passportSeries: clearableText,
     passportNumber: clearableText,
     passportIssuedBy: clearableText,
-    passportIssuedCode: clearableFormattedText(SUBDIVISION_CODE_PATTERN, 'Код подразделения должен быть в формате 000-000'),
+    passportIssuedCode: clearableFormattedText(SUBDIVISION_CODE_PATTERN, 'individuals.errors.subdivisionCodeFormat'),
     passportIssuedAt: z.coerce.date().nullish(),
   })
   .superRefine((data, ctx) => {
@@ -170,12 +171,12 @@ const createIndividualSchema = z
     phone: z.string().trim().min(1),
     email: z.string().trim().email().nullish(),
     address: z.string().trim().min(1),
-    snils: z.string().trim().regex(SNILS_PATTERN, 'СНИЛС должен быть в формате 000-000-000 00').nullish(),
+    snils: z.string().trim().regex(SNILS_PATTERN, 'individuals.errors.snilsFormat').nullish(),
     inn: z.string().trim().min(1).nullish(),
     passportSeries: z.string().trim().min(1).nullish(),
     passportNumber: z.string().trim().min(1),
     passportIssuedBy: z.string().trim().min(1).nullish(),
-    passportIssuedCode: z.string().trim().regex(SUBDIVISION_CODE_PATTERN, 'Код подразделения должен быть в формате 000-000').nullish(),
+    passportIssuedCode: z.string().trim().regex(SUBDIVISION_CODE_PATTERN, 'individuals.errors.subdivisionCodeFormat').nullish(),
     passportIssuedAt: z.coerce.date(),
   })
   .superRefine((data, ctx) => {
@@ -281,10 +282,10 @@ export class IndividualsController {
   async create(@Body() body: unknown, @Req() req: Request) {
     const parsed = createIndividualSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException(parsed.error.message);
+      throw new BadRequestException(zodErrorMessage(parsed.error));
     }
     if (!req.user) {
-      throw new BadRequestException('Не удалось определить пользователя сессии');
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
     const data = parsed.data;
     const fullName = [data.surname, data.name, data.otchestvo].filter(Boolean).join(' ');
@@ -340,17 +341,17 @@ export class IndividualsController {
   async update(@Param('uid') uid: string, @Body() body: unknown, @Req() req: Request) {
     const parsed = updateIndividualSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException(parsed.error.message);
+      throw new BadRequestException(zodErrorMessage(parsed.error));
     }
     if (!req.user) {
-      throw new BadRequestException('Не удалось определить пользователя сессии');
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
     const data = parsed.data;
     const fullName = [data.surname, data.name, data.otchestvo].filter(Boolean).join(' ');
 
     const existing = await this.prisma.individual.findUnique({ where: { fizicheskoyeLitsoUid: uid } });
     if (!existing) {
-      throw new NotFoundException('Физлицо не найдено');
+      throw new NotFoundException('individuals.errors.individualNotFound');
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -480,7 +481,7 @@ export class IndividualsController {
     ]);
 
     if (!individual) {
-      throw new NotFoundException('Физлицо не найдено');
+      throw new NotFoundException('individuals.errors.individualNotFound');
     }
 
     return {
@@ -522,7 +523,7 @@ export class IndividualsController {
       return await this.individualSyncService.runSyncForIndividual(uid);
     } catch (error) {
       if (error instanceof SyncAlreadyRunningError) {
-        throw new ConflictException('Синхронизация физлица уже выполняется, дождитесь её завершения');
+        throw new ConflictException('individuals.errors.syncAlreadyRunning');
       }
       throw error;
     }

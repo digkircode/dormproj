@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs';
 import { BadRequestException } from '@nestjs/common';
+import { I18nContext } from 'nestjs-i18n';
 import type { ChatAttachmentKind } from '../../generated/prisma/client.js';
 import { attachmentKindForMime, compressImageInPlace, maxBytesForKind } from './chat-attachments-storage';
 
@@ -24,11 +25,17 @@ export async function validateAttachmentSizes(files: Express.Multer.File[]): Pro
     const kind = attachmentKindForMime(file.mimetype);
     if (!kind) {
       // Не должно случиться (fileFilter уже отсеял) — защитно, на случай гонки.
-      throw new BadRequestException(`Недопустимый тип файла: ${file.mimetype || 'неизвестен'}`);
+      const t = I18nContext.current();
+      const mimeType = file.mimetype || t?.t('chat.errors.unknownMimeType') || 'неизвестен';
+      throw new BadRequestException(t?.t('chat.errors.invalidFileType', { args: { type: mimeType } }) ?? `Недопустимый тип файла: ${mimeType}`);
     }
     const max = maxBytesForKind(kind);
     if (file.size > max) {
-      throw new BadRequestException(`Файл «${file.originalname}» превышает допустимый размер (${Math.round(max / (1024 * 1024))} МБ)`);
+      const maxMb = Math.round(max / (1024 * 1024));
+      throw new BadRequestException(
+        I18nContext.current()?.t('chat.errors.fileTooLarge', { args: { name: file.originalname, max: maxMb } }) ??
+          `Файл «${file.originalname}» превышает допустимый размер (${maxMb} МБ)`,
+      );
     }
     let sizeBytes = file.size;
     if (kind === 'IMAGE') {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, Plus } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
@@ -12,6 +13,7 @@ import { fetchRoles, createRole, roleLabel, roleIcon, type Role } from '@/lib/ro
 import { goBack } from '@/lib/utils'
 
 const router = useRouter()
+const { t } = useI18n()
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
@@ -65,25 +67,25 @@ async function submitCreate() {
       <div class="flex items-center gap-2">
         <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
           <ArrowLeft class="text-primary" />
-          <span class="sr-only">Назад</span>
+          <span class="sr-only">{{ t('users.roles.back') }}</span>
         </Button>
-        <h1 class="text-lg font-medium">Роли</h1>
+        <h1 class="text-lg font-medium">{{ t('users.roles.title') }}</h1>
       </div>
       <Button size="icon" @click="openCreate">
         <Plus />
-        <span class="sr-only">Добавить роль</span>
+        <span class="sr-only">{{ t('users.roles.addRole') }}</span>
       </Button>
     </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-    <p v-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
+    <p v-if="isLoading" class="text-sm text-muted-foreground">{{ t('users.roles.loading') }}</p>
 
     <Card v-else class="gap-0 py-0">
       <Table>
         <TableHeader class="bg-muted sticky top-0 z-10">
           <TableRow>
-            <TableHead>Роль</TableHead>
-            <TableHead>Пользователей</TableHead>
+            <TableHead>{{ t('users.roles.colRole') }}</TableHead>
+            <TableHead>{{ t('users.roles.colUsersCount') }}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -101,19 +103,19 @@ async function submitCreate() {
     <Dialog :open="isCreateOpen" @update:open="(open) => (isCreateOpen = open)">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
-          <DialogTitle>Новая роль</DialogTitle>
+          <DialogTitle>{{ t('users.roles.newRoleTitle') }}</DialogTitle>
         </DialogHeader>
         <!-- Новая роль сама по себе ничего не разрешает — RolesGuard на бэкенде
              проверяет конкретные строковые ключи (ADMIN/STAFF/RESIDENT), незнакомое
              имя просто ляжет в справочник без единой проверки на него в коде. -->
         <div class="flex flex-col gap-2">
-          <Label>Название</Label>
+          <Label>{{ t('users.roles.name') }}</Label>
           <Input v-model="newRoleName" @keyup.enter="submitCreate" />
         </div>
         <p v-if="createError" class="text-sm text-red-500">{{ createError }}</p>
         <DialogFooter>
-          <Button variant="outline" @click="isCreateOpen = false">Отмена</Button>
-          <Button :disabled="!newRoleName.trim()" :loading="isCreating" @click="submitCreate">Создать</Button>
+          <Button variant="outline" @click="isCreateOpen = false">{{ t('users.roles.cancel') }}</Button>
+          <Button :disabled="!newRoleName.trim()" :loading="isCreating" @click="submitCreate">{{ t('users.roles.create') }}</Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>

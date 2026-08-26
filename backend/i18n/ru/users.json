@@ -1,0 +1,8 @@
+{
+  "errors": {
+    "userNotFound": "Пользователь не найден",
+    "roleNotFound": "Роль не найдена",
+    "individualUidNotFound": "Физлицо с таким univer_id не найдено (нет такого uid в физлицах)",
+    "roleNameExists": "Роль с таким названием уже существует"
+  }
+}

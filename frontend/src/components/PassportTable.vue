@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import type { IndividualPassport } from '@/lib/individuals-api'
+
+const { t } = useI18n()
 
 defineProps<{ passports: IndividualPassport[] }>()
 
@@ -20,12 +23,12 @@ function formatDate(iso: string | null | undefined): string {
       <Table class="table-fixed">
         <TableHeader class="sticky top-0 z-10 bg-muted">
           <TableRow>
-            <TableHead class="w-[15%]">Тип</TableHead>
-            <TableHead class="w-[10%]">Серия</TableHead>
-            <TableHead class="w-[12%]">Номер</TableHead>
-            <TableHead class="w-[38%]">Кем выдан</TableHead>
-            <TableHead class="w-[13%]">Дата выдачи</TableHead>
-            <TableHead class="w-[12%]">Код подразделения</TableHead>
+            <TableHead class="w-[15%]">{{ t('individuals.passportTable.colType') }}</TableHead>
+            <TableHead class="w-[10%]">{{ t('individuals.passportTable.colSeries') }}</TableHead>
+            <TableHead class="w-[12%]">{{ t('individuals.passportTable.colNumber') }}</TableHead>
+            <TableHead class="w-[38%]">{{ t('individuals.passportTable.colIssuedBy') }}</TableHead>
+            <TableHead class="w-[13%]">{{ t('individuals.passportTable.colIssuedAt') }}</TableHead>
+            <TableHead class="w-[12%]">{{ t('individuals.passportTable.colIssuedCode') }}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -41,5 +44,5 @@ function formatDate(iso: string | null | undefined): string {
       </Table>
     </div>
   </div>
-  <div v-else class="text-sm text-muted-foreground">Нет данных</div>
+  <div v-else class="text-sm text-muted-foreground">{{ t('individuals.passportTable.noData') }}</div>
 </template>

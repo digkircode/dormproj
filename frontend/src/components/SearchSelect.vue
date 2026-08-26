@@ -1,7 +1,10 @@
 <script setup lang="ts" generic="T">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { onClickOutside } from '@vueuse/core'
 import { Input } from '@/components/ui/input'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   items: T[]
@@ -93,7 +96,7 @@ onClickOutside(rootRef, () => {
         <span class="truncate">{{ itemLabel(item) }}</span>
         <span v-if="itemSubLabel" class="shrink-0 text-xs text-muted-foreground">{{ itemSubLabel(item) }}</span>
       </button>
-      <p v-if="!items.length" class="px-3 py-2 text-sm text-muted-foreground">Ничего не найдено</p>
+      <p v-if="!items.length" class="px-3 py-2 text-sm text-muted-foreground">{{ t('entityTable.nothingFound') }}</p>
     </div>
   </div>
 </template>

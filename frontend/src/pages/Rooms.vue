@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Card } from '@/components/ui/card'
 import RoomTree from '@/components/RoomTree.vue'
 import RoomDetailPanel from '@/components/RoomDetailPanel.vue'
@@ -14,6 +15,8 @@ const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
 // Скрывает нативные стрелочки +/- у <input type="number"> (Chrome/Safari + Firefox).
 const NO_SPINNER_CLASS = '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
+
+const { t } = useI18n()
 
 const treeItems = ref<RoomTreeItem[]>([])
 const isTreeLoading = ref(true)
@@ -123,15 +126,15 @@ async function submitCreate() {
     <Dialog :open="isCreateOpen" @update:open="(open) => (isCreateOpen = open)">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
-          <DialogTitle>Новая комната</DialogTitle>
-          <DialogDescription>Номер комнаты и этаж — дальше остальные характеристики можно добавить на карточке комнаты</DialogDescription>
+          <DialogTitle>{{ t('rooms.createDialog.title') }}</DialogTitle>
+          <DialogDescription>{{ t('rooms.createDialog.description') }}</DialogDescription>
         </DialogHeader>
         <div class="flex flex-col gap-2">
-          <Label for="new-room-number">Номер</Label>
+          <Label for="new-room-number">{{ t('rooms.createDialog.number') }}</Label>
           <Input id="new-room-number" v-model="newRoomNumber" @keyup.enter="submitCreate" />
         </div>
         <div class="flex flex-col gap-2">
-          <Label for="new-room-floor">Этаж</Label>
+          <Label for="new-room-floor">{{ t('rooms.createDialog.floor') }}</Label>
           <!-- Обычный native input, не Input.vue — та обёртка на type="number" не ловит
                v-model, а с ручным :value+@input через раз глотает нажатия (см.
                RoomDetailPanel.vue). Классы скопированы из Input.vue вручную. -->
@@ -149,13 +152,13 @@ async function submitCreate() {
         </div>
         <p v-if="createError" class="text-sm text-red-500">{{ createError }}</p>
         <DialogFooter>
-          <Button variant="outline" @click="isCreateOpen = false">Отмена</Button>
+          <Button variant="outline" @click="isCreateOpen = false">{{ t('rooms.createDialog.cancel') }}</Button>
           <Button
             :disabled="!newRoomNumber.trim() || String(newRoomFloor).trim() === ''"
             :loading="isCreating"
             @click="submitCreate"
           >
-            Создать
+            {{ t('rooms.createDialog.create') }}
           </Button>
         </DialogFooter>
       </DialogScrollContent>

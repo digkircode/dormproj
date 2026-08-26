@@ -1,0 +1,132 @@
+{
+  "nav": {
+    "home": "Главная",
+    "forbidden": "Доступ запрещён",
+    "notFound": "Страница не найдена",
+    "studentGeneralInfo": "Общая информация",
+    "studentChat": "Чат с сотрудниками",
+    "studentContract": "Договор/Платежи",
+    "studentPayment": "Оплата",
+    "students": "Контингент студентов",
+    "sync": "Синхронизация",
+    "syncLogs": "Логи синхронизации",
+    "individuals": "Физические лица",
+    "individualDetail": "Физическое лицо",
+    "citizenship": "Гражданство",
+    "contactInfo": "Контактная информация",
+    "passportData": "Паспортные данные",
+    "rooms": "Комнаты",
+    "roomCharacteristics": "Характеристики комнат",
+    "contracts": "Договоры",
+    "contractDetail": "Информация о договоре",
+    "chats": "Чаты",
+    "reports": "Отчёты",
+    "reportsOccupancy": "Занятость общежития",
+    "reportsContingent": "Реестр проживающих",
+    "reportsContracts": "Реестр договоров",
+    "reportsDebt": "Финансовый отчёт",
+    "reportsMoveInOut": "Движение проживающих",
+    "users": "Сотрудники",
+    "roles": "Роли",
+    "usersAll": "Список пользователей",
+    "auditLog": "История изменений",
+    "sidebarPay": "Оплатить"
+  },
+  "sidebar": {
+    "groupResident": "Проживающий",
+    "groupStaff": "Сотрудник",
+    "groupAdmin": "Администратор",
+    "projectUsers": "Пользователи",
+    "projectSystemTables": "Системные таблицы",
+    "signOut": "Выход",
+    "team": "РосНОУ",
+    "teamPlan": "Общежитие"
+  },
+  "entityTable": {
+    "searchPlaceholder": "Поиск по всей таблице…",
+    "addFilter": "Добавить фильтр",
+    "allFieldsAdded": "Все поля уже добавлены",
+    "tableSettings": "Настройка таблицы",
+    "anyValue": "любое значение",
+    "removeFilter": "Убрать фильтр «{field}»",
+    "clear": "Очистить",
+    "selectValuesTitle": "Выберите одно или несколько значений",
+    "searchValuePlaceholder": "Поиск значения…",
+    "nothingFound": "Ничего не найдено",
+    "done": "Готово",
+    "selectAllRows": "Выбрать все строки на странице",
+    "selectRow": "Выбрать строку",
+    "loading": "Загрузка…",
+    "firstPage": "Первая страница",
+    "previousPage": "Предыдущая страница",
+    "nextPage": "Следующая страница",
+    "lastPage": "Последняя страница",
+    "total": "Всего {label}: {count}",
+    "rowsPerPage": "Строк на странице",
+    "pageOf": "Страница {current} из {total}"
+  },
+  "forbidden": {
+    "title": "Доступ запрещён",
+    "description": "У вашей роли нет доступа к этому разделу. Если это ошибка — обратитесь к администратору.",
+    "goHome": "На главную"
+  },
+  "notFound": {
+    "title": "Страница не найдена",
+    "description": "Такой страницы не существует — проверьте адрес или вернитесь на главную.",
+    "goHome": "На главную"
+  },
+  "home": {
+    "statCollectedThisMonth": "Собрано в этом месяце",
+    "statCollectedTrendDesc": "Рост по сравнению с прошлым месяцем",
+    "statCollectedHint": "За последние 6 месяцев",
+    "statDebtors": "Должников",
+    "statDebtorsDesc": "Меньше, чем в прошлом месяце",
+    "statDebtorsHint": "Требует внимания",
+    "statOccupied": "Заселено комнат",
+    "statOccupiedDesc": "Стабильная заселённость",
+    "statOccupiedHint": "Из 340 доступных",
+    "statContracts": "Договоров подписано",
+    "statContractsDesc": "Соответствует плану",
+    "statContractsHint": "На текущий семестр",
+    "chartTitle": "Поступления по месяцам",
+    "chartDescription": "Динамика оплат за последние 3 месяца",
+    "chartRangeLast3Months": "Последние 3 месяца"
+  },
+  "roomInfo": {
+    "tooltip": "Информация о комнате",
+    "dialogTitle": "Комната {room}"
+  },
+  "boolean": {
+    "yes": "Да",
+    "no": "Нет"
+  },
+  "datePicker": {
+    "openCalendar": "Открыть календарь"
+  },
+  "footer": {
+    "copyright": "© 1991–2026 Российский новый университет"
+  },
+  "errors": {
+    "tooManyRequests": "Слишком много запросов — подождите немного и попробуйте ещё раз",
+    "checkDataFields": "Проверьте правильность данных"
+  },
+  "dataTable": {
+    "tabAllRooms": "Все комнаты",
+    "tabHasDebt": "Есть долг",
+    "tabContractExpiring": "Договор истекает",
+    "columns": "Столбцы",
+    "add": "Добавить",
+    "colRoom": "Комната",
+    "colType": "Тип",
+    "colStatus": "Статус",
+    "colAmount": "Сумма",
+    "colDue": "Срок",
+    "colResponsible": "Ответственный",
+    "typeDouble": "Двухместная",
+    "typeSingle": "Одноместная",
+    "typeTriple": "Трёхместная",
+    "statusPaid": "Оплачено",
+    "statusDebt": "Долг",
+    "statusInProgress": "В процессе"
+  }
+}

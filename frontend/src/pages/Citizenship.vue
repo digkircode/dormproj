@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ArrowLeft } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -8,14 +10,15 @@ import { fetchFacetValues, fetchCitizenship, type Citizenship } from '@/lib/citi
 import { goBack } from '@/lib/utils'
 
 const router = useRouter()
+const { t } = useI18n()
 
-const columnLabels: Record<string, string> = {
-  fullName: 'ФИО',
-  period: 'Период',
-  country: 'Страна',
-  countryCode: 'Код страны',
-  fizicheskoyeLitsoUid: 'UID физлица',
-}
+const columnLabels = computed<Record<string, string>>(() => ({
+  fullName: t('individuals.systemTables.colFullName'),
+  period: t('individuals.systemTables.citizenship.colPeriod'),
+  country: t('individuals.systemTables.citizenship.colCountry'),
+  countryCode: t('individuals.systemTables.citizenship.colCountryCode'),
+  fizicheskoyeLitsoUid: t('individuals.systemTables.colUid'),
+}))
 const filterableFields = ['country', 'countryCode']
 const hiddenByDefault = ['countryCode', 'fizicheskoyeLitsoUid']
 
@@ -30,13 +33,15 @@ function cellText(columnId: string, value: unknown): string {
 
 const columnHelper = createAppColumnHelper<Citizenship>()
 
-const columns = columnHelper.columns([
-  columnHelper.accessor('fizicheskoyeLitsoUid', { header: columnLabels.fizicheskoyeLitsoUid, size: 280, minSize: 200 }),
-  columnHelper.accessor('fullName', { header: columnLabels.fullName, enableHiding: false, size: 256, minSize: 160 }),
-  columnHelper.accessor('period', { header: columnLabels.period, size: 128, minSize: 100 }),
-  columnHelper.accessor('country', { header: columnLabels.country, size: 192, minSize: 120 }),
-  columnHelper.accessor('countryCode', { header: columnLabels.countryCode, size: 128, minSize: 90 }),
-])
+const columns = computed(() =>
+  columnHelper.columns([
+    columnHelper.accessor('fizicheskoyeLitsoUid', { header: columnLabels.value.fizicheskoyeLitsoUid, size: 280, minSize: 200 }),
+    columnHelper.accessor('fullName', { header: columnLabels.value.fullName, enableHiding: false, size: 256, minSize: 160 }),
+    columnHelper.accessor('period', { header: columnLabels.value.period, size: 128, minSize: 100 }),
+    columnHelper.accessor('country', { header: columnLabels.value.country, size: 192, minSize: 120 }),
+    columnHelper.accessor('countryCode', { header: columnLabels.value.countryCode, size: 128, minSize: 90 }),
+  ]),
+)
 </script>
 
 <template>
@@ -44,9 +49,9 @@ const columns = columnHelper.columns([
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
-        <span class="sr-only">Назад</span>
+        <span class="sr-only">{{ t('individuals.systemTables.back') }}</span>
       </Button>
-      <h1 class="text-lg font-medium">Гражданство</h1>
+      <h1 class="text-lg font-medium">{{ t('individuals.systemTables.citizenship.title') }}</h1>
     </div>
 
     <EntityTable
@@ -57,7 +62,7 @@ const columns = columnHelper.columns([
       :fetch-page="fetchCitizenship"
       :fetch-facet-values="fetchFacetValues"
       :get-row-id="(c: Citizenship) => String(c.id)"
-      total-label="записей о гражданстве"
+      :total-label="t('individuals.systemTables.citizenship.totalLabel')"
       :cell-text="cellText"
       :hidden-by-default="hiddenByDefault"
       storage-key="citizenship"

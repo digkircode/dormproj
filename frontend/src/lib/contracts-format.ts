@@ -1,4 +1,5 @@
 import { CircleCheck, CircleMinus, CircleX, Clock } from 'lucide-vue-next'
+import { i18n } from '@/i18n'
 import type { ContractStatus } from './contracts-api'
 
 // EXPIRING — не значение ContractStatus в БД (там до автоматического EXPIRED дело не
@@ -16,12 +17,12 @@ export function getContractDisplayStatus(status: ContractStatus, endDate: string
   return status
 }
 
-export const STATUS_LABELS: Record<ContractDisplayStatus, string> = {
-  ACTIVE: 'Действует',
-  EXPIRING: 'Истекает',
-  TERMINATED: 'Расторгнут',
-  EXPIRED: 'Истёк',
-}
+// Proxy, не обычный объект — значения резолвятся через t() на каждое обращение, поэтому
+// STATUS_LABELS[status] остаётся реактивным к смене языка везде, где уже используется
+// (ContractStatusPill.vue и т.п.), без правки самих мест использования.
+export const STATUS_LABELS: Record<ContractDisplayStatus, string> = new Proxy({} as Record<ContractDisplayStatus, string>, {
+  get: (_target, status: string) => i18n.global.t(`contracts.status.${status}`),
+})
 
 export const STATUS_VARIANTS: Record<ContractDisplayStatus, 'default' | 'secondary' | 'destructive'> = {
   ACTIVE: 'default',

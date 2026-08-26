@@ -27,7 +27,7 @@ export class MyContractController {
     // только вместе с валидным univerId, это заслон на непредвиденное рассинхронизированное
     // состояние, а не штатный путь.
     if (!user?.univerId) {
-      throw new BadRequestException('Аккаунт не привязан к физическому лицу — информация о договоре недоступна');
+      throw new BadRequestException('contracts.errors.accountNotLinked');
     }
     return user.univerId;
   }
@@ -39,7 +39,7 @@ export class MyContractController {
   @Get('list')
   async myContracts(@Req() req: Request) {
     if (!req.user) {
-      throw new BadRequestException('Не удалось определить пользователя сессии');
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
     const individualUid = await this.resolveIndividualUid(req.user.id);
     const contracts = await this.prisma.contract.findMany({
@@ -59,12 +59,12 @@ export class MyContractController {
   @Get()
   async myContract(@Query('contractId') contractIdParam: string | undefined, @Req() req: Request) {
     if (!req.user) {
-      throw new BadRequestException('Не удалось определить пользователя сессии');
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
     const individualUid = await this.resolveIndividualUid(req.user.id);
     const contractId = contractIdParam ? Number.parseInt(contractIdParam, 10) : undefined;
     if (contractIdParam !== undefined && !Number.isInteger(contractId)) {
-      throw new BadRequestException('Некорректный contractId');
+      throw new BadRequestException('contracts.errors.invalidContractId');
     }
 
     const contract = await this.prisma.contract.findFirst({

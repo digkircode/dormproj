@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { UserRound, X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -8,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import SearchSelect from '@/components/SearchSelect.vue'
 import { fetchRoles, roleLabel, roleIcon, type Role } from '@/lib/roles-api'
 import { searchUsers, grantRole, revokeRole, type UserRow } from '@/lib/users-api'
+
+const { t } = useI18n()
 
 const emit = defineEmits<{ changed: [] }>()
 
@@ -102,18 +105,18 @@ async function onRevoke(roleId: number) {
   <Dialog :open="isOpen" @update:open="(open) => (isOpen = open)">
     <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
       <DialogHeader>
-        <DialogTitle>Роли пользователя</DialogTitle>
+        <DialogTitle>{{ t('users.manageDialog.title') }}</DialogTitle>
       </DialogHeader>
 
       <div v-if="!isLocked" class="flex flex-col gap-2">
-        <Label>Пользователь</Label>
+        <Label>{{ t('users.manageDialog.user') }}</Label>
         <SearchSelect
           v-model="userQuery"
           :items="userResults"
           :item-key="(u: UserRow) => u.id"
           :item-label="(u: UserRow) => u.fullName"
           :item-sub-label="(u: UserRow) => u.email ?? ''"
-          placeholder="Введите ФИО или email"
+          :placeholder="t('users.manageDialog.userPlaceholder')"
           :loading="userSearching"
           @search="onUserSearch"
           @select="pickUser"
@@ -126,8 +129,8 @@ async function onRevoke(roleId: number) {
 
       <template v-if="selectedUser">
         <div class="flex flex-col gap-2">
-          <Label>Текущие роли</Label>
-          <p v-if="!selectedUser.roles.length" class="text-sm text-muted-foreground">Ролей нет</p>
+          <Label>{{ t('users.manageDialog.currentRoles') }}</Label>
+          <p v-if="!selectedUser.roles.length" class="text-sm text-muted-foreground">{{ t('users.manageDialog.noRoles') }}</p>
           <div v-else class="flex flex-wrap gap-2">
             <span
               v-for="r in selectedUser.roles"
@@ -143,7 +146,7 @@ async function onRevoke(roleId: number) {
                 @click="onRevoke(r.id)"
               >
                 <X class="size-3.5" />
-                <span class="sr-only">Отозвать роль «{{ roleLabel(r.name) }}»</span>
+                <span class="sr-only">{{ t('users.manageDialog.revokeRole', { role: roleLabel(r.name) }) }}</span>
               </button>
             </span>
           </div>
@@ -151,10 +154,10 @@ async function onRevoke(roleId: number) {
 
         <div class="flex items-end gap-2">
           <div class="flex flex-1 flex-col gap-2">
-            <Label>Выдать роль</Label>
+            <Label>{{ t('users.manageDialog.grantRoleLabel') }}</Label>
             <Select :model-value="roleToGrant ? String(roleToGrant) : undefined" @update:model-value="(v) => (roleToGrant = Number(v))">
               <SelectTrigger>
-                <SelectValue placeholder="Выберите роль" />
+                <SelectValue :placeholder="t('users.manageDialog.selectRolePlaceholder')" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem v-for="r in availableRoles" :key="r.id" :value="String(r.id)">
@@ -166,7 +169,7 @@ async function onRevoke(roleId: number) {
               </SelectContent>
             </Select>
           </div>
-          <Button :disabled="roleToGrant === undefined" :loading="isGranting" @click="submitGrant">Выдать</Button>
+          <Button :disabled="roleToGrant === undefined" :loading="isGranting" @click="submitGrant">{{ t('users.manageDialog.grant') }}</Button>
         </div>
       </template>
 

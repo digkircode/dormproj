@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { FileText, Loader, Play } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -9,6 +10,8 @@ defineProps<{
   value?: unknown
   row?: { slug: string; isRunning: boolean; isReal: boolean; run: () => Promise<void> }
 }>()
+
+const { t } = useI18n()
 </script>
 
 <template>
@@ -18,21 +21,21 @@ defineProps<{
         <Button variant="ghost" size="icon" class="size-7" as-child>
           <RouterLink :to="`/sync/${row?.slug}/logs`">
             <FileText class="text-primary" />
-            <span class="sr-only">Логи</span>
+            <span class="sr-only">{{ t('sync.actionsLogs') }}</span>
           </RouterLink>
         </Button>
       </TooltipTrigger>
-      <TooltipContent>Логи</TooltipContent>
+      <TooltipContent>{{ t('sync.actionsLogs') }}</TooltipContent>
     </Tooltip>
     <Tooltip v-if="row?.isReal">
       <TooltipTrigger as-child>
         <Button variant="ghost" size="icon" class="size-7" :disabled="row.isRunning" @click="row.run()">
           <Loader v-if="row.isRunning" class="animate-spin" />
           <Play v-else class="text-emerald-500" />
-          <span class="sr-only">Запустить синхронизацию</span>
+          <span class="sr-only">{{ t('sync.actionsRun') }}</span>
         </Button>
       </TooltipTrigger>
-      <TooltipContent>Запустить синхронизацию</TooltipContent>
+      <TooltipContent>{{ t('sync.actionsRun') }}</TooltipContent>
     </Tooltip>
   </div>
 </template>

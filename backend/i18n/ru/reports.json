@@ -1,0 +1,48 @@
+{
+  "registryBucket": {
+    "ACTIVE": "Действует",
+    "EXPIRING": "Истекает",
+    "OVERDUE": "Просрочен",
+    "TERMINATED": "Расторгнут"
+  },
+  "movementOperation": {
+    "IN": "Заселение",
+    "OUT": "Выселение",
+    "MOVE": "Переселение",
+    "RENEWAL": "Продление"
+  },
+  "contingentFacets": {
+    "citizenshipRu": "Россия",
+    "citizenshipForeign": "Иностранный гражданин",
+    "ownUniversity": "Студент РосНОУ",
+    "otherUniversity": "Не студент РосНОУ"
+  },
+  "excel": {
+    "sheetDebtors": "Финансовый отчёт",
+    "sheetContingent": "Реестр проживающих",
+    "sheetRegistry": "Реестр договоров",
+    "sheetMovements": "Движение проживающих",
+    "colContractNumber": "№ договора",
+    "colFullName": "ФИО",
+    "colRoom": "Комната",
+    "colStatus": "Статус",
+    "colCreatedAt": "Дата создания",
+    "colAccrued": "Начислено",
+    "colPaid": "Оплачено",
+    "colPenalty": "Пеня",
+    "colDebt": "Долг",
+    "colMovedInDate": "Дата заселения",
+    "colResident": "Проживающий",
+    "colFacultet": "Факультет",
+    "colKurs": "Курс",
+    "colBirthDate": "Дата рождения",
+    "colCitizenship": "Гражданство",
+    "colStartDate": "Дата начала",
+    "colEndDate": "Дата окончания",
+    "colDaysUntilEnd": "Дней до окончания",
+    "colOperationDate": "Дата операции",
+    "colOperation": "Операция",
+    "colFrom": "Откуда",
+    "colTo": "Куда"
+  }
+}

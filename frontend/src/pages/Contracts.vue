@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, ExternalLink, Plus, Printer } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -14,6 +15,7 @@ import { goBack } from '@/lib/utils'
 import { fetchContractsPage, fetchContractFacets, printContractsBatch, type ContractListItem } from '@/lib/contracts-api'
 
 const router = useRouter()
+const { t } = useI18n()
 
 // Выбор строк чекбоксами — только текущая страница списка (см. EntityTable.vue#selectable),
 // печать пачкой дёргает по одному id за раз на бэке (contracts.controller.ts#printBatch) и
@@ -42,15 +44,15 @@ function formatDateIso(iso: string): string {
 }
 
 // --- Список договоров ---
-const columnLabels: Record<string, string> = {
-  contractDate: 'Дата договора',
-  number: '№ договора',
-  residentFullName: 'Проживающий',
-  room: 'Комната',
-  startDate: 'Начало',
-  endDate: 'Окончание',
-  status: 'Статус',
-}
+const columnLabels = computed<Record<string, string>>(() => ({
+  contractDate: t('contracts.list.colContractDate'),
+  number: t('contracts.list.colNumber'),
+  residentFullName: t('contracts.list.colResident'),
+  room: t('contracts.list.colRoom'),
+  startDate: t('contracts.list.colStart'),
+  endDate: t('contracts.list.colEnd'),
+  status: t('contracts.list.colStatus'),
+}))
 const filterableFields = ['status']
 const cellRenderers = { status: ContractStatusCell, room: RoomCell }
 
@@ -63,15 +65,20 @@ function cellText(columnId: string, value: unknown): string {
 
 const columnHelper = createAppColumnHelper<ContractListItem>()
 
-const columns = columnHelper.columns([
-  columnHelper.accessor('contractDate', { header: columnLabels.contractDate, size: 140, minSize: 110 }),
-  columnHelper.accessor('number', { header: columnLabels.number, enableHiding: false, size: 128, minSize: 100 }),
-  columnHelper.accessor('residentFullName', { header: columnLabels.residentFullName, size: 240, minSize: 160 }),
-  columnHelper.accessor('room', { header: columnLabels.room, size: 128, minSize: 100 }),
-  columnHelper.accessor('startDate', { header: columnLabels.startDate, size: 128, minSize: 100 }),
-  columnHelper.accessor('endDate', { header: columnLabels.endDate, size: 128, minSize: 100 }),
-  columnHelper.accessor('status', { header: columnLabels.status, size: 128, minSize: 100 }),
-])
+// computed, не const — header-текст берётся из columnLabels (i18n), таблица (useTable в
+// EntityTable.vue) watch'ит props.columns реактивно и пересобирает заголовки при смене
+// языка, но только если сам массив колонок — новая reactive-ссылка, а не статичный const.
+const columns = computed(() =>
+  columnHelper.columns([
+    columnHelper.accessor('contractDate', { header: columnLabels.value.contractDate, size: 140, minSize: 110 }),
+    columnHelper.accessor('number', { header: columnLabels.value.number, enableHiding: false, size: 128, minSize: 100 }),
+    columnHelper.accessor('residentFullName', { header: columnLabels.value.residentFullName, size: 240, minSize: 160 }),
+    columnHelper.accessor('room', { header: columnLabels.value.room, size: 128, minSize: 100 }),
+    columnHelper.accessor('startDate', { header: columnLabels.value.startDate, size: 128, minSize: 100 }),
+    columnHelper.accessor('endDate', { header: columnLabels.value.endDate, size: 128, minSize: 100 }),
+    columnHelper.accessor('status', { header: columnLabels.value.status, size: 128, minSize: 100 }),
+  ]),
+)
 
 const createDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(null)
 </script>
@@ -81,9 +88,9 @@ const createDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(nu
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
-        <span class="sr-only">Назад</span>
+        <span class="sr-only">{{ t('contracts.list.back') }}</span>
       </Button>
-      <h1 class="text-lg font-medium">Договоры найма</h1>
+      <h1 class="text-lg font-medium">{{ t('contracts.list.title') }}</h1>
     </div>
 
     <p v-if="printError" class="text-sm text-red-500">{{ printError }}</p>
@@ -97,23 +104,23 @@ const createDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(nu
       :fetch-page="fetchContractsPage"
       :fetch-facet-values="fetchContractFacets"
       :get-row-id="(c: ContractListItem) => String(c.id)"
-      total-label="договоров"
+      :total-label="t('contracts.list.totalLabel')"
       :cell-text="cellText"
       :cell-renderers="cellRenderers"
       storage-key="contracts"
       accent-icons
       selectable
-      :row-action="{ icon: ExternalLink, label: 'Открыть договор', getHref: (c: ContractListItem) => `/contracts/${c.id}` }"
+      :row-action="{ icon: ExternalLink, label: t('contracts.list.openContract'), getHref: (c: ContractListItem) => `/contracts/${c.id}` }"
     >
       <template #actions>
         <Tooltip>
           <TooltipTrigger as-child>
             <Button size="icon" @click="createDialogRef?.open()">
               <Plus />
-              <span class="sr-only">Новый договор</span>
+              <span class="sr-only">{{ t('contracts.list.newContract') }}</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Новый договор</TooltipContent>
+          <TooltipContent>{{ t('contracts.list.newContract') }}</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger as-child>
@@ -125,11 +132,11 @@ const createDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(nu
               @click="onPrintSelected"
             >
               <Printer :class="{ 'text-primary': selectedContracts.length }" />
-              <span class="sr-only">Распечатать выбранные договоры</span>
+              <span class="sr-only">{{ t('contracts.list.printSelected') }}</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            {{ selectedContracts.length ? `Распечатать выбранные (${selectedContracts.length})` : 'Выберите договоры чекбоксом' }}
+            {{ selectedContracts.length ? t('contracts.list.printSelectedCount', { count: selectedContracts.length }) : t('contracts.list.selectContractsHint') }}
           </TooltipContent>
         </Tooltip>
         <Separator orientation="vertical" class="h-6" />

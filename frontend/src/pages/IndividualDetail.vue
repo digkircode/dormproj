@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft,
@@ -31,6 +32,7 @@ import { breadcrumbOverride } from '@/lib/breadcrumb-state'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const uid = computed(() => String(route.params.uid))
 
 const detail = ref<IndividualDetail | null>(null)
@@ -38,6 +40,14 @@ const isLoading = ref(true)
 const notFound = ref(false)
 const copiedField = ref<'uid' | 'code' | null>(null)
 let copyResetTimeout: ReturnType<typeof setTimeout> | undefined
+
+// gender — свободный текст (см. individuals-api.ts), переводим только если совпадает
+// с одним из двух известных значений (как хранится в БД), иначе показываем как есть.
+const genderDisplay = computed(() => {
+  if (detail.value?.gender === 'Мужской') return t('contracts.gender.male')
+  if (detail.value?.gender === 'Женский') return t('contracts.gender.female')
+  return detail.value?.gender ?? null
+})
 
 const initials = computed(() =>
   (detail.value?.fullName ?? '')
@@ -64,7 +74,7 @@ const manualPassportRow = computed<IndividualPassport | null>(() => {
   return {
     id: -1,
     period: detail.value.passportIssuedAt ?? detail.value.createdAt,
-    type: 'Паспорт (введён вручную)',
+    type: t('individuals.detail.manualPassportType'),
     series: detail.value.passportSeries ?? '',
     number: detail.value.passportNumber,
     dateStart: detail.value.passportIssuedAt ?? '',
@@ -201,13 +211,13 @@ onUnmounted(() => {
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/individuals')">
         <ArrowLeft class="text-primary" />
-        <span class="sr-only">Назад</span>
+        <span class="sr-only">{{ t('individuals.detail.back') }}</span>
       </Button>
-      <h1 class="text-lg font-medium">Информация о физическом лице</h1>
+      <h1 class="text-lg font-medium">{{ t('individuals.detail.title') }}</h1>
     </div>
 
-    <p v-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
-    <p v-else-if="notFound" class="text-sm text-red-500">Физлицо не найдено</p>
+    <p v-if="isLoading" class="text-sm text-muted-foreground">{{ t('individuals.detail.loading') }}</p>
+    <p v-else-if="notFound" class="text-sm text-red-500">{{ t('individuals.detail.notFound') }}</p>
 
     <template v-else-if="detail">
       <!-- Card по умолчанию не flex-контейнер (см. заметки проекта) — здесь несколько
@@ -240,7 +250,7 @@ onUnmounted(() => {
                   <Transition enter-active-class="animate-in fade-in-0 duration-200" leave-active-class="animate-out fade-out-0 duration-200">
                     <span v-if="copiedField === 'uid'" key="copied" class="col-start-1 row-start-1 flex items-center gap-1.5">
                       <Check class="size-3.5 shrink-0 text-emerald-500" />
-                      <span>Скопировано</span>
+                      <span>{{ t('individuals.detail.copied') }}</span>
                     </span>
                     <span v-else key="value" class="col-start-1 row-start-1 flex items-center gap-1.5">
                       <Copy class="size-3.5 shrink-0" />
@@ -257,7 +267,7 @@ onUnmounted(() => {
                   <Transition enter-active-class="animate-in fade-in-0 duration-200" leave-active-class="animate-out fade-out-0 duration-200">
                     <span v-if="copiedField === 'code'" key="copied" class="col-start-1 row-start-1 flex items-center gap-1.5">
                       <Check class="size-3.5 shrink-0 text-emerald-500" />
-                      <span>Скопировано</span>
+                      <span>{{ t('individuals.detail.copied') }}</span>
                     </span>
                     <span v-else key="value" class="col-start-1 row-start-1 flex items-center gap-1.5">
                       <Copy class="size-3.5 shrink-0" />
@@ -292,19 +302,19 @@ onUnmounted(() => {
                 <X v-else-if="syncFeedback === 'error'" key="error" class="text-red-500" />
                 <RefreshCw v-else key="refresh" class="text-primary" :class="{ 'animate-spin': isSyncing }" />
               </Transition>
-              Синхронизировать
+              {{ t('individuals.detail.sync') }}
             </Button>
             <Button size="sm" class="w-full justify-start" @click="detail && createDialogRef?.open(detail)">
               <FileSignature />
-              Создать договор
+              {{ t('individuals.detail.createContract') }}
             </Button>
             <Button variant="outline" size="sm" class="w-full justify-start" @click="detail && editDialogRef?.open(detail)">
               <Pencil class="text-primary" />
-              Редактировать
+              {{ t('individuals.detail.edit') }}
             </Button>
             <Button variant="outline" size="sm" class="w-full justify-start" @click="historyDialogRef?.open(uid)">
               <History class="text-primary" />
-              История
+              {{ t('individuals.detail.history') }}
             </Button>
           </div>
           <p v-if="syncError" class="text-sm text-red-500">{{ syncError }}</p>
@@ -329,23 +339,23 @@ onUnmounted(() => {
 
         <div class="flex flex-col divide-y divide-border pt-4 lg:w-64 lg:shrink-0 lg:pt-0 lg:pl-6">
           <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
-            <span class="text-muted-foreground">Гражданство</span>
+            <span class="text-muted-foreground">{{ t('individuals.detail.citizenship') }}</span>
             <span>{{ citizenshipDisplay ?? '—' }}</span>
           </div>
           <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
-            <span class="text-muted-foreground">Дата рождения</span>
+            <span class="text-muted-foreground">{{ t('individuals.detail.birthDate') }}</span>
             <span>{{ formatDate(detail.birthDate) }}</span>
           </div>
           <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
-            <span class="text-muted-foreground">Пол</span>
-            <span>{{ detail.gender ?? '—' }}</span>
+            <span class="text-muted-foreground">{{ t('individuals.detail.gender') }}</span>
+            <span>{{ genderDisplay ?? '—' }}</span>
           </div>
           <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
-            <span class="text-muted-foreground">СНИЛС</span>
+            <span class="text-muted-foreground">{{ t('individuals.detail.snils') }}</span>
             <span>{{ detail.snils ?? '—' }}</span>
           </div>
           <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
-            <span class="text-muted-foreground">ИНН</span>
+            <span class="text-muted-foreground">{{ t('individuals.detail.inn') }}</span>
             <span>{{ detail.inn ?? '—' }}</span>
           </div>
         </div>
@@ -353,14 +363,14 @@ onUnmounted(() => {
 
       <!-- Заголовки вынесены за рамку карточки, как ФИО в шапке страницы, а не втиснуты
            внутрь Card рядом с вкладками — тот же размер шрифта, что у ФИО (text-lg). -->
-      <div class="text-lg font-medium">Документы удостоверяющие личность</div>
+      <div class="text-lg font-medium">{{ t('individuals.detail.documentsTitle') }}</div>
 
       <Card class="p-6">
         <Tabs default-value="latest">
           <TabsList>
-            <TabsTrigger value="latest">Актуальный</TabsTrigger>
+            <TabsTrigger value="latest">{{ t('individuals.detail.tabLatest') }}</TabsTrigger>
             <TabsTrigger value="all" class="gap-1.5">
-              Все
+              {{ t('individuals.detail.tabAll') }}
               <Badge variant="secondary">{{ passportRows.length }}</Badge>
             </TabsTrigger>
           </TabsList>
@@ -375,10 +385,10 @@ onUnmounted(() => {
         </Tabs>
       </Card>
 
-      <div class="text-lg font-medium">Обучение</div>
+      <div class="text-lg font-medium">{{ t('individuals.detail.educationTitle') }}</div>
 
       <Card class="p-6">
-        <p v-if="!detail.students.length" class="text-sm text-muted-foreground">Нет данных</p>
+        <p v-if="!detail.students.length" class="text-sm text-muted-foreground">{{ t('individuals.detail.noData') }}</p>
 
         <!-- Вкладка с номером зачётки — всегда, даже если зачётка одна, а не StudentFields
            напрямую: так вкладка сама подписывает, какой зачётке принадлежат поля. -->

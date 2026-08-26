@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { LucideIcon } from "lucide-vue-next"
+import { useI18n } from "vue-i18n"
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -7,6 +8,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+
+const { t } = useI18n()
 
 // Та же структура, что NavMain.vue/NavProjects.vue, но своя группа "Проживающий"
 // (переименована из "Студент" 2026-08-23) — в отличие от них рендерится в AppSidebar
@@ -26,7 +29,7 @@ defineProps<{
 
 <template>
   <SidebarGroup>
-    <SidebarGroupLabel>Проживающий</SidebarGroupLabel>
+    <SidebarGroupLabel>{{ t('sidebar.groupResident') }}</SidebarGroupLabel>
     <SidebarMenu>
       <SidebarMenuItem v-for="item in items" :key="item.title">
         <SidebarMenuButton as-child :tooltip="item.title">

@@ -1,0 +1,68 @@
+{
+  "payment": {
+    "method": {
+      "CASH": "Наличные",
+      "CARD_ACQUIRING": "Эквайринг",
+      "BANK_TRANSFER": "Банковский перевод",
+      "MAT_CAPITAL": "Материнский капитал",
+      "WEBSITE": "Сайт"
+    },
+    "errors": {
+      "fetchPaymentDataFailed": "Не удалось получить данные оплаты ({status})",
+      "startPaymentFailed": "Не удалось начать оплату ({status})",
+      "fetchPaymentStatusFailed": "Не удалось получить статус платежа ({status})"
+    },
+    "receipt": {
+      "open": "Открыть",
+      "stubTitle": "Заглушка — после подключения кассы здесь будет ссылка на чек от ОФД"
+    },
+    "createDialog": {
+      "title": "Новый платёж",
+      "contractNumber": "Договор № {number}",
+      "room": "Комната {room}",
+      "amountSection": "Сумма",
+      "chooseAccruals": "Выбрать начисления",
+      "customAmount": "Своя сумма",
+      "noOpenAccruals": "Непогашенных начислений нет.",
+      "penaltyOnlySummary": "Пеня",
+      "noAccrualsSelected": "Начисления не выбраны",
+      "accrualsAndPenaltySummary": "{months} и пеня",
+      "penaltySelectAllHint": "Сначала выберите все открытые начисления — иначе платёж сначала погасит их",
+      "penaltyFull": "Пеня целиком",
+      "accrualSelectPlaceholder": "Начисление",
+      "penaltyOption": "Пеня — {amount}",
+      "amountPlaceholder": "Сумма",
+      "payerSection": "Плательщик",
+      "payerIsResident": "Оплачиваю сам(а)",
+      "payerIsOther": "Оплачивает другой человек",
+      "representativeName": "ФИО плательщика",
+      "payerEmail": "Email для чека",
+      "invalidEmail": "Некорректный email",
+      "certificateNotice": "Сайт использует сертификаты НУЦ Минцифры России — для оплаты без ошибок используйте Яндекс Браузер или установите сертификаты Минцифры на устройство.",
+      "taxDeductionNotice": "Для налогового вычета оплату должен вносить тот, кто планирует его получить.",
+      "amountDue": "К оплате",
+      "acquiringUnavailable": "Оплата картой временно недоступна — эквайринг ещё не подключён.",
+      "cancel": "Отмена",
+      "pay": "Оплатить {amount}"
+    },
+    "status": {
+      "PAID": "Оплачено",
+      "SUCCEEDED": "Оплачено",
+      "REVERSED": "Сторнировано",
+      "CREATED": "Создан",
+      "PENDING_BANK": "Обрабатывается банком",
+      "FAILED": "Не удалось",
+      "CANCELED": "Отменено",
+      "EXPIRED": "Истёк"
+    },
+    "myPayment": {
+      "back": "Назад",
+      "title": "Оплата",
+      "waitingBank": "Ждём подтверждения от банка…",
+      "acquiringUnavailable": "Оплата временно недоступна — эквайринг ещё не подключён. Попробуйте позже.",
+      "payerIsResidentMe": "Я оплачиваю сам(а)",
+      "representativeNamePlaceholder": "Иванова Мария Петровна",
+      "paymentHistory": "История оплат"
+    }
+  }
+}

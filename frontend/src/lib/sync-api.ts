@@ -1,5 +1,6 @@
 import { apiFetch } from './api-base'
 import { fetchListPage, fetchListFacets, type ListOptions, type ListPage, type FacetOption } from './list-api'
+import { i18n } from '@/i18n'
 
 export interface SyncLogEntry {
   id: number
@@ -63,6 +64,6 @@ export async function triggerSync(basePath: string): Promise<TriggerSyncResult> 
   return {
     ok: false,
     conflict: response.status === 409,
-    message: body.message ?? `Не удалось запустить синхронизацию (${response.status})`,
+    message: body.message ?? i18n.global.t('sync.errors.triggerFailed', { status: response.status }),
   }
 }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, Clock, DoorClosed, FileText } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
@@ -12,6 +13,7 @@ import { fetchMyChat, fetchMyResidentInfo, sendMyMessage, type ChatMessage, type
 import { goBack } from '@/lib/utils'
 
 const router = useRouter()
+const { t } = useI18n()
 
 // Один диалог на аккаунт — "между проживающими чата нет" (см. промпт проекта), поэтому
 // в отличие от Chats.vue здесь нет списка слева, только сама переписка.
@@ -104,12 +106,12 @@ onMounted(load)
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
-        <span class="sr-only">Назад</span>
+        <span class="sr-only">{{ t('chat.back') }}</span>
       </Button>
-      <h1 class="text-lg font-medium">Чат с сотрудниками</h1>
+      <h1 class="text-lg font-medium">{{ t('chat.resident.title') }}</h1>
     </div>
     <Card class="flex min-h-0 flex-1 flex-col overflow-hidden py-0">
-      <p v-if="isLoading" class="m-auto text-sm text-muted-foreground">Загрузка…</p>
+      <p v-if="isLoading" class="m-auto text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
       <p v-else-if="loadError" class="m-auto max-w-md text-center text-sm text-red-500">{{ loadError }}</p>
       <template v-else>
         <!-- Та же строка/ширина, что в шапке диалога у сотрудника (Chats.vue) — плюс
@@ -125,19 +127,19 @@ onMounted(load)
             class="-mx-1.5 -my-0.5 flex h-10 items-center gap-1.5 rounded-md px-1.5 transition-colors hover:bg-accent hover:text-accent-foreground"
           >
             <FileText class="size-4 text-primary" />
-            Договор № {{ residentInfo.contractNumber }}
+            {{ t('contracts.detail.titleWithNumber', { number: residentInfo.contractNumber }) }}
           </RouterLink>
           <span v-else class="flex h-10 items-center gap-1.5">
             <FileText class="size-4 text-primary" />
-            Нет действующего договора
+            {{ t('chat.noActiveContract') }}
           </span>
           <span v-if="residentInfo?.room" class="flex h-10 items-center gap-1.5">
             <DoorClosed class="size-4 text-primary" />
-            Комната {{ residentInfo.room }}
+            {{ t('roomInfo.dialogTitle', { room: residentInfo.room }) }}
           </span>
           <span class="flex h-10 items-center gap-1.5">
             <Clock class="size-4 text-primary" />
-            Время работы администрации: 9:30–18:00
+            {{ t('chat.resident.officeHours') }}
           </span>
         </div>
         <ChatThread

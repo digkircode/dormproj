@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { CalendarIcon } from 'lucide-vue-next'
 import { parseDate, type DateValue } from '@internationalized/date'
 import { Button } from '@/components/ui/button'
@@ -14,6 +15,13 @@ import { cn, digitsToDateTemplate, handleDateMaskKeydown } from '@/lib/utils'
 const INPUT_CLASS =
   'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground transition-shadow focus-visible:outline-none focus-visible:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/20 focus-visible:shadow-sm disabled:cursor-not-allowed disabled:opacity-50'
 
+const { t, locale } = useI18n()
+
+// Маска ввода (дд.мм.гггг) и парсер (parseManual/formatDate ниже) сознательно остаются
+// в этом формате независимо от языка интерфейса — это формат хранения/ввода дат по
+// всему проекту (см. digitsToDateTemplate/handleDateMaskKeydown в lib/utils.ts), не
+// локаль отображения; переписывать маску под мм/дд/гггг для English — отдельная, не
+// запрошенная задача. Локализуется только всплывающий календарь (Calendar#locale ниже).
 defineProps<{ placeholder?: string; invalid?: boolean }>()
 // ISO-строка (YYYY-MM-DD), как везде в проекте — не Date, чтобы не тянуть за собой часовые пояса.
 const model = defineModel<string>({ required: true })
@@ -108,11 +116,11 @@ function onSelect(value: DateValue | undefined) {
       <PopoverTrigger as-child>
         <Button type="button" variant="ghost" size="icon" class="absolute right-0 size-10 shrink-0 hover:bg-transparent">
           <CalendarIcon class="size-4" :class="invalid ? 'text-red-500' : 'text-primary'" />
-          <span class="sr-only">Открыть календарь</span>
+          <span class="sr-only">{{ t('datePicker.openCalendar') }}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent class="w-auto p-0">
-        <Calendar locale="ru" :model-value="calendarValue" @update:model-value="onSelect" />
+        <Calendar :locale="locale" :model-value="calendarValue" @update:model-value="onSelect" />
       </PopoverContent>
     </Popover>
   </div>

@@ -1,0 +1,6 @@
+{
+  "errors": {
+    "paymentNotFound": "Платёж не найден",
+    "paymentAlreadyReversed": "Платёж уже сторнирован"
+  }
+}

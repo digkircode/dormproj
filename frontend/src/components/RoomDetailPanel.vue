@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Building2, CalendarIcon, Check, DoorOpen, History, MoreVertical, Pencil, Plus, SlidersHorizontal, Trash2, X } from 'lucide-vue-next'
 import { parseDate, today, getLocalTimeZone, type DateValue } from '@internationalized/date'
 import { Button } from '@/components/ui/button'
@@ -38,6 +39,8 @@ import {
   DORMITORY_INFO_FIELDS,
   type DormitoryInfoFieldKey,
 } from '@/lib/dormitory-info-api'
+
+const { t, locale } = useI18n()
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
@@ -137,7 +140,7 @@ async function saveDormitoryField(field: (typeof DORMITORY_INFO_FIELDS)[number])
   } else {
     const num = Number(raw)
     if (!Number.isFinite(num)) {
-      dormitoryFieldErrors[field.key] = `«${field.name}» — должно быть числом`
+      dormitoryFieldErrors[field.key] = t('rooms.detail.fieldMustBeNumber', { name: field.name })
       return
     }
     value = num
@@ -223,7 +226,7 @@ function formatDate(iso: string): string {
 
 function formatValue(entry: { valueType: CharacteristicValueType; value: CharacteristicValue; unit: string | null }): string {
   if (entry.value === null || entry.value === undefined) return '—'
-  if (entry.valueType === 'BOOLEAN') return entry.value ? 'Да' : 'Нет'
+  if (entry.valueType === 'BOOLEAN') return entry.value ? t('boolean.yes') : t('boolean.no')
   return entry.unit ? `${entry.value} ${entry.unit}` : String(entry.value)
 }
 
@@ -409,11 +412,11 @@ async function submitValueForm() {
   if (!detail.value || !selectedDefinition.value) return
   const value = buildValue()
   if (value === null) {
-    valueDialogError.value = 'Заполните значение'
+    valueDialogError.value = t('rooms.detail.fillValue')
     return
   }
   if (!valueDialogPeriod.value) {
-    valueDialogError.value = 'Укажите дату'
+    valueDialogError.value = t('rooms.detail.specifyDate')
     return
   }
   isSavingValue.value = true
@@ -487,10 +490,10 @@ async function confirmDeleteValue() {
         leave-active-class="animate-out fade-out-0 duration-150"
       >
         <div v-if="showDormitoryInfo" key="dormitory" class="flex items-center gap-1">
-          <h2 class="text-lg font-medium">Общежитие РосНОУ</h2>
+          <h2 class="text-lg font-medium">{{ t('rooms.detail.dormitoryTitle') }}</h2>
         </div>
         <div v-else-if="detail" :key="detail.id" class="flex items-center gap-1">
-          <h2 class="text-lg font-medium">Комната {{ detail.room }}</h2>
+          <h2 class="text-lg font-medium">{{ t('roomInfo.dialogTitle', { room: detail.room }) }}</h2>
           <Tooltip>
             <TooltipTrigger as-child>
               <Button
@@ -500,13 +503,13 @@ async function confirmDeleteValue() {
                 @click="deleteRoomConfirmOpen = true"
               >
                 <Trash2 />
-                <span class="sr-only">Удалить комнату</span>
+                <span class="sr-only">{{ t('rooms.detail.deleteRoom') }}</span>
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Удалить комнату</TooltipContent>
+            <TooltipContent>{{ t('rooms.detail.deleteRoom') }}</TooltipContent>
           </Tooltip>
         </div>
-        <h2 v-else key="placeholder" class="text-lg font-medium text-muted-foreground">Комната</h2>
+        <h2 v-else key="placeholder" class="text-lg font-medium text-muted-foreground">{{ t('rooms.detail.roomPlaceholder') }}</h2>
       </Transition>
     </div>
 
@@ -525,10 +528,10 @@ async function confirmDeleteValue() {
         <div v-if="showDormitoryInfo" key="dormitory-info" class="flex h-full flex-col gap-4 p-4 md:p-6">
           <div class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
             <Building2 class="size-4 text-primary" />
-            Информация об общежитии
+            {{ t('rooms.detail.dormitoryInfo') }}
           </div>
           <p v-if="dormitoryLoadError" class="text-sm text-red-500">{{ dormitoryLoadError }}</p>
-          <p v-if="isDormitoryLoading" class="text-sm text-muted-foreground">Загрузка…</p>
+          <p v-if="isDormitoryLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
           <!-- max-w-md (не sm) — у самых длинных названий ("Суточная оплата (Другой
                вуз.)") строка из метки+инпута+единицы+галочки не помещалась в одну строку
                и переносилась. Галочка — всегда в DOM, переключается только opacity (не
@@ -570,26 +573,26 @@ async function confirmDeleteValue() {
 
         <div v-else-if="roomId === null" key="empty" class="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
           <DoorOpen class="size-8" />
-          <p class="text-sm">Выберите комнату слева</p>
+          <p class="text-sm">{{ t('rooms.detail.selectRoomHint') }}</p>
         </div>
 
-        <p v-else-if="isLoading" key="loading" class="p-4 text-sm text-muted-foreground">Загрузка…</p>
+        <p v-else-if="isLoading" key="loading" class="p-4 text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
         <p v-else-if="loadError" key="error" class="p-4 text-sm text-red-500">{{ loadError }}</p>
 
         <div v-else-if="detail" :key="detail.id" class="flex h-full min-h-0 flex-col gap-4 p-4 md:p-6">
           <div class="flex shrink-0 items-center gap-2">
           <div class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
             <SlidersHorizontal class="size-4 text-primary" />
-            Характеристики
+            {{ t('rooms.detail.characteristics') }}
           </div>
           <Tooltip>
             <TooltipTrigger as-child>
               <Button size="icon" variant="outline" class="size-7" @click="openAddValue()">
                 <Plus class="text-primary" />
-                <span class="sr-only">Добавить характеристику</span>
+                <span class="sr-only">{{ t('rooms.detail.addCharacteristic') }}</span>
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Добавить характеристику</TooltipContent>
+            <TooltipContent>{{ t('rooms.detail.addCharacteristic') }}</TooltipContent>
           </Tooltip>
         </div>
 
@@ -640,7 +643,7 @@ async function confirmDeleteValue() {
         <div class="flex shrink-0 items-center gap-2">
           <div class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
             <History class="size-4 text-primary" />
-            {{ selectedCharacteristicName ? `История значений — ${selectedCharacteristicName}` : 'История значений' }}
+            {{ selectedCharacteristicName ? t('rooms.detail.historyTitleFiltered', { name: selectedCharacteristicName }) : t('rooms.detail.historyTitle') }}
           </div>
           <Tooltip v-if="selectedCharacteristicFilter !== null">
             <TooltipTrigger as-child>
@@ -651,10 +654,10 @@ async function confirmDeleteValue() {
                 @click="selectedCharacteristicFilter = null"
               >
                 <X class="size-3.5 text-red-500" />
-                <span class="sr-only">Показать всю историю</span>
+                <span class="sr-only">{{ t('rooms.detail.showFullHistory') }}</span>
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Показать всю историю</TooltipContent>
+            <TooltipContent>{{ t('rooms.detail.showFullHistory') }}</TooltipContent>
           </Tooltip>
         </div>
         <p v-if="historyError" class="shrink-0 text-sm text-red-500">{{ historyError }}</p>
@@ -675,9 +678,9 @@ async function confirmDeleteValue() {
             <table :key="selectedCharacteristicFilter ?? 'all'" class="w-full table-fixed text-sm">
               <thead class="sticky top-0 z-10 bg-muted">
                 <tr>
-                  <th class="w-[30%] px-3 py-2 text-left font-medium">Характеристика</th>
-                  <th class="w-[25%] px-3 py-2 text-left font-medium">Значение</th>
-                  <th class="w-[25%] px-3 py-2 text-left font-medium">Период</th>
+                  <th class="w-[30%] px-3 py-2 text-left font-medium">{{ t('rooms.detail.colCharacteristic') }}</th>
+                  <th class="w-[25%] px-3 py-2 text-left font-medium">{{ t('rooms.detail.colValue') }}</th>
+                  <th class="w-[25%] px-3 py-2 text-left font-medium">{{ t('rooms.detail.colPeriod') }}</th>
                   <th class="w-[20%] px-3 py-2" />
                 </tr>
               </thead>
@@ -691,17 +694,17 @@ async function confirmDeleteValue() {
                       <DropdownMenuTrigger as-child>
                         <Button variant="ghost" size="icon" class="size-7" :disabled="deletingValueId === entry.id">
                           <MoreVertical class="text-muted-foreground" />
-                          <span class="sr-only">Действия</span>
+                          <span class="sr-only">{{ t('rooms.detail.actions') }}</span>
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem @click="openEditValue(entry)">
                           <Pencil class="text-primary" />
-                          Редактировать
+                          {{ t('rooms.detail.edit') }}
                         </DropdownMenuItem>
                         <DropdownMenuItem @click="openDeleteValueConfirm(entry)">
                           <Trash2 class="text-red-500" />
-                          Удалить
+                          {{ t('rooms.detail.delete') }}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -719,21 +722,21 @@ async function confirmDeleteValue() {
     <Dialog :open="deleteRoomConfirmOpen" @update:open="(v) => (deleteRoomConfirmOpen = v)">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
-          <DialogTitle>Удалить комнату?</DialogTitle>
+          <DialogTitle>{{ t('rooms.detail.deleteRoomDialogTitle') }}</DialogTitle>
           <DialogDescription>
-            Вы уверены? Вместе с комнатой удалится вся история значений её характеристик. Действие необратимо.
+            {{ t('rooms.detail.deleteRoomDialogDescription') }}
           </DialogDescription>
         </DialogHeader>
         <p v-if="deleteRoomError" class="text-sm text-red-500">{{ deleteRoomError }}</p>
         <DialogFooter>
-          <Button variant="outline" @click="deleteRoomConfirmOpen = false">Отмена</Button>
+          <Button variant="outline" @click="deleteRoomConfirmOpen = false">{{ t('rooms.detail.cancel') }}</Button>
           <Button
             variant="outline"
             class="border-red-500 text-red-500 hover:text-red-500"
             :loading="isDeletingRoom"
             @click="confirmDeleteRoom"
           >
-            Да, удалить
+            {{ t('rooms.detail.confirmDelete') }}
           </Button>
         </DialogFooter>
       </DialogScrollContent>
@@ -743,11 +746,11 @@ async function confirmDeleteValue() {
     <Dialog :open="valueFormOpen" @update:open="(v) => (valueFormOpen = v)">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
-          <DialogTitle>{{ valueFormKind === 'add' ? 'Новое значение характеристики' : 'Изменить значение' }}</DialogTitle>
+          <DialogTitle>{{ valueFormKind === 'add' ? t('rooms.detail.newValueTitle') : t('rooms.detail.editValueTitle') }}</DialogTitle>
         </DialogHeader>
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-2">
-            <Label>Характеристика</Label>
+            <Label>{{ t('rooms.detail.characteristicLabel') }}</Label>
             <!-- Reka UI Select — вернул как было. Настоящей причиной "Сохранить ничего не
                  делает" был ReferenceError из-за порядка объявлений (см. историю), Select
                  тут ни при чём. -->
@@ -757,7 +760,7 @@ async function confirmDeleteValue() {
               @update:model-value="(v) => onCharacteristicSelect(v as string)"
             >
               <SelectTrigger>
-                <SelectValue placeholder="Выберите характеристику" />
+                <SelectValue :placeholder="t('rooms.detail.selectCharacteristicPlaceholder')" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem v-for="d in addableDefinitions" :key="d.id" :value="String(d.id)">{{ d.name }}</SelectItem>
@@ -767,36 +770,36 @@ async function confirmDeleteValue() {
           </div>
 
           <div class="flex flex-col gap-2">
-            <Label>Дата</Label>
+            <Label>{{ t('rooms.detail.dateLabel') }}</Label>
             <Popover :open="isCalendarOpen" @update:open="(v) => (isCalendarOpen = v)">
               <PopoverTrigger as-child>
                 <Button variant="outline" class="w-full justify-start text-left font-normal">
                   <CalendarIcon class="mr-2 size-4 text-primary" />
-                  {{ valueDialogPeriod ? formatDate(valueDialogPeriod) : 'Выберите дату' }}
+                  {{ valueDialogPeriod ? formatDate(valueDialogPeriod) : t('rooms.detail.selectDatePlaceholder') }}
                 </Button>
               </PopoverTrigger>
               <PopoverContent class="w-auto p-0">
-                <Calendar locale="ru" :model-value="calendarValue" @update:model-value="onCalendarSelect" />
+                <Calendar :locale="locale" :model-value="calendarValue" @update:model-value="onCalendarSelect" />
               </PopoverContent>
             </Popover>
           </div>
 
           <div class="flex flex-col gap-2">
-            <Label>Значение</Label>
+            <Label>{{ t('rooms.detail.valueLabel') }}</Label>
             <div v-if="selectedDefinition?.valueType === 'BOOLEAN'" class="flex items-center gap-4">
               <label class="flex items-center gap-2 text-sm">
                 <Checkbox
                   :model-value="valueDialogBoolValue === true"
                   @update:model-value="(v) => { if (v) valueDialogBoolValue = true }"
                 />
-                Да
+                {{ t('boolean.yes') }}
               </label>
               <label class="flex items-center gap-2 text-sm">
                 <Checkbox
                   :model-value="valueDialogBoolValue === false"
                   @update:model-value="(v) => { if (v) valueDialogBoolValue = false }"
                 />
-                Нет
+                {{ t('boolean.no') }}
               </label>
             </div>
             <!-- Обычный native input, не компонент Input.vue — та обёртка на type="number" не
@@ -822,7 +825,7 @@ async function confirmDeleteValue() {
               @update:model-value="(v) => (valueDialogTextValue = (v as string) ?? '')"
             >
               <SelectTrigger>
-                <SelectValue placeholder="Выберите значение" />
+                <SelectValue :placeholder="t('rooms.detail.selectValuePlaceholder')" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem v-for="option in selectedDefinition.options" :key="option" :value="option">{{ option }}</SelectItem>
@@ -834,8 +837,8 @@ async function confirmDeleteValue() {
           <p v-if="valueDialogError" class="text-sm text-red-500">{{ valueDialogError }}</p>
         </div>
         <DialogFooter>
-          <Button variant="outline" @click="valueFormOpen = false">Отмена</Button>
-          <Button :disabled="!selectedDefinition" :loading="isSavingValue" @click="submitValueForm">Сохранить</Button>
+          <Button variant="outline" @click="valueFormOpen = false">{{ t('rooms.detail.cancel') }}</Button>
+          <Button :disabled="!selectedDefinition" :loading="isSavingValue" @click="submitValueForm">{{ t('rooms.detail.save') }}</Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>
@@ -844,20 +847,20 @@ async function confirmDeleteValue() {
     <Dialog :open="deletingValueTarget !== null" @update:open="(v) => { if (!v) deletingValueTarget = null }">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
-          <DialogTitle>Удалить значение?</DialogTitle>
+          <DialogTitle>{{ t('rooms.detail.deleteValueDialogTitle') }}</DialogTitle>
           <DialogDescription>
-            Вы уверены, что хотите удалить значение «{{ deletingValueTarget?.name }}»? Действие необратимо.
+            {{ t('rooms.detail.deleteValueDialogDescription', { name: deletingValueTarget?.name ?? '' }) }}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" @click="deletingValueTarget = null">Отмена</Button>
+          <Button variant="outline" @click="deletingValueTarget = null">{{ t('rooms.detail.cancel') }}</Button>
           <Button
             variant="outline"
             class="border-red-500 text-red-500 hover:text-red-500"
             :loading="deletingValueId !== null"
             @click="confirmDeleteValue"
           >
-            Да, удалить
+            {{ t('rooms.detail.confirmDelete') }}
           </Button>
         </DialogFooter>
       </DialogScrollContent>

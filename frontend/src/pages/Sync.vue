@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ArrowLeft } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -8,15 +9,17 @@ import SyncOverviewStatusCell from '@/components/SyncOverviewStatusCell.vue'
 import SyncOverviewActionsCell from '@/components/SyncOverviewActionsCell.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import { useSyncRow } from '@/composables/useSyncRow'
+import { statusLabel, type SyncStatusKey } from '@/lib/sync-format'
 import type { FacetOption, ListOptions, ListPage } from '@/lib/list-api'
 import { goBack } from '@/lib/utils'
 
 const router = useRouter()
+const { t } = useI18n()
 
 interface SyncOverviewRow {
   slug: string
   name: string
-  status: string
+  status: SyncStatusKey
   time: string
   duration: string
   isRunning: boolean
@@ -41,12 +44,12 @@ function wrapRun(run: () => Promise<void>): () => Promise<void> {
   }
 }
 
-const studentSync = useSyncRow('Контингент студентов', '/sync/students')
-const individualsSync = useSyncRow('Физические лица', '/sync/individuals')
-const citizenshipSync = useSyncRow('Гражданство', '/sync/citizenship')
-const passportSync = useSyncRow('Паспортные данные', '/sync/passport')
-const contactInfoSync = useSyncRow('Контактная информация', '/sync/contact-info')
-const individualManualSync = useSyncRow('Обновление данных физического лица', '/sync/individual')
+const studentSync = useSyncRow('nav.students', '/sync/students')
+const individualsSync = useSyncRow('nav.individuals', '/sync/individuals')
+const citizenshipSync = useSyncRow('nav.citizenship', '/sync/citizenship')
+const passportSync = useSyncRow('nav.passportData', '/sync/passport')
+const contactInfoSync = useSyncRow('nav.contactInfo', '/sync/contact-info')
+const individualManualSync = useSyncRow('sync.individualEntityName', '/sync/individual')
 
 const rows = computed<SyncOverviewRow[]>(() => [
   { ...studentSync.row.value, isRunning: studentSync.isRunning.value, run: wrapRun(studentSync.run), slug: 'students' },
@@ -65,40 +68,45 @@ const rows = computed<SyncOverviewRow[]>(() => [
   },
 ])
 
-const columnLabels: Record<string, string> = {
-  name: 'Название',
-  status: 'Статус',
-  time: 'Время',
-  duration: 'Длительность',
-  actions: 'Действия',
-}
+const columnLabels = computed<Record<string, string>>(() => ({
+  name: t('sync.colName'),
+  status: t('sync.colStatus'),
+  time: t('sync.colTime'),
+  duration: t('sync.colDuration'),
+  actions: t('sync.colActions'),
+}))
 const filterableFields = ['status']
 const cellRenderers = { status: SyncOverviewStatusCell, actions: SyncOverviewActionsCell }
 
 const columnHelper = createAppColumnHelper<SyncOverviewRow>()
-const columns = columnHelper.columns([
-  columnHelper.accessor('name', { header: columnLabels.name, enableHiding: false, size: 280, minSize: 200 }),
-  columnHelper.accessor('status', { header: columnLabels.status, size: 180, minSize: 150 }),
-  columnHelper.accessor('time', { header: columnLabels.time, size: 176, minSize: 140 }),
-  columnHelper.accessor('duration', { header: columnLabels.duration, size: 140, minSize: 110 }),
-  // Действия (Логи+Запустить в одной ячейке) — обычная колонка с cellRenderer, не
-  // встроенный rowAction у EntityTable: тот рассчитан ровно на одну кнопку, а тут их
-  // две (см. SyncOverviewActionsCell.vue). enableSorting:false — сортировка по пустой
-  // колонке без данных не имеет смысла.
-  columnHelper.display({ id: 'actions', header: columnLabels.actions, enableSorting: false, enableHiding: false, size: 110, minSize: 96 }),
-])
+const columns = computed(() =>
+  columnHelper.columns([
+    columnHelper.accessor('name', { header: columnLabels.value.name, enableHiding: false, size: 280, minSize: 200 }),
+    columnHelper.accessor('status', { header: columnLabels.value.status, size: 180, minSize: 150 }),
+    columnHelper.accessor('time', { header: columnLabels.value.time, size: 176, minSize: 140 }),
+    columnHelper.accessor('duration', { header: columnLabels.value.duration, size: 140, minSize: 110 }),
+    // Действия (Логи+Запустить в одной ячейке) — обычная колонка с cellRenderer, не
+    // встроенный rowAction у EntityTable: тот рассчитан ровно на одну кнопку, а тут их
+    // две (см. SyncOverviewActionsCell.vue). enableSorting:false — сортировка по пустой
+    // колонке без данных не имеет смысла.
+    columnHelper.display({ id: 'actions', header: columnLabels.value.actions, enableSorting: false, enableHiding: false, size: 110, minSize: 96 }),
+  ]),
+)
 
 // Статус — фиксированный список (тот же принцип, что bucket в ReportsContractsRegistry),
 // не запрос к бэкенду: вся таблица собирается на клиенте из 6 независимых composable,
-// у неё нет своего списочного эндпоинта.
-const STATUS_OPTIONS: FacetOption[] = [
-  { value: 'В процессе', label: 'В процессе' },
-  { value: 'Успешно', label: 'Успешно' },
-  { value: 'Ошибка', label: 'Ошибка' },
-  { value: '—', label: 'Ещё не запускалась' },
-]
+// у неё нет своего списочного эндпоинта. Собирается заново на каждый вызов (не константа
+// модуля) — иначе лейблы не подхватили бы смену языка (statusLabel — Proxy, читает
+// текущую локаль на каждое обращение, но массив из литералов, вычисленный один раз, всё
+// равно бы застыл на значениях языка на момент импорта).
 async function fetchStatusFacets(field: string): Promise<FacetOption[]> {
-  return field === 'status' ? STATUS_OPTIONS : []
+  if (field !== 'status') return []
+  return [
+    { value: 'RUNNING', label: statusLabel.RUNNING },
+    { value: 'SUCCESS', label: statusLabel.SUCCESS },
+    { value: 'FAILED', label: statusLabel.FAILED },
+    { value: 'NONE', label: t('sync.notYetRun') },
+  ]
 }
 
 function compareRows(a: SyncOverviewRow, b: SyncOverviewRow, sortBy: string): number {
@@ -173,9 +181,9 @@ onMounted(async () => {
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
-        <span class="sr-only">Назад</span>
+        <span class="sr-only">{{ t('sync.back') }}</span>
       </Button>
-      <h1 class="text-lg font-medium">Синхронизация</h1>
+      <h1 class="text-lg font-medium">{{ t('sync.title') }}</h1>
     </div>
 
     <EntityTable
@@ -187,7 +195,7 @@ onMounted(async () => {
       :fetch-page="fetchSyncOverviewPage"
       :fetch-facet-values="fetchStatusFacets"
       :get-row-id="(r: SyncOverviewRow) => r.slug"
-      total-label="синхронизаций"
+      :total-label="t('sync.totalLabel')"
       :cell-renderers="cellRenderers"
       storage-key="sync-overview"
       accent-icons

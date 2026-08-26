@@ -1,0 +1,48 @@
+{
+  "registryBucket": {
+    "ACTIVE": "Active",
+    "EXPIRING": "Expiring",
+    "OVERDUE": "Overdue",
+    "TERMINATED": "Terminated"
+  },
+  "movementOperation": {
+    "IN": "Move-in",
+    "OUT": "Move-out",
+    "MOVE": "Relocation",
+    "RENEWAL": "Renewal"
+  },
+  "contingentFacets": {
+    "citizenshipRu": "Russia",
+    "citizenshipForeign": "Foreign citizen",
+    "ownUniversity": "RosNOU student",
+    "otherUniversity": "Not a RosNOU student"
+  },
+  "excel": {
+    "sheetDebtors": "Financial report",
+    "sheetContingent": "Resident registry",
+    "sheetRegistry": "Contract registry",
+    "sheetMovements": "Resident movement",
+    "colContractNumber": "Contract #",
+    "colFullName": "Full name",
+    "colRoom": "Room",
+    "colStatus": "Status",
+    "colCreatedAt": "Created",
+    "colAccrued": "Accrued",
+    "colPaid": "Paid",
+    "colPenalty": "Penalty",
+    "colDebt": "Debt",
+    "colMovedInDate": "Move-in date",
+    "colResident": "Resident",
+    "colFacultet": "Faculty",
+    "colKurs": "Year",
+    "colBirthDate": "Date of birth",
+    "colCitizenship": "Citizenship",
+    "colStartDate": "Start date",
+    "colEndDate": "End date",
+    "colDaysUntilEnd": "Days until end",
+    "colOperationDate": "Operation date",
+    "colOperation": "Operation",
+    "colFrom": "From",
+    "colTo": "To"
+  }
+}

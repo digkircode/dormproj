@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, ChevronRight, Info } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -22,32 +23,33 @@ import { goBack } from '@/lib/utils'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const entity = computed(() => SYNC_ENTITIES.find((e) => e.slug === route.params.slug))
 const storageKey = computed(() => `sync-logs:${entity.value?.slug ?? 'unknown'}`)
 
 const selectedLog = ref<SyncLogEntry | null>(null)
 const tableRef = ref<{ refresh: () => void | Promise<void> } | null>(null)
 
-const columnLabels: Record<string, string> = {
-  rowNumber: '№',
-  trigger: 'Тип',
-  targetUid: 'UID',
-  status: 'Статус',
-  startedAt: 'Время начала',
-  finishedAt: 'Время окончания',
-}
+const columnLabels = computed<Record<string, string>>(() => ({
+  rowNumber: t('sync.logs.colRowNumber'),
+  trigger: t('sync.logs.colTrigger'),
+  targetUid: t('sync.logs.colTargetUid'),
+  status: t('sync.logs.colStatus'),
+  startedAt: t('sync.logs.colStartedAt'),
+  finishedAt: t('sync.logs.colFinishedAt'),
+}))
 // У точечной синхронизации физлица Trigger всегда MANUAL — фильтр по нему бессмысленен.
 const filterableFields = computed(() => (entity.value?.showTargetUid ? ['status'] : ['status', 'trigger']))
 const cellRenderers = { status: SyncStatusCell }
 
 // Ключи details (см. IndividualSyncService) — подписи для модалки "Подробнее".
-const stepLabels: Record<string, string> = {
-  students: 'Студент (зачётки)',
-  individuals: 'Физлицо',
-  citizenship: 'Гражданство',
-  passport: 'Паспортные данные',
-  contactInfo: 'Контактная информация',
-}
+const stepLabels = computed<Record<string, string>>(() => ({
+  students: t('sync.logs.stepStudents'),
+  individuals: t('sync.logs.stepIndividuals'),
+  citizenship: t('sync.logs.stepCitizenship'),
+  passport: t('sync.logs.stepPassport'),
+  contactInfo: t('sync.logs.stepContactInfo'),
+}))
 
 function cellText(columnId: string, value: unknown): string {
   if (columnId === 'trigger' && typeof value === 'string') {
@@ -72,17 +74,17 @@ const columnHelper = createAppColumnHelper<SyncLogEntry>()
 const columns = computed(() =>
   columnHelper.columns([
     columnHelper.accessor('rowNumber', {
-      header: columnLabels.rowNumber,
+      header: columnLabels.value.rowNumber,
       enableHiding: false,
       size: 64,
       minSize: 56,
     }),
     entity.value?.showTargetUid
-      ? columnHelper.accessor('targetUid', { header: columnLabels.targetUid, size: 280, minSize: 200 })
-      : columnHelper.accessor('trigger', { header: columnLabels.trigger, size: 160, minSize: 120 }),
-    columnHelper.accessor('status', { header: columnLabels.status, size: 144, minSize: 110 }),
-    columnHelper.accessor('startedAt', { header: columnLabels.startedAt, size: 176, minSize: 140 }),
-    columnHelper.accessor('finishedAt', { header: columnLabels.finishedAt, size: 176, minSize: 140 }),
+      ? columnHelper.accessor('targetUid', { header: columnLabels.value.targetUid, size: 280, minSize: 200 })
+      : columnHelper.accessor('trigger', { header: columnLabels.value.trigger, size: 160, minSize: 120 }),
+    columnHelper.accessor('status', { header: columnLabels.value.status, size: 144, minSize: 110 }),
+    columnHelper.accessor('startedAt', { header: columnLabels.value.startedAt, size: 176, minSize: 140 }),
+    columnHelper.accessor('finishedAt', { header: columnLabels.value.finishedAt, size: 176, minSize: 140 }),
   ]),
 )
 
@@ -122,9 +124,9 @@ onUnmounted(() => clearTimeout(pollTimeout))
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/sync')">
         <ArrowLeft class="text-primary" />
-        <span class="sr-only">Назад</span>
+        <span class="sr-only">{{ t('sync.back') }}</span>
       </Button>
-      <h1 class="text-lg font-medium">Логи: {{ entity?.name ?? '—' }}</h1>
+      <h1 class="text-lg font-medium">{{ t('sync.logs.title', { name: entity ? t(entity.nameKey) : '—' }) }}</h1>
     </div>
 
     <EntityTable
@@ -136,10 +138,10 @@ onUnmounted(() => clearTimeout(pollTimeout))
       :fetch-page="fetchPage"
       :fetch-facet-values="fetchFacetValues"
       :get-row-id="(log: SyncLogEntry) => String(log.id)"
-      total-label="записей"
+      :total-label="t('sync.logs.totalLabel')"
       :cell-text="cellText"
       :cell-renderers="cellRenderers"
-      :row-action="{ icon: Info, label: 'Подробнее', onClick: openLogDetails }"
+      :row-action="{ icon: Info, label: t('sync.logs.detailsAction'), onClick: openLogDetails }"
       :storage-key="storageKey"
       accent-icons
       @loaded="onLogsLoaded"
@@ -148,25 +150,25 @@ onUnmounted(() => clearTimeout(pollTimeout))
     <Dialog :open="!!selectedLog" @update:open="(open) => { if (!open) selectedLog = null }">
       <DialogScrollContent v-if="selectedLog" class="flex min-w-0 flex-col gap-4">
         <DialogHeader>
-          <DialogTitle>Лог #{{ selectedLog.id }}</DialogTitle>
+          <DialogTitle>{{ t('sync.logs.logDialogTitle', { id: selectedLog.id }) }}</DialogTitle>
           <DialogDescription>{{ formatDateTimeWithSeconds(selectedLog.startedAt) }}</DialogDescription>
         </DialogHeader>
 
         <div class="grid min-w-0 grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
           <div>
-            <div class="text-muted-foreground">Получено</div>
+            <div class="text-muted-foreground">{{ t('sync.logs.fetched') }}</div>
             <div>{{ selectedLog.fetchedCount ?? '—' }}</div>
           </div>
           <div>
-            <div class="text-muted-foreground">Добавлено</div>
+            <div class="text-muted-foreground">{{ t('sync.logs.added') }}</div>
             <div>{{ selectedLog.added ?? '—' }}</div>
           </div>
           <div>
-            <div class="text-muted-foreground">Обновлено</div>
+            <div class="text-muted-foreground">{{ t('sync.logs.updated') }}</div>
             <div>{{ selectedLog.updated ?? '—' }}</div>
           </div>
           <div>
-            <div class="text-muted-foreground">Удалено</div>
+            <div class="text-muted-foreground">{{ t('sync.logs.removed') }}</div>
             <div>{{ selectedLog.removed ?? '—' }}</div>
           </div>
         </div>
@@ -176,7 +178,7 @@ onUnmounted(() => clearTimeout(pollTimeout))
         <Collapsible v-if="selectedLog.errorStack" v-slot="{ open }">
           <CollapsibleTrigger class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ChevronRight class="size-4 shrink-0 text-primary transition-transform" :class="{ 'rotate-90': open }" />
-            Показать дополнительные данные
+            {{ t('sync.logs.showMoreData') }}
           </CollapsibleTrigger>
           <CollapsibleContent>
             <pre class="mt-2 max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs whitespace-pre-wrap break-words">{{ selectedLog.errorStack }}</pre>
@@ -189,7 +191,7 @@ onUnmounted(() => clearTimeout(pollTimeout))
         <Collapsible v-if="selectedLog.details" default-open v-slot="{ open }">
           <CollapsibleTrigger class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ChevronRight class="size-4 shrink-0 text-primary transition-transform" :class="{ 'rotate-90': open }" />
-            Подробнее по таблицам
+            {{ t('sync.logs.moreByTables') }}
           </CollapsibleTrigger>
           <CollapsibleContent>
             <div class="mt-2 flex flex-col divide-y divide-border rounded-md border">
@@ -200,10 +202,10 @@ onUnmounted(() => clearTimeout(pollTimeout))
               >
                 <span class="font-medium">{{ stepLabels[key] ?? key }}</span>
                 <span class="flex flex-wrap gap-x-4 text-muted-foreground">
-                  <span>Получено: {{ stats.fetchedCount }}</span>
-                  <span>Добавлено: {{ stats.added }}</span>
-                  <span v-if="stats.updated !== undefined">Обновлено: {{ stats.updated }}</span>
-                  <span v-if="stats.removed !== undefined">Удалено: {{ stats.removed }}</span>
+                  <span>{{ t('sync.logs.fetched') }}: {{ stats.fetchedCount }}</span>
+                  <span>{{ t('sync.logs.added') }}: {{ stats.added }}</span>
+                  <span v-if="stats.updated !== undefined">{{ t('sync.logs.updated') }}: {{ stats.updated }}</span>
+                  <span v-if="stats.removed !== undefined">{{ t('sync.logs.removed') }}: {{ stats.removed }}</span>
                 </span>
                 <pre
                   v-if="stats.records?.length"

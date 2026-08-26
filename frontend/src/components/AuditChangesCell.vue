@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Eye } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -8,11 +9,13 @@ import type { AuditLogRow } from '@/lib/audit-log-api'
 
 const props = defineProps<{ value: unknown; row: AuditLogRow }>()
 
+const { t } = useI18n()
+
 const isOpen = ref(false)
 
 function formatValue(value: unknown): string {
   if (value === null || value === undefined || value === '') return '—'
-  if (typeof value === 'boolean') return value ? 'Да' : 'Нет'
+  if (typeof value === 'boolean') return value ? t('boolean.yes') : t('boolean.no')
   // ISO-строка (дата/дата-время) — те же паттерны, что и во всём приложении.
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(T|$)/.test(value)) {
     const date = new Date(value)
@@ -26,7 +29,8 @@ function formatValue(value: unknown): string {
 <template>
   <Button variant="outline" size="sm" @click="isOpen = true">
     <Eye class="size-3.5 text-primary" />
-    {{ Object.keys(row.changes ?? {}).length }} {{ Object.keys(row.changes ?? {}).length === 1 ? 'поле' : 'полей' }}
+    {{ Object.keys(row.changes ?? {}).length }}
+    {{ Object.keys(row.changes ?? {}).length === 1 ? t('audit.fieldsCountOne') : t('audit.fieldsCountOther') }}
   </Button>
 
   <Dialog :open="isOpen" @update:open="(v) => (isOpen = v)">
@@ -38,9 +42,9 @@ function formatValue(value: unknown): string {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Поле</TableHead>
-              <TableHead>Было</TableHead>
-              <TableHead>Стало</TableHead>
+              <TableHead>{{ t('audit.colField') }}</TableHead>
+              <TableHead>{{ t('audit.colBefore') }}</TableHead>
+              <TableHead>{{ t('audit.colAfter') }}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

@@ -1,0 +1,18 @@
+{
+  "errors": {
+    "representativeNamePattern": "The full name may only contain letters, spaces, and hyphens",
+    "representativeNameRequired": "Specify the full name of the payer",
+    "accountNotLinked": "The account is not linked to an individual — payment is unavailable",
+    "invalidData": "Invalid data",
+    "acquiringUnavailable": "Payment is temporarily unavailable — card processing is not yet connected",
+    "noActiveContract": "No active contract found",
+    "amountExceedsDebt": "The amount exceeds the actual debt",
+    "accrualsUnavailable": "One or more accruals are no longer available for payment — refresh the page",
+    "penaltyRequiresAllAccruals": "The penalty can only be paid together with all open accruals",
+    "nothingToPay": "Nothing to pay",
+    "bankStartFailed": "Failed to start the payment with the bank",
+    "intentNotFound": "Payment not found",
+    "bankDeclined": "The bank declined the payment",
+    "tooManyAttempts": "Too many payment attempts in a row — please slow down"
+  }
+}

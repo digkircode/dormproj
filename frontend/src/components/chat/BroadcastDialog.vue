@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useDebounceFn } from '@vueuse/core'
 import { ChevronDown, FileVideo, Paperclip, Users, X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -25,6 +26,8 @@ const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
 
 const emit = defineEmits<{ sent: [] }>()
+
+const { t } = useI18n()
 
 const isDialogOpen = ref(false)
 const facets = ref<ChatRecipientFacets | null>(null)
@@ -74,19 +77,19 @@ function onFilesSelected(event: Event) {
   attachError.value = ''
 
   if (pendingFiles.value.length + selected.length > MAX_ATTACHMENTS_PER_MESSAGE) {
-    attachError.value = `Не больше ${MAX_ATTACHMENTS_PER_MESSAGE} файлов в одном сообщении`
+    attachError.value = t('chat.thread.attachTooMany', { max: MAX_ATTACHMENTS_PER_MESSAGE })
     return
   }
   for (const file of selected) {
     const isImage = file.type.startsWith('image/')
     const isVideo = file.type.startsWith('video/')
     if (!isImage && !isVideo) {
-      attachError.value = `«${file.name}» — недопустимый тип файла`
+      attachError.value = t('chat.thread.attachInvalidType', { name: file.name })
       return
     }
     const max = isImage ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES
     if (file.size > max) {
-      attachError.value = `«${file.name}» больше ${Math.round(max / (1024 * 1024))} МБ`
+      attachError.value = t('chat.thread.attachTooLarge', { name: file.name, max: Math.round(max / (1024 * 1024)) })
       return
     }
   }
@@ -97,7 +100,9 @@ function removePendingFile(file: File) {
   pendingFiles.value = pendingFiles.value.filter((f) => f !== file)
 }
 function formatSize(bytes: number): string {
-  return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} МБ` : `${Math.max(1, Math.round(bytes / 1024))} КБ`
+  return bytes >= 1024 * 1024
+    ? t('chat.thread.sizeMb', { size: (bytes / (1024 * 1024)).toFixed(1) })
+    : t('chat.thread.sizeKb', { size: Math.max(1, Math.round(bytes / 1024)) })
 }
 
 // Явно выбранные получатели по ФИО-поиску ("написать 3 конкретным людям", по прямой
@@ -188,11 +193,11 @@ defineExpose({ open })
 async function submit() {
   dialogError.value = ''
   if (!body.value.trim()) {
-    dialogError.value = 'Введите текст сообщения'
+    dialogError.value = t('chat.broadcast.emptyBody')
     return
   }
   if (recipients.value.length === 0) {
-    dialogError.value = 'Нет проживающих, подходящих под выбранные фильтры'
+    dialogError.value = t('chat.broadcast.noRecipients')
     return
   }
 
@@ -223,19 +228,19 @@ async function submit() {
   <Dialog :open="isDialogOpen" @update:open="(v) => (isDialogOpen = v)">
     <DialogScrollContent :class="['flex flex-col gap-4 sm:max-w-lg', DIALOG_ANIMATE_CLASS]">
       <DialogHeader>
-        <DialogTitle>Написать проживающим</DialogTitle>
+        <DialogTitle>{{ t('chat.list.newMessage') }}</DialogTitle>
       </DialogHeader>
 
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-2">
-          <Label>Конкретным людям (ищет по ФИО, можно добавить несколько)</Label>
+          <Label>{{ t('chat.broadcast.specificPeopleLabel') }}</Label>
           <SearchSelect
             v-model="personQuery"
             :items="personSearchResults"
             :item-key="(p: ChatRecipient) => p.individualUid"
             :item-label="(p: ChatRecipient) => p.fullName"
             :item-sub-label="(p: ChatRecipient) => p.room ?? ''"
-            placeholder="Например, Иванов"
+            :placeholder="t('chat.broadcast.specificPeoplePlaceholder')"
             @search="debouncedSearchPeople"
             @select="pickPerson"
           />
@@ -248,23 +253,23 @@ async function submit() {
               {{ p.fullName }}
               <button type="button" class="rounded-full p-0.5 hover:bg-background" @click="removePerson(p.individualUid)">
                 <X class="size-3" />
-                <span class="sr-only">Убрать {{ p.fullName }}</span>
+                <span class="sr-only">{{ t('chat.broadcast.removePerson', { name: p.fullName }) }}</span>
               </button>
             </span>
           </div>
         </div>
 
         <p v-if="hasExplicitPicks" class="text-xs text-muted-foreground">
-          Выбраны конкретные получатели — фильтры по этажу/корпусу/должникам ниже не участвуют.
+          {{ t('chat.broadcast.explicitPicksHint') }}
         </p>
 
         <div class="grid grid-cols-2 gap-4" :class="hasExplicitPicks ? 'opacity-50' : ''">
           <div class="flex flex-col gap-2">
-            <Label>Этаж</Label>
+            <Label>{{ t('chat.broadcast.floorLabel') }}</Label>
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
                 <Button variant="outline" class="w-full justify-between font-normal" :disabled="hasExplicitPicks">
-                  <span class="truncate">{{ floors.length ? floors.join(', ') : 'Все этажи' }}</span>
+                  <span class="truncate">{{ floors.length ? floors.join(', ') : t('chat.broadcast.allFloors') }}</span>
                   <ChevronDown class="size-4 shrink-0 opacity-50" />
                 </Button>
               </DropdownMenuTrigger>
@@ -278,19 +283,19 @@ async function submit() {
                 >
                   {{ value }}
                 </DropdownMenuCheckboxItem>
-                <div v-if="!facets?.floors.length" class="px-2 py-1.5 text-sm text-muted-foreground">Нет данных по этажам</div>
+                <div v-if="!facets?.floors.length" class="px-2 py-1.5 text-sm text-muted-foreground">{{ t('chat.broadcast.noFloorData') }}</div>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
           <div class="flex flex-col gap-2">
-            <Label>Корпус</Label>
+            <Label>{{ t('chat.broadcast.corpusLabel') }}</Label>
             <Select
               :model-value="corpus || undefined"
               :disabled="hasExplicitPicks || !facets?.corpusAvailable"
               @update:model-value="(v) => (corpus = (v as string) ?? '')"
             >
               <SelectTrigger>
-                <SelectValue :placeholder="facets?.corpusAvailable ? 'Все корпуса' : 'Характеристика не заведена'" />
+                <SelectValue :placeholder="facets?.corpusAvailable ? t('chat.broadcast.allCorpuses') : t('chat.broadcast.corpusNotSet')" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem v-for="value in facets?.corpuses ?? []" :key="value" :value="value">{{ value }}</SelectItem>
@@ -306,22 +311,22 @@ async function submit() {
         >
           <Checkbox :model-value="debtorsOnly" />
           <Label class="cursor-pointer font-normal">
-            Только должники<span v-if="facets"> ({{ facets.debtorsCount }})</span>
+            {{ t('chat.broadcast.debtorsOnly') }}<span v-if="facets"> ({{ facets.debtorsCount }})</span>
           </Label>
         </div>
 
         <div class="flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
           <Users class="size-4 shrink-0" />
-          <span v-if="isLoadingRecipients">Подсчёт получателей...</span>
-          <span v-else>Получат сообщение: {{ recipients.length }}</span>
+          <span v-if="isLoadingRecipients">{{ t('chat.broadcast.countingRecipients') }}</span>
+          <span v-else>{{ t('chat.broadcast.willReceive', { count: recipients.length }) }}</span>
         </div>
 
         <div class="flex flex-col gap-2">
-          <Label>Сообщение</Label>
+          <Label>{{ t('chat.broadcast.messageLabel') }}</Label>
           <textarea
             v-model="body"
             rows="4"
-            placeholder="Текст сообщения..."
+            :placeholder="t('chat.broadcast.messagePlaceholder')"
             class="flex w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground transition-shadow focus-visible:outline-none focus-visible:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/20 focus-visible:shadow-sm"
           />
 
@@ -329,9 +334,9 @@ async function submit() {
           <div class="flex flex-wrap items-center gap-2">
             <Button type="button" variant="outline" size="sm" @click="openFilePicker">
               <Paperclip class="size-4" />
-              Прикрепить файл
+              {{ t('chat.thread.attachFile') }}
             </Button>
-            <span class="text-xs text-muted-foreground">Уйдёт каждому получателю рассылки</span>
+            <span class="text-xs text-muted-foreground">{{ t('chat.broadcast.attachHint') }}</span>
           </div>
           <div v-if="pendingFiles.length" class="flex flex-wrap gap-2">
             <div v-for="file in pendingFiles" :key="file.name + file.size" class="relative" :title="`${file.name} (${formatSize(file.size)})`">
@@ -345,7 +350,7 @@ async function submit() {
                 @click="removePendingFile(file)"
               >
                 <X class="size-3" />
-                <span class="sr-only">Убрать файл</span>
+                <span class="sr-only">{{ t('chat.thread.removeFile') }}</span>
               </button>
             </div>
           </div>
@@ -355,7 +360,7 @@ async function submit() {
 
       <DialogFooter>
         <p v-if="dialogError" class="mr-auto self-center text-sm text-red-500">{{ dialogError }}</p>
-        <Button :loading="isSending" :disabled="recipients.length === 0" @click="submit">Отправить</Button>
+        <Button :loading="isSending" :disabled="recipients.length === 0" @click="submit">{{ t('chat.broadcast.send') }}</Button>
       </DialogFooter>
     </DialogScrollContent>
   </Dialog>

@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { ExternalLink } from 'lucide-vue-next'
 import type { UnifiedPaymentRow } from '@/lib/my-payments-api'
+
+const { t } = useI18n()
 
 defineProps<{ value: unknown; row: UnifiedPaymentRow }>()
 </script>
@@ -13,7 +16,7 @@ defineProps<{ value: unknown; row: UnifiedPaymentRow }>()
     rel="noopener noreferrer"
     class="flex items-center gap-1 text-primary hover:underline"
   >
-    Открыть
+    {{ t('payment.receipt.open') }}
     <ExternalLink class="size-3.5" />
   </a>
   <!-- Заглушка: реального чека ещё нет (касса не подключена), но кнопка уже на месте —
@@ -23,9 +26,9 @@ defineProps<{ value: unknown; row: UnifiedPaymentRow }>()
     v-else-if="row.showReceiptButton"
     type="button"
     class="flex items-center gap-1 text-primary hover:underline"
-    title="Заглушка — после подключения кассы здесь будет ссылка на чек от ОФД"
+    :title="t('payment.receipt.stubTitle')"
   >
-    Открыть
+    {{ t('payment.receipt.open') }}
     <ExternalLink class="size-3.5" />
   </button>
   <span v-else class="text-muted-foreground">—</span>

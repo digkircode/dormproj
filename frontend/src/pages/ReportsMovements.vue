@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRightLeft, Download, LogIn, LogOut, Repeat } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
@@ -24,15 +25,16 @@ import {
 import { goBack } from '@/lib/utils'
 
 const router = useRouter()
+const { t } = useI18n()
 
-const columnLabels: Record<string, string> = {
-  date: 'Дата операции',
-  contractNumber: '№ договора',
-  residentFullName: 'Проживающий',
-  operation: 'Операция',
-  from: 'Откуда',
-  to: 'Куда',
-}
+const columnLabels = computed<Record<string, string>>(() => ({
+  date: t('reports.movements.colDate'),
+  contractNumber: t('reports.movements.colContractNumber'),
+  residentFullName: t('reports.movements.colResident'),
+  operation: t('reports.movements.colOperation'),
+  from: t('reports.movements.colFrom'),
+  to: t('reports.movements.colTo'),
+}))
 const filterableFields = ['operation']
 const cellRenderers = { contractNumber: ContractLinkCell, residentFullName: ResidentLinkCell, operation: MovementOperationCell }
 
@@ -48,14 +50,16 @@ function cellText(columnId: string, value: unknown): string {
 }
 
 const columnHelper = createAppColumnHelper<MovementEvent>()
-const columns = columnHelper.columns([
-  columnHelper.accessor('date', { header: columnLabels.date, enableHiding: false, size: 120, minSize: 100 }),
-  columnHelper.accessor('contractNumber', { header: columnLabels.contractNumber, size: 128, minSize: 100 }),
-  columnHelper.accessor('residentFullName', { header: columnLabels.residentFullName, size: 220, minSize: 160 }),
-  columnHelper.accessor('operation', { header: columnLabels.operation, size: 140, minSize: 120 }),
-  columnHelper.accessor('from', { header: columnLabels.from, size: 110, minSize: 90 }),
-  columnHelper.accessor('to', { header: columnLabels.to, size: 110, minSize: 90 }),
-])
+const columns = computed(() =>
+  columnHelper.columns([
+    columnHelper.accessor('date', { header: columnLabels.value.date, enableHiding: false, size: 120, minSize: 100 }),
+    columnHelper.accessor('contractNumber', { header: columnLabels.value.contractNumber, size: 128, minSize: 100 }),
+    columnHelper.accessor('residentFullName', { header: columnLabels.value.residentFullName, size: 220, minSize: 160 }),
+    columnHelper.accessor('operation', { header: columnLabels.value.operation, size: 140, minSize: 120 }),
+    columnHelper.accessor('from', { header: columnLabels.value.from, size: 110, minSize: 90 }),
+    columnHelper.accessor('to', { header: columnLabels.value.to, size: 110, minSize: 90 }),
+  ]),
+)
 
 function isoToday(): string {
   return new Date().toISOString().slice(0, 10)
@@ -103,9 +107,9 @@ async function onExport() {
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
-        <span class="sr-only">Назад</span>
+        <span class="sr-only">{{ t('reports.common.back') }}</span>
       </Button>
-      <h1 class="text-lg font-medium">Движение проживающих</h1>
+      <h1 class="text-lg font-medium">{{ t('reports.movements.title') }}</h1>
     </div>
 
     <Card v-if="summary" class="grid grid-cols-4 gap-4 p-4">
@@ -113,28 +117,28 @@ async function onExport() {
         :icon="LogIn"
         bg-class="bg-emerald-100 dark:bg-emerald-500/15"
         icon-class="text-emerald-600 dark:text-emerald-400"
-        label="Заселено"
+        :label="t('reports.movements.kpiMovedIn')"
         :value="String(summary.movedIn)"
       />
       <ReportKpiTile
         :icon="LogOut"
         bg-class="bg-red-100 dark:bg-red-500/15"
         icon-class="text-red-600 dark:text-red-400"
-        label="Выселено"
+        :label="t('reports.movements.kpiMovedOut')"
         :value="String(summary.movedOut)"
       />
       <ReportKpiTile
         :icon="ArrowRightLeft"
         bg-class="bg-orange-100 dark:bg-orange-500/15"
         icon-class="text-orange-600 dark:text-orange-400"
-        label="Переселено"
+        :label="t('reports.movements.kpiRelocated')"
         :value="String(summary.relocated)"
       />
       <ReportKpiTile
         :icon="Repeat"
         bg-class="bg-sky-100 dark:bg-sky-500/15"
         icon-class="text-sky-600 dark:text-sky-400"
-        label="Продлено"
+        :label="t('reports.movements.kpiRenewed')"
         :value="String(summary.renewed)"
       />
     </Card>
@@ -148,23 +152,23 @@ async function onExport() {
       :fetch-page="fetchPage"
       :fetch-facet-values="fetchMovementsFacets"
       :get-row-id="(e: MovementEvent) => `${e.contractId}-${e.operation}-${e.date}`"
-      total-label="событий"
+      :total-label="t('reports.movements.totalLabel')"
       :cell-text="cellText"
       :cell-renderers="cellRenderers"
       storage-key="reports-movements"
       accent-icons
     >
       <template #actions>
-        <span class="text-sm text-muted-foreground">Период</span>
+        <span class="text-sm text-muted-foreground">{{ t('reports.common.period') }}</span>
         <DateRangePickerField v-model:from="from" v-model:to="to" />
         <Tooltip>
           <TooltipTrigger as-child>
             <Button size="icon" :loading="isExporting" @click="onExport">
               <Download />
-              <span class="sr-only">Экспорт в Excel</span>
+              <span class="sr-only">{{ t('reports.common.exportExcel') }}</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Экспорт в Excel</TooltipContent>
+          <TooltipContent>{{ t('reports.common.exportExcel') }}</TooltipContent>
         </Tooltip>
       </template>
     </EntityTable>

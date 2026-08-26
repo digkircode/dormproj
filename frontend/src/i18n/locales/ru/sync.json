@@ -1,0 +1,53 @@
+{
+  "sync": {
+    "title": "Синхронизация",
+    "back": "Назад",
+    "colName": "Название",
+    "colStatus": "Статус",
+    "colTime": "Время",
+    "colDuration": "Длительность",
+    "colActions": "Действия",
+    "totalLabel": "синхронизаций",
+    "notYetRun": "Ещё не запускалась",
+    "durationMinutes": "{minutes}м {seconds}с",
+    "durationSeconds": "{seconds}с",
+    "individualEntityName": "Обновление данных физического лица",
+    "status": {
+      "RUNNING": "В процессе",
+      "SUCCESS": "Успешно",
+      "FAILED": "Ошибка"
+    },
+    "actionsLogs": "Логи",
+    "actionsRun": "Запустить синхронизацию",
+    "trigger": {
+      "CRON": "Автоматически",
+      "MANUAL": "Вручную"
+    },
+    "errors": {
+      "triggerFailed": "Не удалось запустить синхронизацию ({status})"
+    },
+    "logs": {
+      "title": "Логи: {name}",
+      "colRowNumber": "№",
+      "colTrigger": "Тип",
+      "colTargetUid": "UID",
+      "colStatus": "Статус",
+      "colStartedAt": "Время начала",
+      "colFinishedAt": "Время окончания",
+      "totalLabel": "записей",
+      "detailsAction": "Подробнее",
+      "logDialogTitle": "Лог #{id}",
+      "fetched": "Получено",
+      "added": "Добавлено",
+      "updated": "Обновлено",
+      "removed": "Удалено",
+      "showMoreData": "Показать дополнительные данные",
+      "moreByTables": "Подробнее по таблицам",
+      "stepStudents": "Студент (зачётки)",
+      "stepIndividuals": "Физлицо",
+      "stepCitizenship": "Гражданство",
+      "stepPassport": "Паспортные данные",
+      "stepContactInfo": "Контактная информация"
+    }
+  }
+}

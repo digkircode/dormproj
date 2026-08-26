@@ -1,5 +1,6 @@
 import { apiFetch } from './api-base'
 import { fetchListPage, fetchListFacets, type ListOptions, type ListPage, type FacetOption } from './list-api'
+import { i18n } from '@/i18n'
 
 export type ContractStatus = 'ACTIVE' | 'TERMINATED' | 'EXPIRED'
 export type DailyRateCategory = 'OWN_UNIVERSITY' | 'OTHER_UNIVERSITY'
@@ -139,7 +140,7 @@ export interface MyContractDetail {
 export async function fetchMyContract(contractId?: number): Promise<MyContractDetail | null> {
   const response = await apiFetch(contractId ? `/my-contract?contractId=${contractId}` : '/my-contract')
   if (!response.ok) {
-    throw new Error(`Не удалось получить данные договора (${response.status})`)
+    throw new Error(i18n.global.t('contracts.errors.fetchContractFailed', { status: response.status }))
   }
   const data: { contract: MyContractDetail | null } = await response.json()
   return data.contract
@@ -158,7 +159,7 @@ export interface MyContractSummary {
 export async function fetchMyContracts(): Promise<MyContractSummary[]> {
   const response = await apiFetch('/my-contract/list')
   if (!response.ok) {
-    throw new Error(`Не удалось получить список договоров (${response.status})`)
+    throw new Error(i18n.global.t('contracts.errors.fetchContractsListFailed', { status: response.status }))
   }
   const data: { contracts: MyContractSummary[] } = await response.json()
   return data.contracts
@@ -221,7 +222,7 @@ export function fetchContractFacets(field: string): Promise<FacetOption[]> {
 export async function fetchContractDetail(id: number): Promise<ContractDetail> {
   const response = await apiFetch(`/contracts/${id}`)
   if (!response.ok) {
-    throw new Error(`Не удалось получить данные договора (${response.status})`)
+    throw new Error(i18n.global.t('contracts.errors.fetchContractFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -234,7 +235,7 @@ export async function createContract(input: CreateContractInput): Promise<{ id: 
   })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
-    throw new Error(body.message ?? `Не удалось создать договор (${response.status})`)
+    throw new Error(body.message ?? i18n.global.t('contracts.errors.createFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -247,7 +248,7 @@ export async function terminateContract(id: number, actualEndDate: string): Prom
   })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
-    throw new Error(body.message ?? `Не удалось расторгнуть договор (${response.status})`)
+    throw new Error(body.message ?? i18n.global.t('contracts.errors.terminateFailed', { status: response.status }))
   }
 }
 
@@ -255,7 +256,7 @@ export async function deleteContract(id: number): Promise<void> {
   const response = await apiFetch(`/contracts/${id}`, { method: 'DELETE' })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
-    throw new Error(body.message ?? `Не удалось удалить договор (${response.status})`)
+    throw new Error(body.message ?? i18n.global.t('contracts.errors.deleteFailed', { status: response.status }))
   }
 }
 
@@ -265,7 +266,7 @@ export async function deleteContract(id: number): Promise<void> {
 export async function fetchLegalRepPrefill(residentUid: string): Promise<LegalRepPrefill | null> {
   const response = await apiFetch(`/contracts/legal-rep/${residentUid}`)
   if (!response.ok) {
-    throw new Error(`Не удалось получить данные родителя (${response.status})`)
+    throw new Error(i18n.global.t('contracts.errors.fetchLegalRepFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -275,7 +276,7 @@ export async function fetchLegalRepPrefill(residentUid: string): Promise<LegalRe
 export async function downloadContractDocument(id: number, contractNumber: string): Promise<void> {
   const response = await apiFetch(`/contracts/${id}/document`)
   if (!response.ok) {
-    throw new Error(`Не удалось сформировать договор (${response.status})`)
+    throw new Error(i18n.global.t('contracts.errors.documentFailed', { status: response.status }))
   }
   const blob = await response.blob()
   const url = URL.createObjectURL(blob)
@@ -298,7 +299,7 @@ export async function printContractsBatch(ids: number[]): Promise<void> {
   })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
-    throw new Error(body.message ?? `Не удалось сформировать договоры (${response.status})`)
+    throw new Error(body.message ?? i18n.global.t('contracts.errors.batchDocumentFailed', { status: response.status }))
   }
   const blob = await response.blob()
   const url = URL.createObjectURL(blob)

@@ -1,4 +1,5 @@
 import { apiFetch } from './api-base'
+import { i18n } from '@/i18n'
 
 export type PaymentIntentStatus = 'CREATED' | 'PENDING_BANK' | 'SUCCEEDED' | 'FAILED' | 'CANCELED' | 'EXPIRED'
 
@@ -50,15 +51,12 @@ export interface UnifiedPaymentRow {
   fiscalReceiptUrl: string | null
 }
 
-export const UNIFIED_PAYMENT_STATUS_LABELS: Record<UnifiedPaymentStatus, string> = {
-  PAID: 'Оплачено',
-  REVERSED: 'Сторнировано',
-  CREATED: 'Создан',
-  PENDING_BANK: 'Обрабатывается банком',
-  FAILED: 'Не удалось',
-  CANCELED: 'Отменено',
-  EXPIRED: 'Истёк',
-}
+// Proxy — тот же приём, что STATUS_LABELS в contracts-format.ts, реактивен к языку без
+// правки мест использования (PaymentStatusPillCell.vue и т.п.).
+export const UNIFIED_PAYMENT_STATUS_LABELS: Record<UnifiedPaymentStatus, string> = new Proxy(
+  {} as Record<UnifiedPaymentStatus, string>,
+  { get: (_target, status: string) => i18n.global.t(`payment.status.${status}`) },
+)
 
 export interface CreateIntentInput {
   contractId?: number | null
@@ -70,16 +68,16 @@ export interface CreateIntentInput {
   payerEmail: string
 }
 
-async function parseError(response: Response, fallback: string): Promise<never> {
+async function parseError(response: Response, fallbackKey: string): Promise<never> {
   const body: { message?: string } = await response.json().catch(() => ({}))
-  throw new Error(body.message ?? `${fallback} (${response.status})`)
+  throw new Error(body.message ?? i18n.global.t(fallbackKey, { status: response.status }))
 }
 
 // contractId — явный выбор из переключателя договоров (см. contracts-api.ts#fetchMyContracts);
 // без него бэкенд берёт самый свежий.
 export async function fetchMyPayments(contractId?: number): Promise<MyPaymentsData> {
   const response = await apiFetch(contractId ? `/my-payments?contractId=${contractId}` : '/my-payments')
-  if (!response.ok) return parseError(response, 'Не удалось получить данные оплаты')
+  if (!response.ok) return parseError(response, 'payment.errors.fetchPaymentDataFailed')
   return response.json()
 }
 
@@ -89,12 +87,12 @@ export async function createPaymentIntent(input: CreateIntentInput): Promise<{ i
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   })
-  if (!response.ok) return parseError(response, 'Не удалось начать оплату')
+  if (!response.ok) return parseError(response, 'payment.errors.startPaymentFailed')
   return response.json()
 }
 
 export async function fetchPaymentIntent(id: number): Promise<PaymentIntentRow> {
   const response = await apiFetch(`/my-payments/intents/${id}`)
-  if (!response.ok) return parseError(response, 'Не удалось получить статус платежа')
+  if (!response.ok) return parseError(response, 'payment.errors.fetchPaymentStatusFailed')
   return response.json()
 }

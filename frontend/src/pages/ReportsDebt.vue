@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, provide, ref, watch } from 'vue'
+import { computed, onMounted, provide, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { AlertTriangle, ArrowLeft, Banknote, Download, Info, Percent, Users, Wallet } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
@@ -30,6 +31,7 @@ import {
   type ListOptions,
 } from '@/lib/reports-api'
 import { goBack } from '@/lib/utils'
+import { dateLocaleTag } from '@/lib/format-locale'
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
@@ -38,18 +40,22 @@ const DIALOG_ANIMATE_CLASS =
 const CELL_BORDER_CLASS = 'border-r border-border last:border-r-0'
 
 const router = useRouter()
+const { t } = useI18n()
 
-const columnLabels: Record<string, string> = {
-  contractNumber: '№ договора',
-  residentFullName: 'Проживающий',
-  room: 'Комната',
-  status: 'Статус',
-  createdAt: 'Дата создания',
-  totalAccrued: 'Начислено',
-  totalPaid: 'Оплачено',
-  penaltyBalance: 'Пеня',
-  totalBalance: 'Долг',
-}
+// computed, не const — header-текст берётся из t() (i18n), таблица (useTable в
+// EntityTable.vue) watch'ит props.columns реактивно и пересобирает заголовки при смене
+// языка, но только если columns — новая reactive-ссылка (см. тот же приём в Contracts.vue).
+const columnLabels = computed<Record<string, string>>(() => ({
+  contractNumber: t('reports.debt.colContractNumber'),
+  residentFullName: t('reports.debt.colResident'),
+  room: t('reports.debt.colRoom'),
+  status: t('reports.debt.colStatus'),
+  createdAt: t('reports.debt.colCreatedAt'),
+  totalAccrued: t('reports.debt.colAccrued'),
+  totalPaid: t('reports.debt.colPaid'),
+  penaltyBalance: t('reports.debt.colPenalty'),
+  totalBalance: t('reports.debt.colDebt'),
+}))
 const filterableFields = ['status']
 const cellRenderers = {
   contractNumber: ContractLinkCell,
@@ -60,7 +66,7 @@ const cellRenderers = {
 }
 
 function formatMoney(value: number): string {
-  return `${value.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
+  return `${value.toLocaleString(dateLocaleTag(), { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
 }
 function formatDateIso(iso: string): string {
   const date = new Date(iso)
@@ -81,17 +87,19 @@ function cellText(columnId: string, value: unknown): string {
 }
 
 const columnHelper = createAppColumnHelper<DebtorRow>()
-const columns = columnHelper.columns([
-  columnHelper.accessor('contractNumber', { header: columnLabels.contractNumber, enableHiding: false, size: 128, minSize: 100 }),
-  columnHelper.accessor('residentFullName', { header: columnLabels.residentFullName, size: 200, minSize: 160 }),
-  columnHelper.accessor('room', { header: columnLabels.room, size: 100, minSize: 90 }),
-  columnHelper.accessor('status', { header: columnLabels.status, size: 130, minSize: 110 }),
-  columnHelper.accessor('createdAt', { header: columnLabels.createdAt, size: 130, minSize: 110 }),
-  columnHelper.accessor('totalAccrued', { header: columnLabels.totalAccrued, size: 130, minSize: 110 }),
-  columnHelper.accessor('totalPaid', { header: columnLabels.totalPaid, size: 130, minSize: 110 }),
-  columnHelper.accessor('penaltyBalance', { header: columnLabels.penaltyBalance, size: 110, minSize: 90 }),
-  columnHelper.accessor('totalBalance', { header: columnLabels.totalBalance, size: 130, minSize: 110 }),
-])
+const columns = computed(() =>
+  columnHelper.columns([
+    columnHelper.accessor('contractNumber', { header: columnLabels.value.contractNumber, enableHiding: false, size: 128, minSize: 100 }),
+    columnHelper.accessor('residentFullName', { header: columnLabels.value.residentFullName, size: 200, minSize: 160 }),
+    columnHelper.accessor('room', { header: columnLabels.value.room, size: 100, minSize: 90 }),
+    columnHelper.accessor('status', { header: columnLabels.value.status, size: 130, minSize: 110 }),
+    columnHelper.accessor('createdAt', { header: columnLabels.value.createdAt, size: 130, minSize: 110 }),
+    columnHelper.accessor('totalAccrued', { header: columnLabels.value.totalAccrued, size: 130, minSize: 110 }),
+    columnHelper.accessor('totalPaid', { header: columnLabels.value.totalPaid, size: 130, minSize: 110 }),
+    columnHelper.accessor('penaltyBalance', { header: columnLabels.value.penaltyBalance, size: 110, minSize: 90 }),
+    columnHelper.accessor('totalBalance', { header: columnLabels.value.totalBalance, size: 130, minSize: 110 }),
+  ]),
+)
 
 // Отчёт "на дату" (по умолчанию сегодня) — тот же приём, что период в ReportsMovements.vue:
 // EntityTable сама не знает про внешний asOf, перезапрашиваем страницу и сводку вручную
@@ -121,7 +129,7 @@ onMounted(loadSummary)
 // "Месяц" — крупно название месяца, мелко и в скобках короткий диапазон дат под ним
 // (неполные месяцы на границах договора всё равно остаются понятны по датам).
 function monthLabel(iso: string): string {
-  const label = new Date(iso).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })
+  const label = new Date(iso).toLocaleDateString(dateLocaleTag(), { month: 'long', year: 'numeric' })
   return label.charAt(0).toUpperCase() + label.slice(1)
 }
 function formatDateShort(iso: string): string {
@@ -193,9 +201,9 @@ async function onExport() {
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
-        <span class="sr-only">Назад</span>
+        <span class="sr-only">{{ t('reports.common.back') }}</span>
       </Button>
-      <h1 class="text-lg font-medium">Финансовый отчёт</h1>
+      <h1 class="text-lg font-medium">{{ t('reports.debt.title') }}</h1>
     </div>
 
     <Card v-if="summary" class="grid grid-cols-5 gap-4 p-4">
@@ -203,35 +211,35 @@ async function onExport() {
         :icon="Users"
         bg-class="bg-blue-100 dark:bg-blue-500/15"
         icon-class="text-blue-600 dark:text-blue-400"
-        label="Должников"
+        :label="t('reports.debt.kpiDebtors')"
         :value="String(summary.debtorsCount)"
       />
       <ReportKpiTile
         :icon="Banknote"
         bg-class="bg-violet-100 dark:bg-violet-500/15"
         icon-class="text-violet-600 dark:text-violet-400"
-        label="Всего начислено"
+        :label="t('reports.debt.kpiAccrued')"
         :value="formatMoney(summary.totalAccrued)"
       />
       <ReportKpiTile
         :icon="AlertTriangle"
         bg-class="bg-red-100 dark:bg-red-500/15"
         icon-class="text-red-600 dark:text-red-400"
-        label="Общий долг"
+        :label="t('reports.debt.kpiDebt')"
         :value="formatMoney(summary.totalDebt)"
       />
       <ReportKpiTile
         :icon="Percent"
         bg-class="bg-orange-100 dark:bg-orange-500/15"
         icon-class="text-orange-600 dark:text-orange-400"
-        label="Пени"
+        :label="t('reports.debt.kpiPenalty')"
         :value="formatMoney(summary.totalPenalty)"
       />
       <ReportKpiTile
         :icon="Wallet"
         bg-class="bg-emerald-100 dark:bg-emerald-500/15"
         icon-class="text-emerald-600 dark:text-emerald-400"
-        label="Всего оплачено"
+        :label="t('reports.debt.kpiPaid')"
         :value="formatMoney(summary.totalPaid)"
       />
     </Card>
@@ -245,24 +253,24 @@ async function onExport() {
       :fetch-page="fetchPage"
       :fetch-facet-values="fetchDebtorsFacets"
       :get-row-id="(d: DebtorRow) => String(d.contractId)"
-      total-label="договоров"
+      :total-label="t('reports.common.totalContracts')"
       :cell-text="cellText"
       :cell-renderers="cellRenderers"
       storage-key="reports-debt"
       accent-icons
-      :row-action="{ icon: Info, label: 'Структура долга по месяцам', onClick: (d: DebtorRow) => openBreakdown(d.contractId) }"
+      :row-action="{ icon: Info, label: t('reports.debt.breakdownAction'), onClick: (d: DebtorRow) => openBreakdown(d.contractId) }"
     >
       <template #actions>
-        <span class="text-sm text-muted-foreground">На дату</span>
+        <span class="text-sm text-muted-foreground">{{ t('reports.common.asOf') }}</span>
         <DatePickerField v-model="asOf" />
         <Tooltip>
           <TooltipTrigger as-child>
             <Button size="icon" :loading="isExporting" @click="onExport">
               <Download />
-              <span class="sr-only">Экспорт в Excel</span>
+              <span class="sr-only">{{ t('reports.common.exportExcel') }}</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Экспорт в Excel</TooltipContent>
+          <TooltipContent>{{ t('reports.common.exportExcel') }}</TooltipContent>
         </Tooltip>
       </template>
     </EntityTable>
@@ -272,27 +280,31 @@ async function onExport() {
       <DialogScrollContent :class="['flex flex-col gap-4 sm:max-w-3xl', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
           <DialogTitle>
-            {{ breakdown ? `${breakdown.residentFullName} — комн. ${breakdown.room ?? '—'}` : 'Структура долга' }}
+            {{
+              breakdown
+                ? t('reports.debt.breakdownTitle', { name: breakdown.residentFullName, room: breakdown.room ?? '—' })
+                : t('reports.debt.breakdownTitleFallback')
+            }}
           </DialogTitle>
         </DialogHeader>
 
         <p v-if="breakdownError" class="text-sm text-red-500">{{ breakdownError }}</p>
-        <p v-if="breakdownLoading" class="text-sm text-muted-foreground">Загрузка…</p>
+        <p v-if="breakdownLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
 
         <div v-if="breakdown" class="flex flex-col gap-3">
           <div class="overflow-hidden rounded-md border">
             <Table>
               <TableHeader class="bg-muted">
                 <TableRow>
-                  <TableHead :class="CELL_BORDER_CLASS">Месяц</TableHead>
-                  <TableHead :class="CELL_BORDER_CLASS">Начислено</TableHead>
-                  <TableHead :class="CELL_BORDER_CLASS">Оплачено</TableHead>
-                  <TableHead>Долг</TableHead>
+                  <TableHead :class="CELL_BORDER_CLASS">{{ t('reports.debt.colMonth') }}</TableHead>
+                  <TableHead :class="CELL_BORDER_CLASS">{{ t('reports.debt.colAccrued') }}</TableHead>
+                  <TableHead :class="CELL_BORDER_CLASS">{{ t('reports.debt.colPaid') }}</TableHead>
+                  <TableHead>{{ t('reports.debt.colDebt') }}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 <TableRow v-if="!breakdown.periods.length">
-                  <TableCell colspan="4" class="text-center text-muted-foreground">Нет начислений по договору</TableCell>
+                  <TableCell colspan="4" class="text-center text-muted-foreground">{{ t('reports.debt.noAccruals') }}</TableCell>
                 </TableRow>
                 <TableRow v-for="p in breakdown.periods" :key="p.id">
                   <TableCell :class="[CELL_BORDER_CLASS, p.voidedAt ? 'text-muted-foreground line-through' : '']">
@@ -310,7 +322,7 @@ async function onExport() {
               </TableBody>
               <TableFooter v-if="breakdown.periods.length">
                 <TableRow>
-                  <TableCell :class="CELL_BORDER_CLASS">Итого</TableCell>
+                  <TableCell :class="CELL_BORDER_CLASS">{{ t('reports.common.total') }}</TableCell>
                   <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(breakdown.totalAccrued) }}</TableCell>
                   <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(breakdown.totalPaid) }}</TableCell>
                   <TableCell
@@ -331,8 +343,10 @@ async function onExport() {
           <!-- Пеня — единая на договор, не по месяцам (см. reports.controller.ts), поэтому
                отдельной строкой итога, а не колонкой в помесячной разбивке. -->
           <div class="flex flex-col items-end gap-1 text-sm">
-            <p v-if="breakdown.penaltyBalance > 0" class="text-red-500">Пеня по договору: {{ formatMoney(breakdown.penaltyBalance) }}</p>
-            <p class="font-medium">Итого долг: {{ formatMoney(breakdown.totalDebt) }}</p>
+            <p v-if="breakdown.penaltyBalance > 0" class="text-red-500">
+              {{ t('reports.debt.penaltyByContract', { amount: formatMoney(breakdown.penaltyBalance) }) }}
+            </p>
+            <p class="font-medium">{{ t('reports.debt.totalDebtLine', { amount: formatMoney(breakdown.totalDebt) }) }}</p>
           </div>
         </div>
       </DialogScrollContent>
@@ -342,12 +356,16 @@ async function onExport() {
       <DialogScrollContent :class="['flex flex-col gap-4 sm:max-w-lg', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
           <DialogTitle>
-            {{ penaltyLog ? `Пеня — ${penaltyLog.residentFullName}, комн. ${penaltyLog.room ?? '—'}` : 'Пеня' }}
+            {{
+              penaltyLog
+                ? t('reports.debt.penaltyTitle', { name: penaltyLog.residentFullName, room: penaltyLog.room ?? '—' })
+                : t('reports.debt.penaltyTitleFallback')
+            }}
           </DialogTitle>
         </DialogHeader>
 
         <p v-if="penaltyLogError" class="text-sm text-red-500">{{ penaltyLogError }}</p>
-        <p v-if="penaltyLogLoading" class="text-sm text-muted-foreground">Загрузка…</p>
+        <p v-if="penaltyLogLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
 
         <div v-if="penaltyLog" class="flex flex-col gap-3">
           <!-- Максимум ~12 строк видно сразу, дальше — свой скролл (не растягивает
@@ -358,14 +376,14 @@ async function onExport() {
             <Table>
               <TableHeader class="sticky top-0 z-10 bg-muted">
                 <TableRow>
-                  <TableHead :class="CELL_BORDER_CLASS">Дата</TableHead>
-                  <TableHead :class="CELL_BORDER_CLASS">База расчёта</TableHead>
-                  <TableHead>Добавлено</TableHead>
+                  <TableHead :class="CELL_BORDER_CLASS">{{ t('reports.debt.colDate') }}</TableHead>
+                  <TableHead :class="CELL_BORDER_CLASS">{{ t('reports.debt.colOverdueBase') }}</TableHead>
+                  <TableHead>{{ t('reports.debt.colAdded') }}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 <TableRow v-if="!penaltyLog.entries.length">
-                  <TableCell colspan="3" class="text-center text-muted-foreground">Пеня не начислялась</TableCell>
+                  <TableCell colspan="3" class="text-center text-muted-foreground">{{ t('reports.debt.noPenalty') }}</TableCell>
                 </TableRow>
                 <TableRow v-for="(e, i) in penaltyLog.entries" :key="i">
                   <TableCell :class="CELL_BORDER_CLASS">{{ formatDateIso(e.date) }}</TableCell>
@@ -375,7 +393,7 @@ async function onExport() {
               </TableBody>
               <TableFooter v-if="penaltyLog.entries.length">
                 <TableRow>
-                  <TableCell :class="CELL_BORDER_CLASS" colspan="2">Итого</TableCell>
+                  <TableCell :class="CELL_BORDER_CLASS" colspan="2">{{ t('reports.common.total') }}</TableCell>
                   <TableCell>{{ formatMoney(penaltyLog.total) }}</TableCell>
                 </TableRow>
               </TableFooter>

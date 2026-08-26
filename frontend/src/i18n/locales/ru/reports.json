@@ -1,0 +1,116 @@
+{
+  "reports": {
+    "errors": {
+      "fetchFailed": "Не удалось получить отчёт ({status})",
+      "exportFailed": "Не удалось сформировать файл ({status})"
+    },
+    "registryBucket": {
+      "ACTIVE": "Действует",
+      "TERMINATED": "Расторгнут"
+    },
+    "movementOperation": {
+      "IN": "Заселение",
+      "OUT": "Выселение",
+      "MOVE": "Переселение",
+      "RENEWAL": "Продление"
+    },
+    "common": {
+      "back": "Назад",
+      "asOf": "На дату",
+      "period": "Период",
+      "exportExcel": "Экспорт в Excel",
+      "total": "Итого",
+      "totalContracts": "договоров"
+    },
+    "debt": {
+      "title": "Финансовый отчёт",
+      "kpiDebtors": "Должников",
+      "kpiAccrued": "Всего начислено",
+      "kpiDebt": "Общий долг",
+      "kpiPenalty": "Пени",
+      "kpiPaid": "Всего оплачено",
+      "colContractNumber": "№ договора",
+      "colResident": "Проживающий",
+      "colRoom": "Комната",
+      "colStatus": "Статус",
+      "colCreatedAt": "Дата создания",
+      "colAccrued": "Начислено",
+      "colPaid": "Оплачено",
+      "colPenalty": "Пеня",
+      "colDebt": "Долг",
+      "breakdownAction": "Структура долга по месяцам",
+      "breakdownTitle": "{name} — комн. {room}",
+      "breakdownTitleFallback": "Структура долга",
+      "colMonth": "Месяц",
+      "noAccruals": "Нет начислений по договору",
+      "penaltyByContract": "Пеня по договору: {amount}",
+      "totalDebtLine": "Итого долг: {amount}",
+      "penaltyTitle": "Пеня — {name}, комн. {room}",
+      "penaltyTitleFallback": "Пеня",
+      "colDate": "Дата",
+      "colOverdueBase": "База расчёта",
+      "colAdded": "Добавлено",
+      "noPenalty": "Пеня не начислялась"
+    },
+    "occupancy": {
+      "title": "Занятость общежития",
+      "kpiTotalPlaces": "Всего мест",
+      "kpiOccupied": "Занято",
+      "kpiFree": "Свободно",
+      "kpiLoad": "Загрузка",
+      "tabNew": "Новый",
+      "tabOld": "Старый",
+      "tabAll": "Все",
+      "filterTooltip": "Фильтр по занятости",
+      "filterAll": "Все",
+      "filterFree": "Свободные",
+      "filterOccupied": "Занятые",
+      "noFloor": "Без этажа",
+      "floorLabel": "Этаж {floor}",
+      "characteristics": "Характеристики",
+      "roomFree": "Комната свободна"
+    },
+    "contingent": {
+      "title": "Реестр проживающих",
+      "colMovedInDate": "Дата заселения",
+      "colResident": "Проживающий",
+      "colContractNumber": "№ договора",
+      "colRoom": "Комната",
+      "colFacultet": "Факультет",
+      "colKurs": "Курс",
+      "colBirthDate": "Дата рождения",
+      "colCitizenship": "Гражданство",
+      "colOwnUniversity": "Студент РосНОУ",
+      "totalLabel": "проживающих"
+    },
+    "registry": {
+      "title": "Реестр договоров",
+      "colContractNumber": "№ договора",
+      "colResident": "Проживающий",
+      "colRoom": "Комната",
+      "colCreatedAt": "Дата создания",
+      "colStart": "Начало",
+      "colEnd": "Окончание",
+      "colStatus": "Статус",
+      "kpiActive": "Активные",
+      "kpiExpiring30": "Истекают в течение 30 дней",
+      "kpiEnded": "Уже закончены",
+      "expiringLabel": "Истекает ({days} дн.)",
+      "overdueLabel": "Просрочен на {days} дн."
+    },
+    "movements": {
+      "title": "Движение проживающих",
+      "colDate": "Дата операции",
+      "colContractNumber": "№ договора",
+      "colResident": "Проживающий",
+      "colOperation": "Операция",
+      "colFrom": "Откуда",
+      "colTo": "Куда",
+      "kpiMovedIn": "Заселено",
+      "kpiMovedOut": "Выселено",
+      "kpiRelocated": "Переселено",
+      "kpiRenewed": "Продлено",
+      "totalLabel": "событий"
+    }
+  }
+}

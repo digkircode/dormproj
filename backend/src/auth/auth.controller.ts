@@ -88,7 +88,7 @@ export class AuthController {
     res.clearCookie(OAUTH_STATE_COOKIE_NAME, STATE_COOKIE_OPTIONS);
 
     if (!code || !state || !expectedState || state !== expectedState) {
-      throw new BadRequestException('Некорректный OAuth-запрос (state не совпадает)');
+      throw new BadRequestException('auth.invalidOAuthState');
     }
 
     const accessToken = await this.rosnouId.exchangeCodeForToken(code);

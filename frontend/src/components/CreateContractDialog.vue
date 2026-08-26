@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { FileSignature, UserRound } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -19,6 +20,7 @@ import { fetchDormitoryInfo } from '@/lib/dormitory-info-api'
 import { blockNonDigitKeys, blockNonNumericKeys, formatSnils, formatSubdivisionCode, parseApiError } from '@/lib/utils'
 
 const router = useRouter()
+const { t } = useI18n()
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
@@ -423,7 +425,7 @@ async function submitCreate() {
         matCapitalAmount.value === undefined ||
         !matCapitalDeferredUntil.value))
   ) {
-    dialogError.value = 'Заполните обязательные поля'
+    dialogError.value = t('contracts.createDialog.requiredFieldsError')
     return
   }
 
@@ -475,36 +477,36 @@ async function submitCreate() {
   <Dialog :open="isDialogOpen" @update:open="(open) => (isDialogOpen = open)">
     <DialogScrollContent :class="['flex flex-col gap-4 sm:max-w-2xl', DIALOG_ANIMATE_CLASS]">
       <DialogHeader>
-        <DialogTitle>Новый договор найма</DialogTitle>
+        <DialogTitle>{{ t('contracts.createDialog.title') }}</DialogTitle>
       </DialogHeader>
 
       <div class="flex flex-col gap-6">
         <div class="flex flex-col gap-3">
           <p class="flex items-center gap-1.5 text-sm font-medium">
             <FileSignature class="size-4 text-primary" />
-            Информация о договоре
+            {{ t('contracts.createDialog.sectionContractInfo') }}
           </p>
           <div class="flex flex-col gap-4 rounded-md border p-4">
             <div class="grid grid-cols-2 gap-4">
               <div class="flex flex-col gap-2">
-                <Label>Номер договора</Label>
+                <Label>{{ t('contracts.createDialog.fieldNumber') }}</Label>
                 <Input v-model="number" :class="numberInvalid ? 'border-red-500' : ''" />
               </div>
               <div class="flex flex-col gap-2">
-                <Label>Дата договора</Label>
+                <Label>{{ t('contracts.createDialog.fieldContractDate') }}</Label>
                 <DatePickerField v-model="contractDate" :invalid="contractDateInvalid" />
               </div>
             </div>
 
             <div class="flex flex-col gap-2">
-              <Label>Проживающий</Label>
+              <Label>{{ t('contracts.createDialog.fieldResident') }}</Label>
               <SearchSelect
                 v-model="individualQuery"
                 :items="individualResults"
                 :item-key="(i: Individual) => i.fizicheskoyeLitsoUid"
                 :item-label="(i: Individual) => i.fullName"
                 :item-sub-label="(i: Individual) => (i.birthDate ? formatDateIso(i.birthDate) : '')"
-                placeholder="Введите ФИО"
+                :placeholder="t('contracts.createDialog.residentPlaceholder')"
                 :invalid="individualInvalid"
                 :loading="individualSearching"
                 @search="onIndividualSearch"
@@ -514,24 +516,24 @@ async function submitCreate() {
 
             <div class="grid grid-cols-3 gap-4">
               <div class="flex flex-col gap-2">
-                <Label>Комната</Label>
+                <Label>{{ t('contracts.createDialog.fieldRoom') }}</Label>
                 <SearchSelect
                   v-model="roomQuery"
                   :items="roomResults"
                   :item-key="(r: RoomTreeItem) => r.id"
                   :item-label="(r: RoomTreeItem) => r.room"
-                  placeholder="Введите номер"
+                  :placeholder="t('contracts.createDialog.roomPlaceholder')"
                   :invalid="roomInvalid"
                   @search="onRoomSearch"
                   @select="pickRoom"
                 />
               </div>
               <div class="flex flex-col gap-2">
-                <Label>Дата начала</Label>
+                <Label>{{ t('contracts.createDialog.fieldStartDate') }}</Label>
                 <DatePickerField v-model="startDate" :invalid="startDateInvalid" />
               </div>
               <div class="flex flex-col gap-2">
-                <Label>Дата окончания</Label>
+                <Label>{{ t('contracts.createDialog.fieldEndDate') }}</Label>
                 <DatePickerField v-model="endDate" :invalid="endDateInvalid" />
               </div>
             </div>
@@ -539,13 +541,13 @@ async function submitCreate() {
             <!-- Комната без месячной "Стоимости" (112-2/410-2 на момент введения) — целиком
                  посуточная, поле не показываем вообще (см. isDailyOnlyRoom/applyRoomPrice). -->
             <div v-if="isDailyOnlyRoom" class="flex flex-col gap-2">
-              <Label>Стоимость</Label>
+              <Label>{{ t('contracts.createDialog.fieldCost') }}</Label>
               <p class="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
-                Посуточная оплата — {{ dailyRateAmount ?? '—' }} ₽/сутки, месячной ставки нет
+                {{ t('contracts.createDialog.dailyOnlyNote', { rate: dailyRateAmount ?? '—' }) }}
               </p>
             </div>
             <div v-else class="flex flex-col gap-2">
-              <Label>Стоимость</Label>
+              <Label>{{ t('contracts.createDialog.fieldCost') }}</Label>
               <Input
                 v-model.number="rentAmount"
                 type="number"
@@ -558,7 +560,7 @@ async function submitCreate() {
                  в АНО ВО «РосНОУ»" (см. dailyRateCategory, автоопределяется в pickIndividual). -->
             <Transition v-bind="REVEAL_TRANSITION">
               <div v-if="dailyRateCategoryKnown && dailyRateCategory === 'OTHER_UNIVERSITY'" class="flex flex-col gap-2">
-                <Label>Причина проживания</Label>
+                <Label>{{ t('contracts.createDialog.fieldResidenceReason') }}</Label>
                 <Input v-model="residenceReason" :class="residenceReasonInvalid ? 'border-red-500' : ''" />
               </div>
             </Transition>
@@ -568,18 +570,18 @@ async function submitCreate() {
         <div class="flex flex-col gap-3">
           <p class="flex items-center gap-1.5 text-sm font-medium">
             <UserRound class="size-4 text-primary" />
-            Информация о родителе
+            {{ t('contracts.createDialog.sectionParentInfo') }}
           </p>
           <div class="flex flex-col gap-4 rounded-md border p-4">
             <!-- ФИО и телефон — всегда, остальное (паспорт, мат.капитал) только для
                  несовершеннолетних (см. isMinor). -->
             <div class="grid grid-cols-2 gap-4">
               <div class="flex flex-col gap-2">
-                <Label>ФИО</Label>
+                <Label>{{ t('contracts.createDialog.fieldFullName') }}</Label>
                 <Input v-model="legalRepName" :class="legalRepNameInvalid ? 'border-red-500' : ''" />
               </div>
               <div class="flex flex-col gap-2">
-                <Label>Телефон</Label>
+                <Label>{{ t('contracts.createDialog.fieldPhone') }}</Label>
                 <PhoneInput ref="phoneInputRef" v-model="legalRepPhone" required />
               </div>
             </div>
@@ -588,26 +590,28 @@ async function submitCreate() {
               <div v-if="isMinor" class="flex flex-col gap-4">
                 <div class="grid grid-cols-2 gap-4">
                   <div class="flex flex-col gap-2">
-                    <Label>Пол</Label>
+                    <Label>{{ t('contracts.createDialog.fieldGender') }}</Label>
+                    <!-- :value остаётся русским литералом ("Мужской"/"Женский") — так хранится
+                         в БД (Contract.legalRepGender), переводится только видимый текст. -->
                     <Select
                       :model-value="legalRepGender || undefined"
                       @update:model-value="(v) => (legalRepGender = v as 'Мужской' | 'Женский')"
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Не указан" />
+                        <SelectValue :placeholder="t('contracts.createDialog.genderPlaceholder')" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Мужской">Мужской</SelectItem>
-                        <SelectItem value="Женский">Женский</SelectItem>
+                        <SelectItem value="Мужской">{{ t('contracts.gender.male') }}</SelectItem>
+                        <SelectItem value="Женский">{{ t('contracts.gender.female') }}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div class="flex flex-col gap-2">
-                    <Label>Дата рождения</Label>
+                    <Label>{{ t('contracts.createDialog.fieldBirthDate') }}</Label>
                     <DatePickerField v-model="legalRepBirthDate" :invalid="legalRepBirthDateInvalid" />
                   </div>
                   <div class="flex flex-col gap-2">
-                    <Label>СНИЛС</Label>
+                    <Label>{{ t('contracts.createDialog.fieldSnils') }}</Label>
                     <!-- Голый <input>, не обёртка Input.vue — та держит свой внутренний
                          v-model на том же нативном 'input'-событии, что и наш @input-хендлер
                          маски — гонка (та же ловушка, что и в DatePickerField.vue). -->
@@ -620,19 +624,19 @@ async function submitCreate() {
                     />
                   </div>
                   <div class="flex flex-col gap-2">
-                    <Label>ИНН</Label>
+                    <Label>{{ t('contracts.createDialog.fieldInn') }}</Label>
                     <Input v-model="legalRepInn" />
                   </div>
                   <div class="flex flex-col gap-2">
-                    <Label>Паспорт: серия</Label>
+                    <Label>{{ t('contracts.createDialog.fieldPassportSeries') }}</Label>
                     <Input v-model="legalRepPassportSeries" />
                   </div>
                   <div class="flex flex-col gap-2">
-                    <Label>Паспорт: номер</Label>
+                    <Label>{{ t('contracts.createDialog.fieldPassportNumber') }}</Label>
                     <Input v-model="legalRepPassportNumber" />
                   </div>
                   <div class="flex flex-col gap-2">
-                    <Label>Код подразделения</Label>
+                    <Label>{{ t('contracts.createDialog.fieldPassportIssuedCode') }}</Label>
                     <input
                       :value="legalRepPassportIssuedCode"
                       :class="MASK_INPUT_CLASS"
@@ -642,15 +646,15 @@ async function submitCreate() {
                     />
                   </div>
                   <div class="flex flex-col gap-2">
-                    <Label>Дата выдачи</Label>
+                    <Label>{{ t('contracts.createDialog.fieldPassportIssuedAt') }}</Label>
                     <DatePickerField v-model="legalRepPassportIssuedAt" />
                   </div>
                   <div class="col-span-2 flex flex-col gap-2">
-                    <Label>Кем выдан</Label>
+                    <Label>{{ t('contracts.createDialog.fieldPassportIssuedBy') }}</Label>
                     <Input v-model="legalRepPassportIssuedBy" />
                   </div>
                   <div class="col-span-2 flex flex-col gap-2">
-                    <Label>Адрес регистрации</Label>
+                    <Label>{{ t('contracts.createDialog.fieldAddress') }}</Label>
                     <Input v-model="legalRepAddress" />
                   </div>
                 </div>
@@ -660,12 +664,12 @@ async function submitCreate() {
                   @click="useMatCapital = !useMatCapital"
                 >
                   <Checkbox :model-value="useMatCapital" />
-                  <Label class="cursor-pointer font-normal">Оплата материнским капиталом</Label>
+                  <Label class="cursor-pointer font-normal">{{ t('contracts.createDialog.matCapitalCheckbox') }}</Label>
                 </div>
                 <Transition v-bind="REVEAL_TRANSITION">
                   <div v-if="useMatCapital" class="flex flex-col gap-4">
                     <div class="flex flex-col gap-2">
-                      <Label>Период</Label>
+                      <Label>{{ t('contracts.createDialog.fieldPeriod') }}</Label>
                       <DateRangePickerField
                         v-model:from="matCapitalCoveredFrom"
                         v-model:to="matCapitalCoveredTo"
@@ -674,7 +678,7 @@ async function submitCreate() {
                     </div>
                     <div class="grid grid-cols-2 gap-5">
                       <div class="flex flex-col gap-2">
-                        <Label>Сумма, ₽</Label>
+                        <Label>{{ t('contracts.createDialog.fieldAmountRub') }}</Label>
                         <Input
                           v-model.number="matCapitalAmount"
                           type="number"
@@ -683,7 +687,7 @@ async function submitCreate() {
                         />
                       </div>
                       <div class="flex flex-col gap-2">
-                        <Label>Отсрочка оплаты</Label>
+                        <Label>{{ t('contracts.createDialog.fieldDeferredUntil') }}</Label>
                         <DatePickerField v-model="matCapitalDeferredUntil" :invalid="matCapitalDeferredUntilInvalid" />
                       </div>
                     </div>
@@ -697,8 +701,8 @@ async function submitCreate() {
 
       <DialogFooter>
         <p v-if="dialogError" class="mr-auto self-center text-sm text-red-500">{{ dialogError }}</p>
-        <Button variant="outline" @click="isDialogOpen = false">Отмена</Button>
-        <Button :loading="isSaving" @click="submitCreate">Создать договор</Button>
+        <Button variant="outline" @click="isDialogOpen = false">{{ t('contracts.detail.cancel') }}</Button>
+        <Button :loading="isSaving" @click="submitCreate">{{ t('contracts.createDialog.submit') }}</Button>
       </DialogFooter>
     </DialogScrollContent>
   </Dialog>

@@ -1,5 +1,6 @@
 import { apiFetch } from './api-base'
 import { fetchListPage, fetchListFacets, type ListOptions, type ListPage, type FacetOption } from './list-api'
+import { i18n } from '@/i18n'
 
 export interface Room {
   id: number
@@ -56,7 +57,7 @@ export interface RoomTreeItem {
 export async function fetchRoomsTree(): Promise<RoomTreeItem[]> {
   const response = await apiFetch('/rooms/tree')
   if (!response.ok) {
-    throw new Error(`Не удалось получить список комнат (${response.status})`)
+    throw new Error(i18n.global.t('rooms.errors.fetchListFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -68,7 +69,7 @@ export function fetchFacetValues(field: string): Promise<FacetOption[]> {
 export async function fetchRoomDetail(id: number): Promise<RoomDetail> {
   const response = await apiFetch(`/rooms/${id}`)
   if (!response.ok) {
-    throw new Error(`Не удалось получить данные комнаты (${response.status})`)
+    throw new Error(i18n.global.t('rooms.errors.fetchRoomFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -81,7 +82,7 @@ export async function createRoom(room: string, floor: number): Promise<Room> {
   })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
-    throw new Error(body.message ?? `Не удалось создать комнату (${response.status})`)
+    throw new Error(body.message ?? i18n.global.t('rooms.errors.createRoomFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -94,7 +95,7 @@ export async function updateRoom(id: number, room: string): Promise<Room> {
   })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
-    throw new Error(body.message ?? `Не удалось изменить комнату (${response.status})`)
+    throw new Error(body.message ?? i18n.global.t('rooms.errors.updateRoomFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -103,7 +104,7 @@ export async function deleteRoom(id: number): Promise<void> {
   const response = await apiFetch(`/rooms/${id}`, { method: 'DELETE' })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
-    throw new Error(body.message ?? `Не удалось удалить комнату (${response.status})`)
+    throw new Error(body.message ?? i18n.global.t('rooms.errors.deleteRoomFailed', { status: response.status }))
   }
 }
 
@@ -121,7 +122,7 @@ export async function addCharacteristicValue(roomId: number, input: Characterist
   })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
-    throw new Error(body.message ?? `Не удалось добавить значение характеристики (${response.status})`)
+    throw new Error(body.message ?? i18n.global.t('rooms.errors.addValueFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -138,7 +139,7 @@ export async function updateCharacteristicValue(
   })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
-    throw new Error(body.message ?? `Не удалось изменить значение характеристики (${response.status})`)
+    throw new Error(body.message ?? i18n.global.t('rooms.errors.updateValueFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -147,6 +148,6 @@ export async function deleteCharacteristicValue(roomId: number, valueId: number)
   const response = await apiFetch(`/rooms/${roomId}/characteristics/${valueId}`, { method: 'DELETE' })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
-    throw new Error(body.message ?? `Не удалось удалить значение характеристики (${response.status})`)
+    throw new Error(body.message ?? i18n.global.t('rooms.errors.deleteValueFailed', { status: response.status }))
   }
 }

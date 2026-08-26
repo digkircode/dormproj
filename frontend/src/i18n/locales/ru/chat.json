@@ -1,0 +1,75 @@
+{
+  "chat": {
+    "back": "Назад",
+    "selectDialogHint": "Выберите диалог слева",
+    "staff": {
+      "title": "Чаты с проживающими"
+    },
+    "resident": {
+      "title": "Чат с сотрудниками",
+      "officeHours": "Время работы администрации: 9:30–18:00"
+    },
+    "noActiveContract": "Нет действующего договора",
+    "thread": {
+      "today": "Сегодня",
+      "yesterday": "Вчера",
+      "sendingFile": "📎 Отправка файла…",
+      "sizeMb": "{size} МБ",
+      "sizeKb": "{size} КБ",
+      "attachTooMany": "Не больше {max} файлов в одном сообщении",
+      "attachInvalidType": "«{name}» — недопустимый тип файла",
+      "attachTooLarge": "«{name}» больше {max} МБ",
+      "noMessagesYet": "Сообщений пока нет",
+      "newMessages": "Новые сообщения",
+      "scrollDown": "Вниз",
+      "scrollDownSr": "Вниз, к последним сообщениям",
+      "removeFile": "Убрать файл",
+      "attachFile": "Прикрепить файл",
+      "messagePlaceholder": "Написать сообщение..."
+    },
+    "list": {
+      "searchPlaceholder": "Поиск диалогов...",
+      "newMessage": "Написать проживающим",
+      "noDialogsFound": "Диалогов не найдено",
+      "noMessages": "Нет сообщений"
+    },
+    "broadcast": {
+      "specificPeopleLabel": "Конкретным людям (ищет по ФИО, можно добавить несколько)",
+      "specificPeoplePlaceholder": "Например, Иванов",
+      "removePerson": "Убрать {name}",
+      "explicitPicksHint": "Выбраны конкретные получатели — фильтры по этажу/корпусу/должникам ниже не участвуют.",
+      "floorLabel": "Этаж",
+      "allFloors": "Все этажи",
+      "noFloorData": "Нет данных по этажам",
+      "corpusLabel": "Корпус",
+      "allCorpuses": "Все корпуса",
+      "corpusNotSet": "Характеристика не заведена",
+      "debtorsOnly": "Только должники",
+      "countingRecipients": "Подсчёт получателей...",
+      "willReceive": "Получат сообщение: {count}",
+      "messageLabel": "Сообщение",
+      "messagePlaceholder": "Текст сообщения...",
+      "attachHint": "Уйдёт каждому получателю рассылки",
+      "send": "Отправить",
+      "emptyBody": "Введите текст сообщения",
+      "noRecipients": "Нет проживающих, подходящих под выбранные фильтры"
+    },
+    "lightbox": {
+      "close": "Закрыть",
+      "prevFile": "Предыдущий файл",
+      "nextFile": "Следующий файл"
+    },
+    "errors": {
+      "fetchConversationsFailed": "Не удалось получить список диалогов ({status})",
+      "fetchMessagesFailed": "Не удалось получить сообщения ({status})",
+      "sendFailed": "Не удалось отправить сообщение ({status})",
+      "markReadFailed": "Не удалось отметить диалог прочитанным ({status})",
+      "fetchResidentInfoFailed": "Не удалось получить информацию о проживающем ({status})",
+      "fetchRecipientFacetsFailed": "Не удалось получить фильтры получателей ({status})",
+      "fetchRecipientsFailed": "Не удалось получить список получателей ({status})",
+      "sendBroadcastFailed": "Не удалось отправить рассылку ({status})",
+      "fetchMyChatFailed": "Не удалось получить чат ({status})",
+      "fetchMyResidentInfoFailed": "Не удалось получить информацию о договоре ({status})"
+    }
+  }
+}

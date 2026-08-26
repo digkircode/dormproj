@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
@@ -9,13 +10,18 @@ import { currentUser, isAuthLoading, ensureUserLoaded } from '@/lib/auth-state'
 import { rosnouLoginUrl } from '@/lib/auth-api'
 import { breadcrumbOverride, breadcrumbTrail as trackedTrail } from '@/lib/breadcrumb-state'
 
+const { t } = useI18n()
+
 // Реальный пройденный путь (см. trackBreadcrumbs в router/index.ts), а не статичная
 // иерархия роутов — последняя крошка ещё и переопределяется на конкретное значение
-// (номер договора, имя физлица), если детальная страница его выставила.
+// (номер договора, имя физлица), если детальная страница его выставила. crumb.title —
+// ключ i18n (см. breadcrumb-state.ts), переводится здесь через t() — реактивно
+// к текущей локали, override же уже готовый текст, через t() не проводим.
 const breadcrumbTrail = computed(() =>
-  trackedTrail.value.map((crumb, i) =>
-    i === trackedTrail.value.length - 1 && breadcrumbOverride.value ? { ...crumb, title: breadcrumbOverride.value } : crumb,
-  ),
+  trackedTrail.value.map((crumb, i) => ({
+    ...crumb,
+    title: i === trackedTrail.value.length - 1 && breadcrumbOverride.value ? breadcrumbOverride.value : t(crumb.title),
+  })),
 )
 
 onMounted(async () => {

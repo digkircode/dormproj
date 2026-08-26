@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, Building2, ChevronRight, DoorClosed, Layers, Plus } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -10,6 +11,7 @@ import type { RoomTreeItem } from '@/lib/rooms-api'
 import { goBack } from '@/lib/utils'
 
 const router = useRouter()
+const { t } = useI18n()
 
 const props = defineProps<{
   items: RoomTreeItem[]
@@ -37,12 +39,12 @@ const floorGroups = computed<FloorGroup[]>(() => {
   const floors = [...byFloor.keys()].filter((f): f is number => f !== null).sort((a, b) => a - b)
   const groups: FloorGroup[] = floors.map((floor) => ({
     key: String(floor),
-    label: `${floor} этаж`,
+    label: t('rooms.tree.floorLabel', { floor }),
     rooms: byFloor.get(floor)!,
   }))
   const withoutFloor = byFloor.get(null)
   if (withoutFloor?.length) {
-    groups.push({ key: 'none', label: 'Без этажа', rooms: withoutFloor })
+    groups.push({ key: 'none', label: t('rooms.tree.noFloor'), rooms: withoutFloor })
   }
   return groups
 })
@@ -86,23 +88,23 @@ watch(
       <div class="flex items-center gap-2">
         <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
           <ArrowLeft class="text-primary" />
-          <span class="sr-only">Назад</span>
+          <span class="sr-only">{{ t('rooms.tree.back') }}</span>
         </Button>
-        <h2 class="text-lg font-medium">Комнаты</h2>
+        <h2 class="text-lg font-medium">{{ t('rooms.tree.title') }}</h2>
       </div>
       <Tooltip>
         <TooltipTrigger as-child>
           <Button size="icon" variant="outline" class="size-7" @click="emit('create')">
             <Plus class="text-primary" />
-            <span class="sr-only">Добавить комнату</span>
+            <span class="sr-only">{{ t('rooms.tree.addRoom') }}</span>
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Добавить комнату</TooltipContent>
+        <TooltipContent>{{ t('rooms.tree.addRoom') }}</TooltipContent>
       </Tooltip>
     </div>
 
     <div class="min-h-0 flex-1 overflow-y-auto p-2">
-      <p v-if="isLoading" class="px-2 py-1.5 text-sm text-muted-foreground">Загрузка…</p>
+      <p v-if="isLoading" class="px-2 py-1.5 text-sm text-muted-foreground">{{ t('rooms.tree.loading') }}</p>
       <template v-else>
         <!-- Корень больше не сворачивается (по прямой просьбе) — обычная кнопка выбора,
              клик показывает компактную карточку с общежитскими полями в RoomDetailPanel
@@ -114,7 +116,7 @@ watch(
           @click="emit('select-dormitory')"
         >
           <Building2 class="size-4 shrink-0 text-primary" />
-          <span class="truncate">Общежитие РосНОУ</span>
+          <span class="truncate">{{ t('rooms.tree.dormitoryRoot') }}</span>
         </button>
         <div class="px-2 pt-2">
           <SearchSelect
@@ -122,13 +124,13 @@ watch(
             :items="searchResults"
             :item-key="(r: RoomTreeItem) => r.id"
             :item-label="(r: RoomTreeItem) => r.room"
-            placeholder="Поиск комнаты…"
+            :placeholder="t('rooms.tree.searchPlaceholder')"
             @search="onTreeSearch"
             @select="pickSearchResult"
           />
         </div>
         <div class="ml-3 flex flex-col gap-0.5 border-l pl-2 pt-1">
-          <p v-if="!floorGroups.length" class="px-2 py-1.5 text-sm text-muted-foreground">Комнат пока нет</p>
+          <p v-if="!floorGroups.length" class="px-2 py-1.5 text-sm text-muted-foreground">{{ t('rooms.tree.noRoomsYet') }}</p>
           <Collapsible
             v-for="group in floorGroups"
             :key="group.key"

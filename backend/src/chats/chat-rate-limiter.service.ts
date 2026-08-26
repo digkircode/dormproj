@@ -35,16 +35,16 @@ export class ChatRateLimiterService {
     const messages = prune(this.messageLog.get(userId) ?? [], MESSAGE_WINDOW_MS, now);
     const last = messages[messages.length - 1];
     if (last !== undefined && now - last < MIN_INTERVAL_MS) {
-      tooMany('Слишком часто — подождите секунду перед следующим сообщением');
+      tooMany('chat.errors.tooFrequent');
     }
     if (messages.length >= MESSAGE_LIMIT) {
-      tooMany('Слишком много сообщений подряд — подождите немного');
+      tooMany('chat.errors.tooManyMessages');
     }
 
     if (attachmentCount > 0) {
       const attachments = prune(this.attachmentLog.get(userId) ?? [], ATTACHMENT_WINDOW_MS, now);
       if (attachments.length + attachmentCount > ATTACHMENT_LIMIT) {
-        tooMany('Слишком много файлов подряд — подождите немного');
+        tooMany('chat.errors.tooManyAttachments');
       }
       this.attachmentLog.set(userId, [...attachments, ...new Array(attachmentCount).fill(now)]);
     }

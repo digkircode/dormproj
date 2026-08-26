@@ -26,6 +26,6 @@ export class RolesGuard implements CanActivate {
     if (roles.includes('ADMIN') || required.some((role) => roles.includes(role))) {
       return true;
     }
-    throw new ForbiddenException('Недостаточно прав для этого действия');
+    throw new ForbiddenException('auth.insufficientPermissions');
   }
 }

@@ -1,0 +1,98 @@
+{
+  "users": {
+    "role": {
+      "ADMIN": "Administrator",
+      "STAFF": "Staff",
+      "RESIDENT": "Resident"
+    },
+    "errors": {
+      "fetchRolesFailed": "Failed to load the list of roles ({status})",
+      "createRoleFailed": "Failed to create the role ({status})",
+      "searchUsersFailed": "Failed to find users ({status})",
+      "grantRoleFailed": "Failed to grant the role ({status})",
+      "revokeRoleFailed": "Failed to revoke the role ({status})",
+      "saveFailed": "Failed to save ({status})"
+    },
+    "staff": {
+      "back": "Back",
+      "title": "Staff",
+      "colFullName": "Full name",
+      "colEmail": "Email",
+      "colRoles": "Roles",
+      "colRole": "Role",
+      "totalLabel": "staff",
+      "manageRoles": "Manage roles",
+      "grantRole": "Grant role"
+    },
+    "roles": {
+      "back": "Back",
+      "title": "Roles",
+      "addRole": "Add role",
+      "loading": "Loading…",
+      "colRole": "Role",
+      "colUsersCount": "Users",
+      "newRoleTitle": "New role",
+      "name": "Name",
+      "cancel": "Cancel",
+      "create": "Create"
+    },
+    "list": {
+      "back": "Back",
+      "title": "All users",
+      "colFullName": "Full name",
+      "colEmail": "Email",
+      "colBindId": "bind_id",
+      "colAzureId": "azure_id",
+      "colUniverId": "univer_id",
+      "colRoles": "Roles",
+      "colCreatedAt": "Added",
+      "totalLabel": "users",
+      "editAction": "Edit azure_id/univer_id",
+      "editDialogTitle": "azure_id / univer_id",
+      "azureId": "azure_id",
+      "univerId": "univer_id",
+      "univerIdPlaceholder": "Individual UID (fizicheskoye_litso_uid)",
+      "cancel": "Cancel",
+      "save": "Save"
+    },
+    "manageDialog": {
+      "title": "User roles",
+      "user": "User",
+      "userPlaceholder": "Enter full name or email",
+      "currentRoles": "Current roles",
+      "noRoles": "No roles",
+      "revokeRole": "Revoke role “{role}”",
+      "grantRoleLabel": "Grant role",
+      "selectRolePlaceholder": "Select a role",
+      "grant": "Grant"
+    }
+  },
+  "audit": {
+    "fieldsCountOne": "field",
+    "fieldsCountOther": "fields",
+    "colField": "Field",
+    "colBefore": "Before",
+    "colAfter": "After",
+    "back": "Back",
+    "title": "Change history",
+    "actionCreate": "Created",
+    "actionUpdate": "Updated",
+    "actionDelete": "Deleted",
+    "entityIndividual": "Individual",
+    "entityContract": "Contract",
+    "entityPayment": "Payment",
+    "entityRoom": "Room",
+    "entityRoomCharacteristicDefinition": "Room characteristic",
+    "entityRoomCharacteristicValue": "Characteristic value",
+    "entityDormitoryInfo": "Dormitory settings",
+    "entityRole": "Role",
+    "entityUserRole": "User role",
+    "colCreatedAt": "Date and time",
+    "colUser": "User",
+    "colAction": "Action",
+    "colEntityType": "Entity",
+    "colEntityLabel": "What changed",
+    "colChanges": "Changes",
+    "totalLabel": "records"
+  }
+}

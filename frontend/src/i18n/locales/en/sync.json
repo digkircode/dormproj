@@ -1,0 +1,53 @@
+{
+  "sync": {
+    "title": "Synchronization",
+    "back": "Back",
+    "colName": "Name",
+    "colStatus": "Status",
+    "colTime": "Time",
+    "colDuration": "Duration",
+    "colActions": "Actions",
+    "totalLabel": "syncs",
+    "notYetRun": "Not run yet",
+    "durationMinutes": "{minutes}m {seconds}s",
+    "durationSeconds": "{seconds}s",
+    "individualEntityName": "Individual data update",
+    "status": {
+      "RUNNING": "Running",
+      "SUCCESS": "Success",
+      "FAILED": "Failed"
+    },
+    "actionsLogs": "Logs",
+    "actionsRun": "Run synchronization",
+    "trigger": {
+      "CRON": "Automatic",
+      "MANUAL": "Manual"
+    },
+    "errors": {
+      "triggerFailed": "Failed to start synchronization ({status})"
+    },
+    "logs": {
+      "title": "Logs: {name}",
+      "colRowNumber": "#",
+      "colTrigger": "Type",
+      "colTargetUid": "UID",
+      "colStatus": "Status",
+      "colStartedAt": "Started",
+      "colFinishedAt": "Finished",
+      "totalLabel": "records",
+      "detailsAction": "Details",
+      "logDialogTitle": "Log #{id}",
+      "fetched": "Fetched",
+      "added": "Added",
+      "updated": "Updated",
+      "removed": "Removed",
+      "showMoreData": "Show additional data",
+      "moreByTables": "Details by table",
+      "stepStudents": "Student (records)",
+      "stepIndividuals": "Individual",
+      "stepCitizenship": "Citizenship",
+      "stepPassport": "Passport data",
+      "stepContactInfo": "Contact information"
+    }
+  }
+}

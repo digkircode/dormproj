@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, ExternalLink, Plus } from 'lucide-vue-next'
 import EntityTable from '@/components/EntityTable.vue'
@@ -11,39 +12,46 @@ import { fetchFacetValues, fetchIndividuals, type Individual } from '@/lib/indiv
 import { goBack } from '@/lib/utils'
 
 const router = useRouter()
+const { t } = useI18n()
 
-const columnLabels: Record<string, string> = {
-  fullName: 'ФИО',
-  code: 'Код',
-  birthDate: 'Дата рождения',
-  gender: 'Пол',
-  snils: 'СНИЛС',
-  inn: 'ИНН',
-  fizicheskoyeLitsoUid: 'UID физлица',
-}
+const columnLabels = computed<Record<string, string>>(() => ({
+  fullName: t('individuals.list.colFullName'),
+  code: t('individuals.list.colCode'),
+  birthDate: t('individuals.list.colBirthDate'),
+  gender: t('individuals.list.colGender'),
+  snils: t('individuals.list.colSnils'),
+  inn: t('individuals.list.colInn'),
+  fizicheskoyeLitsoUid: t('individuals.list.colUid'),
+}))
 const filterableFields = ['gender']
 const hiddenByDefault = ['fizicheskoyeLitsoUid']
 
+// gender — литерал 'Мужской'/'Женский' (см. individuals-api.ts, соответствует значению
+// в БД), переводим только отображение, те же ключи, что и в CreateContractDialog.vue.
 function cellText(columnId: string, value: unknown): string {
   if (columnId === 'birthDate' && typeof value === 'string') {
     const date = new Date(value)
     const pad = (n: number) => n.toString().padStart(2, '0')
     return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
   }
+  if (columnId === 'gender' && value === 'Мужской') return t('contracts.gender.male')
+  if (columnId === 'gender' && value === 'Женский') return t('contracts.gender.female')
   return String(value ?? '')
 }
 
 const columnHelper = createAppColumnHelper<Individual>()
 
-const columns = columnHelper.columns([
-  columnHelper.accessor('fizicheskoyeLitsoUid', { header: columnLabels.fizicheskoyeLitsoUid, size: 280, minSize: 200 }),
-  columnHelper.accessor('fullName', { header: columnLabels.fullName, enableHiding: false, size: 256, minSize: 160 }),
-  columnHelper.accessor('code', { header: columnLabels.code, size: 128, minSize: 90 }),
-  columnHelper.accessor('birthDate', { header: columnLabels.birthDate, size: 128, minSize: 100 }),
-  columnHelper.accessor('gender', { header: columnLabels.gender, size: 96, minSize: 80 }),
-  columnHelper.accessor('snils', { header: columnLabels.snils, size: 144, minSize: 100 }),
-  columnHelper.accessor('inn', { header: columnLabels.inn, size: 144, minSize: 100 }),
-])
+const columns = computed(() =>
+  columnHelper.columns([
+    columnHelper.accessor('fizicheskoyeLitsoUid', { header: columnLabels.value.fizicheskoyeLitsoUid, size: 280, minSize: 200 }),
+    columnHelper.accessor('fullName', { header: columnLabels.value.fullName, enableHiding: false, size: 256, minSize: 160 }),
+    columnHelper.accessor('code', { header: columnLabels.value.code, size: 128, minSize: 90 }),
+    columnHelper.accessor('birthDate', { header: columnLabels.value.birthDate, size: 128, minSize: 100 }),
+    columnHelper.accessor('gender', { header: columnLabels.value.gender, size: 96, minSize: 80 }),
+    columnHelper.accessor('snils', { header: columnLabels.value.snils, size: 144, minSize: 100 }),
+    columnHelper.accessor('inn', { header: columnLabels.value.inn, size: 144, minSize: 100 }),
+  ]),
+)
 
 const createDialogRef = ref<InstanceType<typeof CreateIndividualDialog> | null>(null)
 </script>
@@ -53,9 +61,9 @@ const createDialogRef = ref<InstanceType<typeof CreateIndividualDialog> | null>(
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
-        <span class="sr-only">Назад</span>
+        <span class="sr-only">{{ t('individuals.list.back') }}</span>
       </Button>
-      <h1 class="text-lg font-medium">Физические лица</h1>
+      <h1 class="text-lg font-medium">{{ t('individuals.list.title') }}</h1>
     </div>
 
     <EntityTable
@@ -66,14 +74,14 @@ const createDialogRef = ref<InstanceType<typeof CreateIndividualDialog> | null>(
       :fetch-page="fetchIndividuals"
       :fetch-facet-values="fetchFacetValues"
       :get-row-id="(i: Individual) => i.fizicheskoyeLitsoUid"
-      total-label="физлиц"
+      :total-label="t('individuals.list.totalLabel')"
       :cell-text="cellText"
       :hidden-by-default="hiddenByDefault"
       storage-key="individuals"
       accent-icons
       :row-action="{
         icon: ExternalLink,
-        label: 'Открыть карточку физлица',
+        label: t('individuals.list.openCard'),
         getHref: (i: Individual) => `/individuals/${encodeURIComponent(i.fizicheskoyeLitsoUid)}`,
       }"
     >
@@ -82,10 +90,10 @@ const createDialogRef = ref<InstanceType<typeof CreateIndividualDialog> | null>(
           <TooltipTrigger as-child>
             <Button size="icon" @click="createDialogRef?.open()">
               <Plus />
-              <span class="sr-only">Новое физическое лицо</span>
+              <span class="sr-only">{{ t('individuals.list.newIndividual') }}</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Новое физическое лицо</TooltipContent>
+          <TooltipContent>{{ t('individuals.list.newIndividual') }}</TooltipContent>
         </Tooltip>
       </template>
     </EntityTable>

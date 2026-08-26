@@ -1,9 +1,12 @@
+import path from 'path';
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { I18nModule, HeaderResolver } from 'nestjs-i18n';
 import { AppController } from './app.controller';
+import { I18nHttpExceptionFilter } from './i18n/http-exception.filter';
 import { AppService } from './app.service';
 import { validateEnv } from './config/env.schema';
 import { PrismaModule } from './prisma/prisma.module';
@@ -42,6 +45,15 @@ import { MyPaymentsModule } from './my-payments/my-payments.module';
     ThrottlerModule.forRoot({
       throttlers: [{ ttl: 60000, limit: 100 }],
     }),
+    // i18n/ рядом с templates/ (не под src/) — Dockerfile копирует dist/+templates/, но не
+    // src/, тот же принцип, что у печатных бланков (см. contract-document.ts). Язык
+    // резолвится из Accept-Language, который фронт шлёт на каждый запрос (см. api-base.ts) —
+    // без изменений в сессии/БД, язык остаётся клиентским выбором, не серверной настройкой.
+    I18nModule.forRoot({
+      fallbackLanguage: 'ru',
+      loaderOptions: { path: path.join(process.cwd(), 'i18n'), watch: process.env.NODE_ENV !== 'production' },
+      resolvers: [new HeaderResolver(['accept-language'])],
+    }),
     PrismaModule,
     AuditLogModule,
     AuthModule,
@@ -69,6 +81,10 @@ import { MyPaymentsModule } from './my-payments/my-payments.module';
     MyPaymentsModule,
   ],
   controllers: [AppController],
-  providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    AppService,
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_FILTER, useClass: I18nHttpExceptionFilter },
+  ],
 })
 export class AppModule {}

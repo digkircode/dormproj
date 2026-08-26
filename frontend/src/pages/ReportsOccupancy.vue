@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, ChevronRight, DoorClosed, DoorOpen, FileText, Home, Layers, ListFilter, Percent, SlidersHorizontal } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
@@ -13,6 +14,7 @@ import { fetchRoomDetail, type RoomDetail } from '@/lib/rooms-api'
 import { goBack } from '@/lib/utils'
 
 const router = useRouter()
+const { t } = useI18n()
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
@@ -113,7 +115,7 @@ async function openRoom(room: OccupancyRoom) {
 }
 function formatCharacteristicValue(entry: { valueType: string; value: boolean | number | string | null; unit: string | null }): string {
   if (entry.value === null || entry.value === undefined) return '—'
-  if (entry.valueType === 'BOOLEAN') return entry.value ? 'Да' : 'Нет'
+  if (entry.valueType === 'BOOLEAN') return entry.value ? t('boolean.yes') : t('boolean.no')
   return entry.unit ? `${entry.value} ${entry.unit}` : String(entry.value)
 }
 function sortedCharacteristics(list: RoomDetail['characteristics']) {
@@ -143,13 +145,13 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
-        <span class="sr-only">Назад</span>
+        <span class="sr-only">{{ t('reports.common.back') }}</span>
       </Button>
-      <h1 class="text-lg font-medium">Занятость общежития</h1>
+      <h1 class="text-lg font-medium">{{ t('reports.occupancy.title') }}</h1>
     </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-    <p v-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
+    <p v-if="isLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
 
     <template v-else-if="report">
       <Card class="grid grid-cols-4 gap-4 p-4">
@@ -157,28 +159,28 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
           :icon="Home"
           bg-class="bg-blue-100 dark:bg-blue-500/15"
           icon-class="text-blue-600 dark:text-blue-400"
-          label="Всего мест"
+          :label="t('reports.occupancy.kpiTotalPlaces')"
           :value="String(report.totalPlaces)"
         />
         <ReportKpiTile
           :icon="DoorClosed"
           bg-class="bg-red-100 dark:bg-red-500/15"
           icon-class="text-red-600 dark:text-red-400"
-          label="Занято"
+          :label="t('reports.occupancy.kpiOccupied')"
           :value="String(report.occupied)"
         />
         <ReportKpiTile
           :icon="DoorOpen"
           bg-class="bg-emerald-100 dark:bg-emerald-500/15"
           icon-class="text-emerald-600 dark:text-emerald-400"
-          label="Свободно"
+          :label="t('reports.occupancy.kpiFree')"
           :value="String(report.free)"
         />
         <ReportKpiTile
           :icon="Percent"
           bg-class="bg-orange-100 dark:bg-orange-500/15"
           icon-class="text-orange-600 dark:text-orange-400"
-          label="Загрузка"
+          :label="t('reports.occupancy.kpiLoad')"
           :value="formatPercent(report.occupancyRate)"
         />
       </Card>
@@ -186,24 +188,24 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
       <div class="flex items-center gap-2">
         <Tabs v-model="roomsView">
           <TabsList class="w-fit">
-            <TabsTrigger value="new">Новый</TabsTrigger>
-            <TabsTrigger value="old">Старый</TabsTrigger>
-            <TabsTrigger value="all">Все</TabsTrigger>
+            <TabsTrigger value="new">{{ t('reports.occupancy.tabNew') }}</TabsTrigger>
+            <TabsTrigger value="old">{{ t('reports.occupancy.tabOld') }}</TabsTrigger>
+            <TabsTrigger value="all">{{ t('reports.occupancy.tabAll') }}</TabsTrigger>
           </TabsList>
         </Tabs>
 
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button variant="outline" size="icon" title="Фильтр по занятости">
+            <Button variant="outline" size="icon" :title="t('reports.occupancy.filterTooltip')">
               <ListFilter class="text-primary" />
-              <span class="sr-only">Фильтр по занятости</span>
+              <span class="sr-only">{{ t('reports.occupancy.filterTooltip') }}</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" class="w-48">
             <DropdownMenuRadioGroup v-model="occupancyFilter">
-              <DropdownMenuRadioItem value="all">Все</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="free">Свободные</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="occupied">Занятые</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="all">{{ t('reports.occupancy.filterAll') }}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="free">{{ t('reports.occupancy.filterFree') }}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="occupied">{{ t('reports.occupancy.filterOccupied') }}</DropdownMenuRadioItem>
             </DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -218,7 +220,7 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
           >
             <ChevronRight class="size-3.5 transition-transform" :class="expandedFloors[floorKey(floorGroup.floor)] ? 'rotate-90' : ''" />
             <Layers class="size-4 text-primary" />
-            {{ floorGroup.floor === null ? 'Без этажа' : `Этаж ${floorGroup.floor}` }}
+            {{ floorGroup.floor === null ? t('reports.occupancy.noFloor') : t('reports.occupancy.floorLabel', { floor: floorGroup.floor }) }}
             <span class="text-xs text-muted-foreground">({{ floorGroup.rooms.length }})</span>
           </button>
           <div v-if="expandedFloors[floorKey(floorGroup.floor)]" class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
@@ -247,16 +249,16 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
     <Dialog :open="roomDialogOpen" @update:open="(v) => (roomDialogOpen = v)">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
-          <DialogTitle>Комната {{ selectedRoom?.room }}</DialogTitle>
+          <DialogTitle>{{ t('roomInfo.dialogTitle', { room: selectedRoom?.room }) }}</DialogTitle>
         </DialogHeader>
         <div v-if="selectedRoom" class="flex flex-col gap-4 text-sm">
           <div class="flex flex-col gap-2">
             <div class="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
               <SlidersHorizontal class="size-4 text-primary" />
-              Характеристики
+              {{ t('reports.occupancy.characteristics') }}
             </div>
             <p v-if="roomDetailError" class="text-sm text-red-500">{{ roomDetailError }}</p>
-            <p v-else-if="roomDetailLoading" class="text-sm text-muted-foreground">Загрузка…</p>
+            <p v-else-if="roomDetailLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
             <!-- Та же сетка характеристик и тот же приём линий, что в RoomDetailPanel.vue/
                  RoomInfoTrigger.vue (вертикальный разделитель по чётности индекса,
                  горизонтальный — border-t от второй строки). Нечётное количество —
@@ -290,11 +292,11 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
                 class="flex items-center gap-1 text-xs text-primary"
               >
                 <FileText class="size-3.5 shrink-0" />
-                Договор № {{ o.contractNumber }}
+                {{ t('contracts.detail.titleWithNumber', { number: o.contractNumber }) }}
               </RouterLink>
             </li>
           </ul>
-          <p v-else class="text-muted-foreground">Комната свободна</p>
+          <p v-else class="text-muted-foreground">{{ t('reports.occupancy.roomFree') }}</p>
         </div>
       </DialogScrollContent>
     </Dialog>

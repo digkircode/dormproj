@@ -21,6 +21,7 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import type { Request, Response } from 'express';
 import { Observable } from 'rxjs';
 import { filter, map } from 'rxjs/operators';
+import { I18nContext } from 'nestjs-i18n';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -38,7 +39,7 @@ const MAX_BODY_LENGTH = 4000;
 function parseId(idParam: string): number {
   const id = Number.parseInt(idParam, 10);
   if (!Number.isInteger(id)) {
-    throw new BadRequestException('Некорректный id');
+    throw new BadRequestException('contracts.errors.invalidId');
   }
   return id;
 }
@@ -62,7 +63,7 @@ export class MyChatController {
     // (см. resident-role-sync.ts) — аккаунт без привязки к физлицу эту роль получить не
     // может, поэтому это защитная проверка на непредвиденное рассинхронизированное состояние.
     if (!user?.univerId) {
-      throw new BadRequestException('Аккаунт не привязан к физическому лицу — чат недоступен');
+      throw new BadRequestException('chat.errors.accountNotLinkedToIndividual');
     }
     return user.univerId;
   }
@@ -79,7 +80,7 @@ export class MyChatController {
   @Get()
   async myChat(@Req() req: Request, @Query('before') beforeParam?: string) {
     if (!req.user) {
-      throw new BadRequestException('Не удалось определить пользователя сессии');
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
     const individualUid = await this.resolveIndividualUid(req.user.id);
     const before = beforeParam ? parseId(beforeParam) : undefined;
@@ -139,7 +140,7 @@ export class MyChatController {
   @Get('resident-info')
   async residentInfo(@Req() req: Request) {
     if (!req.user) {
-      throw new BadRequestException('Не удалось определить пользователя сессии');
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
     const individualUid = await this.resolveIndividualUid(req.user.id);
     const contract = await this.prisma.contract.findFirst({
@@ -160,7 +161,7 @@ export class MyChatController {
   @Get('unread')
   async unread(@Req() req: Request) {
     if (!req.user) {
-      throw new BadRequestException('Не удалось определить пользователя сессии');
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
     const individualUid = await this.resolveIndividualUid(req.user.id);
     const conversation = await this.prisma.chatConversation.findUnique({
@@ -182,15 +183,18 @@ export class MyChatController {
   ) {
     if (!req.user) {
       await cleanupUploadedFiles(files);
-      throw new BadRequestException('Не удалось определить пользователя сессии');
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
     const trimmedBody = bodyText?.trim();
     if (trimmedBody && trimmedBody.length > MAX_BODY_LENGTH) {
       await cleanupUploadedFiles(files);
-      throw new BadRequestException(`Сообщение слишком длинное (максимум ${MAX_BODY_LENGTH} символов)`);
+      throw new BadRequestException(
+        I18nContext.current()?.t('chat.errors.bodyTooLong', { args: { max: MAX_BODY_LENGTH } }) ??
+          `Сообщение слишком длинное (максимум ${MAX_BODY_LENGTH} символов)`,
+      );
     }
     if (!trimmedBody && files.length === 0) {
-      throw new BadRequestException('Пустое сообщение — добавьте текст или файл');
+      throw new BadRequestException('chat.errors.emptyMessage');
     }
 
     // Всё, что может упасть ПОСЛЕ того, как multer уже записал файлы на диск —
@@ -234,7 +238,7 @@ export class MyChatController {
   @Get('attachments/:id')
   async attachment(@Param('id') idParam: string, @Req() req: Request, @Res() res: Response) {
     if (!req.user) {
-      throw new BadRequestException('Не удалось определить пользователя сессии');
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
     const individualUid = await this.resolveIndividualUid(req.user.id);
     const id = parseId(idParam);
@@ -244,12 +248,12 @@ export class MyChatController {
       include: { message: { include: { conversation: true } } },
     });
     if (!attachment || attachment.message.conversation.individualUid !== individualUid) {
-      throw new NotFoundException('Файл не найден');
+      throw new NotFoundException('chat.errors.fileNotFound');
     }
 
     const filePath = join(CHAT_UPLOADS_DIR, attachment.storageKey);
     if (!existsSync(filePath)) {
-      throw new NotFoundException('Файл не найден');
+      throw new NotFoundException('chat.errors.fileNotFound');
     }
     res.set('Content-Type', attachment.mimeType);
     res.sendFile(filePath);
@@ -258,7 +262,7 @@ export class MyChatController {
   @Sse('stream')
   async stream(@Req() req: Request): Promise<Observable<MessageEvent>> {
     if (!req.user) {
-      throw new BadRequestException('Не удалось определить пользователя сессии');
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
     const individualUid = await this.resolveIndividualUid(req.user.id);
     return this.events.events$.pipe(

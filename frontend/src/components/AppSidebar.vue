@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { SidebarProps } from '@/components/ui/sidebar'
 import { ref } from 'vue'
 import {
@@ -38,6 +39,7 @@ import {
   SidebarRail,
 } from '@/components/ui/sidebar'
 
+const { t } = useI18n()
 const paymentDialog = ref<InstanceType<typeof CreatePaymentDialog> | null>(null)
 
 const props = withDefaults(defineProps<SidebarProps>(), {
@@ -77,18 +79,18 @@ const hasResidentRole = computed(() => roles.value.includes('RESIDENT'))
 // добавляется только при canSeeResidentChat, поэтому весь список стал computed.
 const navStudent = computed(() => [
   {
-    title: 'Общая информация',
+    title: t('nav.studentGeneralInfo'),
     url: '/student/general-info',
     icon: Info,
   },
   ...(canSeeResidentChat.value
     ? [
-        { title: 'Договор/Платежи', url: '/student/contract', icon: FileSignature },
+        { title: t('nav.studentContract'), url: '/student/contract', icon: FileSignature },
         // "Оплата" (/student/payment) скрыта из навигации по прямой просьбе 2026-08-25 —
         // создание платежа теперь модалкой на карточке договора (см. CreatePaymentDialog.vue),
         // сам роут не удалён — нужен как returnUrl-цель после редиректа из банка
         // (см. my-payments.controller.ts#createIntent).
-        { title: 'Чат с сотрудниками', url: '/student/chat', icon: MessageCircle, badge: hasUnreadResidentChat.value },
+        { title: t('nav.studentChat'), url: '/student/chat', icon: MessageCircle, badge: hasUnreadResidentChat.value },
       ]
     : []),
 ])
@@ -123,71 +125,71 @@ useChatStream('/my-chat/stream', refreshResidentUnread, hasResidentRole)
 // что у navStudent выше).
 const navMain = computed(() => [
   {
-    title: 'Договоры',
+    title: t('nav.contracts'),
     url: '/contracts',
     icon: FileText,
   },
   {
-    title: 'Физические лица',
+    title: t('nav.individuals'),
     url: '/individuals',
     icon: User,
   },
   {
-    title: 'Чаты',
+    title: t('nav.chats'),
     url: '/chats',
     icon: MessageCircle,
     badge: hasUnreadStaffChats.value,
   },
   {
-    title: 'Комнаты',
+    title: t('nav.rooms'),
     url: '/rooms',
     icon: DoorOpen,
   },
   {
-    title: 'Отчёты',
+    title: t('nav.reports'),
     icon: BarChart3,
     items: [
-      { title: 'Занятость общежития', url: '/reports/occupancy' },
-      { title: 'Реестр проживающих', url: '/reports/contingent' },
-      { title: 'Реестр договоров', url: '/reports/contracts' },
-      { title: 'Финансовый отчёт', url: '/reports/debt' },
-      { title: 'Движение проживающих', url: '/reports/move-in-out' },
+      { title: t('nav.reportsOccupancy'), url: '/reports/occupancy' },
+      { title: t('nav.reportsContingent'), url: '/reports/contingent' },
+      { title: t('nav.reportsContracts'), url: '/reports/contracts' },
+      { title: t('nav.reportsDebt'), url: '/reports/debt' },
+      { title: t('nav.reportsMoveInOut'), url: '/reports/move-in-out' },
     ],
   },
 ])
 
-const data = {
+const data = computed(() => ({
   teams: [
     {
-      name: 'РосНОУ',
-      plan: 'Общежитие',
+      name: t('sidebar.team'),
+      plan: t('sidebar.teamPlan'),
     },
   ],
   projects: [
-    { name: 'Синхронизация', url: '/sync', icon: RefreshCw },
-    { name: 'История изменений', url: '/audit-log', icon: History },
+    { name: t('nav.sync'), url: '/sync', icon: RefreshCw },
+    { name: t('nav.auditLog'), url: '/audit-log', icon: History },
     {
-      name: 'Пользователи',
+      name: t('sidebar.projectUsers'),
       icon: Users,
       items: [
-        { title: 'Список пользователей', url: '/users-all' },
-        { title: 'Сотрудники', url: '/users' },
-        { title: 'Роли', url: '/roles' },
+        { title: t('nav.usersAll'), url: '/users-all' },
+        { title: t('nav.users'), url: '/users' },
+        { title: t('nav.roles'), url: '/roles' },
       ],
     },
     {
-      name: 'Системные таблицы',
+      name: t('sidebar.projectSystemTables'),
       icon: Table2,
       items: [
-        { title: 'Контингент студентов', url: '/students' },
-        { title: 'Гражданство', url: '/system-tables/citizenship' },
-        { title: 'Контактная информация', url: '/system-tables/contact-info' },
-        { title: 'Паспортные данные', url: '/system-tables/passport-data' },
-        { title: 'Характеристики комнат', url: '/room-characteristics' },
+        { title: t('nav.students'), url: '/students' },
+        { title: t('nav.citizenship'), url: '/system-tables/citizenship' },
+        { title: t('nav.contactInfo'), url: '/system-tables/contact-info' },
+        { title: t('nav.passportData'), url: '/system-tables/passport-data' },
+        { title: t('nav.roomCharacteristics'), url: '/room-characteristics' },
       ],
     },
   ],
-}
+}))
 </script>
 
 <template>
@@ -205,7 +207,7 @@ const data = {
             @click="paymentDialog?.open()"
           >
             <CreditCard class="size-4" />
-            <span>Оплатить</span>
+            <span>{{ t('nav.sidebarPay') }}</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
       </SidebarMenu>

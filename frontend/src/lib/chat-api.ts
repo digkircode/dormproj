@@ -1,4 +1,5 @@
 import { apiFetch, apiUrl } from './api-base'
+import { i18n } from '@/i18n'
 
 export type ChatSenderRole = 'RESIDENT' | 'STAFF'
 
@@ -93,23 +94,23 @@ export const MAX_VIDEO_BYTES = 50 * 1024 * 1024
 export const MAX_ATTACHMENTS_PER_MESSAGE = 5
 export const ALLOWED_ATTACHMENT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm', 'video/quicktime']
 
-async function parseErrorMessage(response: Response, fallback: string): Promise<string> {
+async function parseErrorMessage(response: Response, fallbackKey: string): Promise<string> {
   const body: { message?: string } = await response.json().catch(() => ({}))
-  return body.message ?? `${fallback} (${response.status})`
+  return body.message ?? i18n.global.t(fallbackKey, { status: response.status })
 }
 
 // ===== Инбокс сотрудников (STAFF/ADMIN) =====
 
 export async function fetchConversations(): Promise<ChatConversationListItem[]> {
   const response = await apiFetch('/chats')
-  if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось получить список диалогов'))
+  if (!response.ok) throw new Error(await parseErrorMessage(response, 'chat.errors.fetchConversationsFailed'))
   return response.json()
 }
 
 export async function fetchConversationMessages(conversationId: number, before?: number): Promise<ChatMessagesPage> {
   const query = before ? `?before=${before}` : ''
   const response = await apiFetch(`/chats/${conversationId}/messages${query}`)
-  if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось получить сообщения'))
+  if (!response.ok) throw new Error(await parseErrorMessage(response, 'chat.errors.fetchMessagesFailed'))
   return response.json()
 }
 
@@ -132,25 +133,25 @@ export async function sendStaffMessage(conversationId: number, body: string, fil
     method: 'POST',
     body: messageFormData(body, files),
   })
-  if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось отправить сообщение'))
+  if (!response.ok) throw new Error(await parseErrorMessage(response, 'chat.errors.sendFailed'))
   return response.json()
 }
 
 export async function markConversationRead(conversationId: number): Promise<void> {
   const response = await apiFetch(`/chats/${conversationId}/read`, { method: 'POST' })
-  if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось отметить диалог прочитанным'))
+  if (!response.ok) throw new Error(await parseErrorMessage(response, 'chat.errors.markReadFailed'))
 }
 
 // Комната/действующий договор проживающего — шапка диалога у сотрудника.
 export async function fetchResidentInfo(conversationId: number): Promise<ResidentInfo> {
   const response = await apiFetch(`/chats/${conversationId}/resident-info`)
-  if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось получить информацию о проживающем'))
+  if (!response.ok) throw new Error(await parseErrorMessage(response, 'chat.errors.fetchResidentInfoFailed'))
   return response.json()
 }
 
 export async function fetchRecipientFacets(): Promise<ChatRecipientFacets> {
   const response = await apiFetch('/chats/recipients/filters')
-  if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось получить фильтры получателей'))
+  if (!response.ok) throw new Error(await parseErrorMessage(response, 'chat.errors.fetchRecipientFacetsFailed'))
   return response.json()
 }
 
@@ -167,7 +168,7 @@ function filtersToQuery(filters: ChatRecipientFilters): string {
 
 export async function fetchRecipients(filters: ChatRecipientFilters): Promise<ChatRecipient[]> {
   const response = await apiFetch(`/chats/recipients${filtersToQuery(filters)}`)
-  if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось получить список получателей'))
+  if (!response.ok) throw new Error(await parseErrorMessage(response, 'chat.errors.fetchRecipientsFailed'))
   return response.json()
 }
 
@@ -180,7 +181,7 @@ export async function sendBroadcast(body: string, filters: ChatRecipientFilters,
   form.set('filters', JSON.stringify(filters))
   for (const file of files) form.append('files', file)
   const response = await apiFetch('/chats/broadcast', { method: 'POST', body: form })
-  if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось отправить рассылку'))
+  if (!response.ok) throw new Error(await parseErrorMessage(response, 'chat.errors.sendBroadcastFailed'))
   return response.json()
 }
 
@@ -200,7 +201,7 @@ export interface MyChatResponse {
 export async function fetchMyChat(before?: number): Promise<MyChatResponse> {
   const query = before ? `?before=${before}` : ''
   const response = await apiFetch(`/my-chat${query}`)
-  if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось получить чат'))
+  if (!response.ok) throw new Error(await parseErrorMessage(response, 'chat.errors.fetchMyChatFailed'))
   return response.json()
 }
 
@@ -224,7 +225,7 @@ export interface MyResidentInfo {
 
 export async function fetchMyResidentInfo(): Promise<MyResidentInfo> {
   const response = await apiFetch('/my-chat/resident-info')
-  if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось получить информацию о договоре'))
+  if (!response.ok) throw new Error(await parseErrorMessage(response, 'chat.errors.fetchMyResidentInfoFailed'))
   return response.json()
 }
 
@@ -235,6 +236,6 @@ export async function sendMyMessage(body: string, files: File[] = []): Promise<{
     method: 'POST',
     body: messageFormData(body, files),
   })
-  if (!response.ok) throw new Error(await parseErrorMessage(response, 'Не удалось отправить сообщение'))
+  if (!response.ok) throw new Error(await parseErrorMessage(response, 'chat.errors.sendFailed'))
   return response.json()
 }

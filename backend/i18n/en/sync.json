@@ -1,0 +1,14 @@
+{
+  "errors": {
+    "alreadyRunning": "Sync is already running, please wait for it to finish"
+  },
+  "status": {
+    "RUNNING": "Running",
+    "SUCCESS": "Success",
+    "FAILED": "Failed"
+  },
+  "trigger": {
+    "CRON": "Automatic",
+    "MANUAL": "Manual"
+  }
+}

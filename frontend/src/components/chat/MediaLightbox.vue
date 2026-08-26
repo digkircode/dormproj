@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ChevronLeft, ChevronRight, X } from 'lucide-vue-next'
 import { chatAttachmentUrl, type ChatAttachment } from '@/lib/chat-api'
 
@@ -14,6 +15,8 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{ 'update:open': [boolean]; 'update:index': [number] }>()
+
+const { t } = useI18n()
 
 const current = computed(() => props.attachments[props.index])
 const url = computed(() => (current.value ? chatAttachmentUrl(props.attachmentBasePath, current.value.id) : ''))
@@ -56,7 +59,7 @@ watch(
       <div v-if="open && current" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4" @click.self="close">
         <button type="button" class="absolute top-4 right-4 rounded-full p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white" @click="close">
           <X class="size-6" />
-          <span class="sr-only">Закрыть</span>
+          <span class="sr-only">{{ t('chat.lightbox.close') }}</span>
         </button>
         <button
           v-if="hasPrev"
@@ -65,7 +68,7 @@ watch(
           @click.stop="prev"
         >
           <ChevronLeft class="size-8" />
-          <span class="sr-only">Предыдущий файл</span>
+          <span class="sr-only">{{ t('chat.lightbox.prevFile') }}</span>
         </button>
         <button
           v-if="hasNext"
@@ -74,7 +77,7 @@ watch(
           @click.stop="next"
         >
           <ChevronRight class="size-8" />
-          <span class="sr-only">Следующий файл</span>
+          <span class="sr-only">{{ t('chat.lightbox.nextFile') }}</span>
         </button>
         <img
           v-if="current.kind === 'IMAGE'"

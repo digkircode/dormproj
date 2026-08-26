@@ -1,0 +1,23 @@
+{
+  "errors": {
+    "invalidConversationId": "Некорректный id диалога",
+    "invalidRecipientFilters": "Некорректные фильтры получателей",
+    "noMatchingResidents": "Нет проживающих, подходящих под выбранные фильтры",
+    "conversationNotFound": "Диалог не найден",
+    "fileNotFound": "Файл не найден",
+    "bodyTooLong": "Сообщение слишком длинное (максимум {max} символов)",
+    "emptyMessage": "Пустое сообщение — добавьте текст или файл",
+    "accountNotLinkedToIndividual": "Аккаунт не привязан к физическому лицу — чат недоступен",
+    "invalidFileType": "Недопустимый тип файла: {type}",
+    "unknownMimeType": "неизвестен",
+    "fileTooLarge": "Файл «{name}» превышает допустимый размер ({max} МБ)",
+    "tooFrequent": "Слишком часто — подождите секунду перед следующим сообщением",
+    "tooManyMessages": "Слишком много сообщений подряд — подождите немного",
+    "tooManyAttachments": "Слишком много файлов подряд — подождите немного"
+  },
+  "preview": {
+    "files": "📎 {count} файла",
+    "video": "🎥 Видео",
+    "photo": "📷 Фото"
+  }
+}

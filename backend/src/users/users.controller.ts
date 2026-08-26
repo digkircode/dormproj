@@ -8,6 +8,7 @@ import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { ensureUserRecord } from './ensure-user';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { zodErrorMessage } from '../i18n/zod-error-message';
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -43,7 +44,7 @@ const grantRoleSchema = z.object({ roleId: z.number().int() });
 function parseIdParam(idParam: string): number {
   const id = Number.parseInt(idParam, 10);
   if (!Number.isInteger(id)) {
-    throw new BadRequestException('Некорректный id');
+    throw new BadRequestException('contracts.errors.invalidId');
   }
   return id;
 }
@@ -65,7 +66,7 @@ export class UsersController {
       include: { roles: { include: { role: true }, orderBy: { role: { name: 'asc' } } } },
     });
     if (!user) {
-      throw new NotFoundException('Пользователь не найден');
+      throw new NotFoundException('users.errors.userNotFound');
     }
     return { id: user.id, fullName: user.fullName, email: user.email, roles: user.roles.map((r) => r.role) };
   }
@@ -191,14 +192,14 @@ export class UsersController {
     const id = parseIdParam(idParam);
     const parsed = updateUserLinksSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException(parsed.error.message);
+      throw new BadRequestException(zodErrorMessage(parsed.error));
     }
     if (!req.user) {
-      throw new BadRequestException('Не удалось определить пользователя сессии');
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
     const existing = await this.prisma.user.findUnique({ where: { id } });
     if (!existing) {
-      throw new NotFoundException('Пользователь не найден');
+      throw new NotFoundException('users.errors.userNotFound');
     }
 
     const azureId = parsed.data.azureId?.trim() || null;
@@ -222,7 +223,7 @@ export class UsersController {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
-        throw new BadRequestException('Физлицо с таким univer_id не найдено (нет такого uid в физлицах)');
+        throw new BadRequestException('users.errors.individualUidNotFound');
       }
       throw error;
     }
@@ -257,17 +258,17 @@ export class UsersController {
     const id = parseIdParam(idParam);
     const parsed = grantRoleSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException(parsed.error.message);
+      throw new BadRequestException(zodErrorMessage(parsed.error));
     }
     if (!req.user) {
-      throw new BadRequestException('Не удалось определить пользователя сессии');
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
     const [user, role] = await Promise.all([
       this.prisma.user.findUnique({ where: { id } }),
       this.prisma.role.findUnique({ where: { id: parsed.data.roleId } }),
     ]);
-    if (!user) throw new NotFoundException('Пользователь не найден');
-    if (!role) throw new NotFoundException('Роль не найдена');
+    if (!user) throw new NotFoundException('users.errors.userNotFound');
+    if (!role) throw new NotFoundException('users.errors.roleNotFound');
 
     await this.prisma.$transaction(async (tx) => {
       await tx.userRole.upsert({
@@ -295,13 +296,13 @@ export class UsersController {
     const id = parseIdParam(idParam);
     const roleId = parseIdParam(roleIdParam);
     if (!req.user) {
-      throw new BadRequestException('Не удалось определить пользователя сессии');
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
     const [user, role] = await Promise.all([
       this.prisma.user.findUnique({ where: { id } }),
       this.prisma.role.findUnique({ where: { id: roleId } }),
     ]);
-    if (!user) throw new NotFoundException('Пользователь не найден');
+    if (!user) throw new NotFoundException('users.errors.userNotFound');
 
     await this.prisma.$transaction(async (tx) => {
       await tx.userRole.deleteMany({ where: { userId: id, roleId } });

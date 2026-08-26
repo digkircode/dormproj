@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { statusLabel } from '@/lib/sync-format'
+import type { SyncStatusKey } from '@/lib/sync-format'
 import SyncStatusPill from '@/components/SyncStatusPill.vue'
 
 defineProps<{ value: unknown; row?: unknown }>()
@@ -7,6 +7,6 @@ defineProps<{ value: unknown; row?: unknown }>()
 
 <template>
   <div class="flex justify-center">
-    <SyncStatusPill :status="statusLabel[value as keyof typeof statusLabel]" />
+    <SyncStatusPill :status="value as SyncStatusKey" />
   </div>
 </template>

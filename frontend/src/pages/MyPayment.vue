@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
   AlertTriangle,
@@ -28,10 +29,12 @@ import {
   type PaymentIntentRow,
   type PaymentIntentStatus,
 } from '@/lib/my-payments-api'
+import { dateLocaleTag } from '@/lib/format-locale'
 import { goBack, sanitizeLettersOnly } from '@/lib/utils'
 
 const router = useRouter()
 const route = useRoute()
+const { t } = useI18n()
 
 const data = ref<MyPaymentsData | null>(null)
 const isLoading = ref(true)
@@ -50,13 +53,13 @@ async function load() {
 }
 
 function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString('ru-RU')
+  return new Date(value).toLocaleDateString(dateLocaleTag())
 }
 function formatMoney(value: number): string {
-  return `${value.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
+  return `${value.toLocaleString(dateLocaleTag(), { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
 }
 function monthLabel(periodStart: string): string {
-  return new Date(periodStart).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })
+  return new Date(periodStart).toLocaleDateString(dateLocaleTag(), { month: 'long', year: 'numeric' })
 }
 
 // --- Форма создания платежа ---
@@ -144,14 +147,13 @@ async function pollIntent(id: number) {
 }
 onUnmounted(() => clearTimeout(pollTimeout))
 
-const STATUS_LABELS: Record<PaymentIntentStatus, string> = {
-  CREATED: 'Создан',
-  PENDING_BANK: 'Обрабатывается банком',
-  SUCCEEDED: 'Оплачено',
-  FAILED: 'Не удалось',
-  CANCELED: 'Отменено',
-  EXPIRED: 'Истёк',
-}
+// Proxy, не обычный объект — тот же приём, что STATUS_LABELS в contracts-format.ts,
+// реактивен к смене языка (те же ключи payment.status.*, что и UNIFIED_PAYMENT_STATUS_LABELS
+// в my-payments-api.ts, плюс SUCCEEDED — там его нет, PaymentIntentStatus его исключает
+// из UnifiedPaymentStatus, но сам intent до слияния в леджер им может быть).
+const STATUS_LABELS: Record<PaymentIntentStatus, string> = new Proxy({} as Record<PaymentIntentStatus, string>, {
+  get: (_target, status: string) => t(`payment.status.${status}`),
+})
 const STATUS_ICON = { CREATED: Clock, PENDING_BANK: Clock, SUCCEEDED: Check, FAILED: X, CANCELED: X, EXPIRED: X } as const
 const STATUS_ICON_CLASS: Record<PaymentIntentStatus, string> = {
   CREATED: 'text-muted-foreground',
@@ -176,13 +178,13 @@ onMounted(async () => {
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/student/contract')">
         <ArrowLeft class="text-primary" />
-        <span class="sr-only">Назад</span>
+        <span class="sr-only">{{ t('payment.myPayment.back') }}</span>
       </Button>
-      <h1 class="text-lg font-medium">Оплата</h1>
+      <h1 class="text-lg font-medium">{{ t('payment.myPayment.title') }}</h1>
     </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-    <p v-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
+    <p v-if="isLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
 
     <Card
       v-if="returningIntent"
@@ -196,37 +198,39 @@ onMounted(async () => {
       <component :is="STATUS_ICON[returningIntent.status]" v-else class="size-5 shrink-0" :class="STATUS_ICON_CLASS[returningIntent.status]" />
       <div class="flex flex-col">
         <p class="text-sm font-medium">
-          {{ returningIntent.status === 'PENDING_BANK' ? 'Ждём подтверждения от банка…' : STATUS_LABELS[returningIntent.status] }}
+          {{ returningIntent.status === 'PENDING_BANK' ? t('payment.myPayment.waitingBank') : STATUS_LABELS[returningIntent.status] }}
         </p>
         <p v-if="returningIntent.failureReason" class="text-sm text-muted-foreground">{{ returningIntent.failureReason }}</p>
       </div>
     </Card>
 
     <Card v-if="!isLoading && !loadError && !data?.contract" class="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
-      <p class="text-sm font-medium">Действующего договора не найдено</p>
+      <p class="text-sm font-medium">{{ t('contracts.myContract.noContractFound') }}</p>
     </Card>
 
     <template v-if="data?.contract">
       <Card v-if="!data.acquiringAvailable" class="flex items-center gap-3 p-4">
         <AlertTriangle class="size-5 shrink-0 text-orange-500" />
-        <p class="text-sm">Оплата временно недоступна — эквайринг ещё не подключён. Попробуйте позже.</p>
+        <p class="text-sm">{{ t('payment.myPayment.acquiringUnavailable') }}</p>
       </Card>
 
       <Card v-else class="flex flex-col gap-4 p-4">
         <p class="flex items-center gap-1.5 text-sm font-medium">
           <CreditCard class="size-4 text-primary" />
-          Новый платёж
+          {{ t('payment.createDialog.title') }}
         </p>
 
         <div class="flex w-fit items-center gap-1 rounded-md border p-0.5">
           <Button :variant="amountMode === 'select' ? 'default' : 'ghost'" size="sm" @click="amountMode = 'select'">
-            Выбрать начисления
+            {{ t('payment.createDialog.chooseAccruals') }}
           </Button>
-          <Button :variant="amountMode === 'custom' ? 'default' : 'ghost'" size="sm" @click="amountMode = 'custom'"> Своя сумма </Button>
+          <Button :variant="amountMode === 'custom' ? 'default' : 'ghost'" size="sm" @click="amountMode = 'custom'">
+            {{ t('payment.createDialog.customAmount') }}
+          </Button>
         </div>
 
         <template v-if="amountMode === 'select'">
-          <p v-if="!openAccruals.length" class="text-sm text-muted-foreground">Непогашенных начислений нет.</p>
+          <p v-if="!openAccruals.length" class="text-sm text-muted-foreground">{{ t('payment.createDialog.noOpenAccruals') }}</p>
           <div v-else class="flex flex-col gap-2">
             <label
               v-for="accrual in openAccruals"
@@ -246,12 +250,12 @@ onMounted(async () => {
               v-if="penaltyBalance > 0"
               class="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
               :class="canSelectPenalty ? 'cursor-pointer hover:bg-accent' : 'cursor-not-allowed opacity-50'"
-              :title="canSelectPenalty ? '' : 'Сначала выберите все открытые начисления — иначе платёж сначала погасит их'"
+              :title="canSelectPenalty ? '' : t('payment.createDialog.penaltySelectAllHint')"
             >
               <span class="flex items-center gap-2">
                 <Checkbox :model-value="includePenalty" :disabled="!canSelectPenalty" @update:model-value="(v) => (includePenalty = !!v)" />
                 <Percent class="size-3.5 text-orange-500" />
-                Пеня целиком
+                {{ t('payment.createDialog.penaltyFull') }}
               </span>
               <span class="font-medium">{{ formatMoney(penaltyBalance) }}</span>
             </label>
@@ -259,27 +263,31 @@ onMounted(async () => {
         </template>
         <template v-else>
           <div class="flex flex-col gap-2">
-            <Label for="custom-amount">Сумма</Label>
+            <Label for="custom-amount">{{ t('payment.createDialog.amountPlaceholder') }}</Label>
             <Input id="custom-amount" v-model.number="customAmount" type="number" min="1" placeholder="0" />
           </div>
         </template>
 
         <div class="flex flex-col gap-3 border-t pt-4">
           <div class="flex w-fit items-center gap-1 rounded-md border p-0.5">
-            <Button :variant="payerIsResident ? 'default' : 'ghost'" size="sm" @click="payerIsResident = true"> Я оплачиваю сам(а) </Button>
-            <Button :variant="!payerIsResident ? 'default' : 'ghost'" size="sm" @click="payerIsResident = false"> Оплачивает другой человек </Button>
+            <Button :variant="payerIsResident ? 'default' : 'ghost'" size="sm" @click="payerIsResident = true">
+              {{ t('payment.myPayment.payerIsResidentMe') }}
+            </Button>
+            <Button :variant="!payerIsResident ? 'default' : 'ghost'" size="sm" @click="payerIsResident = false">
+              {{ t('payment.createDialog.payerIsOther') }}
+            </Button>
           </div>
           <div v-if="!payerIsResident" class="flex flex-col gap-2">
-            <Label for="representative-name">ФИО плательщика</Label>
+            <Label for="representative-name">{{ t('payment.createDialog.representativeName') }}</Label>
             <Input
               id="representative-name"
               :model-value="representativeFullName"
               @update:model-value="(v) => (representativeFullName = sanitizeLettersOnly(String(v)))"
-              placeholder="Иванова Мария Петровна"
+              :placeholder="t('payment.myPayment.representativeNamePlaceholder')"
             />
           </div>
           <div class="flex flex-col gap-2">
-            <Label for="payer-email">Email для чека</Label>
+            <Label for="payer-email">{{ t('payment.createDialog.payerEmail') }}</Label>
             <Input id="payer-email" v-model="payerEmail" type="email" placeholder="mail@example.com" />
           </div>
         </div>
@@ -287,27 +295,29 @@ onMounted(async () => {
         <p v-if="submitError" class="text-sm text-red-500">{{ submitError }}</p>
 
         <div class="flex items-center justify-between border-t pt-4">
-          <span class="text-sm text-muted-foreground">К оплате</span>
+          <span class="text-sm text-muted-foreground">{{ t('payment.createDialog.amountDue') }}</span>
           <span class="text-lg font-semibold">{{ formatMoney(finalAmount) }}</span>
         </div>
-        <Button :disabled="!canSubmit" :loading="isSubmitting" @click="submit"> Оплатить {{ formatMoney(finalAmount) }} </Button>
+        <Button :disabled="!canSubmit" :loading="isSubmitting" @click="submit">
+          {{ t('payment.createDialog.pay', { amount: formatMoney(finalAmount) }) }}
+        </Button>
       </Card>
 
       <Card class="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden py-0">
         <p class="flex shrink-0 items-center gap-1.5 border-b p-4 text-sm font-medium">
           <Wallet class="size-4 text-primary" />
-          История оплат
+          {{ t('payment.myPayment.paymentHistory') }}
         </p>
-        <p v-if="!data.history.length" class="p-6 text-sm text-muted-foreground">Платежей пока нет</p>
+        <p v-if="!data.history.length" class="p-6 text-sm text-muted-foreground">{{ t('contracts.detail.noPaymentsYet') }}</p>
         <div v-else class="min-h-0 flex-1 overflow-y-auto">
           <Table>
             <TableHeader class="sticky top-0 z-10 bg-muted">
               <TableRow>
-                <TableHead>Дата</TableHead>
-                <TableHead>Описание</TableHead>
-                <TableHead>Сумма</TableHead>
-                <TableHead>Статус</TableHead>
-                <TableHead>Чек</TableHead>
+                <TableHead>{{ t('contracts.detail.colDate') }}</TableHead>
+                <TableHead>{{ t('contracts.myContract.colDescription') }}</TableHead>
+                <TableHead>{{ t('contracts.detail.colAmount') }}</TableHead>
+                <TableHead>{{ t('contracts.list.colStatus') }}</TableHead>
+                <TableHead>{{ t('contracts.myContract.colReceipt') }}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -329,7 +339,7 @@ onMounted(async () => {
                     rel="noopener noreferrer"
                     class="flex items-center gap-1 text-primary hover:underline"
                   >
-                    Открыть
+                    {{ t('payment.receipt.open') }}
                     <ExternalLink class="size-3.5" />
                   </a>
                   <span v-else class="text-muted-foreground">—</span>

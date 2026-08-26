@@ -1,6 +1,7 @@
 import { apiFetch } from './api-base'
 import { fetchListPage, fetchListFacets, type ListOptions, type ListPage, type FacetOption } from './list-api'
 import type { ContractStatus } from './contracts-api'
+import { i18n } from '@/i18n'
 
 export type { ListOptions, ListPage, FacetOption }
 
@@ -155,7 +156,7 @@ export interface MovementsSummary {
 async function getJson<T>(path: string): Promise<T> {
   const response = await apiFetch(path)
   if (!response.ok) {
-    throw new Error(`Не удалось получить отчёт (${response.status})`)
+    throw new Error(i18n.global.t('reports.errors.fetchFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -168,7 +169,7 @@ async function getJson<T>(path: string): Promise<T> {
 async function downloadFile(path: string, filename: string): Promise<void> {
   const response = await apiFetch(path)
   if (!response.ok) {
-    throw new Error(`Не удалось сформировать файл (${response.status})`)
+    throw new Error(i18n.global.t('reports.errors.exportFailed', { status: response.status }))
   }
   const blob = await response.blob()
   const url = URL.createObjectURL(blob)

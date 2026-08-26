@@ -1,4 +1,5 @@
 import { apiFetch } from './api-base'
+import { i18n } from '@/i18n'
 
 export type DormitoryInfoFieldKey =
   | 'communalServicesCost'
@@ -32,7 +33,7 @@ export const DORMITORY_INFO_FIELDS: { key: DormitoryInfoFieldKey; name: string; 
 export async function fetchDormitoryInfo(): Promise<DormitoryInfo> {
   const response = await apiFetch('/dormitory-info')
   if (!response.ok) {
-    throw new Error(`Не удалось получить информацию об общежитии (${response.status})`)
+    throw new Error(i18n.global.t('rooms.errors.fetchDormitoryInfoFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -45,7 +46,7 @@ export async function updateDormitoryInfo(input: Partial<Record<DormitoryInfoFie
   })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
-    throw new Error(body.message ?? `Не удалось изменить информацию об общежитии (${response.status})`)
+    throw new Error(body.message ?? i18n.global.t('rooms.errors.updateDormitoryInfoFailed', { status: response.status }))
   }
   return response.json()
 }

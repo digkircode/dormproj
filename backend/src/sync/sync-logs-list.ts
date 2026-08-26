@@ -1,3 +1,4 @@
+import { I18nContext } from 'nestjs-i18n';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -94,11 +95,14 @@ export async function listSyncLogs(prisma: PrismaService, syncType: string, quer
 }
 
 // Значения статуса/триггера в БД — английские enum-константы, для фильтра в UI
-// нужны русские подписи (тот же перевод, что и во фронтовом lib/sync-format.ts).
-const FACET_LABELS: Record<FilterableField, Record<string, string>> = {
+// нужны переводы под язык запроса (тот же перевод, что и во фронтовом lib/sync-format.ts).
+const FACET_LABELS_RU: Record<FilterableField, Record<string, string>> = {
   status: { RUNNING: 'В процессе', SUCCESS: 'Успешно', FAILED: 'Ошибка' },
   trigger: { CRON: 'Автоматически', MANUAL: 'Вручную' },
 };
+function facetLabel(field: FilterableField, value: string): string {
+  return I18nContext.current()?.t(`sync.${field}.${value}`) ?? FACET_LABELS_RU[field][value] ?? value;
+}
 
 export async function syncLogFacetValues(prisma: PrismaService, syncType: string, field: string) {
   if (!isFilterableField(field)) {
@@ -119,6 +123,6 @@ export async function syncLogFacetValues(prisma: PrismaService, syncType: string
 
   return rows.map((row) => {
     const value = (row as unknown as Record<string, string>)[field];
-    return { value, label: FACET_LABELS[field][value] ?? value };
+    return { value, label: facetLabel(field, value) };
   });
 }

@@ -8,6 +8,7 @@ import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { ensureUserRecord } from '../users/ensure-user';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { zodErrorMessage } from '../i18n/zod-error-message';
 
 const createRoleSchema = z.object({ name: z.string().trim().min(1).max(50) });
 
@@ -36,10 +37,10 @@ export class RolesController {
   async create(@Body() body: unknown, @Req() req: Request) {
     const parsed = createRoleSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException(parsed.error.message);
+      throw new BadRequestException(zodErrorMessage(parsed.error));
     }
     if (!req.user) {
-      throw new BadRequestException('Не удалось определить пользователя сессии');
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -59,7 +60,7 @@ export class RolesController {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Роль с таким названием уже существует');
+        throw new ConflictException('users.errors.roleNameExists');
       }
       throw error;
     }

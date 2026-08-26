@@ -22,12 +22,14 @@ import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { ensureUserRecord } from '../users/ensure-user';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { I18nContext } from 'nestjs-i18n';
 import { pickCurrentCharacteristics } from './current-characteristics';
 import { fromStoredValue, toStoredValue } from './characteristic-value';
+import { zodErrorMessage } from '../i18n/zod-error-message';
 
 function requireUser(req: Request) {
   if (!req.user) {
-    throw new BadRequestException('Не удалось определить пользователя сессии');
+    throw new BadRequestException('contracts.errors.sessionUserNotFound');
   }
   return req.user;
 }
@@ -67,14 +69,20 @@ const updateValueSchema = z.object({
 function assertValueInOptions(definition: { valueType: string; options: string[] }, storedValueText: string | null) {
   if (definition.valueType !== 'TEXT' || definition.options.length === 0) return;
   if (storedValueText === null || !definition.options.includes(storedValueText)) {
-    throw new BadRequestException(`Значение должно быть одним из: ${definition.options.join(', ')}`);
+    // Резолвится сразу текстом, не ключом — options (данные из каталога) подставляются
+    // через args прямо здесь, а не через параметризацию в HttpExceptionFilter (тот
+    // сейчас поддерживает только статичные ключи без плейсхолдеров).
+    throw new BadRequestException(
+      I18nContext.current()?.t('rooms.errors.invalidOptionValue', { args: { options: definition.options.join(', ') } }) ??
+        `Значение должно быть одним из: ${definition.options.join(', ')}`,
+    );
   }
 }
 
 function parseIdParam(idParam: string): number {
   const id = Number.parseInt(idParam, 10);
   if (!Number.isInteger(id)) {
-    throw new BadRequestException('Некорректный id');
+    throw new BadRequestException('contracts.errors.invalidId');
   }
   return id;
 }
@@ -191,7 +199,7 @@ export class RoomsController {
       },
     });
     if (!room) {
-      throw new NotFoundException('Комната не найдена');
+      throw new NotFoundException('rooms.errors.roomNotFound');
     }
 
     const { characteristicValues, ...roomFields } = room;
@@ -215,7 +223,7 @@ export class RoomsController {
   async create(@Body() body: unknown, @Req() req: Request) {
     const parsed = createRoomSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException(parsed.error.message);
+      throw new BadRequestException(zodErrorMessage(parsed.error));
     }
     const sessionUser = requireUser(req);
 
@@ -225,7 +233,7 @@ export class RoomsController {
     if (!floorDefinition) {
       // Не должно происходить в проде (заведено миграцией), но каталог теоретически
       // редактируется через UI — на всякий случай не 500'им без объяснения.
-      throw new ConflictException('Характеристика "Этаж" не найдена в каталоге');
+      throw new ConflictException('rooms.errors.floorCharacteristicMissing');
     }
 
     try {
@@ -251,7 +259,7 @@ export class RoomsController {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Комната с таким номером уже существует');
+        throw new ConflictException('rooms.errors.roomNumberExists');
       }
       throw error;
     }
@@ -262,12 +270,12 @@ export class RoomsController {
     const id = parseIdParam(idParam);
     const parsed = updateRoomSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException(parsed.error.message);
+      throw new BadRequestException(zodErrorMessage(parsed.error));
     }
     const sessionUser = requireUser(req);
     const existing = await this.prisma.room.findUnique({ where: { id } });
     if (!existing) {
-      throw new NotFoundException('Комната не найдена');
+      throw new NotFoundException('rooms.errors.roomNotFound');
     }
 
     try {
@@ -288,7 +296,7 @@ export class RoomsController {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Комната с таким номером уже существует');
+        throw new ConflictException('rooms.errors.roomNumberExists');
       }
       throw error;
     }
@@ -300,7 +308,7 @@ export class RoomsController {
     const sessionUser = requireUser(req);
     const existing = await this.prisma.room.findUnique({ where: { id } });
     if (!existing) {
-      throw new NotFoundException('Комната не найдена');
+      throw new NotFoundException('rooms.errors.roomNotFound');
     }
 
     try {
@@ -321,7 +329,7 @@ export class RoomsController {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        throw new NotFoundException('Комната не найдена');
+        throw new NotFoundException('rooms.errors.roomNotFound');
       }
       throw error;
     }
@@ -332,7 +340,7 @@ export class RoomsController {
     const roomId = parseIdParam(idParam);
     const parsed = createValueSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException(parsed.error.message);
+      throw new BadRequestException(zodErrorMessage(parsed.error));
     }
     const sessionUser = requireUser(req);
 
@@ -341,10 +349,10 @@ export class RoomsController {
       this.prisma.room.findUnique({ where: { id: roomId } }),
     ]);
     if (!definition) {
-      throw new NotFoundException('Характеристика не найдена');
+      throw new NotFoundException('rooms.errors.characteristicNotFound');
     }
     if (!room) {
-      throw new NotFoundException('Комната не найдена');
+      throw new NotFoundException('rooms.errors.roomNotFound');
     }
 
     const stored = toStoredValue(definition.valueType, parsed.data.value);
@@ -369,10 +377,10 @@ export class RoomsController {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('На эту дату уже есть значение этой характеристики для этой комнаты');
+        throw new ConflictException('rooms.errors.duplicatePeriodValue');
       }
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
-        throw new NotFoundException('Комната не найдена');
+        throw new NotFoundException('rooms.errors.roomNotFound');
       }
       throw error;
     }
@@ -389,7 +397,7 @@ export class RoomsController {
     const valueId = parseIdParam(valueIdParam);
     const parsed = updateValueSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException(parsed.error.message);
+      throw new BadRequestException(zodErrorMessage(parsed.error));
     }
     const sessionUser = requireUser(req);
 
@@ -398,10 +406,10 @@ export class RoomsController {
       include: { definition: true, room: true },
     });
     if (!existing) {
-      throw new NotFoundException('Значение характеристики не найдено');
+      throw new NotFoundException('rooms.errors.valueNotFound');
     }
     if (existing.isProtected) {
-      throw new ConflictException('Это значение нельзя изменить');
+      throw new ConflictException('rooms.errors.valueCannotBeEdited');
     }
 
     const stored = parsed.data.value === undefined ? {} : toStoredValue(existing.definition.valueType, parsed.data.value);
@@ -429,7 +437,7 @@ export class RoomsController {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('На эту дату уже есть значение этой характеристики для этой комнаты');
+        throw new ConflictException('rooms.errors.duplicatePeriodValue');
       }
       throw error;
     }
@@ -446,10 +454,10 @@ export class RoomsController {
       include: { definition: true, room: true },
     });
     if (!existing) {
-      throw new NotFoundException('Значение характеристики не найдено');
+      throw new NotFoundException('rooms.errors.valueNotFound');
     }
     if (existing.isProtected) {
-      throw new ConflictException('Это значение нельзя удалить');
+      throw new ConflictException('rooms.errors.valueCannotBeDeleted');
     }
 
     return this.prisma.$transaction(async (tx) => {

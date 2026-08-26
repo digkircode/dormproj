@@ -1,0 +1,68 @@
+{
+  "payment": {
+    "method": {
+      "CASH": "Cash",
+      "CARD_ACQUIRING": "Card payment",
+      "BANK_TRANSFER": "Bank transfer",
+      "MAT_CAPITAL": "Maternity capital",
+      "WEBSITE": "Website"
+    },
+    "errors": {
+      "fetchPaymentDataFailed": "Failed to load payment data ({status})",
+      "startPaymentFailed": "Failed to start the payment ({status})",
+      "fetchPaymentStatusFailed": "Failed to load payment status ({status})"
+    },
+    "receipt": {
+      "open": "Open",
+      "stubTitle": "Placeholder — once the till is connected, this will link to the receipt from the OFD"
+    },
+    "createDialog": {
+      "title": "New payment",
+      "contractNumber": "Contract No. {number}",
+      "room": "Room {room}",
+      "amountSection": "Amount",
+      "chooseAccruals": "Choose accruals",
+      "customAmount": "Custom amount",
+      "noOpenAccruals": "No outstanding accruals.",
+      "penaltyOnlySummary": "Penalty",
+      "noAccrualsSelected": "No accruals selected",
+      "accrualsAndPenaltySummary": "{months} and penalty",
+      "penaltySelectAllHint": "Select all open accruals first — otherwise the payment will settle them first",
+      "penaltyFull": "Full penalty",
+      "accrualSelectPlaceholder": "Accrual",
+      "penaltyOption": "Penalty — {amount}",
+      "amountPlaceholder": "Amount",
+      "payerSection": "Payer",
+      "payerIsResident": "Paying myself",
+      "payerIsOther": "Someone else is paying",
+      "representativeName": "Payer's full name",
+      "payerEmail": "Email for the receipt",
+      "invalidEmail": "Invalid email",
+      "certificateNotice": "The site uses certificates from the Russian Ministry of Digital Development — to avoid payment errors, use Yandex Browser or install the ministry's certificates on your device.",
+      "taxDeductionNotice": "For a tax deduction, the payment must be made by the person who intends to claim it.",
+      "amountDue": "Amount due",
+      "acquiringUnavailable": "Card payment is temporarily unavailable — card processing is not yet connected.",
+      "cancel": "Cancel",
+      "pay": "Pay {amount}"
+    },
+    "status": {
+      "PAID": "Paid",
+      "SUCCEEDED": "Paid",
+      "REVERSED": "Reversed",
+      "CREATED": "Created",
+      "PENDING_BANK": "Processing by bank",
+      "FAILED": "Failed",
+      "CANCELED": "Canceled",
+      "EXPIRED": "Expired"
+    },
+    "myPayment": {
+      "back": "Back",
+      "title": "Payment",
+      "waitingBank": "Waiting for bank confirmation…",
+      "acquiringUnavailable": "Payment is temporarily unavailable — card processing is not yet connected. Please try again later.",
+      "payerIsResidentMe": "I'm paying myself",
+      "representativeNamePlaceholder": "Jane Doe",
+      "paymentHistory": "Payment history"
+    }
+  }
+}

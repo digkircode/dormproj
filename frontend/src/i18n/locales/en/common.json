@@ -1,0 +1,132 @@
+{
+  "nav": {
+    "home": "Home",
+    "forbidden": "Access denied",
+    "notFound": "Page not found",
+    "studentGeneralInfo": "General information",
+    "studentChat": "Chat with staff",
+    "studentContract": "Contract/Payments",
+    "studentPayment": "Payment",
+    "students": "Student roster",
+    "sync": "Synchronization",
+    "syncLogs": "Sync logs",
+    "individuals": "Individuals",
+    "individualDetail": "Individual",
+    "citizenship": "Citizenship",
+    "contactInfo": "Contact information",
+    "passportData": "Passport data",
+    "rooms": "Rooms",
+    "roomCharacteristics": "Room characteristics",
+    "contracts": "Contracts",
+    "contractDetail": "Contract details",
+    "chats": "Chats",
+    "reports": "Reports",
+    "reportsOccupancy": "Dormitory occupancy",
+    "reportsContingent": "Resident registry",
+    "reportsContracts": "Contract registry",
+    "reportsDebt": "Financial report",
+    "reportsMoveInOut": "Resident movement",
+    "users": "Staff",
+    "roles": "Roles",
+    "usersAll": "All users",
+    "auditLog": "Change history",
+    "sidebarPay": "Pay"
+  },
+  "sidebar": {
+    "groupResident": "Resident",
+    "groupStaff": "Staff",
+    "groupAdmin": "Administrator",
+    "projectUsers": "Users",
+    "projectSystemTables": "System tables",
+    "signOut": "Sign out",
+    "team": "RosNOU",
+    "teamPlan": "Dormitory"
+  },
+  "entityTable": {
+    "searchPlaceholder": "Search the whole table…",
+    "addFilter": "Add filter",
+    "allFieldsAdded": "All fields already added",
+    "tableSettings": "Table settings",
+    "anyValue": "any value",
+    "removeFilter": "Remove filter “{field}”",
+    "clear": "Clear",
+    "selectValuesTitle": "Select one or more values",
+    "searchValuePlaceholder": "Search value…",
+    "nothingFound": "Nothing found",
+    "done": "Done",
+    "selectAllRows": "Select all rows on this page",
+    "selectRow": "Select row",
+    "loading": "Loading…",
+    "firstPage": "First page",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "lastPage": "Last page",
+    "total": "Total {label}: {count}",
+    "rowsPerPage": "Rows per page",
+    "pageOf": "Page {current} of {total}"
+  },
+  "forbidden": {
+    "title": "Access denied",
+    "description": "Your role does not have access to this section. If this is a mistake — contact an administrator.",
+    "goHome": "Go home"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "description": "This page does not exist — check the address or go back home.",
+    "goHome": "Go home"
+  },
+  "home": {
+    "statCollectedThisMonth": "Collected this month",
+    "statCollectedTrendDesc": "Growth compared to last month",
+    "statCollectedHint": "Over the last 6 months",
+    "statDebtors": "Debtors",
+    "statDebtorsDesc": "Fewer than last month",
+    "statDebtorsHint": "Needs attention",
+    "statOccupied": "Rooms occupied",
+    "statOccupiedDesc": "Stable occupancy",
+    "statOccupiedHint": "Out of 340 available",
+    "statContracts": "Contracts signed",
+    "statContractsDesc": "On track with the plan",
+    "statContractsHint": "For the current semester",
+    "chartTitle": "Payments by month",
+    "chartDescription": "Payment trend over the last 3 months",
+    "chartRangeLast3Months": "Last 3 months"
+  },
+  "roomInfo": {
+    "tooltip": "Room information",
+    "dialogTitle": "Room {room}"
+  },
+  "boolean": {
+    "yes": "Yes",
+    "no": "No"
+  },
+  "datePicker": {
+    "openCalendar": "Open calendar"
+  },
+  "footer": {
+    "copyright": "© 1991–2026 Russian New University"
+  },
+  "errors": {
+    "tooManyRequests": "Too many requests — please wait a moment and try again",
+    "checkDataFields": "Please check the data you entered"
+  },
+  "dataTable": {
+    "tabAllRooms": "All rooms",
+    "tabHasDebt": "Has debt",
+    "tabContractExpiring": "Contract expiring",
+    "columns": "Columns",
+    "add": "Add",
+    "colRoom": "Room",
+    "colType": "Type",
+    "colStatus": "Status",
+    "colAmount": "Amount",
+    "colDue": "Due",
+    "colResponsible": "Responsible",
+    "typeDouble": "Double",
+    "typeSingle": "Single",
+    "typeTriple": "Triple",
+    "statusPaid": "Paid",
+    "statusDebt": "Debt",
+    "statusInProgress": "In progress"
+  }
+}

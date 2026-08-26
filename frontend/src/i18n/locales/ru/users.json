@@ -1,0 +1,98 @@
+{
+  "users": {
+    "role": {
+      "ADMIN": "Администратор",
+      "STAFF": "Сотрудник",
+      "RESIDENT": "Проживающий"
+    },
+    "errors": {
+      "fetchRolesFailed": "Не удалось получить список ролей ({status})",
+      "createRoleFailed": "Не удалось создать роль ({status})",
+      "searchUsersFailed": "Не удалось найти пользователей ({status})",
+      "grantRoleFailed": "Не удалось выдать роль ({status})",
+      "revokeRoleFailed": "Не удалось отозвать роль ({status})",
+      "saveFailed": "Не удалось сохранить ({status})"
+    },
+    "staff": {
+      "back": "Назад",
+      "title": "Сотрудники",
+      "colFullName": "ФИО",
+      "colEmail": "Email",
+      "colRoles": "Роли",
+      "colRole": "Роль",
+      "totalLabel": "сотрудников",
+      "manageRoles": "Управление ролями",
+      "grantRole": "Выдать роль"
+    },
+    "roles": {
+      "back": "Назад",
+      "title": "Роли",
+      "addRole": "Добавить роль",
+      "loading": "Загрузка…",
+      "colRole": "Роль",
+      "colUsersCount": "Пользователей",
+      "newRoleTitle": "Новая роль",
+      "name": "Название",
+      "cancel": "Отмена",
+      "create": "Создать"
+    },
+    "list": {
+      "back": "Назад",
+      "title": "Список пользователей",
+      "colFullName": "ФИО",
+      "colEmail": "Email",
+      "colBindId": "bind_id",
+      "colAzureId": "azure_id",
+      "colUniverId": "univer_id",
+      "colRoles": "Роли",
+      "colCreatedAt": "Добавлен",
+      "totalLabel": "пользователей",
+      "editAction": "Изменить azure_id/univer_id",
+      "editDialogTitle": "azure_id / univer_id",
+      "azureId": "azure_id",
+      "univerId": "univer_id",
+      "univerIdPlaceholder": "UID физлица (fizicheskoye_litso_uid)",
+      "cancel": "Отмена",
+      "save": "Сохранить"
+    },
+    "manageDialog": {
+      "title": "Роли пользователя",
+      "user": "Пользователь",
+      "userPlaceholder": "Введите ФИО или email",
+      "currentRoles": "Текущие роли",
+      "noRoles": "Ролей нет",
+      "revokeRole": "Отозвать роль «{role}»",
+      "grantRoleLabel": "Выдать роль",
+      "selectRolePlaceholder": "Выберите роль",
+      "grant": "Выдать"
+    }
+  },
+  "audit": {
+    "fieldsCountOne": "поле",
+    "fieldsCountOther": "полей",
+    "colField": "Поле",
+    "colBefore": "Было",
+    "colAfter": "Стало",
+    "back": "Назад",
+    "title": "История изменений",
+    "actionCreate": "Создание",
+    "actionUpdate": "Изменение",
+    "actionDelete": "Удаление",
+    "entityIndividual": "Физическое лицо",
+    "entityContract": "Договор",
+    "entityPayment": "Платёж",
+    "entityRoom": "Комната",
+    "entityRoomCharacteristicDefinition": "Характеристика комнаты",
+    "entityRoomCharacteristicValue": "Значение характеристики",
+    "entityDormitoryInfo": "Настройки общежития",
+    "entityRole": "Роль",
+    "entityUserRole": "Роль пользователя",
+    "colCreatedAt": "Дата и время",
+    "colUser": "Пользователь",
+    "colAction": "Действие",
+    "colEntityType": "Сущность",
+    "colEntityLabel": "Что изменено",
+    "colChanges": "Изменения",
+    "totalLabel": "записей"
+  }
+}

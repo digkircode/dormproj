@@ -8,6 +8,7 @@ import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { ensureUserRecord } from '../users/ensure-user';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { zodErrorMessage } from '../i18n/zod-error-message';
 
 // Общежитие одно — ровно одна строка, id зафиксирован.
 const SINGLETON_ID = 1;
@@ -65,10 +66,10 @@ export class DormitoryInfoController {
   async update(@Body() body: unknown, @Req() req: Request) {
     const parsed = updateSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException(parsed.error.message);
+      throw new BadRequestException(zodErrorMessage(parsed.error));
     }
     if (!req.user) {
-      throw new BadRequestException('Не удалось определить пользователя сессии');
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
     const before = await this.prisma.dormitoryInfo.upsert({ where: { id: SINGLETON_ID }, create: { id: SINGLETON_ID }, update: {} });
 

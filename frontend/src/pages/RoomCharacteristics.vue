@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, GripVertical, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-vue-next'
 import { VueDraggable, type DraggableEvent } from 'vue-draggable-plus'
@@ -25,15 +26,16 @@ import type { CharacteristicValueType } from '@/lib/rooms-api'
 import { goBack } from '@/lib/utils'
 
 const router = useRouter()
+const { t } = useI18n()
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
 
-const VALUE_TYPE_LABELS: Record<CharacteristicValueType, string> = {
-  BOOLEAN: 'Да/Нет',
-  NUMBER: 'Число',
-  TEXT: 'Текст',
-}
+const VALUE_TYPE_LABELS = computed<Record<CharacteristicValueType, string>>(() => ({
+  BOOLEAN: t('rooms.definitions.valueTypeBoolean'),
+  NUMBER: t('rooms.definitions.valueTypeNumber'),
+  TEXT: t('rooms.definitions.valueTypeText'),
+}))
 
 const definitions = ref<RoomCharacteristicDefinition[]>([])
 const isLoading = ref(true)
@@ -168,7 +170,7 @@ async function submitDialog() {
   // характеристика, заводить их в этом каталоге нельзя — ни созданием, ни переименованием
   // существующей характеристики в одно из этих названий.
   if (DORMITORY_INFO_FIELDS.some((f) => f.name === trimmedName)) {
-    dialogError.value = 'Это характеристика общежития в целом, а не комнаты — её нельзя добавить сюда'
+    dialogError.value = t('rooms.definitions.dormitoryFieldError')
     return
   }
   isSaving.value = true
@@ -221,18 +223,18 @@ async function confirmDelete() {
       <div class="flex items-center gap-2">
         <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
           <ArrowLeft class="text-primary" />
-          <span class="sr-only">Назад</span>
+          <span class="sr-only">{{ t('rooms.definitions.back') }}</span>
         </Button>
-        <h1 class="text-lg font-medium">Характеристики комнат</h1>
+        <h1 class="text-lg font-medium">{{ t('rooms.definitions.title') }}</h1>
       </div>
       <Tooltip>
         <TooltipTrigger as-child>
           <Button size="icon" @click="openCreate">
             <Plus />
-            <span class="sr-only">Добавить характеристику</span>
+            <span class="sr-only">{{ t('rooms.definitions.addCharacteristic') }}</span>
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Добавить характеристику</TooltipContent>
+        <TooltipContent>{{ t('rooms.definitions.addCharacteristic') }}</TooltipContent>
       </Tooltip>
     </div>
 
@@ -248,15 +250,15 @@ async function confirmDelete() {
            position: fixed, поэтому вместе с overflow-hidden это визуально не даёт вынести его
            за границы таблицы вверх/вниз, куда бы ни укатилась мышь. -->
       <div class="overflow-hidden rounded-lg border [transform:translateZ(0)]">
-        <p v-if="isLoading" class="p-6 text-sm text-muted-foreground">Загрузка…</p>
-        <p v-else-if="!definitions.length" class="p-6 text-sm text-muted-foreground">Характеристик пока нет</p>
+        <p v-if="isLoading" class="p-6 text-sm text-muted-foreground">{{ t('rooms.definitions.loading') }}</p>
+        <p v-else-if="!definitions.length" class="p-6 text-sm text-muted-foreground">{{ t('rooms.definitions.noneYet') }}</p>
         <div v-else class="[&>div]:max-h-[65vh]">
         <Table class="table-fixed">
           <TableHeader class="sticky top-0 z-10 bg-muted">
             <TableRow>
-              <TableHead class="w-[38%] border-r border-border">Название</TableHead>
-              <TableHead class="w-[20%] border-r border-border">Тип значения</TableHead>
-              <TableHead class="w-[24%]">Единица измерения</TableHead>
+              <TableHead class="w-[38%] border-r border-border">{{ t('rooms.definitions.colName') }}</TableHead>
+              <TableHead class="w-[20%] border-r border-border">{{ t('rooms.definitions.colValueType') }}</TableHead>
+              <TableHead class="w-[24%]">{{ t('rooms.definitions.colUnit') }}</TableHead>
               <TableHead class="w-8" />
             </TableRow>
           </TableHeader>
@@ -302,17 +304,17 @@ async function confirmDelete() {
                   <DropdownMenuTrigger as-child>
                     <Button variant="ghost" size="icon" class="size-7">
                       <MoreVertical class="text-muted-foreground" />
-                      <span class="sr-only">Действия</span>
+                      <span class="sr-only">{{ t('rooms.definitions.actions') }}</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem @click="openEdit(d)">
                       <Pencil class="text-primary" />
-                      Редактировать
+                      {{ t('rooms.definitions.edit') }}
                     </DropdownMenuItem>
                     <DropdownMenuItem :disabled="d.isProtected" @click="openDeleteConfirm(d)">
                       <Trash2 class="text-red-500" />
-                      Удалить
+                      {{ t('rooms.definitions.delete') }}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -327,43 +329,43 @@ async function confirmDelete() {
     <Dialog :open="isDialogOpen" @update:open="(open) => (isDialogOpen = open)">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
-          <DialogTitle>{{ dialogMode === 'create' ? 'Новая характеристика' : 'Изменить характеристику' }}</DialogTitle>
+          <DialogTitle>{{ dialogMode === 'create' ? t('rooms.definitions.newTitle') : t('rooms.definitions.editTitle') }}</DialogTitle>
         </DialogHeader>
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-2">
-            <Label for="def-name">Название</Label>
+            <Label for="def-name">{{ t('rooms.definitions.name') }}</Label>
             <Input id="def-name" v-model="formName" />
           </div>
           <div class="flex flex-col gap-2">
-            <Label>Тип значения</Label>
+            <Label>{{ t('rooms.definitions.valueType') }}</Label>
             <Select :model-value="formValueType" :disabled="dialogMode === 'edit'" @update:model-value="(v) => (formValueType = v as CharacteristicValueType)">
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="BOOLEAN">Да/Нет</SelectItem>
-                <SelectItem value="NUMBER">Число</SelectItem>
-                <SelectItem value="TEXT">Текст</SelectItem>
+                <SelectItem value="BOOLEAN">{{ t('rooms.definitions.valueTypeBoolean') }}</SelectItem>
+                <SelectItem value="NUMBER">{{ t('rooms.definitions.valueTypeNumber') }}</SelectItem>
+                <SelectItem value="TEXT">{{ t('rooms.definitions.valueTypeText') }}</SelectItem>
               </SelectContent>
             </Select>
-            <p v-if="dialogMode === 'edit'" class="text-xs text-muted-foreground">Тип значения нельзя изменить после создания</p>
+            <p v-if="dialogMode === 'edit'" class="text-xs text-muted-foreground">{{ t('rooms.definitions.valueTypeLocked') }}</p>
           </div>
           <div class="flex flex-col gap-2">
-            <Label for="def-unit">Единица измерения</Label>
+            <Label for="def-unit">{{ t('rooms.definitions.unit') }}</Label>
             <Input id="def-unit" v-model="formUnit" />
           </div>
           <div v-if="formValueType === 'TEXT'" class="flex flex-col gap-2">
-            <Label for="def-options">Допустимые значения (через запятую)</Label>
-            <Input id="def-options" v-model="formOptions" placeholder="Например: Новый, Старый" />
+            <Label for="def-options">{{ t('rooms.definitions.optionsLabel') }}</Label>
+            <Input id="def-options" v-model="formOptions" :placeholder="t('rooms.definitions.optionsPlaceholder')" />
             <p class="text-xs text-muted-foreground">
-              Если заполнено — при добавлении значения комнате будет выбор из списка, а не свободный текст. Пусто — обычное текстовое поле.
+              {{ t('rooms.definitions.optionsHint') }}
             </p>
           </div>
           <p v-if="dialogError" class="text-sm text-red-500">{{ dialogError }}</p>
         </div>
         <DialogFooter>
-          <Button variant="outline" @click="isDialogOpen = false">Отмена</Button>
-          <Button :disabled="!formName.trim()" :loading="isSaving" @click="submitDialog">Сохранить</Button>
+          <Button variant="outline" @click="isDialogOpen = false">{{ t('rooms.definitions.cancel') }}</Button>
+          <Button :disabled="!formName.trim()" :loading="isSaving" @click="submitDialog">{{ t('rooms.definitions.save') }}</Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>
@@ -371,15 +373,15 @@ async function confirmDelete() {
     <Dialog :open="!!deleteTarget" @update:open="(open) => { if (!open) deleteTarget = null }">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
-          <DialogTitle>Удалить характеристику?</DialogTitle>
+          <DialogTitle>{{ t('rooms.definitions.deleteDialogTitle') }}</DialogTitle>
           <DialogDescription>
-            Вы уверены, что хотите удалить «{{ deleteTarget?.name }}»? Действие необратимо.
+            {{ t('rooms.definitions.deleteDialogDescription', { name: deleteTarget?.name ?? '' }) }}
           </DialogDescription>
         </DialogHeader>
         <p v-if="deleteError" class="text-sm text-red-500">{{ deleteError }}</p>
         <DialogFooter>
-          <Button variant="outline" @click="deleteTarget = null">Отмена</Button>
-          <Button variant="outline" class="border-red-500 text-red-500 hover:text-red-500" :loading="isDeleting" @click="confirmDelete">Да, удалить</Button>
+          <Button variant="outline" @click="deleteTarget = null">{{ t('rooms.definitions.cancel') }}</Button>
+          <Button variant="outline" class="border-red-500 text-red-500 hover:text-red-500" :loading="isDeleting" @click="confirmDelete">{{ t('rooms.definitions.confirmDelete') }}</Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>

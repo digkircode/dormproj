@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { AlertTriangle, ChevronDown, CreditCard, DoorOpen, Info, Loader, Percent } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -17,6 +18,7 @@ import {
 import { fetchMyContracts, type MyContractSummary } from '@/lib/contracts-api'
 import { getContractDisplayStatus, STATUS_LABELS as CONTRACT_STATUS_LABELS } from '@/lib/contracts-format'
 import { isValidEmailFormat, sanitizeLettersOnly } from '@/lib/utils'
+import { dateLocaleTag } from '@/lib/format-locale'
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
@@ -32,6 +34,8 @@ const NO_SPINNER_CLASS = '[appearance:textfield] [&::-webkit-outer-spin-button]:
 const NATIVE_SELECT_CLASS =
   'flex h-10 shrink-0 rounded-md border border-input bg-background px-3 text-sm transition-shadow focus-visible:outline-none focus-visible:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/20 focus-visible:shadow-sm'
 
+const { t } = useI18n()
+
 const isDialogOpen = ref(false)
 const isLoading = ref(true)
 const loadError = ref('')
@@ -43,10 +47,10 @@ const contracts = ref<MyContractSummary[]>([])
 const selectedContractId = ref<number | undefined>(undefined)
 
 function monthLabel(periodStart: string): string {
-  return new Date(periodStart).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })
+  return new Date(periodStart).toLocaleDateString(dateLocaleTag(), { month: 'long', year: 'numeric' })
 }
 function formatMoney(value: number): string {
-  return `${value.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
+  return `${value.toLocaleString(dateLocaleTag(), { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
 }
 
 // --- Форма создания платежа — та же логика, что была на отдельной странице /student/payment
@@ -85,8 +89,8 @@ const accrualPickerOpen = ref(false)
 const selectedAccrualsSummary = computed(() => {
   const selected = openAccruals.value.filter((a) => selectedAccrualIds.value.includes(a.id))
   const monthsLabel = selected.map((a) => monthLabel(a.periodStart)).join(', ')
-  if (!monthsLabel) return includePenalty.value ? 'Пеня' : 'Начисления не выбраны'
-  return includePenalty.value ? `${monthsLabel} и пеня` : monthsLabel
+  if (!monthsLabel) return includePenalty.value ? t('payment.createDialog.penaltyOnlySummary') : t('payment.createDialog.noAccrualsSelected')
+  return includePenalty.value ? t('payment.createDialog.accrualsAndPenaltySummary', { months: monthsLabel }) : monthsLabel
 })
 
 const selectedAmount = computed(() => {
@@ -221,12 +225,12 @@ async function submit() {
       <DialogHeader>
         <DialogTitle class="flex items-center gap-1.5">
           <CreditCard class="size-4 text-primary" />
-          Новый платёж
+          {{ t('payment.createDialog.title') }}
         </DialogTitle>
       </DialogHeader>
 
       <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-      <p v-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
+      <p v-if="isLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
 
       <div v-if="!isLoading && !loadError && data?.contract" class="flex flex-col gap-5 transition-opacity duration-200" :class="isSwitching ? 'opacity-50' : ''">
         <div class="flex flex-col gap-2 rounded-lg border bg-muted/30 p-3">
@@ -237,7 +241,7 @@ async function submit() {
                   type="button"
                   class="flex items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-sm font-medium hover:bg-accent"
                 >
-                  Договор № {{ data.contract.number }}
+                  {{ t('payment.createDialog.contractNumber', { number: data.contract.number }) }}
                   <ChevronDown class="size-3.5 shrink-0 text-muted-foreground" />
                 </button>
               </DropdownMenuTrigger>
@@ -252,27 +256,29 @@ async function submit() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <span v-else class="text-sm font-medium">Договор № {{ data.contract.number }}</span>
+            <span v-else class="text-sm font-medium">{{ t('payment.createDialog.contractNumber', { number: data.contract.number }) }}</span>
             <Loader v-if="isSwitching" class="size-3.5 shrink-0 animate-spin text-muted-foreground" />
             <span v-if="data.contract.roomNumber" class="flex items-center gap-1 text-sm text-muted-foreground">
               <DoorOpen class="size-3.5 shrink-0" />
-              Комната {{ data.contract.roomNumber }}
+              {{ t('payment.createDialog.room', { room: data.contract.roomNumber }) }}
             </span>
           </div>
           <p class="text-sm text-muted-foreground">{{ data.contract.residentFullName }}</p>
         </div>
 
         <div class="flex flex-col gap-3 rounded-lg border p-3">
-          <p class="text-sm font-medium">Сумма</p>
+          <p class="text-sm font-medium">{{ t('payment.createDialog.amountSection') }}</p>
           <div class="flex w-fit items-center gap-1 rounded-md border p-0.5">
             <Button :variant="amountMode === 'select' ? 'default' : 'ghost'" size="sm" @click="amountMode = 'select'">
-              Выбрать начисления
+              {{ t('payment.createDialog.chooseAccruals') }}
             </Button>
-            <Button :variant="amountMode === 'custom' ? 'default' : 'ghost'" size="sm" @click="amountMode = 'custom'"> Своя сумма </Button>
+            <Button :variant="amountMode === 'custom' ? 'default' : 'ghost'" size="sm" @click="amountMode = 'custom'">
+              {{ t('payment.createDialog.customAmount') }}
+            </Button>
           </div>
 
           <template v-if="amountMode === 'select'">
-            <p v-if="!openAccruals.length" class="text-sm text-muted-foreground">Непогашенных начислений нет.</p>
+            <p v-if="!openAccruals.length" class="text-sm text-muted-foreground">{{ t('payment.createDialog.noOpenAccruals') }}</p>
             <Collapsible v-else v-model:open="accrualPickerOpen">
               <CollapsibleTrigger as-child>
                 <button
@@ -305,12 +311,12 @@ async function submit() {
                   v-if="penaltyBalance > 0"
                   class="flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-sm"
                   :class="canSelectPenalty ? 'cursor-pointer hover:bg-accent' : 'cursor-not-allowed opacity-50'"
-                  :title="canSelectPenalty ? '' : 'Сначала выберите все открытые начисления — иначе платёж сначала погасит их'"
+                  :title="canSelectPenalty ? '' : t('payment.createDialog.penaltySelectAllHint')"
                 >
                   <span class="flex items-center gap-1.5">
                     <Checkbox :model-value="includePenalty" :disabled="!canSelectPenalty" @update:model-value="(v) => (includePenalty = !!v)" />
                     <Percent class="size-3.5 text-orange-500" />
-                    Пеня целиком
+                    {{ t('payment.createDialog.penaltyFull') }}
                   </span>
                   <span class="font-medium">{{ formatMoney(penaltyBalance) }}</span>
                 </label>
@@ -326,25 +332,38 @@ async function submit() {
                 :class="[NATIVE_SELECT_CLASS, 'w-44']"
                 @change="(e) => applyAccrualToCustomAmount((e.target as HTMLSelectElement).value)"
               >
-                <option value="" disabled>Начисление</option>
+                <option value="" disabled>{{ t('payment.createDialog.accrualSelectPlaceholder') }}</option>
                 <option v-for="accrual in openAccruals" :key="accrual.id" :value="String(accrual.id)">
                   {{ monthLabel(accrual.periodStart) }} — {{ formatMoney(accrual.balance) }}
                 </option>
-                <option v-if="penaltyBalance > 0" value="penalty">Пеня — {{ formatMoney(penaltyBalance) }}</option>
+                <option v-if="penaltyBalance > 0" value="penalty">
+                  {{ t('payment.createDialog.penaltyOption', { amount: formatMoney(penaltyBalance) }) }}
+                </option>
               </select>
-              <Input :class="NO_SPINNER_CLASS" id="custom-amount" v-model.number="customAmount" type="number" min="1" placeholder="Сумма" />
+              <Input
+                :class="NO_SPINNER_CLASS"
+                id="custom-amount"
+                v-model.number="customAmount"
+                type="number"
+                min="1"
+                :placeholder="t('payment.createDialog.amountPlaceholder')"
+              />
             </div>
           </template>
         </div>
 
         <div class="flex flex-col gap-3 rounded-lg border p-3">
-          <p class="text-sm font-medium">Плательщик</p>
+          <p class="text-sm font-medium">{{ t('payment.createDialog.payerSection') }}</p>
           <div class="flex w-fit items-center gap-1 rounded-md border p-0.5">
-            <Button :variant="payerIsResident ? 'default' : 'ghost'" size="sm" @click="payerIsResident = true"> Оплачиваю сам(а) </Button>
-            <Button :variant="!payerIsResident ? 'default' : 'ghost'" size="sm" @click="payerIsResident = false"> Оплачивает другой человек </Button>
+            <Button :variant="payerIsResident ? 'default' : 'ghost'" size="sm" @click="payerIsResident = true">
+              {{ t('payment.createDialog.payerIsResident') }}
+            </Button>
+            <Button :variant="!payerIsResident ? 'default' : 'ghost'" size="sm" @click="payerIsResident = false">
+              {{ t('payment.createDialog.payerIsOther') }}
+            </Button>
           </div>
           <div v-if="!payerIsResident" class="flex flex-col gap-2">
-            <Label for="representative-name">ФИО плательщика</Label>
+            <Label for="representative-name">{{ t('payment.createDialog.representativeName') }}</Label>
             <Input
               id="representative-name"
               :model-value="representativeFullName"
@@ -352,41 +371,40 @@ async function submit() {
             />
           </div>
           <div class="flex flex-col gap-2">
-            <Label for="payer-email">Email для чека</Label>
+            <Label for="payer-email">{{ t('payment.createDialog.payerEmail') }}</Label>
             <Input id="payer-email" v-model="payerEmail" type="email" :class="emailInvalid ? 'border-red-500' : ''" />
-            <p v-if="emailInvalid" class="text-xs text-red-500">Некорректный email</p>
+            <p v-if="emailInvalid" class="text-xs text-red-500">{{ t('payment.createDialog.invalidEmail') }}</p>
           </div>
         </div>
 
         <div class="flex flex-col gap-1.5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
           <p class="flex items-start gap-1.5">
             <Info class="size-3.5 shrink-0 translate-y-0.5" />
-            Сайт использует сертификаты НУЦ Минцифры России — для оплаты без ошибок используйте Яндекс Браузер или установите
-            сертификаты Минцифры на устройство.
+            {{ t('payment.createDialog.certificateNotice') }}
           </p>
           <p class="flex items-start gap-1.5">
             <Info class="size-3.5 shrink-0 translate-y-0.5" />
-            Для налогового вычета оплату должен вносить тот, кто планирует его получить.
+            {{ t('payment.createDialog.taxDeductionNotice') }}
           </p>
         </div>
 
         <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between">
-            <span class="text-sm text-muted-foreground">К оплате</span>
+            <span class="text-sm text-muted-foreground">{{ t('payment.createDialog.amountDue') }}</span>
             <span class="text-lg font-semibold">{{ formatMoney(finalAmount) }}</span>
           </div>
           <p v-if="!data.acquiringAvailable" class="flex items-center gap-1.5 text-xs text-muted-foreground">
             <AlertTriangle class="size-3.5 shrink-0 text-orange-500" />
-            Оплата картой временно недоступна — эквайринг ещё не подключён.
+            {{ t('payment.createDialog.acquiringUnavailable') }}
           </p>
         </div>
       </div>
 
       <DialogFooter>
         <p v-if="submitError" class="mr-auto self-center text-sm text-red-500">{{ submitError }}</p>
-        <Button variant="outline" @click="isDialogOpen = false">Отмена</Button>
+        <Button variant="outline" @click="isDialogOpen = false">{{ t('payment.createDialog.cancel') }}</Button>
         <Button :disabled="!data?.acquiringAvailable" :loading="isSubmitting" @click="submit">
-          Оплатить {{ formatMoney(finalAmount) }}
+          {{ t('payment.createDialog.pay', { amount: formatMoney(finalAmount) }) }}
         </Button>
       </DialogFooter>
     </DialogScrollContent>

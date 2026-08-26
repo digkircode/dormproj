@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { dateLocaleTag } from '@/lib/format-locale'
+
 const props = defineProps<{ value: unknown; row?: unknown }>()
 
 function formatMoney(value: number): string {
-  return `${value.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
+  return `${value.toLocaleString(dateLocaleTag(), { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
 }
 </script>
 

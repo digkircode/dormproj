@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Globe, ChevronDown } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import {
@@ -9,15 +10,29 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import type { AppLocale } from '@/i18n'
+import { LOCALE_STORAGE_KEY } from '@/i18n'
 
-// Только переключатель значения — перевода интерфейса пока нет, выбор ничего не меняет.
-type Locale = 'ru' | 'en'
-const localeOptions: { value: Locale; label: string }[] = [
+// Названия языков в списке — всегда на самих себе ("Русский"/"English"), не переводятся
+// вместе с остальным интерфейсом: стандартный паттерн для переключателя языка, человек,
+// не читающий текущий язык интерфейса, должен всё равно узнать свой в списке.
+const localeOptions: { value: AppLocale; label: string }[] = [
   { value: 'ru', label: 'Русский' },
   { value: 'en', label: 'English' },
 ]
-const locale = ref<Locale>('ru')
+const { t, locale } = useI18n()
 const localeLabel = computed(() => localeOptions.find((o) => o.value === locale.value)?.label ?? '')
+
+// Accept-Language на бэкенд читается напрямую из localStorage (см. api-base.ts) — не из
+// реактивного locale, поэтому смена языка сохраняется сразу, до следующего запроса.
+watch(locale, (value) => {
+  try {
+    localStorage.setItem(LOCALE_STORAGE_KEY, value)
+  } catch {
+    // localStorage может быть недоступен (приватный режим и т.п.) — выбор просто не переживёт перезагрузку
+  }
+  document.documentElement.lang = value
+}, { immediate: true })
 
 // Пути и брендовые цвета — из simple-icons (VK 0077FF, Telegram 26A5E4). У себя
 // используем цвет из TeamSwitcher.vue (тот же логотип RosNOU в сайдбаре).
@@ -40,7 +55,7 @@ const socialLinks = [
 <template>
   <footer class="flex flex-col gap-3 border-t bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between md:px-6">
     <div class="flex flex-wrap items-center gap-3">
-      <span class="text-xs text-muted-foreground">© 1991–2026 Российский новый университет</span>
+      <span class="text-xs text-muted-foreground">{{ t('footer.copyright') }}</span>
     </div>
 
     <div class="flex items-center gap-3">
@@ -53,7 +68,7 @@ const socialLinks = [
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuRadioGroup :model-value="locale" @update:model-value="(value) => (locale = value as Locale)">
+          <DropdownMenuRadioGroup :model-value="locale" @update:model-value="(value) => (locale = value as AppLocale)">
             <DropdownMenuRadioItem v-for="option in localeOptions" :key="option.value" :value="option.value">
               {{ option.label }}
             </DropdownMenuRadioItem>

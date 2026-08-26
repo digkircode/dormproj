@@ -1,3 +1,4 @@
+import { I18nContext } from 'nestjs-i18n';
 import type { ContractStatus } from '../../generated/prisma/client.js';
 
 // Порог/правило — синхронизированы с фронтом (frontend/src/lib/contracts-format.ts#getContractDisplayStatus),
@@ -22,10 +23,20 @@ export function getContractDisplayStatus(status: ContractStatus, endDate: Date, 
 }
 
 // Та же подпись, что STATUS_LABELS на фронте (contracts-format.ts) — держать в трёх
-// местах (тут + фронт + ContractRegistryStatusCell.vue) одинаковыми при правке.
-export const CONTRACT_DISPLAY_STATUS_LABELS: Record<ContractDisplayStatus, string> = {
+// местах (тут + фронт + ContractRegistryStatusCell.vue) одинаковыми при правке. Значения
+// резолвятся через nestjs-i18n (backend/i18n/{ru,en}/contracts.json#status) под язык
+// текущего запроса (I18nContext.current() — AsyncLocalStorage, работает без явного
+// прокидывания контекста, см. HeaderResolver в app.module.ts); фолбэк на русский —
+// для вызовов вне HTTP-запроса (например, будущий cron), где i18n-контекста нет.
+const RU_FALLBACK: Record<ContractDisplayStatus, string> = {
   ACTIVE: 'Действует',
   EXPIRING: 'Истекает',
   TERMINATED: 'Расторгнут',
   EXPIRED: 'Истёк',
 };
+// Proxy-таргет — сам RU_FALLBACK (не пустой {}), иначе Object.keys(CONTRACT_DISPLAY_STATUS_LABELS)
+// (см. reports.controller.ts#debtorsFacets) возвращал бы [] — ownKeys-ловушка по умолчанию
+// форвардится на реальные ключи target, а не get-ловушку.
+export const CONTRACT_DISPLAY_STATUS_LABELS: Record<ContractDisplayStatus, string> = new Proxy(RU_FALLBACK, {
+  get: (_target, status: string) => I18nContext.current()?.t(`contracts.status.${status}`) ?? RU_FALLBACK[status as ContractDisplayStatus],
+});

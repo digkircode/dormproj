@@ -1,5 +1,6 @@
 import { BadRequestException, Controller, Get, NotFoundException, Param, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
+import { I18nContext } from 'nestjs-i18n';
 import { Prisma, ContractStatus } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -22,14 +23,28 @@ import { getContractDisplayStatus, CONTRACT_DISPLAY_STATUS_LABELS, type Contract
 
 const { Decimal } = Prisma;
 
+// Резолвит перевод под язык текущего запроса (см. contract-display-status.ts), с fallback
+// на русский текст — и для вызовов вне HTTP-запроса, и как аргумент по умолчанию, если ключ
+// не сматчился ни на один язык.
+function t(key: string, fallback: string): string {
+  return I18nContext.current()?.t(key) ?? fallback;
+}
+
 type ContractRegistryBucket = 'ACTIVE' | 'EXPIRING' | 'OVERDUE' | 'TERMINATED';
 
-const BUCKET_LABELS: Record<ContractRegistryBucket, string> = {
+// Proxy-таргет — сам объект с русскими фолбэками, не пустой {} — иначе
+// Object.keys(BUCKET_LABELS) (см. contractsRegistryFacets ниже) вернул бы [] (ownKeys
+// форвардится на реальные ключи target, а не на get-ловушку), тот же приём и та же
+// ловушка, что уже почищена в contract-display-status.ts#CONTRACT_DISPLAY_STATUS_LABELS.
+const BUCKET_LABELS_RU: Record<ContractRegistryBucket, string> = {
   ACTIVE: 'Действует',
   EXPIRING: 'Истекает',
   OVERDUE: 'Просрочен',
   TERMINATED: 'Расторгнут',
 };
+const BUCKET_LABELS: Record<ContractRegistryBucket, string> = new Proxy(BUCKET_LABELS_RU, {
+  get: (target, status: string) => t(`reports.registryBucket.${status}`, target[status as ContractRegistryBucket]),
+});
 
 
 // Название характеристик комнаты, от которых зависят отчёты "Занятость" — заведены сидом
@@ -93,17 +108,20 @@ interface MovementEvent {
 
 const MOVEMENT_GAP_DAYS = 30;
 
-const MOVEMENT_LABELS: Record<MovementOperationType, string> = {
+const MOVEMENT_LABELS_RU: Record<MovementOperationType, string> = {
   IN: 'Заселение',
   OUT: 'Выселение',
   MOVE: 'Переселение',
   RENEWAL: 'Продление',
 };
+const MOVEMENT_LABELS: Record<MovementOperationType, string> = new Proxy(MOVEMENT_LABELS_RU, {
+  get: (target, operation: string) => t(`reports.movementOperation.${operation}`, target[operation as MovementOperationType]),
+});
 
 function parseIdParam(idParam: string): number {
   const id = Number.parseInt(idParam, 10);
   if (!Number.isInteger(id)) {
-    throw new BadRequestException('Некорректный id');
+    throw new BadRequestException('contracts.errors.invalidId');
   }
   return id;
 }
@@ -214,17 +232,17 @@ export class ReportsController {
     });
 
     const columns: ExcelColumn<DebtorRowWithDisplayStatus>[] = [
-      { header: '№ договора', value: (r) => r.contractNumber, width: 16 },
-      { header: 'ФИО', value: (r) => r.residentFullName, width: 32 },
-      { header: 'Комната', value: (r) => r.room ?? '', width: 12 },
-      { header: 'Статус', value: (r) => CONTRACT_DISPLAY_STATUS_LABELS[r.displayStatus], width: 14 },
-      { header: 'Дата создания', value: (r) => r.createdAt, format: 'date', width: 14 },
-      { header: 'Начислено', value: (r) => r.totalAccrued, format: 'money', width: 16 },
-      { header: 'Оплачено', value: (r) => r.totalPaid, format: 'money', width: 16 },
-      { header: 'Пеня', value: (r) => r.penaltyBalance, format: 'money', width: 14 },
-      { header: 'Долг', value: (r) => r.totalBalance, format: 'money', width: 14 },
+      { header: t('reports.excel.colContractNumber', '№ договора'), value: (r) => r.contractNumber, width: 16 },
+      { header: t('reports.excel.colFullName', 'ФИО'), value: (r) => r.residentFullName, width: 32 },
+      { header: t('reports.excel.colRoom', 'Комната'), value: (r) => r.room ?? '', width: 12 },
+      { header: t('reports.excel.colStatus', 'Статус'), value: (r) => CONTRACT_DISPLAY_STATUS_LABELS[r.displayStatus], width: 14 },
+      { header: t('reports.excel.colCreatedAt', 'Дата создания'), value: (r) => r.createdAt, format: 'date', width: 14 },
+      { header: t('reports.excel.colAccrued', 'Начислено'), value: (r) => r.totalAccrued, format: 'money', width: 16 },
+      { header: t('reports.excel.colPaid', 'Оплачено'), value: (r) => r.totalPaid, format: 'money', width: 16 },
+      { header: t('reports.excel.colPenalty', 'Пеня'), value: (r) => r.penaltyBalance, format: 'money', width: 14 },
+      { header: t('reports.excel.colDebt', 'Долг'), value: (r) => r.totalBalance, format: 'money', width: 14 },
     ];
-    await sendExcelReport(res, 'financial-report', 'Финансовый отчёт', columns, sorted);
+    await sendExcelReport(res, 'financial-report', t('reports.excel.sheetDebtors', 'Финансовый отчёт'), columns, sorted);
   }
 
   // Структура долга одного договора по периодам (клик на договор в реестре) — ВСЕ
@@ -254,7 +272,7 @@ export class ReportsController {
       },
     });
     if (!contract) {
-      throw new NotFoundException('Договор не найден');
+      throw new NotFoundException('contracts.errors.contractNotFound');
     }
 
     const periods = contract.accruals.map((accrual) => {
@@ -316,7 +334,7 @@ export class ReportsController {
       },
     });
     if (!contract) {
-      throw new NotFoundException('Договор не найден');
+      throw new NotFoundException('contracts.errors.contractNotFound');
     }
 
     const entries = contract.penaltyLogs
@@ -542,14 +560,14 @@ export class ReportsController {
   async contingentFacets(@Param('field') field: string): Promise<FacetOption[]> {
     if (field === 'citizenshipGroup') {
       return [
-        { value: 'RU', label: 'Россия' },
-        { value: 'FOREIGN', label: 'Иностранный гражданин' },
+        { value: 'RU', label: t('reports.contingentFacets.citizenshipRu', 'Россия') },
+        { value: 'FOREIGN', label: t('reports.contingentFacets.citizenshipForeign', 'Иностранный гражданин') },
       ];
     }
     if (field === 'isOwnUniversity') {
       return [
-        { value: 'OWN', label: 'Студент РосНОУ' },
-        { value: 'OTHER', label: 'Не студент РосНОУ' },
+        { value: 'OWN', label: t('reports.contingentFacets.ownUniversity', 'Студент РосНОУ') },
+        { value: 'OTHER', label: t('reports.contingentFacets.otherUniversity', 'Не студент РосНОУ') },
       ];
     }
     if (field !== 'facultet' && field !== 'kursNumber') return [];
@@ -575,16 +593,16 @@ export class ReportsController {
     });
 
     const columns: ExcelColumn<ContingentRow>[] = [
-      { header: 'Дата заселения', value: (r) => r.movedInDate, format: 'date', width: 14 },
-      { header: 'Проживающий', value: (r) => r.residentFullName, width: 32 },
-      { header: '№ договора', value: (r) => r.contractNumber, width: 16 },
-      { header: 'Комната', value: (r) => r.room, width: 12 },
-      { header: 'Факультет', value: (r) => r.facultet ?? '', width: 24 },
-      { header: 'Курс', value: (r) => r.kursNumber ?? '', width: 8 },
-      { header: 'Дата рождения', value: (r) => r.birthDate, format: 'date', width: 14 },
-      { header: 'Гражданство', value: (r) => r.citizenship ?? '', width: 18 },
+      { header: t('reports.excel.colMovedInDate', 'Дата заселения'), value: (r) => r.movedInDate, format: 'date', width: 14 },
+      { header: t('reports.excel.colResident', 'Проживающий'), value: (r) => r.residentFullName, width: 32 },
+      { header: t('reports.excel.colContractNumber', '№ договора'), value: (r) => r.contractNumber, width: 16 },
+      { header: t('reports.excel.colRoom', 'Комната'), value: (r) => r.room, width: 12 },
+      { header: t('reports.excel.colFacultet', 'Факультет'), value: (r) => r.facultet ?? '', width: 24 },
+      { header: t('reports.excel.colKurs', 'Курс'), value: (r) => r.kursNumber ?? '', width: 8 },
+      { header: t('reports.excel.colBirthDate', 'Дата рождения'), value: (r) => r.birthDate, format: 'date', width: 14 },
+      { header: t('reports.excel.colCitizenship', 'Гражданство'), value: (r) => r.citizenship ?? '', width: 18 },
     ];
-    await sendExcelReport(res, 'residents-registry', 'Реестр проживающих', columns, sorted);
+    await sendExcelReport(res, 'residents-registry', t('reports.excel.sheetContingent', 'Реестр проживающих'), columns, sorted);
   }
 
   // ===== Отчёт "Реестр договоров" =====
@@ -678,16 +696,16 @@ export class ReportsController {
     });
 
     const columns: ExcelColumn<ContractRegistryRow>[] = [
-      { header: '№ договора', value: (r) => r.contractNumber, width: 16 },
-      { header: 'ФИО', value: (r) => r.residentFullName, width: 32 },
-      { header: 'Комната', value: (r) => r.room ?? '', width: 12 },
-      { header: 'Статус', value: (r) => BUCKET_LABELS[r.bucket], width: 14 },
-      { header: 'Дата создания', value: (r) => r.createdAt, format: 'date', width: 14 },
-      { header: 'Дата начала', value: (r) => r.startDate, format: 'date', width: 14 },
-      { header: 'Дата окончания', value: (r) => r.endDate, format: 'date', width: 14 },
-      { header: 'Дней до окончания', value: (r) => r.daysUntilEnd, width: 16 },
+      { header: t('reports.excel.colContractNumber', '№ договора'), value: (r) => r.contractNumber, width: 16 },
+      { header: t('reports.excel.colFullName', 'ФИО'), value: (r) => r.residentFullName, width: 32 },
+      { header: t('reports.excel.colRoom', 'Комната'), value: (r) => r.room ?? '', width: 12 },
+      { header: t('reports.excel.colStatus', 'Статус'), value: (r) => BUCKET_LABELS[r.bucket], width: 14 },
+      { header: t('reports.excel.colCreatedAt', 'Дата создания'), value: (r) => r.createdAt, format: 'date', width: 14 },
+      { header: t('reports.excel.colStartDate', 'Дата начала'), value: (r) => r.startDate, format: 'date', width: 14 },
+      { header: t('reports.excel.colEndDate', 'Дата окончания'), value: (r) => r.endDate, format: 'date', width: 14 },
+      { header: t('reports.excel.colDaysUntilEnd', 'Дней до окончания'), value: (r) => r.daysUntilEnd, width: 16 },
     ];
-    await sendExcelReport(res, 'contracts-registry', 'Реестр договоров', columns, sorted);
+    await sendExcelReport(res, 'contracts-registry', t('reports.excel.sheetRegistry', 'Реестр договоров'), columns, sorted);
   }
 
   // ===== Отчёт "Движение проживающих" (бывшее "Заселение / выселение") =====
@@ -834,13 +852,13 @@ export class ReportsController {
     });
 
     const columns: ExcelColumn<MovementEvent>[] = [
-      { header: 'Дата операции', value: (r) => r.date, format: 'date', width: 14 },
-      { header: '№ договора', value: (r) => r.contractNumber, width: 16 },
-      { header: 'ФИО', value: (r) => r.residentFullName, width: 32 },
-      { header: 'Операция', value: (r) => MOVEMENT_LABELS[r.operation], width: 14 },
-      { header: 'Откуда', value: (r) => r.from ?? '', width: 12 },
-      { header: 'Куда', value: (r) => r.to ?? '', width: 12 },
+      { header: t('reports.excel.colOperationDate', 'Дата операции'), value: (r) => r.date, format: 'date', width: 14 },
+      { header: t('reports.excel.colContractNumber', '№ договора'), value: (r) => r.contractNumber, width: 16 },
+      { header: t('reports.excel.colFullName', 'ФИО'), value: (r) => r.residentFullName, width: 32 },
+      { header: t('reports.excel.colOperation', 'Операция'), value: (r) => MOVEMENT_LABELS[r.operation], width: 14 },
+      { header: t('reports.excel.colFrom', 'Откуда'), value: (r) => r.from ?? '', width: 12 },
+      { header: t('reports.excel.colTo', 'Куда'), value: (r) => r.to ?? '', width: 12 },
     ];
-    await sendExcelReport(res, 'movements', 'Движение проживающих', columns, sorted);
+    await sendExcelReport(res, 'movements', t('reports.excel.sheetMovements', 'Движение проживающих'), columns, sorted);
   }
 }

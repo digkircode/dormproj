@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
   ArrowLeft,
@@ -37,20 +38,11 @@ import {
   type UnifiedPaymentRow,
   type UnifiedPaymentStatus,
 } from '@/lib/my-payments-api'
+import { dateLocaleTag } from '@/lib/format-locale'
 import { goBack } from '@/lib/utils'
 
-// Та же карта, что и в ContractDetail.vue (сотруднический "Внести платёж") — не вынесена
-// в общий модуль там по той же причине, что и остальные небольшие повторы в проекте
-// (см. промпт), тут тот же принцип.
-const METHOD_LABELS: Record<string, string> = {
-  CASH: 'Наличные',
-  CARD_ACQUIRING: 'Эквайринг',
-  BANK_TRANSFER: 'Банковский перевод',
-  MAT_CAPITAL: 'Материнский капитал',
-  WEBSITE: 'Сайт',
-}
-
 const router = useRouter()
+const { t } = useI18n()
 const contract = ref<MyContractDetail | null>(null)
 // Загрузка успешно завершилась, но договора нет — отдельно от isLoading/loadError, чтобы
 // не путать "договора действительно нет" с "ещё грузится"/"ошибка запроса" (тот же приём,
@@ -134,13 +126,13 @@ const isDailyOnlyContract = computed(
 
 function formatDate(value: string | null): string {
   if (!value) return '—'
-  return new Date(value).toLocaleDateString('ru-RU')
+  return new Date(value).toLocaleDateString(dateLocaleTag())
 }
 function monthLabel(value: string): string {
-  return new Date(value).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })
+  return new Date(value).toLocaleDateString(dateLocaleTag(), { month: 'long', year: 'numeric' })
 }
 function formatMoney(value: number): string {
-  return `${value.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
+  return `${value.toLocaleString(dateLocaleTag(), { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
 }
 
 // --- Начисления — та же EntityTable, что и во всех остальных таблицах приложения (по
@@ -148,20 +140,22 @@ function formatMoney(value: number): string {
 // колонок/поиска). fetchPage/fetchFacetValues — клиентский адаптер (см. lib/client-list.ts):
 // начисления уже целиком в памяти (не постранично с сервера, как у остальных таблиц). ---
 const accrualColumnHelper = createAppColumnHelper<AccrualRow>()
-const accrualColumnLabels: Record<string, string> = {
-  periodStart: 'Период',
-  dueDate: 'Срок оплаты',
-  rentAmount: 'Найм',
-  paid: 'Оплачено',
-  balance: 'Остаток',
-}
-const accrualColumns = accrualColumnHelper.columns([
-  accrualColumnHelper.accessor('periodStart', { header: accrualColumnLabels.periodStart, size: 160, minSize: 130 }),
-  accrualColumnHelper.accessor('dueDate', { header: accrualColumnLabels.dueDate, enableSorting: false, size: 140, minSize: 110 }),
-  accrualColumnHelper.accessor('rentAmount', { header: accrualColumnLabels.rentAmount, enableSorting: false, size: 120, minSize: 100 }),
-  accrualColumnHelper.accessor('paid', { header: accrualColumnLabels.paid, enableSorting: false, size: 120, minSize: 100 }),
-  accrualColumnHelper.accessor('balance', { header: accrualColumnLabels.balance, size: 120, minSize: 100 }),
-])
+const accrualColumnLabels = computed<Record<string, string>>(() => ({
+  periodStart: t('contracts.detail.colPeriod'),
+  dueDate: t('contracts.detail.colDueDate'),
+  rentAmount: t('contracts.detail.colRent'),
+  paid: t('contracts.detail.colPaid'),
+  balance: t('contracts.detail.colBalance'),
+}))
+const accrualColumns = computed(() =>
+  accrualColumnHelper.columns([
+    accrualColumnHelper.accessor('periodStart', { header: accrualColumnLabels.value.periodStart, size: 160, minSize: 130 }),
+    accrualColumnHelper.accessor('dueDate', { header: accrualColumnLabels.value.dueDate, enableSorting: false, size: 140, minSize: 110 }),
+    accrualColumnHelper.accessor('rentAmount', { header: accrualColumnLabels.value.rentAmount, enableSorting: false, size: 120, minSize: 100 }),
+    accrualColumnHelper.accessor('paid', { header: accrualColumnLabels.value.paid, enableSorting: false, size: 120, minSize: 100 }),
+    accrualColumnHelper.accessor('balance', { header: accrualColumnLabels.value.balance, size: 120, minSize: 100 }),
+  ]),
+)
 function accrualCellText(columnId: string, value: unknown): string {
   if (columnId === 'periodStart' && typeof value === 'string') return monthLabel(value)
   if (columnId === 'dueDate' && typeof value === 'string') return formatDate(value)
@@ -185,7 +179,7 @@ const unifiedPayments = computed<UnifiedPaymentRow[]>(() => {
   const ledgerRows: UnifiedPaymentRow[] = (contract.value?.payments ?? []).map((p) => ({
     id: `payment-${p.id}`,
     date: p.paidAt,
-    description: p.rawComment || METHOD_LABELS[p.method] || p.method,
+    description: p.rawComment || t(`payment.method.${p.method}`) || p.method,
     amount: p.amount,
     status: p.reversedAt ? 'REVERSED' : 'PAID',
     // Заглушка чека — только для того, что реально прошло как онлайн-оплата (эквайринг/
@@ -209,20 +203,28 @@ const unifiedPayments = computed<UnifiedPaymentRow[]>(() => {
 })
 
 const paymentColumnHelper = createAppColumnHelper<UnifiedPaymentRow>()
-const paymentColumnLabels: Record<string, string> = {
-  date: 'Дата',
-  description: 'Описание',
-  amount: 'Сумма',
-  status: 'Статус',
-  fiscalReceiptUrl: 'Чек',
-}
-const paymentColumns = paymentColumnHelper.columns([
-  paymentColumnHelper.accessor('date', { header: paymentColumnLabels.date, size: 140, minSize: 110 }),
-  paymentColumnHelper.accessor('description', { header: paymentColumnLabels.description, enableSorting: false, size: 260, minSize: 160 }),
-  paymentColumnHelper.accessor('amount', { header: paymentColumnLabels.amount, size: 120, minSize: 100 }),
-  paymentColumnHelper.accessor('status', { header: paymentColumnLabels.status, enableSorting: false, size: 170, minSize: 150 }),
-  paymentColumnHelper.accessor('fiscalReceiptUrl', { header: paymentColumnLabels.fiscalReceiptUrl, enableSorting: false, enableHiding: false, size: 120, minSize: 100 }),
-])
+const paymentColumnLabels = computed<Record<string, string>>(() => ({
+  date: t('contracts.detail.colDate'),
+  description: t('contracts.myContract.colDescription'),
+  amount: t('contracts.detail.colAmount'),
+  status: t('contracts.list.colStatus'),
+  fiscalReceiptUrl: t('contracts.myContract.colReceipt'),
+}))
+const paymentColumns = computed(() =>
+  paymentColumnHelper.columns([
+    paymentColumnHelper.accessor('date', { header: paymentColumnLabels.value.date, size: 140, minSize: 110 }),
+    paymentColumnHelper.accessor('description', { header: paymentColumnLabels.value.description, enableSorting: false, size: 260, minSize: 160 }),
+    paymentColumnHelper.accessor('amount', { header: paymentColumnLabels.value.amount, size: 120, minSize: 100 }),
+    paymentColumnHelper.accessor('status', { header: paymentColumnLabels.value.status, enableSorting: false, size: 170, minSize: 150 }),
+    paymentColumnHelper.accessor('fiscalReceiptUrl', {
+      header: paymentColumnLabels.value.fiscalReceiptUrl,
+      enableSorting: false,
+      enableHiding: false,
+      size: 120,
+      minSize: 100,
+    }),
+  ]),
+)
 function paymentCellText(columnId: string, value: unknown): string {
   if (columnId === 'date' && typeof value === 'string') return formatDate(value)
   if (columnId === 'amount' && typeof value === 'number') return formatMoney(value)
@@ -247,7 +249,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
-        <span class="sr-only">Назад</span>
+        <span class="sr-only">{{ t('contracts.list.back') }}</span>
       </Button>
       <!-- Явно кнопочный вид (рамка/фон), не просто текст+стрелка — чтобы возможность
            сменить договор считывалась сразу, а не терялась среди заголовка (по прямой
@@ -258,36 +260,38 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
             type="button"
             class="flex items-center gap-1.5 rounded-md border bg-background px-2.5 py-1 text-lg font-medium hover:bg-accent"
           >
-            Договор № {{ contract.number }}
+            {{ t('contracts.detail.titleWithNumber', { number: contract.number }) }}
             <ChevronDown class="size-4 shrink-0 text-muted-foreground" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
           <DropdownMenuItem v-for="c in contracts" :key="c.id" :class="c.id === selectedContractId ? 'font-medium' : ''" @click="switchContract(c.id)">
-            № {{ c.number }} — {{ CONTRACT_STATUS_LABELS[getContractDisplayStatus(c.status, c.endDate)] }}
+            {{ t('contracts.myContract.contractOption', { number: c.number, status: CONTRACT_STATUS_LABELS[getContractDisplayStatus(c.status, c.endDate)] }) }}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <h1 v-else class="text-lg font-medium">{{ contract ? `Договор № ${contract.number}` : 'Договор/Платежи' }}</h1>
+      <h1 v-else class="text-lg font-medium">
+        {{ contract ? t('contracts.detail.titleWithNumber', { number: contract.number }) : t('nav.studentContract') }}
+      </h1>
       <ContractStatusPill v-if="displayStatus" :status="displayStatus" />
       <Loader v-if="isSwitching" class="size-4 shrink-0 animate-spin text-muted-foreground" />
       <!-- Тут же, на уровне номера договора — было тесно вперемешку с датой создания,
            та переехала в карточку ниже (по прямой просьбе 2026-08-26). -->
       <Button v-if="contract" size="sm" class="ml-auto flex items-center gap-2" @click="paymentDialog?.open(contract.id)">
         <CreditCard class="size-4 shrink-0" />
-        Оплатить
+        {{ t('nav.sidebarPay') }}
       </Button>
       <CreatePaymentDialog ref="paymentDialog" />
     </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-    <p v-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
+    <p v-if="isLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
 
     <Card v-if="!isLoading && !loadError && !contract" class="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
       <FileX class="size-8 text-muted-foreground" />
-      <p class="text-sm font-medium">Действующего договора не найдено</p>
+      <p class="text-sm font-medium">{{ t('contracts.myContract.noContractFound') }}</p>
       <p class="max-w-sm text-sm text-muted-foreground">
-        Как только с вами будет заключён договор найма, информация о нём появится на этой странице.
+        {{ t('contracts.myContract.noContractHint') }}
       </p>
     </Card>
 
@@ -299,7 +303,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
         <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           <span v-if="contract.currentRoom" class="flex items-center gap-1.5">
             <DoorOpen class="size-4 shrink-0 text-primary" />
-            Комната {{ contract.currentRoom.room }}
+            {{ t('roomInfo.dialogTitle', { room: contract.currentRoom.room }) }}
           </span>
           <span class="flex items-center gap-1.5">
             <CalendarRange class="size-4 shrink-0 text-primary" />
@@ -309,7 +313,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
                теперь кнопка "Оплатить", по прямой просьбе 2026-08-26). -->
           <span class="ml-auto flex items-center gap-1.5 text-muted-foreground">
             <History class="size-4 shrink-0 text-primary" />
-            Создан {{ formatDate(contract.createdAt) }}
+            {{ t('contracts.detail.createdOn', { date: formatDate(contract.createdAt) }) }}
           </span>
         </div>
 
@@ -319,7 +323,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
               <Wallet class="size-5 text-green-600 dark:text-green-400" />
             </div>
             <div>
-              <p class="text-xs text-muted-foreground">Общий баланс</p>
+              <p class="text-xs text-muted-foreground">{{ t('contracts.detail.totalBalance') }}</p>
               <p class="text-lg font-semibold" :class="totalBalance > 0 ? 'text-red-500' : 'text-green-600'">
                 {{ formatMoney(totalBalance) }}
               </p>
@@ -330,8 +334,8 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
               <DoorOpen class="size-5 text-sky-600 dark:text-sky-400" />
             </div>
             <div>
-              <p class="text-xs text-muted-foreground">Стоимость комнаты</p>
-              <p class="text-lg font-medium">{{ isDailyOnlyContract ? 'Посуточно' : formatMoney(rentAmount) }}</p>
+              <p class="text-xs text-muted-foreground">{{ t('contracts.detail.roomCost') }}</p>
+              <p class="text-lg font-medium">{{ isDailyOnlyContract ? t('contracts.detail.dailyRateOnly') : formatMoney(rentAmount) }}</p>
             </div>
           </div>
           <div class="flex items-center gap-3">
@@ -339,7 +343,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
               <CalendarClock class="size-5 text-violet-600 dark:text-violet-400" />
             </div>
             <div>
-              <p class="text-xs text-muted-foreground">Суточная ставка</p>
+              <p class="text-xs text-muted-foreground">{{ t('contracts.detail.dailyRate') }}</p>
               <p class="text-lg font-medium">{{ formatMoney(contract.terms[0]?.dailyRateAmount ?? 0) }}</p>
             </div>
           </div>
@@ -354,7 +358,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
               <Percent class="size-5 text-orange-600 dark:text-orange-400" />
             </div>
             <div>
-              <p class="text-xs text-muted-foreground">Пени</p>
+              <p class="text-xs text-muted-foreground">{{ t('contracts.detail.penalty') }}</p>
               <p class="text-lg font-medium" :class="contract.penaltyBalance > 0 ? 'text-red-500' : ''">
                 {{ formatMoney(contract.penaltyBalance) }}
               </p>
@@ -368,13 +372,13 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
           <TabsTrigger value="accruals">
             <span class="flex items-center gap-1.5">
               <Receipt class="size-4 text-primary" />
-              Начисления
+              {{ t('contracts.detail.tabAccruals') }}
             </span>
           </TabsTrigger>
           <TabsTrigger value="payments">
             <span class="flex items-center gap-1.5">
               <Wallet class="size-4 text-primary" />
-              Платежи
+              {{ t('contracts.detail.tabPayments') }}
             </span>
           </TabsTrigger>
         </TabsList>
@@ -389,7 +393,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
             :fetch-page="fetchAccrualsPage"
             :fetch-facet-values="fetchAccrualFacets"
             :get-row-id="(a: AccrualRow) => String(a.id)"
-            total-label="начислений"
+            :total-label="t('contracts.myContract.totalAccruals')"
             :cell-text="accrualCellText"
             :cell-renderers="accrualCellRenderers"
             storage-key="my-contract-accruals"
@@ -407,7 +411,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
             :fetch-page="fetchPaymentsPage"
             :fetch-facet-values="fetchPaymentFacets"
             :get-row-id="(r: UnifiedPaymentRow) => r.id"
-            total-label="платежей"
+            :total-label="t('contracts.myContract.totalPayments')"
             :cell-text="paymentCellText"
             :cell-renderers="paymentCellRenderers"
             storage-key="my-contract-payments"
@@ -423,11 +427,10 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
         <DialogHeader>
           <DialogTitle class="flex items-center gap-1.5">
             <Percent class="size-4 text-orange-500" />
-            История начисления пени
+            {{ t('contracts.myContract.penaltyHistoryTitle') }}
           </DialogTitle>
           <DialogDescription>
-            0,14% в день от суммы просроченных непогашенных начислений — начисляется с 10 числа месяца, следующего за
-            неоплаченным периодом.
+            {{ t('contracts.myContract.penaltyHistoryDescription') }}
           </DialogDescription>
         </DialogHeader>
         <div v-if="contract?.penaltyLog.length" class="-mx-1 flex-1 space-y-1 overflow-y-auto px-1" style="max-height: 50vh">
@@ -438,12 +441,14 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
           >
             <div>
               <p class="font-medium">{{ formatDate(row.date) }}</p>
-              <p class="text-xs text-muted-foreground">{{ PENALTY_DAILY_RATE_PERCENT }} от {{ formatMoney(row.overdueBase) }}</p>
+              <p class="text-xs text-muted-foreground">
+                {{ t('contracts.myContract.penaltyLine', { rate: PENALTY_DAILY_RATE_PERCENT, amount: formatMoney(row.overdueBase) }) }}
+              </p>
             </div>
             <span class="font-medium text-orange-600 dark:text-orange-400">+{{ formatMoney(row.amount) }}</span>
           </div>
         </div>
-        <p v-else class="text-sm text-muted-foreground">Пеня ни разу не начислялась.</p>
+        <p v-else class="text-sm text-muted-foreground">{{ t('contracts.myContract.penaltyNeverAccrued') }}</p>
       </DialogScrollContent>
     </Dialog>
   </div>

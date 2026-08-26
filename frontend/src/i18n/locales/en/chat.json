@@ -1,0 +1,75 @@
+{
+  "chat": {
+    "back": "Back",
+    "selectDialogHint": "Select a conversation on the left",
+    "staff": {
+      "title": "Chats with residents"
+    },
+    "resident": {
+      "title": "Chat with staff",
+      "officeHours": "Office hours: 9:30 AM–6:00 PM"
+    },
+    "noActiveContract": "No active contract",
+    "thread": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "sendingFile": "📎 Sending file…",
+      "sizeMb": "{size} MB",
+      "sizeKb": "{size} KB",
+      "attachTooMany": "No more than {max} files per message",
+      "attachInvalidType": "\"{name}\" — unsupported file type",
+      "attachTooLarge": "\"{name}\" is larger than {max} MB",
+      "noMessagesYet": "No messages yet",
+      "newMessages": "New messages",
+      "scrollDown": "Down",
+      "scrollDownSr": "Scroll down to the latest messages",
+      "removeFile": "Remove file",
+      "attachFile": "Attach file",
+      "messagePlaceholder": "Write a message..."
+    },
+    "list": {
+      "searchPlaceholder": "Search conversations...",
+      "newMessage": "Message residents",
+      "noDialogsFound": "No conversations found",
+      "noMessages": "No messages"
+    },
+    "broadcast": {
+      "specificPeopleLabel": "Specific people (search by full name, you can add several)",
+      "specificPeoplePlaceholder": "E.g. Smith",
+      "removePerson": "Remove {name}",
+      "explicitPicksHint": "Specific recipients selected — the floor/building/debtors filters below are not applied.",
+      "floorLabel": "Floor",
+      "allFloors": "All floors",
+      "noFloorData": "No floor data",
+      "corpusLabel": "Building",
+      "allCorpuses": "All buildings",
+      "corpusNotSet": "Characteristic not set up",
+      "debtorsOnly": "Debtors only",
+      "countingRecipients": "Counting recipients...",
+      "willReceive": "Will receive the message: {count}",
+      "messageLabel": "Message",
+      "messagePlaceholder": "Message text...",
+      "attachHint": "Will be sent to every broadcast recipient",
+      "send": "Send",
+      "emptyBody": "Enter the message text",
+      "noRecipients": "No residents match the selected filters"
+    },
+    "lightbox": {
+      "close": "Close",
+      "prevFile": "Previous file",
+      "nextFile": "Next file"
+    },
+    "errors": {
+      "fetchConversationsFailed": "Failed to load the conversation list ({status})",
+      "fetchMessagesFailed": "Failed to load messages ({status})",
+      "sendFailed": "Failed to send the message ({status})",
+      "markReadFailed": "Failed to mark the conversation as read ({status})",
+      "fetchResidentInfoFailed": "Failed to load resident information ({status})",
+      "fetchRecipientFacetsFailed": "Failed to load recipient filters ({status})",
+      "fetchRecipientsFailed": "Failed to load the recipient list ({status})",
+      "sendBroadcastFailed": "Failed to send the broadcast ({status})",
+      "fetchMyChatFailed": "Failed to load the chat ({status})",
+      "fetchMyResidentInfoFailed": "Failed to load contract information ({status})"
+    }
+  }
+}

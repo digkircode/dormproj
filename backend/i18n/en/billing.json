@@ -1,0 +1,6 @@
+{
+  "errors": {
+    "paymentNotFound": "Payment not found",
+    "paymentAlreadyReversed": "Payment has already been reversed"
+  }
+}

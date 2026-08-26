@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { LucideIcon } from "lucide-vue-next"
 import { reactive } from "vue"
+import { useI18n } from "vue-i18n"
 import { ChevronRight } from "lucide-vue-next"
 import {
   Collapsible,
@@ -33,6 +34,7 @@ defineProps<{
   }[]
 }>()
 
+const { t } = useI18n()
 const { state, isMobile, setOpen } = useSidebar()
 const openGroups = reactive<Record<string, boolean>>({})
 
@@ -51,7 +53,7 @@ function handleGroupClick(title: string, isActive?: boolean) {
 
 <template>
   <SidebarGroup>
-    <SidebarGroupLabel>Сотрудник</SidebarGroupLabel>
+    <SidebarGroupLabel>{{ t('sidebar.groupStaff') }}</SidebarGroupLabel>
     <SidebarMenu>
       <template v-for="item in items" :key="item.title">
         <Collapsible

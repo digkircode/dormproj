@@ -16,7 +16,7 @@ export class PaymentRateLimiterService {
     const now = Date.now();
     const attempts = (this.log.get(userId) ?? []).filter((t) => now - t < WINDOW_MS);
     if (attempts.length >= LIMIT) {
-      throw new HttpException('Слишком много попыток оплаты подряд — подождите немного', HttpStatus.TOO_MANY_REQUESTS);
+      throw new HttpException('payment.errors.tooManyAttempts', HttpStatus.TOO_MANY_REQUESTS);
     }
     attempts.push(now);
     this.log.set(userId, attempts);

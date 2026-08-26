@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue"
+import { useI18n } from "vue-i18n"
 import {
   ChevronsUpDown,
   LogOut,
@@ -35,6 +36,7 @@ const props = defineProps<{
   }
 }>()
 
+const { t } = useI18n()
 const { isMobile } = useSidebar()
 
 const initials = computed(() =>
@@ -97,7 +99,7 @@ function handleLogout() {
           <DropdownMenuSeparator />
           <DropdownMenuItem @click="handleLogout">
             <LogOut class="text-primary" />
-            Выход
+            {{ t('sidebar.signOut') }}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 import { diskStorage } from 'multer';
 import sharp from 'sharp';
 import { BadRequestException } from '@nestjs/common';
+import { I18nContext } from 'nestjs-i18n';
 import type { ChatAttachmentKind } from '../../generated/prisma/client.js';
 
 // Persistent docker volume (см. docker-compose.yml — /app/uploads смонтирован как
@@ -118,7 +119,9 @@ export function chatAttachmentsMulterOptions() {
     },
     fileFilter: (_req: unknown, file: Express.Multer.File, cb: (error: Error | null, acceptFile: boolean) => void) => {
       if (!attachmentKindForMime(file.mimetype)) {
-        cb(new BadRequestException(`Недопустимый тип файла: ${file.mimetype || 'неизвестен'}`), false);
+        const t = I18nContext.current();
+        const mimeType = file.mimetype || t?.t('chat.errors.unknownMimeType') || 'неизвестен';
+        cb(new BadRequestException(t?.t('chat.errors.invalidFileType', { args: { type: mimeType } }) ?? `Недопустимый тип файла: ${mimeType}`), false);
         return;
       }
       cb(null, true);

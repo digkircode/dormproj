@@ -22,11 +22,13 @@ import type { Request, Response } from 'express';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { z } from 'zod';
+import { I18nContext } from 'nestjs-i18n';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { ensureUserRecord } from '../users/ensure-user';
+import { zodErrorMessage } from '../i18n/zod-error-message';
 import { ChatEventsService } from './chat-events.service';
 import { chatRecipientFacets, chatRecipients, type ChatRecipientFilters } from './chat-recipients';
 import {
@@ -46,8 +48,11 @@ const MAX_BODY_LENGTH = 4000;
 export const MESSAGES_PAGE_SIZE = 50;
 
 function attachmentPreviewLabel(attachments: { kind: string }[]): string {
-  if (attachments.length > 1) return `📎 ${attachments.length} файла`;
-  return attachments[0].kind === 'VIDEO' ? '🎥 Видео' : '📷 Фото';
+  const t = I18nContext.current();
+  if (attachments.length > 1) {
+    return t?.t('chat.preview.files', { args: { count: attachments.length } }) ?? `📎 ${attachments.length} файла`;
+  }
+  return attachments[0].kind === 'VIDEO' ? (t?.t('chat.preview.video') ?? '🎥 Видео') : (t?.t('chat.preview.photo') ?? '📷 Фото');
 }
 
 // Тело + фильтры получателей — раньше приходили одним JSON (application/json), теперь
@@ -175,7 +180,7 @@ export class ChatsController {
   ) {
     if (!req.user) {
       await cleanupUploadedFiles(files);
-      throw new BadRequestException('Не удалось определить пользователя сессии');
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
 
     let filtersJson: unknown;
@@ -183,12 +188,12 @@ export class ChatsController {
       filtersJson = filtersRaw ? JSON.parse(filtersRaw) : {};
     } catch {
       await cleanupUploadedFiles(files);
-      throw new BadRequestException('Некорректные фильтры получателей');
+      throw new BadRequestException('chat.errors.invalidRecipientFilters');
     }
     const parsed = broadcastSchema.safeParse({ ...(filtersJson as object), body: bodyText });
     if (!parsed.success) {
       await cleanupUploadedFiles(files);
-      throw new BadRequestException(parsed.error.message);
+      throw new BadRequestException(zodErrorMessage(parsed.error));
     }
     const data = parsed.data;
 
@@ -199,7 +204,7 @@ export class ChatsController {
       const baseAttachments = await validateAttachmentSizes(files);
       const recipients = await chatRecipients(this.prisma, toFilters(data));
       if (recipients.length === 0) {
-        throw new BadRequestException('Нет проживающих, подходящих под выбранные фильтры');
+        throw new BadRequestException('chat.errors.noMatchingResidents');
       }
 
       // Копирование — файловый I/O, вне транзакции БД (не удерживать транзакцию открытой
@@ -316,7 +321,7 @@ export class ChatsController {
       select: { individualUid: true },
     });
     if (!conversation) {
-      throw new NotFoundException('Диалог не найден');
+      throw new NotFoundException('chat.errors.conversationNotFound');
     }
 
     const contract = await this.prisma.contract.findFirst({
@@ -343,16 +348,19 @@ export class ChatsController {
     const conversationId = parseId(idParam);
     if (!req.user) {
       await cleanupUploadedFiles(files);
-      throw new BadRequestException('Не удалось определить пользователя сессии');
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
     const trimmedBody = bodyText?.trim();
     if (trimmedBody && trimmedBody.length > MAX_BODY_LENGTH) {
       await cleanupUploadedFiles(files);
-      throw new BadRequestException(`Сообщение слишком длинное (максимум ${MAX_BODY_LENGTH} символов)`);
+      throw new BadRequestException(
+        I18nContext.current()?.t('chat.errors.bodyTooLong', { args: { max: MAX_BODY_LENGTH } }) ??
+          `Сообщение слишком длинное (максимум ${MAX_BODY_LENGTH} символов)`,
+      );
     }
     if (!trimmedBody && files.length === 0) {
       await cleanupUploadedFiles(files);
-      throw new BadRequestException('Пустое сообщение — добавьте текст или файл');
+      throw new BadRequestException('chat.errors.emptyMessage');
     }
 
     // Всё, что может упасть ПОСЛЕ того, как multer уже записал файлы на диск — одним
@@ -363,7 +371,7 @@ export class ChatsController {
 
       const conversation = await this.prisma.chatConversation.findUnique({ where: { id: conversationId } });
       if (!conversation) {
-        throw new NotFoundException('Диалог не найден');
+        throw new NotFoundException('chat.errors.conversationNotFound');
       }
 
       const now = new Date();
@@ -400,11 +408,11 @@ export class ChatsController {
     const id = parseId(idParam);
     const attachment = await this.prisma.chatAttachment.findUnique({ where: { id } });
     if (!attachment) {
-      throw new NotFoundException('Файл не найден');
+      throw new NotFoundException('chat.errors.fileNotFound');
     }
     const filePath = join(CHAT_UPLOADS_DIR, attachment.storageKey);
     if (!existsSync(filePath)) {
-      throw new NotFoundException('Файл не найден');
+      throw new NotFoundException('chat.errors.fileNotFound');
     }
     res.set('Content-Type', attachment.mimeType);
     res.sendFile(filePath);
@@ -424,7 +432,7 @@ export class ChatsController {
     const conversationId = parseId(idParam);
     const existing = await this.prisma.chatConversation.findUnique({ where: { id: conversationId } });
     if (!existing) {
-      throw new NotFoundException('Диалог не найден');
+      throw new NotFoundException('chat.errors.conversationNotFound');
     }
     const hasUnread = !existing.staffLastReadAt || existing.lastMessageAt > existing.staffLastReadAt;
     if (!hasUnread) {
@@ -442,7 +450,7 @@ export class ChatsController {
 function parseId(idParam: string): number {
   const id = Number.parseInt(idParam, 10);
   if (!Number.isInteger(id)) {
-    throw new BadRequestException('Некорректный id диалога');
+    throw new BadRequestException('chat.errors.invalidConversationId');
   }
   return id;
 }

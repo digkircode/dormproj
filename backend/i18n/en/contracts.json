@@ -1,0 +1,24 @@
+{
+  "status": {
+    "ACTIVE": "Active",
+    "EXPIRING": "Expiring",
+    "TERMINATED": "Terminated",
+    "EXPIRED": "Expired"
+  },
+  "errors": {
+    "invalidId": "Invalid id",
+    "invalidContractId": "Invalid contractId",
+    "accountNotLinked": "The account is not linked to an individual — contract information is unavailable",
+    "contractNotFound": "Contract not found",
+    "sessionUserNotFound": "Could not determine the session user",
+    "individualNotFound": "Individual not found",
+    "roomNotFound": "Room not found",
+    "minorParentDataRequired": "For a minor, the parent's date of birth, passport number, and passport issue date are required",
+    "residenceReasonRequired": "Specify the reason for residence",
+    "roomAlreadyOccupied": "The room is already occupied by another contract on these dates",
+    "numberAlreadyExists": "A contract with this number already exists",
+    "endDateBeforeStartDate": "The move-out date is earlier than the move-in date",
+    "hasPaymentsCannotDelete": "Payments have already been made on this contract — deletion is unavailable",
+    "contractsNotFound": "One or more contracts not found"
+  }
+}

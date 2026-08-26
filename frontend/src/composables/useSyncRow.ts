@@ -1,21 +1,26 @@
 import { computed, ref } from 'vue'
+import { i18n } from '@/i18n'
 import { fetchSyncLogs, triggerSync, type SyncLogEntry } from '@/lib/sync-api'
-import { statusLabel, formatDateTime, formatDuration } from '@/lib/sync-format'
+import { formatDateTime, formatDuration, type SyncStatusKey } from '@/lib/sync-format'
 
 const POLL_INTERVAL_MS = 3000
 const MAX_POLL_MS = 3 * 60 * 1000
 
 // Один и тот же паттерн (строка на /sync с реальным статусом, запуском и опросом
 // при конфликте) нужен нескольким синхронам подряд — вынесено, чтобы не копипастить.
-export function useSyncRow(name: string, basePath: string) {
+// nameKey — ключ i18n (не готовый текст), резолвится внутри row (computed) на каждое
+// обращение — иначе смена языка не поменяла бы уже отрисованное название строки
+// (тот же принцип, что computed columnLabels на страницах отчётов).
+export function useSyncRow(nameKey: string, basePath: string) {
   const latestLog = ref<SyncLogEntry | null>(null)
   const isRunning = ref(false)
 
   const row = computed(() => {
     const log = latestLog.value
+    const status: SyncStatusKey = isRunning.value ? 'RUNNING' : log ? log.status : 'NONE'
     return {
-      name,
-      status: isRunning.value ? 'В процессе' : log ? statusLabel[log.status] : '—',
+      name: i18n.global.t(nameKey),
+      status,
       time: log ? formatDateTime(log.startedAt) : '—',
       duration: log ? formatDuration(log.startedAt, log.finishedAt) : '—',
       // Сырые значения — для сортировки по времени/длительности на странице /sync

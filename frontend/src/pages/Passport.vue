@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ArrowLeft } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -8,19 +10,20 @@ import { fetchFacetValues, fetchPassports, type Passport } from '@/lib/passport-
 import { goBack } from '@/lib/utils'
 
 const router = useRouter()
+const { t } = useI18n()
 
-const columnLabels: Record<string, string> = {
-  fullName: 'ФИО',
-  period: 'Период',
-  type: 'Тип',
-  series: 'Серия',
-  number: 'Номер',
-  dateStart: 'Дата выдачи',
-  unit: 'Кем выдан',
-  codeUnit: 'Код подразделения',
-  systemDoc: 'Системный номер',
-  fizicheskoyeLitsoUid: 'UID физлица',
-}
+const columnLabels = computed<Record<string, string>>(() => ({
+  fullName: t('individuals.systemTables.colFullName'),
+  period: t('individuals.systemTables.passport.colPeriod'),
+  type: t('individuals.systemTables.passport.colType'),
+  series: t('individuals.systemTables.passport.colSeries'),
+  number: t('individuals.systemTables.passport.colNumber'),
+  dateStart: t('individuals.systemTables.passport.colDateStart'),
+  unit: t('individuals.systemTables.passport.colUnit'),
+  codeUnit: t('individuals.systemTables.passport.colCodeUnit'),
+  systemDoc: t('individuals.systemTables.passport.colSystemDoc'),
+  fizicheskoyeLitsoUid: t('individuals.systemTables.colUid'),
+}))
 const filterableFields = ['type']
 const hiddenByDefault = ['systemDoc', 'fizicheskoyeLitsoUid']
 
@@ -37,18 +40,20 @@ function cellText(columnId: string, value: unknown): string {
 
 const columnHelper = createAppColumnHelper<Passport>()
 
-const columns = columnHelper.columns([
-  columnHelper.accessor('fizicheskoyeLitsoUid', { header: columnLabels.fizicheskoyeLitsoUid, size: 280, minSize: 200 }),
-  columnHelper.accessor('fullName', { header: columnLabels.fullName, enableHiding: false, size: 224, minSize: 160 }),
-  columnHelper.accessor('period', { header: columnLabels.period, size: 112, minSize: 100 }),
-  columnHelper.accessor('type', { header: columnLabels.type, size: 144, minSize: 100 }),
-  columnHelper.accessor('series', { header: columnLabels.series, size: 96, minSize: 80 }),
-  columnHelper.accessor('number', { header: columnLabels.number, size: 112, minSize: 90 }),
-  columnHelper.accessor('dateStart', { header: columnLabels.dateStart, size: 128, minSize: 100 }),
-  columnHelper.accessor('unit', { header: columnLabels.unit, size: 288, minSize: 160 }),
-  columnHelper.accessor('codeUnit', { header: columnLabels.codeUnit, size: 144, minSize: 100 }),
-  columnHelper.accessor('systemDoc', { header: columnLabels.systemDoc, size: 144, minSize: 100 }),
-])
+const columns = computed(() =>
+  columnHelper.columns([
+    columnHelper.accessor('fizicheskoyeLitsoUid', { header: columnLabels.value.fizicheskoyeLitsoUid, size: 280, minSize: 200 }),
+    columnHelper.accessor('fullName', { header: columnLabels.value.fullName, enableHiding: false, size: 224, minSize: 160 }),
+    columnHelper.accessor('period', { header: columnLabels.value.period, size: 112, minSize: 100 }),
+    columnHelper.accessor('type', { header: columnLabels.value.type, size: 144, minSize: 100 }),
+    columnHelper.accessor('series', { header: columnLabels.value.series, size: 96, minSize: 80 }),
+    columnHelper.accessor('number', { header: columnLabels.value.number, size: 112, minSize: 90 }),
+    columnHelper.accessor('dateStart', { header: columnLabels.value.dateStart, size: 128, minSize: 100 }),
+    columnHelper.accessor('unit', { header: columnLabels.value.unit, size: 288, minSize: 160 }),
+    columnHelper.accessor('codeUnit', { header: columnLabels.value.codeUnit, size: 144, minSize: 100 }),
+    columnHelper.accessor('systemDoc', { header: columnLabels.value.systemDoc, size: 144, minSize: 100 }),
+  ]),
+)
 </script>
 
 <template>
@@ -56,9 +61,9 @@ const columns = columnHelper.columns([
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
-        <span class="sr-only">Назад</span>
+        <span class="sr-only">{{ t('individuals.systemTables.back') }}</span>
       </Button>
-      <h1 class="text-lg font-medium">Паспортные данные</h1>
+      <h1 class="text-lg font-medium">{{ t('individuals.systemTables.passport.title') }}</h1>
     </div>
 
     <EntityTable
@@ -69,7 +74,7 @@ const columns = columnHelper.columns([
       :fetch-page="fetchPassports"
       :fetch-facet-values="fetchFacetValues"
       :get-row-id="(p: Passport) => String(p.id)"
-      total-label="паспортных записей"
+      :total-label="t('individuals.systemTables.passport.totalLabel')"
       :cell-text="cellText"
       :hidden-by-default="hiddenByDefault"
       storage-key="passport"

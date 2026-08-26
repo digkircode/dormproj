@@ -39,107 +39,107 @@ import MyPayment from '@/pages/MyPayment.vue'
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', name: 'home', component: Home, meta: { title: 'Главная' } },
-    { path: '/403', name: 'forbidden', component: Forbidden, meta: { title: 'Доступ запрещён' } },
+    { path: '/', name: 'home', component: Home, meta: { title: 'nav.home' } },
+    { path: '/403', name: 'forbidden', component: Forbidden, meta: { title: 'nav.forbidden' } },
     // Без section — доступна всем залогиненным независимо от роли (в т.ч. без роли
     // вообще), тот же принцип, что у "Главной" — секция "Студент" в сайдбаре видна всем.
-    { path: '/student/general-info', name: 'student-general-info', component: StudentGeneralInfo, meta: { title: 'Общая информация' } },
+    { path: '/student/general-info', name: 'student-general-info', component: StudentGeneralInfo, meta: { title: 'nav.studentGeneralInfo' } },
     // section: 'resident' — не "доступно всем", как остальной раздел "Проживающий" выше,
     // а только роли RESIDENT (плюс ADMIN по общему для приложения принципу "администратор
     // видит всё") — уточнено с пользователем отдельно при планировании чата.
-    { path: '/student/chat', name: 'student-chat', component: MyChat, meta: { title: 'Чат с сотрудниками', section: 'resident' } },
+    { path: '/student/chat', name: 'student-chat', component: MyChat, meta: { title: 'nav.studentChat', section: 'resident' } },
     // Свой договор — тот же гейт, что у чата (см. sectionAllowed ниже): доступ по
     // individualUid из сессии на бэке (my-contract.controller.ts), без :id в маршруте.
-    { path: '/student/contract', name: 'student-contract', component: MyContract, meta: { title: 'Договор/Платежи', section: 'resident' } },
-    { path: '/student/payment', name: 'student-payment', component: MyPayment, meta: { title: 'Оплата', section: 'resident' } },
-    { path: '/students', name: 'students', component: Students, meta: { title: 'Контингент студентов', section: 'admin' } },
-    { path: '/sync', name: 'sync', component: Sync, meta: { title: 'Синхронизация', section: 'admin' } },
+    { path: '/student/contract', name: 'student-contract', component: MyContract, meta: { title: 'nav.studentContract', section: 'resident' } },
+    { path: '/student/payment', name: 'student-payment', component: MyPayment, meta: { title: 'nav.studentPayment', section: 'resident' } },
+    { path: '/students', name: 'students', component: Students, meta: { title: 'nav.students', section: 'admin' } },
+    { path: '/sync', name: 'sync', component: Sync, meta: { title: 'nav.sync', section: 'admin' } },
     {
       path: '/sync/:slug/logs',
       name: 'sync-logs',
       component: SyncLogs,
-      meta: { title: 'Логи синхронизации', parent: 'sync', section: 'admin' },
+      meta: { title: 'nav.syncLogs', parent: 'sync', section: 'admin' },
     },
 
-    { path: '/individuals', name: 'individuals', component: Individuals, meta: { title: 'Физические лица', section: 'staff' } },
+    { path: '/individuals', name: 'individuals', component: Individuals, meta: { title: 'nav.individuals', section: 'staff' } },
     {
       path: '/individuals/:uid',
       name: 'individual-detail',
       component: IndividualDetail,
-      meta: { title: 'Физическое лицо', parent: 'individuals', section: 'staff' },
+      meta: { title: 'nav.individualDetail', parent: 'individuals', section: 'staff' },
     },
-    { path: '/system-tables/citizenship', name: 'citizenship', component: Citizenship, meta: { title: 'Гражданство', section: 'admin' } },
+    { path: '/system-tables/citizenship', name: 'citizenship', component: Citizenship, meta: { title: 'nav.citizenship', section: 'admin' } },
     {
       path: '/system-tables/contact-info',
       name: 'contact-info',
       component: ContactInfo,
-      meta: { title: 'Контактная информация', section: 'admin' },
+      meta: { title: 'nav.contactInfo', section: 'admin' },
     },
     {
       path: '/system-tables/passport-data',
       name: 'passport-data',
       component: Passport,
-      meta: { title: 'Паспортные данные', section: 'admin' },
+      meta: { title: 'nav.passportData', section: 'admin' },
     },
 
-    { path: '/rooms', name: 'rooms', component: Rooms, meta: { title: 'Комнаты', section: 'staff' } },
+    { path: '/rooms', name: 'rooms', component: Rooms, meta: { title: 'nav.rooms', section: 'staff' } },
     {
       path: '/room-characteristics',
       name: 'room-characteristics',
       component: RoomCharacteristics,
-      meta: { title: 'Характеристики комнат', section: 'admin' },
+      meta: { title: 'nav.roomCharacteristics', section: 'admin' },
     },
 
-    { path: '/contracts', name: 'contracts', component: Contracts, meta: { title: 'Договоры', section: 'staff' } },
-    { path: '/chats', name: 'chats', component: Chats, meta: { title: 'Чаты', section: 'staff' } },
+    { path: '/contracts', name: 'contracts', component: Contracts, meta: { title: 'nav.contracts', section: 'staff' } },
+    { path: '/chats', name: 'chats', component: Chats, meta: { title: 'nav.chats', section: 'staff' } },
     {
       path: '/contracts/:id',
       name: 'contract-detail',
       component: ContractDetail,
-      meta: { title: 'Информация о договоре', parent: 'contracts', section: 'staff' },
+      meta: { title: 'nav.contractDetail', parent: 'contracts', section: 'staff' },
     },
 
-    { path: '/reports', name: 'reports', redirect: '/reports/debt', meta: { title: 'Отчёты', section: 'staff' } },
+    { path: '/reports', name: 'reports', redirect: '/reports/debt', meta: { title: 'nav.reports', section: 'staff' } },
     {
       path: '/reports/occupancy',
       name: 'reports-occupancy',
       component: ReportsOccupancy,
-      meta: { title: 'Занятость общежития', parent: 'reports', section: 'staff' },
+      meta: { title: 'nav.reportsOccupancy', parent: 'reports', section: 'staff' },
     },
     {
       path: '/reports/contingent',
       name: 'reports-contingent',
       component: ReportsContingent,
-      meta: { title: 'Реестр проживающих', parent: 'reports', section: 'staff' },
+      meta: { title: 'nav.reportsContingent', parent: 'reports', section: 'staff' },
     },
     {
       path: '/reports/contracts',
       name: 'reports-contracts',
       component: ReportsContractsRegistry,
-      meta: { title: 'Реестр договоров', parent: 'reports', section: 'staff' },
+      meta: { title: 'nav.reportsContracts', parent: 'reports', section: 'staff' },
     },
     {
       path: '/reports/debt',
       name: 'reports-debt',
       component: ReportsDebt,
-      meta: { title: 'Финансовый отчёт', parent: 'reports', section: 'staff' },
+      meta: { title: 'nav.reportsDebt', parent: 'reports', section: 'staff' },
     },
     {
       path: '/reports/move-in-out',
       name: 'reports-move-in-out',
       component: ReportsMovements,
-      meta: { title: 'Движение проживающих', parent: 'reports', section: 'staff' },
+      meta: { title: 'nav.reportsMoveInOut', parent: 'reports', section: 'staff' },
     },
 
-    { path: '/users', name: 'users', component: UsersStaff, meta: { title: 'Сотрудники', section: 'admin' } },
-    { path: '/roles', name: 'roles', component: UsersRoles, meta: { title: 'Роли', section: 'admin' } },
-    { path: '/users-all', name: 'users-all', component: UsersList, meta: { title: 'Список пользователей', section: 'admin' } },
-    { path: '/audit-log', name: 'audit-log', component: AuditLog, meta: { title: 'История изменений', section: 'admin' } },
+    { path: '/users', name: 'users', component: UsersStaff, meta: { title: 'nav.users', section: 'admin' } },
+    { path: '/roles', name: 'roles', component: UsersRoles, meta: { title: 'nav.roles', section: 'admin' } },
+    { path: '/users-all', name: 'users-all', component: UsersList, meta: { title: 'nav.usersAll', section: 'admin' } },
+    { path: '/audit-log', name: 'audit-log', component: AuditLog, meta: { title: 'nav.auditLog', section: 'admin' } },
 
     // Catch-all — обязательно последним (vue-router matches по порядку регистрации при
     // равной специфичности). Без section — sectionAllowed() ниже пропускает её как есть,
     // тот же путь, что у "Главной"/"Общей информации", доступна любому залогиненному.
-    { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFound, meta: { title: 'Страница не найдена' } },
+    { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFound, meta: { title: 'nav.notFound' } },
   ],
 })
 

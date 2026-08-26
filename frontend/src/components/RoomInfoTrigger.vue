@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { DoorOpen } from 'lucide-vue-next'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -11,6 +12,8 @@ const DIALOG_ANIMATE_CLASS =
 // характеристики в фиксированном порядке, потом остальные по алфавиту.
 const CORE_ORDER = ['Этаж', 'Жилое помещение', 'Количество мест', 'Площадь', 'Стоимость (из вуза)', 'Стоимость (не из вуза)']
 
+const { t } = useI18n()
+
 const props = defineProps<{ roomId: number | null; roomName: string | null }>()
 
 const isOpen = ref(false)
@@ -20,7 +23,7 @@ const loadError = ref('')
 
 function formatValue(entry: { valueType: string; value: boolean | number | string | null; unit: string | null }): string {
   if (entry.value === null || entry.value === undefined) return '—'
-  if (entry.valueType === 'BOOLEAN') return entry.value ? 'Да' : 'Нет'
+  if (entry.valueType === 'BOOLEAN') return entry.value ? t('boolean.yes') : t('boolean.no')
   return entry.unit ? `${entry.value} ${entry.unit}` : String(entry.value)
 }
 
@@ -69,7 +72,7 @@ async function openDialog() {
         {{ roomName ?? '—' }}
       </button>
     </TooltipTrigger>
-    <TooltipContent>Информация о комнате</TooltipContent>
+    <TooltipContent>{{ t('roomInfo.tooltip') }}</TooltipContent>
   </Tooltip>
   <span v-else>{{ roomName ?? '—' }}</span>
 
@@ -78,11 +81,11 @@ async function openDialog() {
       <DialogHeader>
         <DialogTitle class="flex items-center gap-1.5">
           <DoorOpen class="size-4 shrink-0 text-primary" />
-          Комната {{ roomName }}
+          {{ t('roomInfo.dialogTitle', { room: roomName }) }}
         </DialogTitle>
       </DialogHeader>
       <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-      <p v-if="isLoading" class="text-sm text-muted-foreground">Загрузка…</p>
+      <p v-if="isLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
       <!-- Только просмотр — та же сетка характеристик и тот же приём линий, что в
            RoomDetailPanel.vue (вертикальный разделитель по чётности индекса, горизонтальный —
            border-t от второй строки), но без кнопок добавления/редактирования/истории: здесь

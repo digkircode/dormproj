@@ -1,0 +1,116 @@
+{
+  "reports": {
+    "errors": {
+      "fetchFailed": "Failed to load the report ({status})",
+      "exportFailed": "Failed to generate the file ({status})"
+    },
+    "registryBucket": {
+      "ACTIVE": "Active",
+      "TERMINATED": "Terminated"
+    },
+    "movementOperation": {
+      "IN": "Move-in",
+      "OUT": "Move-out",
+      "MOVE": "Relocation",
+      "RENEWAL": "Renewal"
+    },
+    "common": {
+      "back": "Back",
+      "asOf": "As of",
+      "period": "Period",
+      "exportExcel": "Export to Excel",
+      "total": "Total",
+      "totalContracts": "contracts"
+    },
+    "debt": {
+      "title": "Financial report",
+      "kpiDebtors": "Debtors",
+      "kpiAccrued": "Total accrued",
+      "kpiDebt": "Total debt",
+      "kpiPenalty": "Penalties",
+      "kpiPaid": "Total paid",
+      "colContractNumber": "Contract #",
+      "colResident": "Resident",
+      "colRoom": "Room",
+      "colStatus": "Status",
+      "colCreatedAt": "Created",
+      "colAccrued": "Accrued",
+      "colPaid": "Paid",
+      "colPenalty": "Penalty",
+      "colDebt": "Debt",
+      "breakdownAction": "Monthly debt breakdown",
+      "breakdownTitle": "{name} — room {room}",
+      "breakdownTitleFallback": "Debt breakdown",
+      "colMonth": "Month",
+      "noAccruals": "No accruals on this contract",
+      "penaltyByContract": "Contract penalty: {amount}",
+      "totalDebtLine": "Total debt: {amount}",
+      "penaltyTitle": "Penalty — {name}, room {room}",
+      "penaltyTitleFallback": "Penalty",
+      "colDate": "Date",
+      "colOverdueBase": "Calculation base",
+      "colAdded": "Added",
+      "noPenalty": "No penalty accrued"
+    },
+    "occupancy": {
+      "title": "Dormitory occupancy",
+      "kpiTotalPlaces": "Total places",
+      "kpiOccupied": "Occupied",
+      "kpiFree": "Free",
+      "kpiLoad": "Load",
+      "tabNew": "New",
+      "tabOld": "Old",
+      "tabAll": "All",
+      "filterTooltip": "Filter by occupancy",
+      "filterAll": "All",
+      "filterFree": "Free",
+      "filterOccupied": "Occupied",
+      "noFloor": "No floor",
+      "floorLabel": "Floor {floor}",
+      "characteristics": "Characteristics",
+      "roomFree": "Room is free"
+    },
+    "contingent": {
+      "title": "Resident registry",
+      "colMovedInDate": "Move-in date",
+      "colResident": "Resident",
+      "colContractNumber": "Contract #",
+      "colRoom": "Room",
+      "colFacultet": "Faculty",
+      "colKurs": "Year",
+      "colBirthDate": "Date of birth",
+      "colCitizenship": "Citizenship",
+      "colOwnUniversity": "RosNOU student",
+      "totalLabel": "residents"
+    },
+    "registry": {
+      "title": "Contract registry",
+      "colContractNumber": "Contract #",
+      "colResident": "Resident",
+      "colRoom": "Room",
+      "colCreatedAt": "Created",
+      "colStart": "Start",
+      "colEnd": "End",
+      "colStatus": "Status",
+      "kpiActive": "Active",
+      "kpiExpiring30": "Expiring within 30 days",
+      "kpiEnded": "Already ended",
+      "expiringLabel": "Expiring ({days} d.)",
+      "overdueLabel": "Overdue by {days} d."
+    },
+    "movements": {
+      "title": "Resident movement",
+      "colDate": "Operation date",
+      "colContractNumber": "Contract #",
+      "colResident": "Resident",
+      "colOperation": "Operation",
+      "colFrom": "From",
+      "colTo": "To",
+      "kpiMovedIn": "Moved in",
+      "kpiMovedOut": "Moved out",
+      "kpiRelocated": "Relocated",
+      "kpiRenewed": "Renewed",
+      "totalLabel": "events"
+    }
+  }
+}

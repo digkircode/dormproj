@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { i18n } from '@/i18n'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -259,7 +260,7 @@ export function parseApiError(error: unknown): { message: string; fields: Set<st
         const first = issue.path[0]
         if (typeof first === 'string') fields.add(first)
       }
-      return { message: 'Проверьте правильность данных', fields }
+      return { message: i18n.global.t('errors.checkDataFields'), fields }
     }
   } catch {
     // не JSON — обычное текстовое сообщение об ошибке, оставляем как есть

@@ -1,6 +1,7 @@
 import { apiFetch } from './api-base'
 import { fetchListPage, fetchListFacets, type ListOptions, type ListPage, type FacetOption } from './list-api'
 import type { Role } from './roles-api'
+import { i18n } from '@/i18n'
 
 export interface UserRow {
   id: number
@@ -22,7 +23,7 @@ export async function searchUsers(q: string): Promise<UserRow[]> {
   if (!q.trim()) return []
   const response = await apiFetch(`/users/search?q=${encodeURIComponent(q)}`)
   if (!response.ok) {
-    throw new Error(`Не удалось найти пользователей (${response.status})`)
+    throw new Error(i18n.global.t('users.errors.searchUsersFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -35,7 +36,7 @@ export async function grantRole(userId: number, roleId: number): Promise<UserRow
   })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
-    throw new Error(body.message ?? `Не удалось выдать роль (${response.status})`)
+    throw new Error(body.message ?? i18n.global.t('users.errors.grantRoleFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -44,7 +45,7 @@ export async function revokeRole(userId: number, roleId: number): Promise<UserRo
   const response = await apiFetch(`/users/${userId}/roles/${roleId}`, { method: 'DELETE' })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
-    throw new Error(body.message ?? `Не удалось отозвать роль (${response.status})`)
+    throw new Error(body.message ?? i18n.global.t('users.errors.revokeRoleFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -75,7 +76,7 @@ export async function updateUserLinks(id: number, data: { azureId: string | null
   })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
-    throw new Error(body.message ?? `Не удалось сохранить (${response.status})`)
+    throw new Error(body.message ?? i18n.global.t('users.errors.saveFailed', { status: response.status }))
   }
   return response.json()
 }

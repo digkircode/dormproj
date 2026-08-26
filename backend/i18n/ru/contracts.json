@@ -1,0 +1,24 @@
+{
+  "status": {
+    "ACTIVE": "Действует",
+    "EXPIRING": "Истекает",
+    "TERMINATED": "Расторгнут",
+    "EXPIRED": "Истёк"
+  },
+  "errors": {
+    "invalidId": "Некорректный id",
+    "invalidContractId": "Некорректный contractId",
+    "accountNotLinked": "Аккаунт не привязан к физическому лицу — информация о договоре недоступна",
+    "contractNotFound": "Договор не найден",
+    "sessionUserNotFound": "Не удалось определить пользователя сессии",
+    "individualNotFound": "Физлицо не найдено",
+    "roomNotFound": "Комната не найдена",
+    "minorParentDataRequired": "Для несовершеннолетнего обязательны дата рождения, номер и дата выдачи паспорта родителя",
+    "residenceReasonRequired": "Укажите причину проживания",
+    "roomAlreadyOccupied": "Комната уже занята по другому договору в эти даты",
+    "numberAlreadyExists": "Договор с таким номером уже существует",
+    "endDateBeforeStartDate": "Дата выезда раньше даты начала проживания",
+    "hasPaymentsCannotDelete": "По договору уже проводились оплаты — удаление недоступно",
+    "contractsNotFound": "Один или несколько договоров не найдены"
+  }
+}

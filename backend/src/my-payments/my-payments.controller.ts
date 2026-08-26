@@ -15,6 +15,7 @@ import {
 import type { Request } from 'express';
 import { z } from 'zod';
 import { ConfigService } from '@nestjs/config';
+import { I18nContext } from 'nestjs-i18n';
 import { Prisma } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -60,19 +61,19 @@ const createIntentSchema = z
       .trim()
       .min(1)
       .max(200)
-      .regex(REPRESENTATIVE_NAME_PATTERN, 'ФИО может содержать только буквы, пробел и дефис')
+      .regex(REPRESENTATIVE_NAME_PATTERN, 'payment.errors.representativeNamePattern')
       .nullish(),
     payerEmail: z.string().trim().email(),
   })
   .refine((v) => v.payerIsResident || (v.representativeFullName?.length ?? 0) > 0, {
-    message: 'Укажите ФИО того, кто оплачивает',
+    message: 'payment.errors.representativeNameRequired',
     path: ['representativeFullName'],
   });
 
 function parseIdParam(idParam: string): number {
   const id = Number.parseInt(idParam, 10);
   if (!Number.isInteger(id)) {
-    throw new BadRequestException('Некорректный id');
+    throw new BadRequestException('contracts.errors.invalidId');
   }
   return id;
 }
@@ -119,7 +120,7 @@ export class MyPaymentsController {
   private async resolveIndividualUid(userId: number): Promise<string> {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { univerId: true } });
     if (!user?.univerId) {
-      throw new BadRequestException('Аккаунт не привязан к физическому лицу — оплата недоступна');
+      throw new BadRequestException('payment.errors.accountNotLinked');
     }
     return user.univerId;
   }
@@ -168,13 +169,13 @@ export class MyPaymentsController {
   private parseContractId(contractIdParam: string | undefined): number | undefined {
     if (contractIdParam === undefined) return undefined;
     const id = Number.parseInt(contractIdParam, 10);
-    if (!Number.isInteger(id)) throw new BadRequestException('Некорректный contractId');
+    if (!Number.isInteger(id)) throw new BadRequestException('contracts.errors.invalidContractId');
     return id;
   }
 
   @Get()
   async myPayments(@Query('contractId') contractIdParam: string | undefined, @Req() req: Request) {
-    if (!req.user) throw new BadRequestException('Не удалось определить пользователя сессии');
+    if (!req.user) throw new BadRequestException('contracts.errors.sessionUserNotFound');
     const individualUid = await this.resolveIndividualUid(req.user.id);
     const contract = await this.findResidentContract(individualUid, this.parseContractId(contractIdParam));
     if (!contract) return { contract: null };
@@ -213,22 +214,22 @@ export class MyPaymentsController {
 
   @Post('intents')
   async createIntent(@Body() body: unknown, @Req() req: Request) {
-    if (!req.user) throw new BadRequestException('Не удалось определить пользователя сессии');
+    if (!req.user) throw new BadRequestException('contracts.errors.sessionUserNotFound');
     this.rateLimiter.checkAndRecord(req.user.id);
 
     const parsed = createIntentSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException(parsed.error.issues[0]?.message ?? 'Некорректные данные');
+      throw new BadRequestException(parsed.error.issues[0]?.message ?? 'payment.errors.invalidData');
     }
     const input = parsed.data;
 
     if (!this.acquiring.isConfigured()) {
-      throw new ServiceUnavailableException('Оплата временно недоступна — эквайринг ещё не подключён');
+      throw new ServiceUnavailableException('payment.errors.acquiringUnavailable');
     }
 
     const individualUid = await this.resolveIndividualUid(req.user.id);
     const contract = await this.findResidentContract(individualUid, input.contractId ?? undefined);
-    if (!contract) throw new NotFoundException('Действующего договора не найдено');
+    if (!contract) throw new NotFoundException('payment.errors.noActiveContract');
 
     // Правка email прямо из формы оплаты — пишем в Individual.email, он и есть основной
     // источник для resolveResidentEmail (см. выше), так что дальше подтягивается уже
@@ -256,26 +257,26 @@ export class MyPaymentsController {
     if (input.customAmount != null) {
       const totalDebt = openAccruals.reduce((sum, a) => sum + a.balance, 0) + Number(penaltyBalance);
       if (input.customAmount > totalDebt + 0.01) {
-        throw new BadRequestException('Сумма превышает фактическую задолженность');
+        throw new BadRequestException('payment.errors.amountExceedsDebt');
       }
       amount = input.customAmount;
     } else {
       const selected = openAccruals.filter((a) => input.accrualIds.includes(a.id));
       if (selected.length !== input.accrualIds.length) {
-        throw new BadRequestException('Одно или несколько начислений уже недоступны для оплаты — обновите страницу');
+        throw new BadRequestException('payment.errors.accrualsUnavailable');
       }
       // Пеню можно оплатить, только если этим же платежом закрываются ВСЕ открытые
       // начисления — иначе деньги по FIFO (см. allocatePaymentFifo) уйдут сначала на
       // начисления, а не на пеню, и платёж не будет соответствовать выбору проживающего
       // (см. решение при обсуждении фичи 2026-08-25).
       if (input.includePenalty && selected.length !== openAccruals.length) {
-        throw new BadRequestException('Оплатить пеню можно только вместе со всеми открытыми начислениями');
+        throw new BadRequestException('payment.errors.penaltyRequiresAllAccruals');
       }
       const accrualsSum = selected.reduce((sum, a) => sum + a.balance, 0);
       amount = accrualsSum + (input.includePenalty ? Number(penaltyBalance) : 0);
       selectedAccrualStarts = selected.map((a) => a.periodStart);
       includesPenalty = input.includePenalty;
-      if (amount <= 0) throw new BadRequestException('Нечего оплачивать');
+      if (amount <= 0) throw new BadRequestException('payment.errors.nothingToPay');
     }
 
     const periodLabel = buildPeriodLabel(selectedAccrualStarts, includesPenalty);
@@ -317,7 +318,14 @@ export class MyPaymentsController {
       });
       return { intentId: intent.id, paymentPageUrl: started.paymentPageUrl };
     } catch (error) {
-      const message = error instanceof AcquiringNotConfiguredError ? error.message : 'Не удалось начать оплату в банке';
+      // Резолвится сразу текстом (не ключом) — значение уходит и в исключение клиенту, и в
+      // failureReason на PaymentIntent (БД), которое дальше отдаётся как есть, без второго
+      // прохода через переводчик (см. serializeIntent) — в отличие от остальных исключений
+      // в контроллерах, здесь перевод нужен один раз, на месте.
+      const message =
+        error instanceof AcquiringNotConfiguredError
+          ? (I18nContext.current()?.t('payment.errors.acquiringUnavailable') ?? error.message)
+          : (I18nContext.current()?.t('payment.errors.bankStartFailed') ?? 'payment.errors.bankStartFailed');
       await this.prisma.paymentIntent.update({
         where: { id: intent.id },
         data: { status: 'FAILED', failureReason: message },
@@ -328,7 +336,7 @@ export class MyPaymentsController {
 
   @Get('intents/:id')
   async getIntent(@Param('id') idParam: string, @Req() req: Request) {
-    if (!req.user) throw new BadRequestException('Не удалось определить пользователя сессии');
+    if (!req.user) throw new BadRequestException('contracts.errors.sessionUserNotFound');
     const id = parseIdParam(idParam);
     const individualUid = await this.resolveIndividualUid(req.user.id);
 
@@ -337,7 +345,7 @@ export class MyPaymentsController {
       include: { contract: true },
     });
     if (!intent || intent.contract.residentIndividualUid !== individualUid) {
-      throw new NotFoundException('Платёж не найден');
+      throw new NotFoundException('payment.errors.intentNotFound');
     }
 
     if (intent.status === 'PENDING_BANK' && intent.bankToken) {
@@ -370,7 +378,7 @@ export class MyPaymentsController {
         data: {
           status: 'FAILED',
           bankRawStatus: status.raw as Prisma.InputJsonValue,
-          failureReason: status.failureReason ?? 'Банк отклонил платёж',
+          failureReason: status.failureReason ?? I18nContext.current()?.t('payment.errors.bankDeclined') ?? 'Банк отклонил платёж',
         },
         include: { contract: true },
       });

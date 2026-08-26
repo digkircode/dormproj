@@ -1,5 +1,6 @@
 <script setup lang="ts" generic="TData extends RowData">
 import { computed, onBeforeUnmount, onMounted, ref, watch, type Component, type Ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { ColumnDef, ColumnSizingState, ColumnVisibilityState, PaginationState, RowData, SortingState } from '@tanstack/vue-table'
 import { FlexRender } from '@tanstack/vue-table'
 import {
@@ -89,6 +90,8 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{ loaded: [rows: TData[]] }>()
+
+const { t } = useI18n()
 
 // Выбранные строки (только при selectable) — модель наружу, чтобы страница-владелец
 // (Contracts.vue и т.п.) сама решала, что делать с выбором (печать пачкой и т.п.).
@@ -370,7 +373,7 @@ defineExpose({ refresh: loadPage })
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div class="relative w-full max-w-xs">
         <Search class="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input v-model="searchInput" placeholder="Поиск по всей таблице…" class="pl-8" />
+        <Input v-model="searchInput" :placeholder="t('entityTable.searchPlaceholder')" class="pl-8" />
       </div>
 
 
@@ -379,9 +382,9 @@ defineExpose({ refresh: loadPage })
 
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button variant="outline" size="icon" title="Добавить фильтр">
+            <Button variant="outline" size="icon" :title="t('entityTable.addFilter')">
               <ListFilter :class="{ 'text-primary': accentIcons }" />
-              <span class="sr-only">Добавить фильтр</span>
+              <span class="sr-only">{{ t('entityTable.addFilter') }}</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" class="w-56">
@@ -394,15 +397,15 @@ defineExpose({ refresh: loadPage })
                 {{ columnLabels[field] }}
               </DropdownMenuItem>
             </template>
-            <div v-else class="px-2 py-1.5 text-sm text-muted-foreground">Все поля уже добавлены</div>
+            <div v-else class="px-2 py-1.5 text-sm text-muted-foreground">{{ t('entityTable.allFieldsAdded') }}</div>
           </DropdownMenuContent>
         </DropdownMenu>
 
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button variant="outline" size="icon" title="Настройка таблицы">
+            <Button variant="outline" size="icon" :title="t('entityTable.tableSettings')">
               <Settings2 :class="{ 'text-primary': accentIcons }" />
-              <span class="sr-only">Настройка таблицы</span>
+              <span class="sr-only">{{ t('entityTable.tableSettings') }}</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" class="w-56">
@@ -431,18 +434,18 @@ defineExpose({ refresh: loadPage })
             {{
               (filterValues[field]?.length ?? 0) > 0
                 ? filterValues[field].map((v) => facetLabel(field, v)).join(', ')
-                : 'любое значение'
+                : t('entityTable.anyValue')
             }}
           </span>
         </button>
         <button type="button" class="shrink-0 rounded-sm p-0.5 hover:bg-muted" @click="removeFilterField(field)">
           <X class="size-3.5" />
-          <span class="sr-only">Убрать фильтр «{{ columnLabels[field] }}»</span>
+          <span class="sr-only">{{ t('entityTable.removeFilter', { field: columnLabels[field] }) }}</span>
         </button>
       </div>
       <Button variant="ghost" size="sm" class="ml-auto text-muted-foreground" @click="clearAllFilters">
         <X class="size-3.5" />
-        Очистить
+        {{ t('entityTable.clear') }}
       </Button>
     </div>
 
@@ -452,11 +455,11 @@ defineExpose({ refresh: loadPage })
       >
         <DialogHeader>
           <DialogTitle>{{ columnLabels[filterModalField ?? ''] }}</DialogTitle>
-          <DialogDescription>Выберите одно или несколько значений</DialogDescription>
+          <DialogDescription>{{ t('entityTable.selectValuesTitle') }}</DialogDescription>
         </DialogHeader>
         <div class="relative">
           <Search class="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input v-model="filterModalSearch" placeholder="Поиск значения…" class="pl-8" />
+          <Input v-model="filterModalSearch" :placeholder="t('entityTable.searchValuePlaceholder')" class="pl-8" />
         </div>
         <div class="-mx-1 flex-1 space-y-0.5 overflow-y-auto px-1" style="max-height: 50vh">
           <label
@@ -472,11 +475,11 @@ defineExpose({ refresh: loadPage })
           </label>
           <div v-if="!filteredModalOptions.length" class="flex flex-col items-center gap-2 py-8 text-muted-foreground">
             <SearchX class="size-6" />
-            <span class="text-sm">Ничего не найдено</span>
+            <span class="text-sm">{{ t('entityTable.nothingFound') }}</span>
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" @click="confirmFilterModal">Готово</Button>
+          <Button variant="outline" @click="confirmFilterModal">{{ t('entityTable.done') }}</Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>
@@ -501,7 +504,7 @@ defineExpose({ refresh: loadPage })
                   <Checkbox
                     :model-value="allRowsSelected ? true : someRowsSelected ? 'indeterminate' : false"
                     :disabled="!rows.length"
-                    aria-label="Выбрать все строки на странице"
+                    :aria-label="t('entityTable.selectAllRows')"
                     @update:model-value="(checked) => toggleAllRows(!!checked)"
                   />
                 </TableHead>
@@ -558,7 +561,7 @@ defineExpose({ refresh: loadPage })
                   <TableCell v-if="selectable" class="py-2 pr-2 pl-3 text-center" :style="{ width: 'var(--col-select-size)' }">
                     <Checkbox
                       :model-value="isRowSelected(row.original)"
-                      aria-label="Выбрать строку"
+                      :aria-label="t('entityTable.selectRow')"
                       @update:model-value="(checked) => toggleRow(row.original, !!checked)"
                     />
                   </TableCell>
@@ -600,7 +603,7 @@ defineExpose({ refresh: loadPage })
                   :colspan="columns.length + (selectable ? 1 : 0) + (rowAction ? 1 : 0)"
                   class="h-24 text-center text-muted-foreground"
                 >
-                  {{ isLoading ? 'Загрузка…' : 'Ничего не найдено' }}
+                  {{ isLoading ? t('entityTable.loading') : t('entityTable.nothingFound') }}
                 </TableCell>
               </TableRow>
             </TableBody>
@@ -611,11 +614,11 @@ defineExpose({ refresh: loadPage })
 
     <div class="flex items-center justify-between px-1">
       <div class="text-muted-foreground text-sm">
-        Всего {{ totalLabel }}: {{ total }}
+        {{ t('entityTable.total', { label: totalLabel, count: total }) }}
       </div>
       <div class="flex w-fit items-center gap-8">
         <div class="flex items-center gap-2">
-          <Label for="rows-per-page" class="text-sm font-medium">Строк на странице</Label>
+          <Label for="rows-per-page" class="text-sm font-medium">{{ t('entityTable.rowsPerPage') }}</Label>
           <Select
             :model-value="`${pagination.pageSize}`"
             :disabled="isLoading"
@@ -632,7 +635,7 @@ defineExpose({ refresh: loadPage })
           </Select>
         </div>
         <div class="flex w-fit items-center justify-center text-sm font-medium">
-          Страница {{ pagination.pageIndex + 1 }} из {{ table.getPageCount() }}
+          {{ t('entityTable.pageOf', { current: pagination.pageIndex + 1, total: table.getPageCount() }) }}
         </div>
         <div class="flex items-center gap-2">
           <Button
@@ -641,7 +644,7 @@ defineExpose({ refresh: loadPage })
             :disabled="isLoading || !table.getCanPreviousPage()"
             @click="table.setPageIndex(0)"
           >
-            <span class="sr-only">Первая страница</span>
+            <span class="sr-only">{{ t('entityTable.firstPage') }}</span>
             <ChevronsLeft />
           </Button>
           <Button
@@ -651,7 +654,7 @@ defineExpose({ refresh: loadPage })
             :disabled="isLoading || !table.getCanPreviousPage()"
             @click="table.previousPage()"
           >
-            <span class="sr-only">Предыдущая страница</span>
+            <span class="sr-only">{{ t('entityTable.previousPage') }}</span>
             <ChevronLeft />
           </Button>
           <Button
@@ -661,7 +664,7 @@ defineExpose({ refresh: loadPage })
             :disabled="isLoading || !table.getCanNextPage()"
             @click="table.nextPage()"
           >
-            <span class="sr-only">Следующая страница</span>
+            <span class="sr-only">{{ t('entityTable.nextPage') }}</span>
             <ChevronRight />
           </Button>
           <Button
@@ -670,7 +673,7 @@ defineExpose({ refresh: loadPage })
             :disabled="isLoading || !table.getCanNextPage()"
             @click="table.setPageIndex(table.getPageCount() - 1)"
           >
-            <span class="sr-only">Последняя страница</span>
+            <span class="sr-only">{{ t('entityTable.lastPage') }}</span>
             <ChevronsRight />
           </Button>
         </div>

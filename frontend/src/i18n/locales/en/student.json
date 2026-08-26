@@ -1,0 +1,91 @@
+{
+  "student": {
+    "back": "Back",
+    "title": "RosNOU Dormitory",
+    "tabs": {
+      "general": "General information",
+      "payment": "Payment and documents",
+      "contacts": "Contacts"
+    },
+    "errors": {
+      "fetchHostelInfoFailed": "Failed to load dormitory reference data ({status})"
+    },
+    "building": {
+      "heading": "Building",
+      "paragraph1": "The building has a total area of 12,697 m² and provides 617 beds. Rooms come in two layouts — block-style and corridor-style — with different levels of comfort and floor plans.",
+      "paragraph2": "The building underwent a major renovation in 2014, and a video surveillance system was installed for residents' safety.",
+      "paragraph3": "The building has two wings, laid out differently. On every floor of the right wing there are two kitchens, three shower rooms, four lounges for relaxing and socializing, and a separate room for washing and drying laundry. The left wing has one kitchen per floor, with showers made private within each block for more privacy.",
+      "paragraph4": "Every room already has the necessary furniture — beds, wardrobes, nightstands, and a refrigerator. Students usually bring their own irons, hairdryers, and other small appliances. With the administrator's permission, you can adjust the room to your liking: add an extra wardrobe, put up shelves, or lay down a rug."
+    },
+    "infrastructure": {
+      "heading": "Infrastructure and services",
+      "item1": "Free Wi-Fi throughout the dormitory",
+      "item2": "Shared kitchen on every floor",
+      "item3": "Laundry and drying room — wash 80 ₽, dry 80 ₽",
+      "item4": "Canteen: Mon–Thu 10:00 AM–7:00 PM, Fri 10:00 AM–6:00 PM, Sat–Sun closed",
+      "item5": "Gym",
+      "item6": "Reading room and library, computer access"
+    },
+    "accessibility": {
+      "heading": "Accessibility for people with disabilities",
+      "item1": "The dormitory is equipped for residents with disabilities",
+      "item2": "Ramp for unobstructed access",
+      "item3": "The first floor has living rooms, a reading room, and restrooms for people with disabilities",
+      "item4": "Braille tactile signage"
+    },
+    "directions": {
+      "heading": "Getting there",
+      "item1": "Nearest metro station — \"Aviamotornaya\" (about a 20-minute walk)",
+      "item2": "From \"Aviamotornaya\" metro — bus No. 695 or s679 to the \"Andronovskoe Shosse, 26\" stop, then on foot",
+      "item3": "From the main campus building (22 Radio St.) — bus No. 624 from the \"Lefortovskaya Naberezhnaya\" stop to \"NII Prikladnoy Mekhaniki\", then on foot",
+      "item4": "From the main campus building to \"Aviamotornaya\" metro — tram T2 or 50 from the \"Lefortovskaya Naberezhnaya\" stop",
+      "mapTitle": "How to get to the RosNOU dormitory — map with routes"
+    },
+    "payment": {
+      "heading": "Payment",
+      "paragraph1": "Payment is made monthly, or upfront for a quarter or half-year, no later than the 5th of the billing month — the deadline is set in the housing contract.",
+      "paragraph2": "If payment is not received on time, starting on the 10th of the month following the billing period, a penalty begins to accrue — 0.14% per day of the outstanding amount (contract clauses 4.8/5.9).",
+      "paragraph3": "Correspondence-program students move in for the duration of their exam session, subject to availability — the cost is calculated by the actual number of days lived there."
+    },
+    "cost": {
+      "heading": "Cost of accommodation",
+      "roomLabel": "Room for {capacity} {unit}",
+      "personFew": "people",
+      "personMany": "people",
+      "personSingular": "person",
+      "personPlural": "people",
+      "guestRoom": "Guest room",
+      "passRestoration": "Access pass replacement",
+      "priceSingle": "{amount} ₽/mo",
+      "priceRange": "{min}–{max} ₽/mo",
+      "perDay": "{amount} ₽/day",
+      "amountRub": "{amount} ₽"
+    },
+    "polyclinic": {
+      "heading": "Registering with a clinic",
+      "intro": "Students from other cities can register with the nearest clinic by presenting a passport, student ID, mandatory health insurance policy, and temporary registration.",
+      "cheatSheetTitle": "Quick guide: how to register",
+      "step1": "Get a temporary registration",
+      "step2": "Bring your health insurance policy, passport, and SNILS",
+      "step3": "Visit the nearest branch of the insurance company",
+      "listToggle": "List of clinics ({count})"
+    },
+    "tempRegistration": {
+      "heading": "Temporary registration",
+      "intro": "For a certificate of registration at your place of stay, you need to provide the following (contact the dormitory administration or room 801):",
+      "doc1": "Photocopies of passport pages (2, 3, 4, 5)",
+      "doc2": "Extract from the enrollment order",
+      "doc3": "Certificate of study",
+      "doc4": "3×4 cm photo"
+    },
+    "contactsAdmin": {
+      "heading": "Administration contacts",
+      "addressLabel": "Address",
+      "phoneLabel": "Phone",
+      "emailLabel": "Email",
+      "hoursLabel": "Office hours",
+      "responsibleStaff": "Staff in charge"
+    },
+    "ddmHeading": "Department of Youth Affairs and Educational Work"
+  }
+}

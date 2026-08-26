@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, Download } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -13,20 +14,21 @@ import { fetchContingentPage, fetchContingentFacets, exportContingentExcel, type
 import { goBack } from '@/lib/utils'
 
 const router = useRouter()
+const { t } = useI18n()
 
-const columnLabels: Record<string, string> = {
-  movedInDate: 'Дата заселения',
-  residentFullName: 'Проживающий',
-  contractNumber: '№ договора',
-  room: 'Комната',
-  facultet: 'Факультет',
-  kursNumber: 'Курс',
-  birthDate: 'Дата рождения',
-  citizenship: 'Гражданство',
+const columnLabels = computed<Record<string, string>>(() => ({
+  movedInDate: t('reports.contingent.colMovedInDate'),
+  residentFullName: t('reports.contingent.colResident'),
+  contractNumber: t('reports.contingent.colContractNumber'),
+  room: t('reports.contingent.colRoom'),
+  facultet: t('reports.contingent.colFacultet'),
+  kursNumber: t('reports.contingent.colKurs'),
+  birthDate: t('reports.contingent.colBirthDate'),
+  citizenship: t('reports.contingent.colCitizenship'),
   // Фильтры без собственной колонки — та же схема, что bucket в ReportsContractsRegistry.vue.
-  citizenshipGroup: 'Гражданство',
-  isOwnUniversity: 'Студент РосНОУ',
-}
+  citizenshipGroup: t('reports.contingent.colCitizenship'),
+  isOwnUniversity: t('reports.contingent.colOwnUniversity'),
+}))
 const filterableFields = ['facultet', 'kursNumber', 'citizenshipGroup', 'isOwnUniversity']
 const cellRenderers = { residentFullName: ResidentLinkCell, contractNumber: ContractLinkCell }
 
@@ -43,16 +45,18 @@ function cellText(columnId: string, value: unknown): string {
 }
 
 const columnHelper = createAppColumnHelper<ContingentRow>()
-const columns = columnHelper.columns([
-  columnHelper.accessor('movedInDate', { header: columnLabels.movedInDate, size: 140, minSize: 110 }),
-  columnHelper.accessor('residentFullName', { header: columnLabels.residentFullName, enableHiding: false, size: 220, minSize: 160 }),
-  columnHelper.accessor('contractNumber', { header: columnLabels.contractNumber, size: 140, minSize: 110 }),
-  columnHelper.accessor('room', { header: columnLabels.room, size: 110, minSize: 90 }),
-  columnHelper.accessor('facultet', { header: columnLabels.facultet, size: 180, minSize: 120 }),
-  columnHelper.accessor('kursNumber', { header: columnLabels.kursNumber, size: 90, minSize: 80 }),
-  columnHelper.accessor('birthDate', { header: columnLabels.birthDate, size: 140, minSize: 110 }),
-  columnHelper.accessor('citizenship', { header: columnLabels.citizenship, size: 160, minSize: 120 }),
-])
+const columns = computed(() =>
+  columnHelper.columns([
+    columnHelper.accessor('movedInDate', { header: columnLabels.value.movedInDate, size: 140, minSize: 110 }),
+    columnHelper.accessor('residentFullName', { header: columnLabels.value.residentFullName, enableHiding: false, size: 220, minSize: 160 }),
+    columnHelper.accessor('contractNumber', { header: columnLabels.value.contractNumber, size: 140, minSize: 110 }),
+    columnHelper.accessor('room', { header: columnLabels.value.room, size: 110, minSize: 90 }),
+    columnHelper.accessor('facultet', { header: columnLabels.value.facultet, size: 180, minSize: 120 }),
+    columnHelper.accessor('kursNumber', { header: columnLabels.value.kursNumber, size: 90, minSize: 80 }),
+    columnHelper.accessor('birthDate', { header: columnLabels.value.birthDate, size: 140, minSize: 110 }),
+    columnHelper.accessor('citizenship', { header: columnLabels.value.citizenship, size: 160, minSize: 120 }),
+  ]),
+)
 
 // Отчёт "на дату" (по умолчанию сегодня) — тот же приём, что период в ReportsMovements.vue/
 // дата в ReportsDebt.vue: EntityTable сама не знает про внешний asOf, перезапрашиваем
@@ -89,9 +93,9 @@ async function onExport() {
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
-        <span class="sr-only">Назад</span>
+        <span class="sr-only">{{ t('reports.common.back') }}</span>
       </Button>
-      <h1 class="text-lg font-medium">Реестр проживающих</h1>
+      <h1 class="text-lg font-medium">{{ t('reports.contingent.title') }}</h1>
     </div>
 
     <EntityTable
@@ -103,23 +107,23 @@ async function onExport() {
       :fetch-page="fetchPage"
       :fetch-facet-values="fetchContingentFacets"
       :get-row-id="(r: ContingentRow) => String(r.contractId)"
-      total-label="проживающих"
+      :total-label="t('reports.contingent.totalLabel')"
       :cell-text="cellText"
       :cell-renderers="cellRenderers"
       storage-key="reports-contingent"
       accent-icons
     >
       <template #actions>
-        <span class="text-sm text-muted-foreground">На дату</span>
+        <span class="text-sm text-muted-foreground">{{ t('reports.common.asOf') }}</span>
         <DatePickerField v-model="asOf" />
         <Tooltip>
           <TooltipTrigger as-child>
             <Button size="icon" :loading="isExporting" @click="onExport">
               <Download />
-              <span class="sr-only">Экспорт в Excel</span>
+              <span class="sr-only">{{ t('reports.common.exportExcel') }}</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Экспорт в Excel</TooltipContent>
+          <TooltipContent>{{ t('reports.common.exportExcel') }}</TooltipContent>
         </Tooltip>
       </template>
     </EntityTable>

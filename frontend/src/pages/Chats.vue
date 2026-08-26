@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, FileText, DoorClosed } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
@@ -23,6 +24,7 @@ import {
 } from '@/lib/chat-api'
 
 const router = useRouter()
+const { t } = useI18n()
 const conversations = ref<ChatConversationListItem[]>([])
 const selectedId = ref<number | null>(null)
 const messages = ref<ChatMessage[]>([])
@@ -127,9 +129,9 @@ onMounted(loadConversations)
     <div class="flex shrink-0 items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
-        <span class="sr-only">Назад</span>
+        <span class="sr-only">{{ t('chat.back') }}</span>
       </Button>
-      <h1 class="text-lg font-medium">Чаты с проживающими</h1>
+      <h1 class="text-lg font-medium">{{ t('chat.staff.title') }}</h1>
     </div>
 
     <Card class="flex min-h-0 flex-1 flex-row gap-0 overflow-hidden py-0">
@@ -146,15 +148,15 @@ onMounted(loadConversations)
             class="-mx-1.5 flex h-10 items-center gap-1.5 rounded-md px-1.5 transition-colors hover:bg-accent hover:text-accent-foreground"
           >
             <FileText class="size-4 text-primary" />
-            Договор № {{ residentInfo.contractNumber }}
+            {{ t('contracts.detail.titleWithNumber', { number: residentInfo.contractNumber }) }}
           </RouterLink>
           <span v-else class="flex h-10 items-center gap-1.5">
             <FileText class="size-4 text-primary" />
-            Нет действующего договора
+            {{ t('chat.noActiveContract') }}
           </span>
           <span v-if="residentInfo?.room" class="flex h-10 items-center gap-1.5">
             <DoorClosed class="size-4 text-primary" />
-            Комната {{ residentInfo.room }}
+            {{ t('roomInfo.dialogTitle', { room: residentInfo.room }) }}
           </span>
         </div>
 
@@ -168,7 +170,7 @@ onMounted(loadConversations)
           attachment-base-path="/chats/attachments"
           :on-send="onSend"
         />
-        <p v-else class="m-auto text-sm text-muted-foreground">{{ selectedId ? 'Загрузка…' : 'Выберите диалог слева' }}</p>
+        <p v-else class="m-auto text-sm text-muted-foreground">{{ selectedId ? t('entityTable.loading') : t('chat.selectDialogHint') }}</p>
       </div>
     </Card>
 

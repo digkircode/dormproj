@@ -21,10 +21,11 @@ import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { ensureUserRecord } from '../users/ensure-user';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { zodErrorMessage } from '../i18n/zod-error-message';
 
 function requireUser(req: Request) {
   if (!req.user) {
-    throw new BadRequestException('Не удалось определить пользователя сессии');
+    throw new BadRequestException('contracts.errors.sessionUserNotFound');
   }
   return req.user;
 }
@@ -52,7 +53,7 @@ const reorderSchema = z.object({ ids: z.array(z.number().int()).min(1) });
 function parseIdParam(idParam: string): number {
   const id = Number.parseInt(idParam, 10);
   if (!Number.isInteger(id)) {
-    throw new BadRequestException('Некорректный id');
+    throw new BadRequestException('contracts.errors.invalidId');
   }
   return id;
 }
@@ -82,10 +83,10 @@ export class RoomCharacteristicDefinitionsController {
   async create(@Body() body: unknown, @Req() req: Request) {
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException(parsed.error.message);
+      throw new BadRequestException(zodErrorMessage(parsed.error));
     }
     if (parsed.data.options.length > 0 && parsed.data.valueType !== 'TEXT') {
-      throw new BadRequestException('Список допустимых значений применим только к типу "Текст"');
+      throw new BadRequestException('rooms.errors.optionsOnlyForText');
     }
     const sessionUser = requireUser(req);
     try {
@@ -115,7 +116,7 @@ export class RoomCharacteristicDefinitionsController {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Характеристика с таким названием уже существует');
+        throw new ConflictException('rooms.errors.nameAlreadyExists');
       }
       throw error;
     }
@@ -131,7 +132,7 @@ export class RoomCharacteristicDefinitionsController {
   async reorder(@Body() body: unknown, @Req() req: Request) {
     const parsed = reorderSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException(parsed.error.message);
+      throw new BadRequestException(zodErrorMessage(parsed.error));
     }
     const sessionUser = requireUser(req);
     const before = await this.prisma.roomCharacteristicDefinition.findMany({ orderBy: { sortOrder: 'asc' }, select: { id: true, name: true } });
@@ -161,15 +162,15 @@ export class RoomCharacteristicDefinitionsController {
     const id = parseIdParam(idParam);
     const parsed = updateSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException(parsed.error.message);
+      throw new BadRequestException(zodErrorMessage(parsed.error));
     }
     const sessionUser = requireUser(req);
     const existing = await this.prisma.roomCharacteristicDefinition.findUnique({ where: { id } });
     if (!existing) {
-      throw new NotFoundException('Характеристика не найдена');
+      throw new NotFoundException('rooms.errors.definitionNotFound');
     }
     if (parsed.data.options !== undefined && parsed.data.options.length > 0 && existing.valueType !== 'TEXT') {
-      throw new BadRequestException('Список допустимых значений применим только к типу "Текст"');
+      throw new BadRequestException('rooms.errors.optionsOnlyForText');
     }
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -196,10 +197,10 @@ export class RoomCharacteristicDefinitionsController {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        throw new NotFoundException('Характеристика не найдена');
+        throw new NotFoundException('rooms.errors.definitionNotFound');
       }
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Характеристика с таким названием уже существует');
+        throw new ConflictException('rooms.errors.nameAlreadyExists');
       }
       throw error;
     }
@@ -212,10 +213,10 @@ export class RoomCharacteristicDefinitionsController {
     const sessionUser = requireUser(req);
     const existing = await this.prisma.roomCharacteristicDefinition.findUnique({ where: { id } });
     if (!existing) {
-      throw new NotFoundException('Характеристика не найдена');
+      throw new NotFoundException('rooms.errors.definitionNotFound');
     }
     if (existing.isProtected) {
-      throw new ConflictException('Эту характеристику нельзя удалить');
+      throw new ConflictException('rooms.errors.protectedCannotBeDeleted');
     }
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -235,12 +236,12 @@ export class RoomCharacteristicDefinitionsController {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        throw new NotFoundException('Характеристика не найдена');
+        throw new NotFoundException('rooms.errors.definitionNotFound');
       }
       // FK RESTRICT — у характеристики ещё есть значения, вручную сформулированная ошибка
       // понятнее сотруднику, чем сырой код ограничения БД.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
-        throw new ConflictException('Нельзя удалить характеристику, пока у неё есть значения у комнат');
+        throw new ConflictException('rooms.errors.hasValuesCannotDelete');
       }
       throw error;
     }

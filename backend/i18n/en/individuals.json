@@ -1,0 +1,11 @@
+{
+  "errors": {
+    "individualNotFound": "Individual not found",
+    "syncAlreadyRunning": "Individual sync is already running, please wait for it to finish",
+    "snilsFormat": "SNILS must be in the format 000-000-000 00",
+    "subdivisionCodeFormat": "The issuing department code must be in the format 000-000",
+    "citizenshipRequired": "Select a citizenship from the list",
+    "rfPassportSeriesFormat": "A Russian citizen's passport series must consist of 4 digits",
+    "rfPassportNumberFormat": "A Russian citizen's passport number must consist of 6 digits"
+  }
+}

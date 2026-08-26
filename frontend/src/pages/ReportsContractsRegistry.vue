@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, CircleCheck, CircleX, Clock, Download } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
@@ -22,16 +23,17 @@ import {
 import { goBack } from '@/lib/utils'
 
 const router = useRouter()
+const { t } = useI18n()
 
-const columnLabels: Record<string, string> = {
-  contractNumber: '№ договора',
-  residentFullName: 'Проживающий',
-  room: 'Комната',
-  createdAt: 'Дата создания',
-  startDate: 'Начало',
-  endDate: 'Окончание',
-  bucket: 'Статус',
-}
+const columnLabels = computed<Record<string, string>>(() => ({
+  contractNumber: t('reports.registry.colContractNumber'),
+  residentFullName: t('reports.registry.colResident'),
+  room: t('reports.registry.colRoom'),
+  createdAt: t('reports.registry.colCreatedAt'),
+  startDate: t('reports.registry.colStart'),
+  endDate: t('reports.registry.colEnd'),
+  bucket: t('reports.registry.colStatus'),
+}))
 const filterableFields = ['bucket']
 const cellRenderers = { contractNumber: ContractLinkCell, residentFullName: ResidentLinkCell, bucket: ContractRegistryStatusCell }
 
@@ -48,15 +50,17 @@ function cellText(columnId: string, value: unknown): string {
 }
 
 const columnHelper = createAppColumnHelper<ContractRegistryRow>()
-const columns = columnHelper.columns([
-  columnHelper.accessor('contractNumber', { header: columnLabels.contractNumber, enableHiding: false, size: 128, minSize: 100 }),
-  columnHelper.accessor('residentFullName', { header: columnLabels.residentFullName, size: 220, minSize: 160 }),
-  columnHelper.accessor('room', { header: columnLabels.room, size: 110, minSize: 90 }),
-  columnHelper.accessor('createdAt', { header: columnLabels.createdAt, size: 128, minSize: 100 }),
-  columnHelper.accessor('startDate', { header: columnLabels.startDate, size: 128, minSize: 100 }),
-  columnHelper.accessor('endDate', { header: columnLabels.endDate, size: 128, minSize: 100 }),
-  columnHelper.accessor('bucket', { header: columnLabels.bucket, size: 160, minSize: 130 }),
-])
+const columns = computed(() =>
+  columnHelper.columns([
+    columnHelper.accessor('contractNumber', { header: columnLabels.value.contractNumber, enableHiding: false, size: 128, minSize: 100 }),
+    columnHelper.accessor('residentFullName', { header: columnLabels.value.residentFullName, size: 220, minSize: 160 }),
+    columnHelper.accessor('room', { header: columnLabels.value.room, size: 110, minSize: 90 }),
+    columnHelper.accessor('createdAt', { header: columnLabels.value.createdAt, size: 128, minSize: 100 }),
+    columnHelper.accessor('startDate', { header: columnLabels.value.startDate, size: 128, minSize: 100 }),
+    columnHelper.accessor('endDate', { header: columnLabels.value.endDate, size: 128, minSize: 100 }),
+    columnHelper.accessor('bucket', { header: columnLabels.value.bucket, size: 160, minSize: 130 }),
+  ]),
+)
 
 const summary = ref<ContractsRegistrySummary | null>(null)
 onMounted(async () => {
@@ -83,9 +87,9 @@ async function onExport() {
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
-        <span class="sr-only">Назад</span>
+        <span class="sr-only">{{ t('reports.common.back') }}</span>
       </Button>
-      <h1 class="text-lg font-medium">Реестр договоров</h1>
+      <h1 class="text-lg font-medium">{{ t('reports.registry.title') }}</h1>
     </div>
 
     <Card v-if="summary" class="grid grid-cols-3 gap-4 p-4">
@@ -93,21 +97,21 @@ async function onExport() {
         :icon="CircleCheck"
         bg-class="bg-emerald-100 dark:bg-emerald-500/15"
         icon-class="text-emerald-600 dark:text-emerald-400"
-        label="Активные"
+        :label="t('reports.registry.kpiActive')"
         :value="String(summary.active)"
       />
       <ReportKpiTile
         :icon="Clock"
         bg-class="bg-orange-100 dark:bg-orange-500/15"
         icon-class="text-orange-600 dark:text-orange-400"
-        label="Истекают в течение 30 дней"
+        :label="t('reports.registry.kpiExpiring30')"
         :value="String(summary.expiring30)"
       />
       <ReportKpiTile
         :icon="CircleX"
         bg-class="bg-red-100 dark:bg-red-500/15"
         icon-class="text-red-600 dark:text-red-400"
-        label="Уже закончены"
+        :label="t('reports.registry.kpiEnded')"
         :value="String(summary.ended)"
       />
     </Card>
@@ -120,7 +124,7 @@ async function onExport() {
       :fetch-page="fetchContractsRegistryPage"
       :fetch-facet-values="fetchContractsRegistryFacets"
       :get-row-id="(c: ContractRegistryRow) => String(c.contractId)"
-      total-label="договоров"
+      :total-label="t('reports.common.totalContracts')"
       :cell-text="cellText"
       :cell-renderers="cellRenderers"
       storage-key="reports-contracts-registry"
@@ -131,10 +135,10 @@ async function onExport() {
           <TooltipTrigger as-child>
             <Button size="icon" :loading="isExporting" @click="onExport">
               <Download />
-              <span class="sr-only">Экспорт в Excel</span>
+              <span class="sr-only">{{ t('reports.common.exportExcel') }}</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Экспорт в Excel</TooltipContent>
+          <TooltipContent>{{ t('reports.common.exportExcel') }}</TooltipContent>
         </Tooltip>
       </template>
     </EntityTable>
