@@ -80,10 +80,6 @@ const props = withDefaults(
     // опционально. Остальные хромовые иконки (сортировка/пагинация/шеврон настройки/крестики
     // фильтров) в accentIcons намеренно не входят, как и поиск и статусные ячейки (cellRenderers).
     accentIcons?: boolean
-    // Скрывает поле поиска (фильтры/сортировка/настройка колонок остаются) — по умолчанию
-    // выключено, остальные таблицы не меняются. Добавлено 2026-08-26 для маленьких таблиц
-    // резидента (начисления/платежи одного человека), где полнотекстовый поиск не нужен.
-    hideSearch?: boolean
   }>(),
   {
     cellText: (_columnId: string, value: unknown) => String(value ?? ''),
@@ -372,11 +368,10 @@ defineExpose({ refresh: loadPage })
     <p v-if="errorText" class="text-sm text-red-500">{{ errorText }}</p>
 
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <div v-if="!hideSearch" class="relative w-full max-w-xs">
+      <div class="relative w-full max-w-xs">
         <Search class="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input v-model="searchInput" placeholder="Поиск по всей таблице…" class="pl-8" />
       </div>
-      <div v-else />
 
 
       <div class="flex items-center gap-2">
