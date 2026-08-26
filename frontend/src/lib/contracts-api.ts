@@ -105,6 +105,14 @@ export interface ContractDetail {
 // см. backend/src/contracts/my-contract.controller.ts) — заметно уже ContractDetail:
 // без legalRep*/matCapital (административные поля не для этого вида) и без hasPayments
 // (странице резидента не нужны кнопки удаления/печати/платежей).
+// Одна строка журнала начисления пени за конкретный день (см. GET /my-contract) — для
+// раскрытия тайла "Пени" на карточке договора резидента (MyContract.vue): amount = overdueBase * 0.14%/день.
+export interface PenaltyLogRow {
+  date: string
+  amount: number
+  overdueBase: number
+}
+
 export interface MyContractDetail {
   id: number
   number: string
@@ -118,6 +126,7 @@ export interface MyContractDetail {
   penaltyAmount: number
   penaltyPaid: number
   penaltyBalance: number
+  penaltyLog: PenaltyLogRow[]
   terms: ContractTerms[]
   accruals: AccrualRow[]
   payments: PaymentRow[]

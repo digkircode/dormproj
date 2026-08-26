@@ -107,6 +107,14 @@ export class MyContractController {
         penaltyAmount: Number(penaltyAmount),
         penaltyPaid: Number(penaltyPaid),
         penaltyBalance: Number(penaltyBalance),
+        // Журнал начисления пени по дням (дата/сумма за день/база расчёта) — для клика по
+        // тайлу "Пени" на карточке (MyContract.vue), показывает, откуда взялась сумма
+        // (amount = overdueBase * 0.14%, см. billing/penalty.scheduler.ts). По дате, старые
+        // сверху вниз — так же, как начисления таблицей выше.
+        penaltyLog: penaltyLogs
+          .slice()
+          .sort((a, b) => a.date.getTime() - b.date.getTime())
+          .map((l) => ({ date: l.date, amount: Number(l.amount), overdueBase: Number(l.overdueBase) })),
         terms: terms.map(serializeTerms),
         accruals: accruals.map(serializeAccrual),
         payments: payments.map(serializePayment),

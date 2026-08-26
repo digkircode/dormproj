@@ -96,7 +96,20 @@ const createContractSchema = z
     ...legalRepFields,
     ...matCapitalFields,
   })
-  .refine((data) => data.endDate >= data.startDate, { message: 'Дата окончания раньше даты начала', path: ['endDate'] });
+  .refine((data) => data.endDate >= data.startDate, { message: 'Дата окончания раньше даты начала', path: ['endDate'] })
+  // ФИО и телефон родителя обязательны у ЛЮБОГО договора, не только у несовершеннолетнего
+  // (форма CreateContractDialog.vue требует их всегда, см. legalRepNameInvalid/phoneValid
+  // там) — раньше эта проверка была только на фронте, legalRepFields сами по себе nullish,
+  // прямой POST /contracts мимо формы мог создать договор вообще без данных родителя.
+  // Добавлено по прямой просьбе 2026-08-26 при разборе уязвимостей проекта.
+  .refine((data) => (data.legalRepName?.trim().length ?? 0) > 0, {
+    message: 'Укажите ФИО родителя',
+    path: ['legalRepName'],
+  })
+  .refine((data) => (data.legalRepPhone?.trim().length ?? 0) > 0, {
+    message: 'Укажите телефон родителя',
+    path: ['legalRepPhone'],
+  });
 
 const terminateSchema = z.object({ actualEndDate: z.coerce.date() });
 
@@ -260,14 +273,18 @@ export class ContractsController {
     return Object.entries(STATUS_FACET_LABELS).map(([value, label]) => ({ value, label }));
   }
 
-  // Автоподстановка родителя на новом договоре того же несовершеннолетнего — последний
-  // договор этого резидента, где уже заводился Individual(isManual) для родителя (см.
-  // create() ниже). Печатные данные конкретного договора берутся из legalRep*-полей самого
-  // НАЙДЕННОГО договора (не из Individual) — та же логика, что и при печати.
+  // Автоподстановка родителя на новом договоре того же человека — последний договор этого
+  // резидента, где уже вводилось ФИО родителя. Раньше условием было legalRepIndividualUid
+  // (Individual(isManual) заводится только для несовершеннолетних, см. create() ниже) —
+  // из-за этого автоподстановка ФИО/телефона работала только для несовершеннолетних, хотя
+  // форма (CreateContractDialog.vue) требует их у ЛЮБОГО договора. По прямой просьбе
+  // 2026-08-26 — условие ослаблено до "ФИО родителя вообще было указано", подстановка
+  // теперь работает и для совершеннолетних. Печатные данные конкретного договора всё равно
+  // берутся из legalRep*-полей самого НАЙДЕННОГО договора (не из Individual).
   @Get('legal-rep/:residentUid')
   async legalRepPrefill(@Param('residentUid') residentUid: string) {
     const previous = await this.prisma.contract.findFirst({
-      where: { residentIndividualUid: residentUid, legalRepIndividualUid: { not: null } },
+      where: { residentIndividualUid: residentUid, legalRepName: { not: null } },
       orderBy: { contractDate: 'desc' },
     });
     if (!previous) return null;

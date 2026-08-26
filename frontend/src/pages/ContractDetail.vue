@@ -401,8 +401,8 @@ async function confirmReversePayment() {
               </div>
             </div>
             <div class="flex items-center gap-3">
-              <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-stone-200 dark:bg-stone-500/20">
-                <DoorOpen class="size-5 text-stone-700 dark:text-stone-400" />
+              <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-500/15">
+                <DoorOpen class="size-5 text-sky-600 dark:text-sky-400" />
               </div>
               <div>
                 <p class="text-xs text-muted-foreground">Стоимость комнаты</p>

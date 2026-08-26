@@ -28,7 +28,7 @@ import {
   type PaymentIntentRow,
   type PaymentIntentStatus,
 } from '@/lib/my-payments-api'
-import { goBack } from '@/lib/utils'
+import { goBack, sanitizeLettersOnly } from '@/lib/utils'
 
 const router = useRouter()
 const route = useRoute()
@@ -271,7 +271,12 @@ onMounted(async () => {
           </div>
           <div v-if="!payerIsResident" class="flex flex-col gap-2">
             <Label for="representative-name">ФИО плательщика</Label>
-            <Input id="representative-name" v-model="representativeFullName" placeholder="Иванова Мария Петровна" />
+            <Input
+              id="representative-name"
+              :model-value="representativeFullName"
+              @update:model-value="(v) => (representativeFullName = sanitizeLettersOnly(String(v)))"
+              placeholder="Иванова Мария Петровна"
+            />
           </div>
           <div class="flex flex-col gap-2">
             <Label for="payer-email">Email для чека</Label>

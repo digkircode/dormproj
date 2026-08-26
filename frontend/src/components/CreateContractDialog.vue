@@ -221,13 +221,16 @@ async function pickIndividual(ind: Individual) {
   }
 }
 
-// Автоподстановка родителя — если у этого несовершеннолетнего родитель уже вводился на
-// предыдущем договоре (см. Individual(isManual) в contracts.controller.ts), заполняем
-// пустые поля блока родителя его данными. Не перетираем то, что сотрудник уже успел
-// ввести вручную.
-watch(isMinor, async (minor) => {
-  if (!minor || !selectedIndividual.value) return
-  const prefill = await fetchLegalRepPrefill(selectedIndividual.value.fizicheskoyeLitsoUid).catch(() => null)
+// Автоподстановка родителя — если у ЭТОГО проживающего родитель уже вводился на
+// предыдущем договоре, заполняем пустые поля блока родителя его данными. ФИО/телефон
+// обязательны у любого договора (см. isMinor ниже — не только у несовершеннолетних), но
+// раньше автоподстановка срабатывала только когда isMinor становился true — для
+// совершеннолетних не срабатывала вообще (по прямой просьбе 2026-08-26 — теперь по
+// выбору проживающего, независимо от возраста). Не перетираем то, что сотрудник уже
+// успел ввести вручную.
+watch(selectedIndividual, async (individual) => {
+  if (!individual) return
+  const prefill = await fetchLegalRepPrefill(individual.fizicheskoyeLitsoUid).catch(() => null)
   if (!prefill) return
   if (!legalRepName.value.trim() && prefill.legalRepName) legalRepName.value = prefill.legalRepName
   if (!legalRepPhone.value.trim() && prefill.legalRepPhone) legalRepPhone.value = prefill.legalRepPhone

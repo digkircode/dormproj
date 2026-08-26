@@ -9,7 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import DatePickerField from '@/components/DatePickerField.vue'
 import PhoneInput from '@/components/PhoneInput.vue'
+import SearchSelect from '@/components/SearchSelect.vue'
 import { createIndividual } from '@/lib/individuals-api'
+import { OKSM_COUNTRIES } from '@/lib/citizenship-list'
 import { blockNonDigitKeys, formatSnils, formatSubdivisionCode, isValidEmailFormat, parseApiError } from '@/lib/utils'
 
 const router = useRouter()
@@ -33,7 +35,12 @@ const name = ref('')
 const otchestvo = ref('')
 const birthDate = ref('')
 const gender = ref<'Мужской' | 'Женский' | ''>('')
+// Закрытый список (ОКСМ, см. lib/citizenship-list.ts) — тот же принцип SearchSelect, что и
+// поиск проживающего/комнаты в CreateContractDialog.vue: локальный фильтр по уже
+// загруженному целиком списку (250+ стран, отдельный запрос на бэк не нужен).
 const citizenship = ref('')
+const citizenshipQuery = ref('')
+const citizenshipResults = ref<string[]>([])
 
 const phone = ref('')
 const email = ref('')
@@ -57,6 +64,8 @@ function computedInvalid(check: () => boolean) {
 const surnameInvalid = computedInvalid(() => !surname.value.trim())
 const nameInvalid = computedInvalid(() => !name.value.trim())
 const birthDateInvalid = computedInvalid(() => !birthDate.value)
+const genderInvalid = computedInvalid(() => !gender.value)
+const citizenshipInvalid = computedInvalid(() => !citizenship.value.trim())
 const addressInvalid = computedInvalid(() => !address.value.trim())
 const passportNumberInvalid = computedInvalid(() => !passportNumber.value.trim())
 const passportIssuedAtInvalid = computedInvalid(() => !passportIssuedAt.value)
@@ -80,6 +89,17 @@ function onPassportIssuedCodeInput(event: Event) {
   passportIssuedCode.value = formatted
 }
 
+function onCitizenshipSearch(q: string) {
+  citizenship.value = ''
+  const query = q.trim().toUpperCase()
+  citizenshipResults.value = query ? OKSM_COUNTRIES.filter((c) => c.includes(query)).slice(0, 30) : []
+}
+function pickCitizenship(country: string) {
+  citizenship.value = country
+  citizenshipQuery.value = country
+  citizenshipResults.value = []
+}
+
 async function open() {
   dialogError.value = ''
   submitAttempted.value = false
@@ -90,6 +110,8 @@ async function open() {
   birthDate.value = ''
   gender.value = ''
   citizenship.value = ''
+  citizenshipQuery.value = ''
+  citizenshipResults.value = []
   phone.value = ''
   email.value = ''
   address.value = ''
@@ -114,6 +136,8 @@ async function submitCreate() {
     !surname.value.trim() ||
     !name.value.trim() ||
     !birthDate.value ||
+    !gender.value ||
+    !citizenship.value.trim() ||
     !phoneValid ||
     !address.value.trim() ||
     !passportNumber.value.trim() ||
@@ -131,8 +155,8 @@ async function submitCreate() {
       name: name.value.trim(),
       otchestvo: otchestvo.value.trim() || null,
       birthDate: birthDate.value,
-      gender: gender.value || null,
-      citizenship: citizenship.value.trim() || null,
+      gender: gender.value,
+      citizenship: citizenship.value.trim(),
       phone: phone.value,
       email: email.value.trim() || null,
       address: address.value.trim(),
@@ -190,7 +214,7 @@ async function submitCreate() {
               <div class="flex flex-col gap-2">
                 <Label>Пол</Label>
                 <Select :model-value="gender || undefined" @update:model-value="(v) => (gender = v as 'Мужской' | 'Женский')">
-                  <SelectTrigger>
+                  <SelectTrigger :class="genderInvalid ? 'border-red-500' : ''">
                     <SelectValue placeholder="Не указан" />
                   </SelectTrigger>
                   <SelectContent>
@@ -201,7 +225,16 @@ async function submitCreate() {
               </div>
               <div class="flex flex-col gap-2">
                 <Label>Гражданство</Label>
-                <Input v-model="citizenship" />
+                <SearchSelect
+                  v-model="citizenshipQuery"
+                  :items="citizenshipResults"
+                  :item-key="(c: string) => c"
+                  :item-label="(c: string) => c"
+                  placeholder="Начните вводить страну"
+                  :invalid="citizenshipInvalid"
+                  @search="onCitizenshipSearch"
+                  @select="pickCitizenship"
+                />
               </div>
             </div>
           </div>

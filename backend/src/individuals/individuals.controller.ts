@@ -25,6 +25,7 @@ import {
   upsertCitizenship,
   buildEditableSnapshot,
 } from './individual-edit';
+import { OKSM_COUNTRIES, isRussianCitizenship } from './citizenship-list';
 
 // Поля, участвующие в diff'е истории изменений (AuditLogService) — служебные (createdAt/
 // updatedAt/isManual/deleteMark/code/photoCode) намеренно не отслеживаются.
@@ -85,50 +86,107 @@ const clearableText = z
   .nullish()
   .transform((v) => (v && v.length > 0 ? v : null));
 
-const updateIndividualSchema = z.object({
-  surname: z.string().trim().min(1),
-  name: z.string().trim().min(1),
-  otchestvo: clearableText,
-  birthDate: z.coerce.date(),
-  gender: z.enum(['Мужской', 'Женский']).nullish(),
-  citizenship: clearableText,
-  birthPlace: clearableText,
-  registrationAddress: clearableText,
-  residenceAddress: clearableText,
-  phone: clearableText,
-  // Необязательное поле без проверки формата (по прямой просьбе 2026-08-23) — раньше
-  // строгий z.string().email() отклонял правку, если email не похож на почту.
-  email: clearableText,
-  snils: clearableText,
-  inn: clearableText,
-  passportSeries: clearableText,
-  passportNumber: clearableText,
-  passportIssuedBy: clearableText,
-  passportIssuedCode: clearableText,
-  passportIssuedAt: z.coerce.date().nullish(),
+// СНИЛС/код подразделения — раньше формат (000-000-000 00 и т.п.) проверяла только
+// фронтовая маска (formatSnils/formatSubdivisionCode в lib/utils.ts), сервер принимал
+// любую непустую строку — прямой запрос мимо формы мог записать в БД произвольный мусор.
+// Поле по-прежнему необязательное, но если указано — должно совпадать с форматом.
+// Серия/номер паспорта — тот же принцип, НО только для граждан РФ (см. superRefine ниже
+// и isRussianCitizenship в citizenship-list.ts) — формат "4+6 цифр" специфичен для
+// внутреннего паспорта РФ, у иностранных граждан (см. новое закрытое поле "Гражданство")
+// документ устроен иначе, поэтому regex не может быть безусловным. Добавлено по прямой
+// просьбе 2026-08-26 при разборе уязвимостей проекта.
+const SNILS_PATTERN = /^\d{3}-\d{3}-\d{3} \d{2}$/;
+const SUBDIVISION_CODE_PATTERN = /^\d{3}-\d{3}$/;
+const PASSPORT_SERIES_PATTERN = /^\d{2}\s?\d{2}$/;
+const PASSPORT_NUMBER_PATTERN = /^\d{6}$/;
+const RF_PASSPORT_SERIES_MESSAGE = 'Серия паспорта гражданина РФ должна состоять из 4 цифр';
+const RF_PASSPORT_NUMBER_MESSAGE = 'Номер паспорта гражданина РФ должен состоять из 6 цифр';
+
+function clearableFormattedText(pattern: RegExp, message: string) {
+  return z
+    .string()
+    .trim()
+    .nullish()
+    .refine((v) => !v || pattern.test(v), message)
+    .transform((v) => (v && v.length > 0 ? v : null));
+}
+
+// Закрытый список — см. citizenship-list.ts (ОКСМ). z.enum ожидает readonly-кортеж не
+// короче одного элемента, OKSM_COUNTRIES заведомо непустой, приведение типа тут безопасно.
+const citizenshipField = z.enum(OKSM_COUNTRIES as unknown as [string, ...string[]], {
+  message: 'Выберите гражданство из списка',
 });
+
+const updateIndividualSchema = z
+  .object({
+    surname: z.string().trim().min(1),
+    name: z.string().trim().min(1),
+    otchestvo: clearableText,
+    birthDate: z.coerce.date(),
+    // Пол и гражданство раньше были nullish (можно сохранить критическую правку вообще без
+    // них) — по прямой просьбе 2026-08-26 стали обязательными полями. Для физлиц, у которых
+    // они сейчас пусты (неполная выгрузка 1С) — критическую правку не сохранить, пока их не
+    // заполнят, это осознанное следствие решения, не побочный баг.
+    gender: z.enum(['Мужской', 'Женский']),
+    citizenship: citizenshipField,
+    birthPlace: clearableText,
+    registrationAddress: clearableText,
+    residenceAddress: clearableText,
+    phone: clearableText,
+    // Необязательное поле без проверки формата (по прямой просьбе 2026-08-23) — раньше
+    // строгий z.string().email() отклонял правку, если email не похож на почту.
+    email: clearableText,
+    snils: clearableFormattedText(SNILS_PATTERN, 'СНИЛС должен быть в формате 000-000-000 00'),
+    inn: clearableText,
+    passportSeries: clearableText,
+    passportNumber: clearableText,
+    passportIssuedBy: clearableText,
+    passportIssuedCode: clearableFormattedText(SUBDIVISION_CODE_PATTERN, 'Код подразделения должен быть в формате 000-000'),
+    passportIssuedAt: z.coerce.date().nullish(),
+  })
+  .superRefine((data, ctx) => {
+    if (!isRussianCitizenship(data.citizenship)) return;
+    if (data.passportSeries && !PASSPORT_SERIES_PATTERN.test(data.passportSeries)) {
+      ctx.addIssue({ code: 'custom', message: RF_PASSPORT_SERIES_MESSAGE, path: ['passportSeries'] });
+    }
+    if (data.passportNumber && !PASSPORT_NUMBER_PATTERN.test(data.passportNumber)) {
+      ctx.addIssue({ code: 'custom', message: RF_PASSPORT_NUMBER_MESSAGE, path: ['passportNumber'] });
+    }
+  });
 
 // Форма "Новое физическое лицо" (Individuals.vue) — заводит физлицо руками, не через
 // синхрон 1С. Детерминированного uid тут нет (в отличие от manual-parent-* в
 // contracts.controller.ts, где он один на резидента) — просто случайный per вызов.
-const createIndividualSchema = z.object({
-  surname: z.string().trim().min(1),
-  name: z.string().trim().min(1),
-  otchestvo: z.string().trim().min(1).nullish(),
-  birthDate: z.coerce.date(),
-  gender: z.enum(['Мужской', 'Женский']).nullish(),
-  citizenship: z.string().trim().min(1).nullish(),
-  phone: z.string().trim().min(1),
-  email: z.string().trim().email().nullish(),
-  address: z.string().trim().min(1),
-  snils: z.string().trim().min(1).nullish(),
-  inn: z.string().trim().min(1).nullish(),
-  passportSeries: z.string().trim().min(1).nullish(),
-  passportNumber: z.string().trim().min(1),
-  passportIssuedBy: z.string().trim().min(1).nullish(),
-  passportIssuedCode: z.string().trim().min(1).nullish(),
-  passportIssuedAt: z.coerce.date(),
-});
+const createIndividualSchema = z
+  .object({
+    surname: z.string().trim().min(1),
+    name: z.string().trim().min(1),
+    otchestvo: z.string().trim().min(1).nullish(),
+    birthDate: z.coerce.date(),
+    // Обязательны с 2026-08-26 (см. комментарий у updateIndividualSchema выше) — раньше
+    // можно было завести физлицо вообще без пола/гражданства.
+    gender: z.enum(['Мужской', 'Женский']),
+    citizenship: citizenshipField,
+    phone: z.string().trim().min(1),
+    email: z.string().trim().email().nullish(),
+    address: z.string().trim().min(1),
+    snils: z.string().trim().regex(SNILS_PATTERN, 'СНИЛС должен быть в формате 000-000-000 00').nullish(),
+    inn: z.string().trim().min(1).nullish(),
+    passportSeries: z.string().trim().min(1).nullish(),
+    passportNumber: z.string().trim().min(1),
+    passportIssuedBy: z.string().trim().min(1).nullish(),
+    passportIssuedCode: z.string().trim().regex(SUBDIVISION_CODE_PATTERN, 'Код подразделения должен быть в формате 000-000').nullish(),
+    passportIssuedAt: z.coerce.date(),
+  })
+  .superRefine((data, ctx) => {
+    if (!isRussianCitizenship(data.citizenship)) return;
+    if (data.passportSeries && !PASSPORT_SERIES_PATTERN.test(data.passportSeries)) {
+      ctx.addIssue({ code: 'custom', message: RF_PASSPORT_SERIES_MESSAGE, path: ['passportSeries'] });
+    }
+    if (!PASSPORT_NUMBER_PATTERN.test(data.passportNumber)) {
+      ctx.addIssue({ code: 'custom', message: RF_PASSPORT_NUMBER_MESSAGE, path: ['passportNumber'] });
+    }
+  });
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;

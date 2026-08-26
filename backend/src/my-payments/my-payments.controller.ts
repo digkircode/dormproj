@@ -43,6 +43,11 @@ const { Decimal } = Prisma;
 type PaymentIntentWithContract = Prisma.PaymentIntentGetPayload<{ include: { contract: true } }>;
 
 // Телефон убран из формы (по прямой просьбе 2026-08-25) — только email, обязателен.
+// ФИО представителя — только буквы (кириллица/латиница), пробел и дефис — то же самое
+// ограничение, что и на фронте (см. sanitizeLettersOnly в lib/utils.ts), продублировано
+// тут: фронт вырезает недопустимые символы на вводе, но прямой запрос мимо формы должен
+// отклоняться сервером, а не просто довериться уже отфильтрованному значению.
+const REPRESENTATIVE_NAME_PATTERN = /^[A-Za-zА-Яа-яЁё\s-]+$/;
 const createIntentSchema = z
   .object({
     contractId: z.number().int().positive().nullish(),
@@ -50,7 +55,13 @@ const createIntentSchema = z
     includePenalty: z.boolean().default(false),
     customAmount: z.number().positive().nullish(),
     payerIsResident: z.boolean(),
-    representativeFullName: z.string().trim().min(1).max(200).nullish(),
+    representativeFullName: z
+      .string()
+      .trim()
+      .min(1)
+      .max(200)
+      .regex(REPRESENTATIVE_NAME_PATTERN, 'ФИО может содержать только буквы, пробел и дефис')
+      .nullish(),
     payerEmail: z.string().trim().email(),
   })
   .refine((v) => v.payerIsResident || (v.representativeFullName?.length ?? 0) > 0, {

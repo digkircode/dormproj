@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { AlertTriangle, ChevronDown, CreditCard, DoorOpen, Loader, Percent } from 'lucide-vue-next'
+import { AlertTriangle, ChevronDown, CreditCard, DoorOpen, Info, Loader, Percent } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import {
   fetchMyPayments,
@@ -16,7 +17,7 @@ import {
 } from '@/lib/my-payments-api'
 import { fetchMyContracts, type MyContractSummary } from '@/lib/contracts-api'
 import { getContractDisplayStatus, STATUS_LABELS as CONTRACT_STATUS_LABELS } from '@/lib/contracts-format'
-import { isValidEmailFormat } from '@/lib/utils'
+import { isValidEmailFormat, sanitizeLettersOnly } from '@/lib/utils'
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
@@ -49,6 +50,10 @@ const amountMode = ref<AmountMode>('select')
 const selectedAccrualIds = ref<number[]>([])
 const includePenalty = ref(false)
 const customAmount = ref<number | undefined>(undefined)
+// Только для отображения выбора в Select рядом с полем "Своя сумма" (см. applyAccrualToCustomAmount
+// ниже) — сама сумма после подстановки живёт в customAmount и правится независимо, эта
+// подсветка не обязана оставаться синхронной с ручной правкой.
+const customAmountAccrualKey = ref<string | undefined>(undefined)
 
 const openAccruals = computed<OpenAccrualRow[]>(() => data.value?.openAccruals ?? [])
 const penaltyBalance = computed(() => data.value?.penaltyBalance ?? 0)
@@ -84,6 +89,20 @@ const selectedAmount = computed(() => {
   return accrualsSum + (includePenalty.value ? penaltyBalance.value : 0)
 })
 const finalAmount = computed(() => (amountMode.value === 'custom' ? customAmount.value ?? 0 : selectedAmount.value))
+
+// "Своя сумма" — необязательная подсказка рядом с полем: выбор начисления (или пени)
+// из выпадающего списка просто подставляет его остаток в customAmount, дальше сумму
+// можно поправить вручную как обычно (по прямой просьбе 2026-08-26 — раньше в этом
+// режиме сумму приходилось вбивать полностью на глаз).
+function applyAccrualToCustomAmount(value: unknown) {
+  customAmountAccrualKey.value = typeof value === 'string' ? value : undefined
+  if (value === 'penalty') {
+    customAmount.value = penaltyBalance.value
+    return
+  }
+  const accrual = openAccruals.value.find((a) => String(a.id) === value)
+  if (accrual) customAmount.value = accrual.balance
+}
 
 const payerIsResident = ref(true)
 const representativeFullName = ref('')
@@ -146,6 +165,7 @@ async function open(contractId?: number) {
   includePenalty.value = false
   accrualPickerOpen.value = false
   customAmount.value = undefined
+  customAmountAccrualKey.value = undefined
   payerIsResident.value = true
   representativeFullName.value = ''
   payerEmail.value = ''
@@ -291,9 +311,23 @@ async function submit() {
             </Collapsible>
           </template>
           <template v-else>
-            <div class="flex flex-col gap-2">
-              <Label for="custom-amount">Сумма</Label>
-              <Input :class="NO_SPINNER_CLASS" id="custom-amount" v-model.number="customAmount" type="number" min="1" />
+            <div class="flex items-center gap-2">
+              <Select
+                v-if="openAccruals.length || penaltyBalance > 0"
+                :model-value="customAmountAccrualKey"
+                @update:model-value="applyAccrualToCustomAmount"
+              >
+                <SelectTrigger id="custom-amount-accrual" class="w-44 shrink-0">
+                  <SelectValue placeholder="Начисление" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem v-for="accrual in openAccruals" :key="accrual.id" :value="String(accrual.id)">
+                    {{ monthLabel(accrual.periodStart) }} — {{ formatMoney(accrual.balance) }}
+                  </SelectItem>
+                  <SelectItem v-if="penaltyBalance > 0" value="penalty"> Пеня — {{ formatMoney(penaltyBalance) }} </SelectItem>
+                </SelectContent>
+              </Select>
+              <Input :class="NO_SPINNER_CLASS" id="custom-amount" v-model.number="customAmount" type="number" min="1" placeholder="Сумма" />
             </div>
           </template>
         </div>
@@ -306,13 +340,29 @@ async function submit() {
           </div>
           <div v-if="!payerIsResident" class="flex flex-col gap-2">
             <Label for="representative-name">ФИО плательщика</Label>
-            <Input id="representative-name" v-model="representativeFullName" />
+            <Input
+              id="representative-name"
+              :model-value="representativeFullName"
+              @update:model-value="(v) => (representativeFullName = sanitizeLettersOnly(String(v)))"
+            />
           </div>
           <div class="flex flex-col gap-2">
             <Label for="payer-email">Email для чека</Label>
             <Input id="payer-email" v-model="payerEmail" type="email" :class="emailInvalid ? 'border-red-500' : ''" />
             <p v-if="emailInvalid" class="text-xs text-red-500">Некорректный email</p>
           </div>
+        </div>
+
+        <div class="flex flex-col gap-1.5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+          <p class="flex items-start gap-1.5">
+            <Info class="size-3.5 shrink-0 translate-y-0.5" />
+            Сайт использует сертификаты НУЦ Минцифры России — для оплаты без ошибок используйте Яндекс Браузер или установите
+            сертификаты Минцифры на устройство.
+          </p>
+          <p class="flex items-start gap-1.5">
+            <Info class="size-3.5 shrink-0 translate-y-0.5" />
+            Для налогового вычета оплату должен вносить тот, кто планирует его получить.
+          </p>
         </div>
 
         <div class="flex flex-col gap-2">

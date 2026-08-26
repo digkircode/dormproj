@@ -105,8 +105,8 @@ export interface CreateIndividualInput {
   name: string
   otchestvo?: string | null
   birthDate: string
-  gender?: 'Мужской' | 'Женский' | null
-  citizenship?: string | null
+  gender: 'Мужской' | 'Женский'
+  citizenship: string
   phone: string
   email?: string | null
   address: string
@@ -149,8 +149,8 @@ export interface UpdateIndividualInput {
   name: string
   otchestvo?: string | null
   birthDate: string
-  gender?: 'Мужской' | 'Женский' | null
-  citizenship?: string | null
+  gender: 'Мужской' | 'Женский'
+  citizenship: string
   birthPlace?: string | null
   registrationAddress?: string | null
   residenceAddress?: string | null

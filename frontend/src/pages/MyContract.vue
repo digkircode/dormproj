@@ -18,6 +18,7 @@ import {
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import ContractStatusPill from '@/components/ContractStatusPill.vue'
 import CreatePaymentDialog from '@/components/CreatePaymentDialog.vue'
 import EntityTable from '@/components/EntityTable.vue'
@@ -113,6 +114,12 @@ onMounted(async () => {
 })
 
 const paymentDialog = ref<InstanceType<typeof CreatePaymentDialog> | null>(null)
+
+// История начисления пени по дням — раскрывается кликом по тайлу "Пени" (по прямой
+// просьбе 2026-08-26). Данные уже приходят вместе с договором (contract.penaltyLog,
+// см. my-contract.controller.ts), отдельного запроса не требуется.
+const isPenaltyDialogOpen = ref(false)
+const PENALTY_DAILY_RATE_PERCENT = '0,14%'
 
 const totalBalance = computed(() =>
   contract.value ? contract.value.accruals.reduce((sum, a) => sum + a.balance, 0) + contract.value.penaltyBalance : 0,
@@ -319,8 +326,8 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
             </div>
           </div>
           <div class="flex items-center gap-3">
-            <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-stone-200 dark:bg-stone-500/20">
-              <DoorOpen class="size-5 text-stone-700 dark:text-stone-400" />
+            <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-500/15">
+              <DoorOpen class="size-5 text-sky-600 dark:text-sky-400" />
             </div>
             <div>
               <p class="text-xs text-muted-foreground">Стоимость комнаты</p>
@@ -336,7 +343,13 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
               <p class="text-lg font-medium">{{ formatMoney(contract.terms[0]?.dailyRateAmount ?? 0) }}</p>
             </div>
           </div>
-          <div class="flex items-center gap-3">
+          <!-- Кликабельно — открывает историю начисления по дням (см. isPenaltyDialogOpen),
+               по прямой просьбе 2026-08-26: раньше сумма пени не объяснялась ничем. -->
+          <button
+            type="button"
+            class="-m-1 flex items-center gap-3 rounded-lg p-1 text-left transition-colors hover:bg-accent"
+            @click="isPenaltyDialogOpen = true"
+          >
             <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-500/15">
               <Percent class="size-5 text-orange-600 dark:text-orange-400" />
             </div>
@@ -346,25 +359,31 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
                 {{ formatMoney(contract.penaltyBalance) }}
               </p>
             </div>
-          </div>
+          </button>
         </div>
       </Card>
 
       <Tabs default-value="accruals" class="flex min-h-0 flex-1 flex-col">
-        <TabsList class="w-fit self-start">
-          <TabsTrigger value="accruals">
-            <span class="flex items-center gap-1.5">
-              <Receipt class="size-4 text-primary" />
-              Начисления
-            </span>
-          </TabsTrigger>
-          <TabsTrigger value="payments">
-            <span class="flex items-center gap-1.5">
-              <Wallet class="size-4 text-primary" />
-              Платежи
-            </span>
-          </TabsTrigger>
-        </TabsList>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <TabsList class="w-fit self-start">
+            <TabsTrigger value="accruals">
+              <span class="flex items-center gap-1.5">
+                <Receipt class="size-4 text-primary" />
+                Начисления
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="payments">
+              <span class="flex items-center gap-1.5">
+                <Wallet class="size-4 text-primary" />
+                Платежи
+              </span>
+            </TabsTrigger>
+          </TabsList>
+          <!-- Цель телепорта для строки фильтра/настройки таблицы EntityTable ниже — на
+               уровне табов вместо отдельной строки под ними (по прямой просьбе 2026-08-26,
+               см. toolbarTeleportTarget в EntityTable.vue). -->
+          <div id="my-contract-table-toolbar" class="flex items-center gap-2" />
+        </div>
 
         <TabsContent value="accruals" class="flex min-h-0 flex-1 flex-col">
           <EntityTable
@@ -382,6 +401,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
             storage-key="my-contract-accruals"
             accent-icons
             hide-search
+            toolbar-teleport-target="#my-contract-table-toolbar"
           />
         </TabsContent>
 
@@ -401,10 +421,40 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
             storage-key="my-contract-payments"
             accent-icons
             hide-search
+            toolbar-teleport-target="#my-contract-table-toolbar"
           />
         </TabsContent>
       </Tabs>
       </div>
     </template>
+
+    <Dialog :open="isPenaltyDialogOpen" @update:open="(open) => (isPenaltyDialogOpen = open)">
+      <DialogScrollContent class="flex max-h-[85vh] flex-col sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle class="flex items-center gap-1.5">
+            <Percent class="size-4 text-orange-500" />
+            История начисления пени
+          </DialogTitle>
+          <DialogDescription>
+            0,14% в день от суммы просроченных непогашенных начислений — начисляется с 10 числа месяца, следующего за
+            неоплаченным периодом.
+          </DialogDescription>
+        </DialogHeader>
+        <div v-if="contract?.penaltyLog.length" class="-mx-1 flex-1 space-y-1 overflow-y-auto px-1" style="max-height: 50vh">
+          <div
+            v-for="row in contract.penaltyLog"
+            :key="row.date"
+            class="flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-sm"
+          >
+            <div>
+              <p class="font-medium">{{ formatDate(row.date) }}</p>
+              <p class="text-xs text-muted-foreground">{{ PENALTY_DAILY_RATE_PERCENT }} от {{ formatMoney(row.overdueBase) }}</p>
+            </div>
+            <span class="font-medium text-orange-600 dark:text-orange-400">+{{ formatMoney(row.amount) }}</span>
+          </div>
+        </div>
+        <p v-else class="text-sm text-muted-foreground">Пеня ни разу не начислялась.</p>
+      </DialogScrollContent>
+    </Dialog>
   </div>
 </template>

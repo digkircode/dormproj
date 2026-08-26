@@ -67,6 +67,15 @@ export function isValidEmailFormat(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
 
+// ФИО плательщика в модалке оплаты (CreatePaymentDialog.vue) — только буквы (кириллица/
+// латиница), пробел и дефис (двойные фамилии). На @update:model-value, а не keydown —
+// так же вырезает вставленное вставкой (Ctrl+V), не только напечатанное посимвольно.
+// Тот же набор символов должен приниматься сервером — см. representativeFullName в
+// my-payments.controller.ts.
+export function sanitizeLettersOnly(rawValue: string): string {
+  return rawValue.replace(/[^A-Za-zА-Яа-яЁё\s-]/g, '')
+}
+
 const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
 function isLeapYear(year: number): boolean {

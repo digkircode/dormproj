@@ -7,7 +7,9 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import DatePickerField from '@/components/DatePickerField.vue'
+import SearchSelect from '@/components/SearchSelect.vue'
 import { updateIndividual, type IndividualDetail } from '@/lib/individuals-api'
+import { OKSM_COUNTRIES } from '@/lib/citizenship-list'
 import { blockNonDigitKeys, formatSnils, formatSubdivisionCode, parseApiError } from '@/lib/utils'
 
 // "Критическая правка" — пишет напрямую в синхронные таблицы физлица (ContactInfo/
@@ -33,7 +35,14 @@ const name = ref('')
 const otchestvo = ref('')
 const birthDate = ref('')
 const gender = ref<'Мужской' | 'Женский' | ''>('')
+// Закрытый список (ОКСМ, см. lib/citizenship-list.ts) — значение из 1С (detail.citizenships)
+// может не совпасть буквально ни с одним пунктом списка (другой регистр/формулировка) —
+// тогда SearchSelect просто не покажет выбор как "применённый", сотруднику придётся
+// выбрать страну заново, прежде чем сохранить любую другую правку. Ожидаемое следствие
+// решения "гражданство — закрытый список", не баг.
 const citizenship = ref('')
+const citizenshipQuery = ref('')
+const citizenshipResults = ref<string[]>([])
 const birthPlace = ref('')
 
 const phone = ref('')
@@ -55,6 +64,8 @@ function computedInvalid(check: () => boolean) {
 const surnameInvalid = computedInvalid(() => !surname.value.trim())
 const nameInvalid = computedInvalid(() => !name.value.trim())
 const birthDateInvalid = computedInvalid(() => !birthDate.value)
+const genderInvalid = computedInvalid(() => !gender.value)
+const citizenshipInvalid = computedInvalid(() => !citizenship.value.trim())
 // Email необязателен и без проверки формата (по прямой просьбе 2026-08-23) — только
 // серверные ошибки поля (если когда-нибудь появятся по другой причине) подсвечивают рамку.
 const emailInvalid = computedInvalid(() => serverFieldErrors.value.has('email'))
@@ -72,6 +83,17 @@ function onPassportIssuedCodeInput(event: Event) {
   passportIssuedCode.value = formatted
 }
 
+function onCitizenshipSearch(q: string) {
+  citizenship.value = ''
+  const query = q.trim().toUpperCase()
+  citizenshipResults.value = query ? OKSM_COUNTRIES.filter((c) => c.includes(query)).slice(0, 30) : []
+}
+function pickCitizenship(country: string) {
+  citizenship.value = country
+  citizenshipQuery.value = country
+  citizenshipResults.value = []
+}
+
 function open(detail: IndividualDetail) {
   dialogError.value = ''
   submitAttempted.value = false
@@ -83,7 +105,17 @@ function open(detail: IndividualDetail) {
   otchestvo.value = detail.otchestvo ?? ''
   birthDate.value = detail.birthDate ?? ''
   gender.value = (detail.gender as 'Мужской' | 'Женский' | null) ?? ''
-  citizenship.value = detail.citizenships[0]?.country ?? detail.citizenship ?? ''
+  // Значение из 1С может не совпасть буквально ни с одним пунктом закрытого списка ОКСМ
+  // (другой регистр/формулировка) — тогда только показываем его в поле поиска для
+  // контекста, а не как применённый выбор (см. citizenship выше), сотруднику нужно
+  // подтвердить страну заново.
+  {
+    const syncedCitizenship = detail.citizenships[0]?.country ?? detail.citizenship ?? ''
+    const matched = OKSM_COUNTRIES.find((c) => c === syncedCitizenship.trim().toUpperCase())
+    citizenship.value = matched ?? ''
+    citizenshipQuery.value = matched ?? syncedCitizenship
+    citizenshipResults.value = []
+  }
   birthPlace.value = detail.contactInfos.find((c) => c.type === 'Место рождения')?.predstavleniye ?? ''
 
   phone.value = detail.contactInfos.find((c) => c.type === 'Телефон мобильный')?.predstavleniye ?? detail.phone ?? ''
@@ -111,7 +143,7 @@ async function submitUpdate() {
   dialogError.value = ''
   serverFieldErrors.value = new Set()
   submitAttempted.value = true
-  if (!surname.value.trim() || !name.value.trim() || !birthDate.value) {
+  if (!surname.value.trim() || !name.value.trim() || !birthDate.value || !gender.value || !citizenship.value.trim()) {
     dialogError.value = 'Заполните обязательные поля'
     return
   }
@@ -123,8 +155,8 @@ async function submitUpdate() {
       name: name.value.trim(),
       otchestvo: otchestvo.value.trim() || null,
       birthDate: birthDate.value,
-      gender: gender.value || null,
-      citizenship: citizenship.value.trim() || null,
+      gender: gender.value,
+      citizenship: citizenship.value.trim(),
       birthPlace: birthPlace.value.trim() || null,
       phone: phone.value.trim() || null,
       email: email.value.trim() || null,
@@ -189,7 +221,7 @@ async function submitUpdate() {
               <div class="flex flex-col gap-2">
                 <Label>Пол</Label>
                 <Select :model-value="gender || undefined" @update:model-value="(v) => (gender = v as 'Мужской' | 'Женский')">
-                  <SelectTrigger>
+                  <SelectTrigger :class="genderInvalid ? 'border-red-500' : ''">
                     <SelectValue placeholder="Не указан" />
                   </SelectTrigger>
                   <SelectContent>
@@ -200,7 +232,16 @@ async function submitUpdate() {
               </div>
               <div class="flex flex-col gap-2">
                 <Label>Гражданство</Label>
-                <Input v-model="citizenship" />
+                <SearchSelect
+                  v-model="citizenshipQuery"
+                  :items="citizenshipResults"
+                  :item-key="(c: string) => c"
+                  :item-label="(c: string) => c"
+                  placeholder="Начните вводить страну"
+                  :invalid="citizenshipInvalid"
+                  @search="onCitizenshipSearch"
+                  @select="pickCitizenship"
+                />
               </div>
               <div class="col-span-2 flex flex-col gap-2">
                 <Label>Место рождения</Label>
