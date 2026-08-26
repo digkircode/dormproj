@@ -7,7 +7,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import {
   fetchMyPayments,
@@ -24,6 +23,14 @@ const DIALOG_ANIMATE_CLASS =
 // Та же маска, что и у "своей суммы" в CreateContractDialog.vue — прячет нативные
 // стрелочки +/- у <input type="number"> (Chrome/Safari + Firefox).
 const NO_SPINNER_CLASS = '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
+// Голый <select>, не components/ui/select/Select.vue (reka-ui) — тот на модальном Reka-
+// портале, а модалка оплаты и так уже несёт DropdownMenu (переключатель договора) —
+// второй вложенный Reka-портал внутри Dialog ловит известную ловушку №10 из промпта
+// проекта (focus-trap/pointer-events конфликт между вложенными Reka-порталами — после
+// закрытия диалога сайт перестаёт реагировать на клики). Классы — те же, что у
+// components/ui/input/Input.vue, чтобы выглядело как обычное поле формы.
+const NATIVE_SELECT_CLASS =
+  'flex h-10 shrink-0 rounded-md border border-input bg-background px-3 text-sm transition-shadow focus-visible:outline-none focus-visible:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/20 focus-visible:shadow-sm'
 
 const isDialogOpen = ref(false)
 const isLoading = ref(true)
@@ -312,21 +319,19 @@ async function submit() {
           </template>
           <template v-else>
             <div class="flex items-center gap-2">
-              <Select
+              <select
                 v-if="openAccruals.length || penaltyBalance > 0"
-                :model-value="customAmountAccrualKey"
-                @update:model-value="applyAccrualToCustomAmount"
+                id="custom-amount-accrual"
+                :value="customAmountAccrualKey ?? ''"
+                :class="[NATIVE_SELECT_CLASS, 'w-44']"
+                @change="(e) => applyAccrualToCustomAmount((e.target as HTMLSelectElement).value)"
               >
-                <SelectTrigger id="custom-amount-accrual" class="w-44 shrink-0">
-                  <SelectValue placeholder="Начисление" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem v-for="accrual in openAccruals" :key="accrual.id" :value="String(accrual.id)">
-                    {{ monthLabel(accrual.periodStart) }} — {{ formatMoney(accrual.balance) }}
-                  </SelectItem>
-                  <SelectItem v-if="penaltyBalance > 0" value="penalty"> Пеня — {{ formatMoney(penaltyBalance) }} </SelectItem>
-                </SelectContent>
-              </Select>
+                <option value="" disabled>Начисление</option>
+                <option v-for="accrual in openAccruals" :key="accrual.id" :value="String(accrual.id)">
+                  {{ monthLabel(accrual.periodStart) }} — {{ formatMoney(accrual.balance) }}
+                </option>
+                <option v-if="penaltyBalance > 0" value="penalty">Пеня — {{ formatMoney(penaltyBalance) }}</option>
+              </select>
               <Input :class="NO_SPINNER_CLASS" id="custom-amount" v-model.number="customAmount" type="number" min="1" placeholder="Сумма" />
             </div>
           </template>
