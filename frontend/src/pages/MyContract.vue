@@ -364,26 +364,20 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
       </Card>
 
       <Tabs default-value="accruals" class="flex min-h-0 flex-1 flex-col">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <TabsList class="w-fit self-start">
-            <TabsTrigger value="accruals">
-              <span class="flex items-center gap-1.5">
-                <Receipt class="size-4 text-primary" />
-                Начисления
-              </span>
-            </TabsTrigger>
-            <TabsTrigger value="payments">
-              <span class="flex items-center gap-1.5">
-                <Wallet class="size-4 text-primary" />
-                Платежи
-              </span>
-            </TabsTrigger>
-          </TabsList>
-          <!-- Цель телепорта для строки фильтра/настройки таблицы EntityTable ниже — на
-               уровне табов вместо отдельной строки под ними (по прямой просьбе 2026-08-26,
-               см. toolbarTeleportTarget в EntityTable.vue). -->
-          <div id="my-contract-table-toolbar" class="flex items-center gap-2" />
-        </div>
+        <TabsList class="w-fit self-start">
+          <TabsTrigger value="accruals">
+            <span class="flex items-center gap-1.5">
+              <Receipt class="size-4 text-primary" />
+              Начисления
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="payments">
+            <span class="flex items-center gap-1.5">
+              <Wallet class="size-4 text-primary" />
+              Платежи
+            </span>
+          </TabsTrigger>
+        </TabsList>
 
         <TabsContent value="accruals" class="flex min-h-0 flex-1 flex-col">
           <EntityTable
@@ -401,7 +395,6 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
             storage-key="my-contract-accruals"
             accent-icons
             hide-search
-            toolbar-teleport-target="#my-contract-table-toolbar"
           />
         </TabsContent>
 
@@ -421,7 +414,6 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
             storage-key="my-contract-payments"
             accent-icons
             hide-search
-            toolbar-teleport-target="#my-contract-table-toolbar"
           />
         </TabsContent>
       </Tabs>

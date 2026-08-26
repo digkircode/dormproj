@@ -84,12 +84,6 @@ const props = withDefaults(
     // выключено, остальные таблицы не меняются. Добавлено 2026-08-26 для маленьких таблиц
     // резидента (начисления/платежи одного человека), где полнотекстовый поиск не нужен.
     hideSearch?: boolean
-    // CSS-селектор контейнера, куда телепортировать строку поиска/фильтра/настройки —
-    // по умолчанию не задан, строка рендерится на обычном месте (см. Teleport ниже,
-    // disabled без цели ведёт себя как её отсутствие). Добавлено 2026-08-26 для карточки
-    // договора проживающего (MyContract.vue) — там эта строка переезжает на один уровень
-    // с табами вместо отдельной строки под ними.
-    toolbarTeleportTarget?: string
   }>(),
   {
     cellText: (_columnId: string, value: unknown) => String(value ?? ''),
@@ -377,63 +371,58 @@ defineExpose({ refresh: loadPage })
   <div class="flex min-h-0 flex-1 flex-col gap-4">
     <p v-if="errorText" class="text-sm text-red-500">{{ errorText }}</p>
 
-    <!-- to="body" — плейсхолдер на случай disabled: Teleport резолвит цель даже когда не
-         телепортирует, реальный toolbarTeleportTarget может ещё не существовать в DOM
-         (например у EntityTable без этого пропа вообще). -->
-    <Teleport :to="toolbarTeleportTarget || 'body'" :disabled="!toolbarTeleportTarget">
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <div v-if="!hideSearch" class="relative w-full max-w-xs">
-          <Search class="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input v-model="searchInput" placeholder="Поиск по всей таблице…" class="pl-8" />
-        </div>
-        <div v-else />
-
-
-        <div class="flex items-center gap-2">
-          <slot name="actions" />
-
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <Button variant="outline" size="icon" title="Добавить фильтр">
-                <ListFilter :class="{ 'text-primary': accentIcons }" />
-                <span class="sr-only">Добавить фильтр</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" class="w-56">
-              <template v-if="filterableFields.filter((f) => !activeFilterFields.includes(f)).length">
-                <DropdownMenuItem
-                  v-for="field in filterableFields.filter((f) => !activeFilterFields.includes(f))"
-                  :key="field"
-                  @click="openFilterField(field)"
-                >
-                  {{ columnLabels[field] }}
-                </DropdownMenuItem>
-              </template>
-              <div v-else class="px-2 py-1.5 text-sm text-muted-foreground">Все поля уже добавлены</div>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <Button variant="outline" size="icon" title="Настройка таблицы">
-                <Settings2 :class="{ 'text-primary': accentIcons }" />
-                <span class="sr-only">Настройка таблицы</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" class="w-56">
-              <DropdownMenuCheckboxItem
-                v-for="column in table.getAllColumns().filter((c) => c.getCanHide())"
-                :key="column.id"
-                :model-value="column.getIsVisible()"
-                @update:model-value="(value) => column.toggleVisibility(!!value)"
-              >
-                {{ columnLabels[column.id] ?? column.id }}
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div v-if="!hideSearch" class="relative w-full max-w-xs">
+        <Search class="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input v-model="searchInput" placeholder="Поиск по всей таблице…" class="pl-8" />
       </div>
-    </Teleport>
+      <div v-else />
+
+
+      <div class="flex items-center gap-2">
+        <slot name="actions" />
+
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button variant="outline" size="icon" title="Добавить фильтр">
+              <ListFilter :class="{ 'text-primary': accentIcons }" />
+              <span class="sr-only">Добавить фильтр</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" class="w-56">
+            <template v-if="filterableFields.filter((f) => !activeFilterFields.includes(f)).length">
+              <DropdownMenuItem
+                v-for="field in filterableFields.filter((f) => !activeFilterFields.includes(f))"
+                :key="field"
+                @click="openFilterField(field)"
+              >
+                {{ columnLabels[field] }}
+              </DropdownMenuItem>
+            </template>
+            <div v-else class="px-2 py-1.5 text-sm text-muted-foreground">Все поля уже добавлены</div>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button variant="outline" size="icon" title="Настройка таблицы">
+              <Settings2 :class="{ 'text-primary': accentIcons }" />
+              <span class="sr-only">Настройка таблицы</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" class="w-56">
+            <DropdownMenuCheckboxItem
+              v-for="column in table.getAllColumns().filter((c) => c.getCanHide())"
+              :key="column.id"
+              :model-value="column.getIsVisible()"
+              @update:model-value="(value) => column.toggleVisibility(!!value)"
+            >
+              {{ columnLabels[column.id] ?? column.id }}
+            </DropdownMenuCheckboxItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
 
     <div v-if="activeFilterFields.length" class="flex flex-wrap items-center gap-2">
       <div
