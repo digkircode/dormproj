@@ -61,7 +61,9 @@ export const UNIFIED_PAYMENT_STATUS_LABELS: Record<UnifiedPaymentStatus, string>
 export interface CreateIntentInput {
   contractId?: number | null
   accrualIds: number[]
-  includePenalty: boolean
+  // Пеня — всегда отдельным платежом (см. CreatePaymentDialog.vue), не сочетается с
+  // accrualIds/непустым customAmount от выбора начислений в том же запросе.
+  penaltyOnly: boolean
   customAmount: number | null
   payerIsResident: boolean
   representativeFullName: string | null

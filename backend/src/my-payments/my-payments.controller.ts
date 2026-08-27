@@ -53,7 +53,10 @@ const createIntentSchema = z
   .object({
     contractId: z.number().int().positive().nullish(),
     accrualIds: z.array(z.number().int().positive()).default([]),
-    includePenalty: z.boolean().default(false),
+    // Пеня всегда платится отдельным платежом (см. buildPeriodLabel/payment-description.ts)
+    // — не сочетается с accrualIds/customAmount, гасит строго пеню (см. createIntent ниже
+    // и penaltyOnly на PaymentIntent, reconcileBankStatus пропускает для неё allocatePaymentFifo).
+    penaltyOnly: z.boolean().default(false),
     customAmount: z.number().positive().nullish(),
     payerIsResident: z.boolean(),
     representativeFullName: z
@@ -254,8 +257,23 @@ export class MyPaymentsController {
     let selectedAccrualStarts: Date[] = [];
     let includesPenalty = false;
 
-    if (input.customAmount != null) {
-      const totalDebt = openAccruals.reduce((sum, a) => sum + a.balance, 0) + Number(penaltyBalance);
+    if (input.penaltyOnly) {
+      // Пеню можно платить в любом случае (даже если на договоре ещё есть непогашенные
+      // начисления) — только и всегда отдельным платежом, никогда вперемешку с accrualIds/
+      // customAmount, см. схему выше. reconcileBankStatus не пропускает такой платёж через
+      // allocatePaymentFifo вообще (см. penaltyOnly на PaymentIntent), поэтому вся сумма
+      // гарантированно засчитывается именно в пеню, независимо от того, сколько ещё
+      // открытых начислений на договоре — по прямой просьбе 2026-08-27.
+      if (Number(penaltyBalance) <= 0) {
+        throw new BadRequestException('payment.errors.nothingToPay');
+      }
+      amount = input.customAmount ?? Number(penaltyBalance);
+      if (amount > Number(penaltyBalance) + 0.01) {
+        throw new BadRequestException('payment.errors.amountExceedsDebt');
+      }
+      includesPenalty = true;
+    } else if (input.customAmount != null) {
+      const totalDebt = openAccruals.reduce((sum, a) => sum + a.balance, 0);
       if (input.customAmount > totalDebt + 0.01) {
         throw new BadRequestException('payment.errors.amountExceedsDebt');
       }
@@ -265,17 +283,8 @@ export class MyPaymentsController {
       if (selected.length !== input.accrualIds.length) {
         throw new BadRequestException('payment.errors.accrualsUnavailable');
       }
-      // Пеню можно оплатить, только если этим же платежом закрываются ВСЕ открытые
-      // начисления — иначе деньги по FIFO (см. allocatePaymentFifo) уйдут сначала на
-      // начисления, а не на пеню, и платёж не будет соответствовать выбору проживающего
-      // (см. решение при обсуждении фичи 2026-08-25).
-      if (input.includePenalty && selected.length !== openAccruals.length) {
-        throw new BadRequestException('payment.errors.penaltyRequiresAllAccruals');
-      }
-      const accrualsSum = selected.reduce((sum, a) => sum + a.balance, 0);
-      amount = accrualsSum + (input.includePenalty ? Number(penaltyBalance) : 0);
+      amount = selected.reduce((sum, a) => sum + a.balance, 0);
       selectedAccrualStarts = selected.map((a) => a.periodStart);
-      includesPenalty = input.includePenalty;
       if (amount <= 0) throw new BadRequestException('payment.errors.nothingToPay');
     }
 
@@ -295,6 +304,7 @@ export class MyPaymentsController {
         description,
         payerFullName,
         payerEmail: input.payerEmail,
+        penaltyOnly: input.penaltyOnly,
       },
     });
 
@@ -402,7 +412,13 @@ export class MyPaymentsController {
           rawComment: fresh.description,
         },
       });
-      await allocatePaymentFifo(tx, fresh.contractId, payment.id, fresh.amount);
+      // penaltyOnly — намеренно НЕ разносим по начислениям: вся сумма остаётся
+      // неаллоцированной, computePenaltyBalance трактует такой "остаток" как покрытие
+      // пени (см. billing/penalty-balance.ts) — это и гарантирует, что деньги уходят
+      // именно в пеню, а не в старейшее непогашенное начисление по FIFO.
+      if (!fresh.penaltyOnly) {
+        await allocatePaymentFifo(tx, fresh.contractId, payment.id, fresh.amount);
+      }
 
       await this.auditLog.log(tx, {
         userId,

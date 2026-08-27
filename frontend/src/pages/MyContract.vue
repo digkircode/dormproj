@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft,
   CalendarClock,
@@ -42,7 +42,11 @@ import { dateLocaleTag } from '@/lib/format-locale'
 import { goBack } from '@/lib/utils'
 
 const router = useRouter()
+const route = useRoute()
 const { t } = useI18n()
+// Компонент рендерится и как /student/contract, и как содержимое "Главной" для роли
+// RESIDENT (см. Home.vue) — на "Главной" стрелка "назад" не нужна (некуда возвращаться).
+const isHome = computed(() => route.name === 'home')
 const contract = ref<MyContractDetail | null>(null)
 // Загрузка успешно завершилась, но договора нет — отдельно от isLoading/loadError, чтобы
 // не путать "договора действительно нет" с "ещё грузится"/"ошибка запроса" (тот же приём,
@@ -247,7 +251,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
 <template>
   <div class="flex min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
     <div class="flex items-center gap-2">
-      <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
+      <Button v-if="!isHome" variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
         <span class="sr-only">{{ t('contracts.list.back') }}</span>
       </Button>
@@ -348,7 +352,10 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
             </div>
           </div>
           <!-- Кликабельно — открывает историю начисления по дням (см. isPenaltyDialogOpen),
-               по прямой просьбе 2026-08-26: раньше сумма пени не объяснялась ничем. -->
+               по прямой просьбе 2026-08-26: раньше сумма пени не объяснялась ничем. Сумма
+               подчёркнута пунктиром — тот же приём, что у PenaltyBalanceCell.vue в
+               Финансовом отчёте, чтобы кликабельность считывалась сразу (по прямой просьбе
+               2026-08-27), а не только по hover-фону всего тайла. -->
           <button
             type="button"
             class="-m-1 flex items-center gap-3 rounded-lg p-1 text-left transition-colors hover:bg-accent"
@@ -359,7 +366,10 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
             </div>
             <div>
               <p class="text-xs text-muted-foreground">{{ t('contracts.detail.penalty') }}</p>
-              <p class="text-lg font-medium" :class="contract.penaltyBalance > 0 ? 'text-red-500' : ''">
+              <p
+                class="text-lg font-medium underline decoration-dotted underline-offset-2"
+                :class="contract.penaltyBalance > 0 ? 'text-red-500' : ''"
+              >
                 {{ formatMoney(contract.penaltyBalance) }}
               </p>
             </div>

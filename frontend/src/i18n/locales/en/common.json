@@ -76,21 +76,19 @@
     "goHome": "Go home"
   },
   "home": {
-    "statCollectedThisMonth": "Collected this month",
-    "statCollectedTrendDesc": "Growth compared to last month",
-    "statCollectedHint": "Over the last 6 months",
-    "statDebtors": "Debtors",
-    "statDebtorsDesc": "Fewer than last month",
-    "statDebtorsHint": "Needs attention",
-    "statOccupied": "Rooms occupied",
-    "statOccupiedDesc": "Stable occupancy",
-    "statOccupiedHint": "Out of 340 available",
-    "statContracts": "Contracts signed",
-    "statContractsDesc": "On track with the plan",
-    "statContractsHint": "For the current semester",
-    "chartTitle": "Payments by month",
-    "chartDescription": "Payment trend over the last 3 months",
-    "chartRangeLast3Months": "Last 3 months"
+    "kpiRooms": "Rooms",
+    "kpiRoomsValue": "{occupied} / {total} occupied",
+    "kpiExpiring": "Expiring contracts",
+    "kpiDebtors": "Debtors",
+    "kpiUnread": "Unread messages",
+    "quickNewIndividual": "New individual",
+    "quickNewContract": "New contract",
+    "attentionTitle": "Needs attention",
+    "attentionEmpty": "Nothing needs attention.",
+    "attentionContractLine": "Contract No. {number} — {name}",
+    "attentionDebtorLine": "{name} — room {room}",
+    "attentionUnreadChats": "Unread messages: {count}",
+    "attentionUnreadChatsHint": "Chat with residents"
   },
   "roomInfo": {
     "tooltip": "Room information",
@@ -109,24 +107,5 @@
   "errors": {
     "tooManyRequests": "Too many requests — please wait a moment and try again",
     "checkDataFields": "Please check the data you entered"
-  },
-  "dataTable": {
-    "tabAllRooms": "All rooms",
-    "tabHasDebt": "Has debt",
-    "tabContractExpiring": "Contract expiring",
-    "columns": "Columns",
-    "add": "Add",
-    "colRoom": "Room",
-    "colType": "Type",
-    "colStatus": "Status",
-    "colAmount": "Amount",
-    "colDue": "Due",
-    "colResponsible": "Responsible",
-    "typeDouble": "Double",
-    "typeSingle": "Single",
-    "typeTriple": "Triple",
-    "statusPaid": "Paid",
-    "statusDebt": "Debt",
-    "statusInProgress": "In progress"
   }
 }

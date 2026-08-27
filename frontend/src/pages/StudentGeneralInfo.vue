@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   MapPin,
   Phone,
@@ -30,7 +30,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { fetchHostelPublicInfo, type HostelPublicInfo } from '@/lib/public-info-api'
 
 const router = useRouter()
+const route = useRoute()
 const { t, locale } = useI18n()
+// Компонент рендерится и как /student/general-info, и как содержимое "Главной" для
+// пользователей без роли (см. Home.vue) — на "Главной" стрелка "назад" не нужна.
+const isHome = computed(() => route.name === 'home')
 import molPhoto from '@/assets/staff/mol.webp'
 import cicPhoto from '@/assets/staff/cic.webp'
 import jilPhoto from '@/assets/staff/jil.webp'
@@ -173,7 +177,7 @@ onMounted(async () => {
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
     <div class="flex items-center gap-2">
-      <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
+      <Button v-if="!isHome" variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
         <span class="sr-only">{{ t('student.back') }}</span>
       </Button>
@@ -278,35 +282,38 @@ onMounted(async () => {
               </p>
             </div>
 
-            <div class="flex flex-col lg:w-2/5 lg:pl-6">
+            <div class="flex flex-col items-center text-center lg:w-2/5 lg:pl-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
                 <Banknote class="size-4 text-primary" />
                 {{ t('student.cost.heading') }}
               </div>
               <p v-if="hostelInfoError" class="mt-3 text-sm text-red-500">{{ hostelInfoError }}</p>
               <p v-else-if="isHostelInfoLoading" class="mt-3 text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
-              <div v-else class="mt-3 flex flex-col divide-y divide-border">
+              <!-- Разбивка по центру (2026-08-27, по прямой просьбе) — было label слева/
+                   цена справа в одну строку, стало карточками label сверху/цена крупно
+                   снизу, выровненными по центру колонки, а не растянутыми на всю ширину. -->
+              <div v-else class="mt-3 grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-2">
                 <div
                   v-for="p in hostelInfo?.priceRanges ?? []"
                   :key="p.capacity"
-                  class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0"
+                  class="flex flex-col items-center gap-1 rounded-lg border bg-muted/30 px-2 py-3"
                 >
-                  <span class="text-muted-foreground">{{ roomLabel(p.capacity) }}</span>
-                  <span class="font-medium">{{ priceRange(p.min, p.max) }}</span>
+                  <span class="text-xs text-muted-foreground">{{ roomLabel(p.capacity) }}</span>
+                  <span class="text-base font-semibold">{{ priceRange(p.min, p.max) }}</span>
                 </div>
                 <div
                   v-if="hostelInfo?.guestRoomDailyRate != null"
-                  class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0"
+                  class="flex flex-col items-center gap-1 rounded-lg border bg-muted/30 px-2 py-3"
                 >
-                  <span class="text-muted-foreground">{{ t('student.cost.guestRoom') }}</span>
-                  <span class="font-medium">{{ t('student.cost.perDay', { amount: hostelInfo.guestRoomDailyRate.toLocaleString(dateLocaleTag()) }) }}</span>
+                  <span class="text-xs text-muted-foreground">{{ t('student.cost.guestRoom') }}</span>
+                  <span class="text-base font-semibold">{{ t('student.cost.perDay', { amount: hostelInfo.guestRoomDailyRate.toLocaleString(dateLocaleTag()) }) }}</span>
                 </div>
                 <div
                   v-if="hostelInfo?.passRestorationCost != null"
-                  class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0"
+                  class="flex flex-col items-center gap-1 rounded-lg border bg-muted/30 px-2 py-3"
                 >
-                  <span class="text-muted-foreground">{{ t('student.cost.passRestoration') }}</span>
-                  <span class="font-medium">{{ t('student.cost.amountRub', { amount: hostelInfo.passRestorationCost.toLocaleString(dateLocaleTag()) }) }}</span>
+                  <span class="text-xs text-muted-foreground">{{ t('student.cost.passRestoration') }}</span>
+                  <span class="text-base font-semibold">{{ t('student.cost.amountRub', { amount: hostelInfo.passRestorationCost.toLocaleString(dateLocaleTag()) }) }}</span>
                 </div>
               </div>
             </div>

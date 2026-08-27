@@ -792,6 +792,14 @@ model PaymentIntent {
   status      PaymentIntentStatus @default(CREATED)
   description String              @map("description")
 
+  // Платёж заведён как оплата ТОЛЬКО пени (см. my-payments.controller.ts#createIntent) —
+  // при подтверждении банком (reconcileBankStatus) НЕ проходит через allocatePaymentFifo
+  // вообще, вся сумма остаётся неразнесённой по начислениям, и тем самым целиком
+  // засчитывается в пеню (computePenaltyBalance трактует любые неразнесённые деньги как
+  // покрытие пени, см. billing/penalty-balance.ts). Без этого флага такой платёж, случись
+  // на договоре ещё непогашенные начисления, ушёл бы по FIFO сначала на них, а не в пеню.
+  penaltyOnly Boolean @default(false) @map("penalty_only")
+
   payerFullName String  @map("payer_full_name")
   payerEmail    String? @map("payer_email")
   payerPhone    String? @map("payer_phone")

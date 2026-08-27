@@ -56,30 +56,35 @@ function formatMoney(value: number): string {
 // --- Форма создания платежа — та же логика, что была на отдельной странице /student/payment
 // (см. историю MyPayment.vue), перенесена в модалку по прямой просьбе 2026-08-25: кнопка
 // "Оплатить" на карточке договора больше никуда не переходит, а сразу открывает эту форму. ---
-type AmountMode = 'select' | 'custom'
+// Пеня — всегда отдельным платежом (по прямой просьбе 2026-08-27), не сочетается ни с
+// выбором начислений, ни со своей суммой — свой собственный третий режим (см. ниже), а
+// не чекбокс внутри "Выбрать начисления". Раньше пеню можно было включить в общий платёж,
+// только если этим же платежом закрывались ВСЕ открытые начисления (иначе деньги по FIFO
+// ушли бы сначала на начисления, см. allocatePaymentFifo) — теперь бэк для penaltyOnly-
+// платежей вообще не пропускает сумму через FIFO (см. my-payments.controller.ts), поэтому
+// пеню можно оплатить в любой момент независимо от того, сколько ещё открытых начислений.
+type AmountMode = 'select' | 'custom' | 'penalty'
 const amountMode = ref<AmountMode>('select')
 const selectedAccrualIds = ref<number[]>([])
-const includePenalty = ref(false)
 const customAmount = ref<number | undefined>(undefined)
 // Только для отображения выбора в Select рядом с полем "Своя сумма" (см. applyAccrualToCustomAmount
 // ниже) — сама сумма после подстановки живёт в customAmount и правится независимо, эта
 // подсветка не обязана оставаться синхронной с ручной правкой.
 const customAmountAccrualKey = ref<string | undefined>(undefined)
+// Своя (в т.ч. частичная) сумма в режиме "Пеня" — по умолчанию подставляется полный
+// остаток пени (см. selectPenaltyMode), можно уменьшить вручную.
+const penaltyAmount = ref<number | undefined>(undefined)
 
 const openAccruals = computed<OpenAccrualRow[]>(() => data.value?.openAccruals ?? [])
 const penaltyBalance = computed(() => data.value?.penaltyBalance ?? 0)
-// Пеню можно выбрать, только если этим же платежом закрываются ВСЕ открытые начисления —
-// иначе деньги по FIFO уйдут сначала на начисления, а не на пеню (см. промпт задачи).
-// Раньше тут был "openAccruals.length > 0 &&" — из-за него, если начислений вообще не
-// осталось (всё погашено, висит только пеня), 0 === 0 всё равно не проходило проверку и
-// чекбокс был вечно недоступен, хотя бэк такой платёж принимает (см. createIntent — там
-// ровно то же сравнение без лишнего "> 0"). Баг, поймано и исправлено 2026-08-26 — теперь
-// пеню можно оплатить отдельным платежом именно в этом случае (начислений нет, есть пеня).
-const canSelectPenalty = computed(() => selectedAccrualIds.value.length === openAccruals.value.length)
 
 function toggleAccrual(id: number, checked: boolean) {
   selectedAccrualIds.value = checked ? [...selectedAccrualIds.value, id] : selectedAccrualIds.value.filter((v) => v !== id)
-  if (!canSelectPenalty.value) includePenalty.value = false
+}
+
+function selectPenaltyMode() {
+  amountMode.value = 'penalty'
+  if (penaltyAmount.value == null) penaltyAmount.value = penaltyBalance.value
 }
 
 // Список начислений свёрнут по умолчанию — под выбором по умолчанию (последнее
@@ -88,29 +93,25 @@ function toggleAccrual(id: number, checked: boolean) {
 const accrualPickerOpen = ref(false)
 const selectedAccrualsSummary = computed(() => {
   const selected = openAccruals.value.filter((a) => selectedAccrualIds.value.includes(a.id))
-  const monthsLabel = selected.map((a) => monthLabel(a.periodStart)).join(', ')
-  if (!monthsLabel) return includePenalty.value ? t('payment.createDialog.penaltyOnlySummary') : t('payment.createDialog.noAccrualsSelected')
-  return includePenalty.value ? t('payment.createDialog.accrualsAndPenaltySummary', { months: monthsLabel }) : monthsLabel
+  return selected.map((a) => monthLabel(a.periodStart)).join(', ') || t('payment.createDialog.noAccrualsSelected')
 })
 
-const selectedAmount = computed(() => {
-  const accrualsSum = openAccruals.value
-    .filter((a) => selectedAccrualIds.value.includes(a.id))
-    .reduce((sum, a) => sum + a.balance, 0)
-  return accrualsSum + (includePenalty.value ? penaltyBalance.value : 0)
+const selectedAmount = computed(() =>
+  openAccruals.value.filter((a) => selectedAccrualIds.value.includes(a.id)).reduce((sum, a) => sum + a.balance, 0),
+)
+const finalAmount = computed(() => {
+  if (amountMode.value === 'penalty') return penaltyAmount.value ?? 0
+  if (amountMode.value === 'custom') return customAmount.value ?? 0
+  return selectedAmount.value
 })
-const finalAmount = computed(() => (amountMode.value === 'custom' ? customAmount.value ?? 0 : selectedAmount.value))
 
-// "Своя сумма" — необязательная подсказка рядом с полем: выбор начисления (или пени)
-// из выпадающего списка просто подставляет его остаток в customAmount, дальше сумму
-// можно поправить вручную как обычно (по прямой просьбе 2026-08-26 — раньше в этом
-// режиме сумму приходилось вбивать полностью на глаз).
+// "Своя сумма" — необязательная подсказка рядом с полем: выбор начисления из выпадающего
+// списка просто подставляет его остаток в customAmount, дальше сумму можно поправить
+// вручную как обычно (по прямой просьбе 2026-08-26 — раньше в этом режиме сумму
+// приходилось вбивать полностью на глаз). Пеню сюда больше не подставляем (2026-08-27) —
+// у неё свой отдельный режим "Пеня", см. selectPenaltyMode.
 function applyAccrualToCustomAmount(value: unknown) {
   customAmountAccrualKey.value = typeof value === 'string' ? value : undefined
-  if (value === 'penalty') {
-    customAmount.value = penaltyBalance.value
-    return
-  }
   const accrual = openAccruals.value.find((a) => String(a.id) === value)
   if (accrual) customAmount.value = accrual.balance
 }
@@ -153,7 +154,6 @@ async function loadPaymentsData(contractId: number | undefined, silent = false) 
     selectedContractId.value = data.value.contract?.id
     const firstUnpaid = data.value.openAccruals[0]
     selectedAccrualIds.value = firstUnpaid ? [firstUnpaid.id] : []
-    includePenalty.value = false
     accrualPickerOpen.value = false
     payerEmail.value = data.value.payerEmail ?? ''
   } catch (error) {
@@ -173,10 +173,10 @@ async function switchContract(id: number) {
 async function open(contractId?: number) {
   amountMode.value = 'select'
   selectedAccrualIds.value = []
-  includePenalty.value = false
   accrualPickerOpen.value = false
   customAmount.value = undefined
   customAmountAccrualKey.value = undefined
+  penaltyAmount.value = undefined
   payerIsResident.value = true
   representativeFullName.value = ''
   payerEmail.value = ''
@@ -204,8 +204,9 @@ async function submit() {
     const { paymentPageUrl } = await createPaymentIntent({
       contractId: selectedContractId.value,
       accrualIds: amountMode.value === 'select' ? selectedAccrualIds.value : [],
-      includePenalty: amountMode.value === 'select' ? includePenalty.value : false,
-      customAmount: amountMode.value === 'custom' ? (customAmount.value ?? null) : null,
+      penaltyOnly: amountMode.value === 'penalty',
+      customAmount:
+        amountMode.value === 'custom' ? (customAmount.value ?? null) : amountMode.value === 'penalty' ? (penaltyAmount.value ?? null) : null,
       payerIsResident: payerIsResident.value,
       representativeFullName: payerIsResident.value ? null : representativeFullName.value.trim(),
       payerEmail: payerEmail.value.trim(),
@@ -275,6 +276,13 @@ async function submit() {
             <Button :variant="amountMode === 'custom' ? 'default' : 'ghost'" size="sm" @click="amountMode = 'custom'">
               {{ t('payment.createDialog.customAmount') }}
             </Button>
+            <!-- Пеня — свой отдельный режим, не чекбокс внутри "Выбрать начисления" (по
+                 прямой просьбе 2026-08-27) — платится всегда отдельным платежом, независимо
+                 от того, сколько ещё открытых начислений на договоре, см. selectPenaltyMode. -->
+            <Button v-if="penaltyBalance > 0" :variant="amountMode === 'penalty' ? 'default' : 'ghost'" size="sm" @click="selectPenaltyMode">
+              <Percent class="size-3.5 shrink-0" />
+              {{ t('payment.createDialog.penaltyMode') }}
+            </Button>
           </div>
 
           <template v-if="amountMode === 'select'">
@@ -307,26 +315,13 @@ async function submit() {
                   </span>
                   <span class="font-medium">{{ formatMoney(accrual.balance) }}</span>
                 </label>
-                <label
-                  v-if="penaltyBalance > 0"
-                  class="flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-sm"
-                  :class="canSelectPenalty ? 'cursor-pointer hover:bg-accent' : 'cursor-not-allowed opacity-50'"
-                  :title="canSelectPenalty ? '' : t('payment.createDialog.penaltySelectAllHint')"
-                >
-                  <span class="flex items-center gap-1.5">
-                    <Checkbox :model-value="includePenalty" :disabled="!canSelectPenalty" @update:model-value="(v) => (includePenalty = !!v)" />
-                    <Percent class="size-3.5 text-orange-500" />
-                    {{ t('payment.createDialog.penaltyFull') }}
-                  </span>
-                  <span class="font-medium">{{ formatMoney(penaltyBalance) }}</span>
-                </label>
               </CollapsibleContent>
             </Collapsible>
           </template>
-          <template v-else>
+          <template v-else-if="amountMode === 'custom'">
             <div class="flex items-center gap-2">
               <select
-                v-if="openAccruals.length || penaltyBalance > 0"
+                v-if="openAccruals.length"
                 id="custom-amount-accrual"
                 :value="customAmountAccrualKey ?? ''"
                 :class="[NATIVE_SELECT_CLASS, 'w-44']"
@@ -335,9 +330,6 @@ async function submit() {
                 <option value="" disabled>{{ t('payment.createDialog.accrualSelectPlaceholder') }}</option>
                 <option v-for="accrual in openAccruals" :key="accrual.id" :value="String(accrual.id)">
                   {{ monthLabel(accrual.periodStart) }} — {{ formatMoney(accrual.balance) }}
-                </option>
-                <option v-if="penaltyBalance > 0" value="penalty">
-                  {{ t('payment.createDialog.penaltyOption', { amount: formatMoney(penaltyBalance) }) }}
                 </option>
               </select>
               <Input
@@ -349,6 +341,18 @@ async function submit() {
                 :placeholder="t('payment.createDialog.amountPlaceholder')"
               />
             </div>
+          </template>
+          <template v-else>
+            <Input
+              :class="NO_SPINNER_CLASS"
+              id="penalty-amount"
+              v-model.number="penaltyAmount"
+              type="number"
+              min="1"
+              :max="penaltyBalance"
+              :placeholder="t('payment.createDialog.amountPlaceholder')"
+            />
+            <p class="text-xs text-muted-foreground">{{ t('payment.createDialog.penaltyModeHint', { amount: formatMoney(penaltyBalance) }) }}</p>
           </template>
         </div>
 

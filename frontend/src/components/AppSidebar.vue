@@ -203,7 +203,7 @@ const data = computed(() => ({
         <SidebarMenuItem>
           <SidebarMenuButton
             size="sm"
-            class="justify-center bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
+            class="mx-auto w-[92%] justify-center bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
             @click="paymentDialog?.open()"
           >
             <CreditCard class="size-4" />
