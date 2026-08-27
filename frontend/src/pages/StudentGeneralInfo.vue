@@ -187,9 +187,24 @@ onMounted(async () => {
 
     <Tabs default-value="general">
       <TabsList>
-        <TabsTrigger value="general">{{ t('student.tabs.general') }}</TabsTrigger>
-        <TabsTrigger value="payment">{{ t('student.tabs.payment') }}</TabsTrigger>
-        <TabsTrigger value="contacts">{{ t('student.tabs.contacts') }}</TabsTrigger>
+        <TabsTrigger value="general">
+          <span class="flex items-center gap-1.5">
+            <Building2 class="size-4 text-primary" />
+            {{ t('student.tabs.general') }}
+          </span>
+        </TabsTrigger>
+        <TabsTrigger value="payment">
+          <span class="flex items-center gap-1.5">
+            <Wallet class="size-4 text-primary" />
+            {{ t('student.tabs.payment') }}
+          </span>
+        </TabsTrigger>
+        <TabsTrigger value="contacts">
+          <span class="flex items-center gap-1.5">
+            <Contact class="size-4 text-primary" />
+            {{ t('student.tabs.contacts') }}
+          </span>
+        </TabsTrigger>
       </TabsList>
 
       <!-- Вкладка 1 — Здание слева развёрнутым текстом, справа Инфраструктура и под ней

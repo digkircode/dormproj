@@ -17,6 +17,10 @@
     "ownUniversity": "Студент РосНОУ",
     "otherUniversity": "Не студент РосНОУ"
   },
+  "debtFacets": {
+    "yes": "Да",
+    "no": "Нет"
+  },
   "excel": {
     "sheetDebtors": "Финансовый отчёт",
     "sheetContingent": "Реестр проживающих",

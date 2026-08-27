@@ -17,6 +17,10 @@
     "ownUniversity": "RosNOU student",
     "otherUniversity": "Not a RosNOU student"
   },
+  "debtFacets": {
+    "yes": "Yes",
+    "no": "No"
+  },
   "excel": {
     "sheetDebtors": "Financial report",
     "sheetContingent": "Resident registry",

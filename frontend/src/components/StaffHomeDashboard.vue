@@ -109,9 +109,12 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <RouterLink to="/reports/occupancy" class="rounded-lg bg-muted/50 p-4 transition-colors hover:bg-muted">
+      <RouterLink
+        to="/reports/occupancy"
+        class="rounded-lg bg-blue-50 p-4 transition-colors hover:bg-blue-100 dark:bg-blue-500/10 dark:hover:bg-blue-500/15"
+      >
         <div class="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <DoorOpen class="size-4 shrink-0 text-primary" />
+          <DoorOpen class="size-4 shrink-0 text-blue-600 dark:text-blue-400" />
           {{ t('home.kpiRooms') }}
         </div>
         <p class="mt-1 text-2xl font-semibold tabular-nums">
@@ -119,39 +122,50 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
         </p>
       </RouterLink>
 
-      <RouterLink to="/reports/contracts" class="rounded-lg bg-muted/50 p-4 transition-colors hover:bg-muted">
+      <RouterLink
+        to="/reports/contracts"
+        class="rounded-lg bg-orange-50 p-4 transition-colors hover:bg-orange-100 dark:bg-orange-500/10 dark:hover:bg-orange-500/15"
+      >
         <div class="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <Clock class="size-4 shrink-0 text-orange-500" />
+          <Clock class="size-4 shrink-0 text-orange-600 dark:text-orange-400" />
           {{ t('home.kpiExpiring') }}
         </div>
         <p class="mt-1 text-2xl font-semibold tabular-nums">{{ isLoading ? '—' : (contractsSummary?.expiring30 ?? 0) }}</p>
       </RouterLink>
 
-      <RouterLink to="/reports/debt" class="rounded-lg bg-muted/50 p-4 transition-colors hover:bg-muted">
+      <RouterLink
+        to="/reports/debt"
+        class="rounded-lg bg-red-50 p-4 transition-colors hover:bg-red-100 dark:bg-red-500/10 dark:hover:bg-red-500/15"
+      >
         <div class="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <AlertTriangle class="size-4 shrink-0 text-red-500" />
+          <AlertTriangle class="size-4 shrink-0 text-red-600 dark:text-red-400" />
           {{ t('home.kpiDebtors') }}
         </div>
         <p class="mt-1 text-2xl font-semibold tabular-nums">{{ isLoading ? '—' : (debtorsSummary?.debtorsCount ?? 0) }}</p>
         <p v-if="!isLoading && debtorsSummary" class="text-xs text-muted-foreground">{{ formatMoney(debtorsSummary.totalDebt) }}</p>
       </RouterLink>
 
-      <RouterLink to="/chats" class="rounded-lg bg-muted/50 p-4 transition-colors hover:bg-muted">
+      <RouterLink
+        to="/chats"
+        class="rounded-lg bg-violet-50 p-4 transition-colors hover:bg-violet-100 dark:bg-violet-500/10 dark:hover:bg-violet-500/15"
+      >
         <div class="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <MessageCircle class="size-4 shrink-0 text-primary" />
+          <MessageCircle class="size-4 shrink-0 text-violet-600 dark:text-violet-400" />
           {{ t('home.kpiUnread') }}
         </div>
         <p class="mt-1 text-2xl font-semibold tabular-nums">{{ isLoading ? '—' : unreadChatsCount }}</p>
       </RouterLink>
     </div>
 
+    <!-- Нейтральные кнопки (по прямой просьбе 2026-08-27) — иконка остаётся primary,
+         сама кнопка больше не акцентная, чтобы не спорить за внимание с KPI-плашками выше. -->
     <div class="flex flex-wrap gap-2">
-      <Button size="sm" class="flex items-center gap-2" @click="individualDialogRef?.open()">
-        <UserPlus class="size-4 shrink-0" />
+      <Button size="sm" variant="outline" class="flex items-center gap-2" @click="individualDialogRef?.open()">
+        <UserPlus class="size-4 shrink-0 text-primary" />
         {{ t('home.quickNewIndividual') }}
       </Button>
       <Button size="sm" variant="outline" class="flex items-center gap-2" @click="contractDialogRef?.open()">
-        <FileSignature class="size-4 shrink-0" />
+        <FileSignature class="size-4 shrink-0 text-primary" />
         {{ t('home.quickNewContract') }}
       </Button>
       <CreateIndividualDialog ref="individualDialogRef" />

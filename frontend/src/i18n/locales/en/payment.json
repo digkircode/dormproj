@@ -27,7 +27,6 @@
       "noAccrualsSelected": "No accruals selected",
       "penaltyMode": "Penalty",
       "penaltyModeHint": "Full penalty amount — {amount}. You can enter less.",
-      "accrualSelectPlaceholder": "Accrual",
       "amountPlaceholder": "Amount",
       "payerSection": "Payer",
       "payerIsResident": "Paying myself",

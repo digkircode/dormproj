@@ -104,8 +104,8 @@ async function openDialog() {
             index === 1 ? 'sm:border-t-0' : '',
           ]"
         >
-          <span class="text-muted-foreground">{{ c.name }}</span>
-          <span class="font-medium">{{ formatValue(c) }}</span>
+          <span class="min-w-0 truncate text-muted-foreground">{{ c.name }}</span>
+          <span class="shrink-0 font-medium">{{ formatValue(c) }}</span>
         </div>
         <div
           v-if="sortedCharacteristics(detail.characteristics).length % 2 === 1"

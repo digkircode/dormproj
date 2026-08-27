@@ -27,7 +27,6 @@
       "noAccrualsSelected": "Начисления не выбраны",
       "penaltyMode": "Пеня",
       "penaltyModeHint": "Полная сумма пени — {amount}. Можно указать меньше.",
-      "accrualSelectPlaceholder": "Начисление",
       "amountPlaceholder": "Сумма",
       "payerSection": "Плательщик",
       "payerIsResident": "Оплачиваю сам(а)",

@@ -38,6 +38,8 @@
       "colPaid": "Paid",
       "colPenalty": "Penalty",
       "colDebt": "Debt",
+      "filterHasDebt": "Debtor",
+      "filterHasPenalty": "Penalty",
       "breakdownAction": "Monthly debt breakdown",
       "breakdownTitle": "{name} — room {room}",
       "breakdownTitleFallback": "Debt breakdown",

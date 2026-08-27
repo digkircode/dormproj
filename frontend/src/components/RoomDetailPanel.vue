@@ -624,8 +624,8 @@ async function confirmDeleteValue() {
             ]"
             @click="toggleCharacteristicFilter(c.definitionId)"
           >
-            <span class="text-muted-foreground">{{ c.name }}</span>
-            <span class="font-medium">{{ c.hasValue ? formatValue(c) : '—' }}</span>
+            <span class="min-w-0 truncate text-muted-foreground">{{ c.name }}</span>
+            <span class="shrink-0 font-medium">{{ c.hasValue ? formatValue(c) : '—' }}</span>
           </div>
           <!-- Нечётное количество характеристик — последняя карточка одна в своей строке,
                по прямой просьбе НЕ растягиваем её на обе колонки (пустое место остаётся

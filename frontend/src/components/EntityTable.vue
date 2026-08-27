@@ -156,7 +156,16 @@ const isLoading = ref(true)
 const errorText = ref('')
 
 const table = useAppTable({
-  columns: props.columns,
+  // computed, не props.columns напрямую — useTable() (@tanstack/vue-table) следит за
+  // реактивностью опций через unref() внутри getReactiveOptionDeps(), т.е. ждёт именно Ref/
+  // ComputedRef, а не голое значение. props.columns снаружи — тоже computed (пересобирается
+  // при смене языка, см. columnLabels/columnHelper.columns() на страницах-потребителях), но
+  // передача его СНЯТОГО значения сюда лишала бы table-hook возможности подписаться на
+  // последующие изменения — заголовки застревали бы на переводе, актуальном на момент
+  // маунта, до следующей полной перезагрузки страницы. Обёртка возвращает актуальный
+  // props.columns на каждый вызов геттера — то же самое отслеживание, что и array-геттер
+  // ожидает.
+  columns: computed(() => props.columns),
   data: rows,
   state,
   getRowId: props.getRowId,

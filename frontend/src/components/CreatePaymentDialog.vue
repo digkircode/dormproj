@@ -25,14 +25,6 @@ const DIALOG_ANIMATE_CLASS =
 // Та же маска, что и у "своей суммы" в CreateContractDialog.vue — прячет нативные
 // стрелочки +/- у <input type="number"> (Chrome/Safari + Firefox).
 const NO_SPINNER_CLASS = '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
-// Голый <select>, не components/ui/select/Select.vue (reka-ui) — тот на модальном Reka-
-// портале, а модалка оплаты и так уже несёт DropdownMenu (переключатель договора) —
-// второй вложенный Reka-портал внутри Dialog ловит известную ловушку №10 из промпта
-// проекта (focus-trap/pointer-events конфликт между вложенными Reka-порталами — после
-// закрытия диалога сайт перестаёт реагировать на клики). Классы — те же, что у
-// components/ui/input/Input.vue, чтобы выглядело как обычное поле формы.
-const NATIVE_SELECT_CLASS =
-  'flex h-10 shrink-0 rounded-md border border-input bg-background px-3 text-sm transition-shadow focus-visible:outline-none focus-visible:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/20 focus-visible:shadow-sm'
 
 const { t } = useI18n()
 
@@ -67,10 +59,6 @@ type AmountMode = 'select' | 'custom' | 'penalty'
 const amountMode = ref<AmountMode>('select')
 const selectedAccrualIds = ref<number[]>([])
 const customAmount = ref<number | undefined>(undefined)
-// Только для отображения выбора в Select рядом с полем "Своя сумма" (см. applyAccrualToCustomAmount
-// ниже) — сама сумма после подстановки живёт в customAmount и правится независимо, эта
-// подсветка не обязана оставаться синхронной с ручной правкой.
-const customAmountAccrualKey = ref<string | undefined>(undefined)
 // Своя (в т.ч. частичная) сумма в режиме "Пеня" — по умолчанию подставляется полный
 // остаток пени (см. selectPenaltyMode), можно уменьшить вручную.
 const penaltyAmount = ref<number | undefined>(undefined)
@@ -104,17 +92,6 @@ const finalAmount = computed(() => {
   if (amountMode.value === 'custom') return customAmount.value ?? 0
   return selectedAmount.value
 })
-
-// "Своя сумма" — необязательная подсказка рядом с полем: выбор начисления из выпадающего
-// списка просто подставляет его остаток в customAmount, дальше сумму можно поправить
-// вручную как обычно (по прямой просьбе 2026-08-26 — раньше в этом режиме сумму
-// приходилось вбивать полностью на глаз). Пеню сюда больше не подставляем (2026-08-27) —
-// у неё свой отдельный режим "Пеня", см. selectPenaltyMode.
-function applyAccrualToCustomAmount(value: unknown) {
-  customAmountAccrualKey.value = typeof value === 'string' ? value : undefined
-  const accrual = openAccruals.value.find((a) => String(a.id) === value)
-  if (accrual) customAmount.value = accrual.balance
-}
 
 const payerIsResident = ref(true)
 const representativeFullName = ref('')
@@ -175,7 +152,6 @@ async function open(contractId?: number) {
   selectedAccrualIds.value = []
   accrualPickerOpen.value = false
   customAmount.value = undefined
-  customAmountAccrualKey.value = undefined
   penaltyAmount.value = undefined
   payerIsResident.value = true
   representativeFullName.value = ''
@@ -319,28 +295,14 @@ async function submit() {
             </Collapsible>
           </template>
           <template v-else-if="amountMode === 'custom'">
-            <div class="flex items-center gap-2">
-              <select
-                v-if="openAccruals.length"
-                id="custom-amount-accrual"
-                :value="customAmountAccrualKey ?? ''"
-                :class="[NATIVE_SELECT_CLASS, 'w-44']"
-                @change="(e) => applyAccrualToCustomAmount((e.target as HTMLSelectElement).value)"
-              >
-                <option value="" disabled>{{ t('payment.createDialog.accrualSelectPlaceholder') }}</option>
-                <option v-for="accrual in openAccruals" :key="accrual.id" :value="String(accrual.id)">
-                  {{ monthLabel(accrual.periodStart) }} — {{ formatMoney(accrual.balance) }}
-                </option>
-              </select>
-              <Input
-                :class="NO_SPINNER_CLASS"
-                id="custom-amount"
-                v-model.number="customAmount"
-                type="number"
-                min="1"
-                :placeholder="t('payment.createDialog.amountPlaceholder')"
-              />
-            </div>
+            <Input
+              :class="NO_SPINNER_CLASS"
+              id="custom-amount"
+              v-model.number="customAmount"
+              type="number"
+              min="1"
+              :placeholder="t('payment.createDialog.amountPlaceholder')"
+            />
           </template>
           <template v-else>
             <Input

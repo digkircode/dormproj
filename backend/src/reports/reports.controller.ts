@@ -134,9 +134,18 @@ function resolveAsOf(asOfParam?: string): Date {
 // таблице (ContractStatusCell.vue на фронте), считается здесь относительно ТОЙ ЖЕ asOf,
 // что и остальные суммы отчёта (не Date.now() — отчёт умеет смотреть на прошлую дату,
 // EXPIRING должен считаться относительно неё же, а не "сегодня").
-type DebtorRowWithDisplayStatus = DebtorRow & { displayStatus: ContractDisplayStatus };
+// hasDebt/hasPenalty — те же строковые псевдо-поля под фильтр, что и displayStatus ниже
+// (реального такого столбца в DebtorRow нет, только YES/NO по знаку totalBalance/
+// penaltyBalance) — по прямой просьбе 2026-08-27, фильтры "Только должники"/"Есть пеня"
+// на Финансовом отчёте.
+type DebtorRowWithDisplayStatus = DebtorRow & { displayStatus: ContractDisplayStatus; hasDebt: 'YES' | 'NO'; hasPenalty: 'YES' | 'NO' };
 function withDisplayStatus(rows: DebtorRow[], asOf: Date): DebtorRowWithDisplayStatus[] {
-  return rows.map((r) => ({ ...r, displayStatus: getContractDisplayStatus(r.status, r.endDate, asOf) }));
+  return rows.map((r) => ({
+    ...r,
+    displayStatus: getContractDisplayStatus(r.status, r.endDate, asOf),
+    hasDebt: r.totalBalance > 0 ? 'YES' : 'NO',
+    hasPenalty: r.penaltyBalance > 0 ? 'YES' : 'NO',
+  }));
 }
 
 // Фронт (ReportsDebt.vue) ничего не знает про displayStatus — фильтрует/запрашивает
@@ -182,7 +191,7 @@ export class ReportsController {
       // уже разведено в самой колонке (ContractStatusCell.vue), см. contract-display-status.ts
       // и remapStatusFilterKey (фронт по-прежнему фильтрует и запрашивает facets по
       // колонке "status", ключ подменяется здесь же, чтобы не трогать фронт вообще).
-      filterFields: ['displayStatus'],
+      filterFields: ['displayStatus', 'hasDebt', 'hasPenalty'],
     });
   }
 
@@ -203,6 +212,18 @@ export class ReportsController {
 
   @Get('debtors/facets/:field')
   debtorsFacets(@Param('field') field: string): FacetOption[] {
+    if (field === 'hasDebt') {
+      return [
+        { value: 'YES', label: t('reports.debtFacets.yes', 'Да') },
+        { value: 'NO', label: t('reports.debtFacets.no', 'Нет') },
+      ];
+    }
+    if (field === 'hasPenalty') {
+      return [
+        { value: 'YES', label: t('reports.debtFacets.yes', 'Да') },
+        { value: 'NO', label: t('reports.debtFacets.no', 'Нет') },
+      ];
+    }
     if (field !== 'status') return [];
     return (Object.keys(CONTRACT_DISPLAY_STATUS_LABELS) as ContractDisplayStatus[]).map((value) => ({
       value,
@@ -228,7 +249,7 @@ export class ReportsController {
     const sorted = filterAndSortInMemory(rows, options, {
       searchFields: ['contractNumber', 'residentFullName', 'room'],
       sortableFields: ['contractNumber', 'residentFullName', 'room', 'createdAt', 'status', 'totalAccrued', 'totalPaid', 'penaltyBalance', 'totalBalance'],
-      filterFields: ['displayStatus'],
+      filterFields: ['displayStatus', 'hasDebt', 'hasPenalty'],
     });
 
     const columns: ExcelColumn<DebtorRowWithDisplayStatus>[] = [

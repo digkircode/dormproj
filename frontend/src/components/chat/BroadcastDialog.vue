@@ -333,7 +333,7 @@ async function submit() {
           <input ref="fileInputRef" type="file" multiple accept="image/*,video/*" class="hidden" @change="onFilesSelected" />
           <div class="flex flex-wrap items-center gap-2">
             <Button type="button" variant="outline" size="sm" @click="openFilePicker">
-              <Paperclip class="size-4" />
+              <Paperclip class="size-4 text-primary" />
               {{ t('chat.thread.attachFile') }}
             </Button>
             <span class="text-xs text-muted-foreground">{{ t('chat.broadcast.attachHint') }}</span>

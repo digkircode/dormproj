@@ -55,8 +55,12 @@ const columnLabels = computed<Record<string, string>>(() => ({
   totalPaid: t('reports.debt.colPaid'),
   penaltyBalance: t('reports.debt.colPenalty'),
   totalBalance: t('reports.debt.colDebt'),
+  // Псевдо-поля под фильтр — не настоящие колонки таблицы (см. reports.controller.ts,
+  // withDisplayStatus), по прямой просьбе 2026-08-27: "Только должники"/"Есть пеня".
+  hasDebt: t('reports.debt.filterHasDebt'),
+  hasPenalty: t('reports.debt.filterHasPenalty'),
 }))
-const filterableFields = ['status']
+const filterableFields = ['status', 'hasDebt', 'hasPenalty']
 const cellRenderers = {
   contractNumber: ContractLinkCell,
   residentFullName: ResidentLinkCell,

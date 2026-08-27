@@ -38,6 +38,8 @@
       "colPaid": "Оплачено",
       "colPenalty": "Пеня",
       "colDebt": "Долг",
+      "filterHasDebt": "Должник",
+      "filterHasPenalty": "Пеня",
       "breakdownAction": "Структура долга по месяцам",
       "breakdownTitle": "{name} — комн. {room}",
       "breakdownTitleFallback": "Структура долга",
