@@ -287,7 +287,7 @@ onMounted(async () => {
       <TabsContent value="payment" class="mt-4 flex flex-col gap-4">
         <Card class="p-6">
           <div class="flex flex-col gap-6 lg:flex-row lg:divide-x lg:divide-border">
-            <div class="flex flex-col lg:w-3/5 lg:pr-6">
+            <div class="flex flex-col lg:w-1/2 lg:pr-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
                 <Wallet class="size-4 text-primary" />
                 {{ t('student.payment.heading') }}
@@ -303,7 +303,7 @@ onMounted(async () => {
               </p>
             </div>
 
-            <div class="flex flex-col items-center text-center lg:w-2/5 lg:pl-6">
+            <div class="flex flex-col items-center text-center lg:w-1/2 lg:pl-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
                 <Banknote class="size-4 text-primary" />
                 {{ t('student.cost.heading') }}

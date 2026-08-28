@@ -88,7 +88,18 @@
     "attentionContractLine": "Contract No. {number} — {name}",
     "attentionDebtorLine": "{name} — room {room}",
     "attentionUnreadChats": "Unread messages: {count}",
-    "attentionUnreadChatsHint": "Chat with residents"
+    "attentionUnreadChatsHint": "Chat with residents",
+    "resident": {
+      "greetingTitle": "Welcome to the dorm!",
+      "greetingBody": "Glad to see you in your dorm personal account. Everything important about your stay is here: room, payment, and contact with the dorm staff. Keep track of your accruals and balance, and if a question comes up — staff are always reachable in the chat. Your room is your space. We'll help make living here comfortable. 💙",
+      "roomHeading": "My room",
+      "noContract": "No contract yet",
+      "noContractHint": "Once it's in the system, your room and payment will show up here.",
+      "contractLink": "Contract details",
+      "payAction": "Go to payment",
+      "chatHeading": "Chat with staff",
+      "chatCta": "Message staff"
+    }
   },
   "roomInfo": {
     "tooltip": "Room information",

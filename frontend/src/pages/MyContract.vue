@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import {
   ArrowLeft,
   CalendarClock,
@@ -43,11 +43,7 @@ import { dateLocaleTag } from '@/lib/format-locale'
 import { goBack } from '@/lib/utils'
 
 const router = useRouter()
-const route = useRoute()
 const { t } = useI18n()
-// Компонент рендерится и как /student/contract, и как содержимое "Главной" для роли
-// RESIDENT (см. Home.vue) — на "Главной" стрелка "назад" не нужна (некуда возвращаться).
-const isHome = computed(() => route.name === 'home')
 const contract = ref<MyContractDetail | null>(null)
 // Загрузка успешно завершилась, но договора нет — отдельно от isLoading/loadError, чтобы
 // не путать "договора действительно нет" с "ещё грузится"/"ошибка запроса" (тот же приём,
@@ -291,7 +287,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
          (ml-auto) не помещаются в одну строку без переноса (особенно с длинным номером
          договора вроде VIP27-27/01) — без wrap строка вылезала бы за ширину экрана. -->
     <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-      <Button v-if="!isHome" variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
+      <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
         <span class="sr-only">{{ t('contracts.list.back') }}</span>
       </Button>
