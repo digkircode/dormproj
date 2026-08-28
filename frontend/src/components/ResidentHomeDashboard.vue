@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ArrowRight, CreditCard, DoorOpen, FileText, MessageCircle, Phone, Wallet } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import CreatePaymentDialog from '@/components/CreatePaymentDialog.vue'
 import { fetchMyContract, type MyContractDetail } from '@/lib/contracts-api'
 import { residentUnreadCount } from '@/lib/chat-unread-state'
@@ -69,6 +69,18 @@ function telHref(phone: string): string {
          приветствие по имени + текст + две кнопки слева, маскот с "репликой" справа,
          фон карточки — светло-голубой (как в референсе, не нейтральный bg-card). -->
     <Card class="relative flex flex-col items-start gap-6 overflow-hidden bg-sky-50 p-6 dark:bg-sky-500/10 sm:flex-row sm:items-center sm:justify-between">
+      <!-- "Облачко" — три кружка каскадом от угла карточки (по присланному пользователем
+           скриншоту-референсу 2026-08-28, второй заход: первая попытка — один blur-круг
+           именно за маскотом — не совпадала с референсом вообще, там три кружка чётких
+           краёв в углу самой карточки). Обрезаются overflow-hidden самой Card — снаружи
+           видна только часть, поэтому "выступают" зубчатым краем от угла, как на картинке.
+           Цвет — на шаг темнее фона шапки (bg-sky-50), не яркий/насыщенный ("нежный"). -->
+      <div class="pointer-events-none absolute inset-0" aria-hidden="true">
+        <div class="absolute -right-10 -bottom-10 size-40 rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute right-10 bottom-20 size-28 rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute right-24 bottom-32 size-20 rounded-full bg-sky-100 dark:bg-sky-400/15" />
+      </div>
+
       <div class="relative z-10 max-w-lg">
         <h1 class="text-2xl font-semibold">
           <!-- Явный эмодзи-шрифт первым в стеке (не общий 'Inter Variable'/sans-serif сайта) —
@@ -87,16 +99,19 @@ function telHref(phone: string): string {
             <CreditCard class="size-4" />
             {{ t('home.resident.payHero') }}
           </Button>
-          <!-- Тот же размер/раскладка, что у "Оплатить проживание" выше (Button без
-               size — оба default), только свой цвет (outline) не трогаем по прямой
-               просьбе — только иконка перекрашена в primary, чтобы кнопка не выглядела
-               полностью нейтральной на фоне соседней заполненной. -->
-          <Button as-child variant="outline">
-            <RouterLink to="/student/contract">
-              <FileText class="size-4 text-primary" />
-              {{ t('home.resident.myContractButton') }}
-            </RouterLink>
-          </Button>
+          <!-- ВАЖНО: не Button as-child + RouterLink — Button.vue оборачивает свой slot в
+               <span class="contents">, и при as-child именно ЭТОТ span (не RouterLink)
+               получает merged-классы кнопки (см. reka-ui Primitive/Slot.ts#mergeProps) —
+               RouterLink остаётся без layout-классов вообще, из-за чего иконка (block по
+               Tailwind preflight для svg) и текст переносятся на разные строки внутри
+               него. Обходим — RouterLink напрямую с теми же классами buttonVariants,
+               без Button/as-child посредника вообще, гарантированно тот же size/паддинги/
+               высота, что у "Оплатить проживание" выше. Сам цвет (outline) не трогаем по
+               прямой просьбе — только иконка перекрашена в primary. -->
+          <RouterLink to="/student/contract" :class="buttonVariants({ variant: 'outline' })">
+            <FileText class="size-4 text-primary" />
+            {{ t('home.resident.myContractButton') }}
+          </RouterLink>
         </div>
       </div>
 
@@ -109,23 +124,7 @@ function telHref(phone: string): string {
           {{ t('home.resident.mascotBubble') }}
           <span class="absolute top-1/2 -right-1.5 size-3 -translate-y-1/2 rotate-45 border-t border-r bg-background" />
         </div>
-        <!-- Облачко позади маскота — по прямой просьбе 2026-08-28, второй заход (первая
-             версия не была видна вообще по двум причинам: (1) -z-10 без своего stacking
-             context "проваливался" за всю карточку, а не только за маскота — чинит
-             class="isolate" ниже, контейнер сам формирует stacking context, -z-10 внутри
-             него остаётся строго ЗА img; (2) сам круг (size-28=112px) был МЕНЬШЕ картинки
-             (h-32/h-40), т.е. целиком прятался за непрозрачными пикселями PNG, ничего не
-             выступало наружу — теперь крупнее картинки (size-64/sm:size-80 против
-             h-44/sm:h-60), центрирование через top/left-1/2 + translate вместо inset-0+
-             m-auto — последнее у over-constrained (круг больше контейнера) в Chromium даёт
-             асимметрию (весь излишек в одну сторону), translate центрирует всегда ровно). -->
-        <div class="relative isolate">
-          <div
-            class="pointer-events-none absolute top-1/2 left-1/2 -z-10 size-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-200/90 blur-2xl dark:bg-sky-400/25 sm:size-80"
-            aria-hidden="true"
-          />
-          <img :src="mascotSrc" alt="" class="relative h-44 w-auto sm:h-60" />
-        </div>
+        <img :src="mascotSrc" alt="" class="relative h-48 w-auto sm:h-64" />
       </div>
       <CreatePaymentDialog ref="paymentDialog" />
     </Card>
@@ -170,10 +169,14 @@ function telHref(phone: string): string {
                grid по умолчанию тянет оба айтема на равную высоту (align-items: stretch) —
                без mt-auto "Подробнее" оставался бы сразу под контентом, а не у нижнего края
                карточки, если сосед выше (по прямой просьбе 2026-08-28, "черточку и
-               подробнее во всех блоках снизу"). -->
+               подробнее во всех блоках снизу"). self-start — та же причина, по которой без
+               него кликабельна вся ширина карточки: flex-child в flex-col по умолчанию
+               растягивается на всю ширину (align-items: stretch), а RouterLink — реальный
+               <a>, значит растянутый инвизибл-хвост тоже кликабелен (по прямой просьбе
+               2026-08-28, "не всё пространство кликабельным, а только надписи"). -->
           <RouterLink
             to="/student/contract"
-            class="mt-auto inline-flex items-center gap-1 border-t pt-3 text-sm text-primary hover:underline"
+            class="mt-auto inline-flex items-center gap-1 self-start border-t pt-3 text-sm text-primary hover:underline"
           >
             {{ t('home.resident.contractLink') }}
             <ArrowRight class="size-3.5" />
@@ -230,10 +233,11 @@ function telHref(phone: string): string {
             <p v-else class="mt-1 text-sm text-muted-foreground">{{ t('home.resident.noOpenAccruals') }}</p>
           </div>
           <!-- mt-auto — тот же приём, что у "Подробнее" в "Моей комнате" выше: держит
-               ссылку у нижнего края карточки, растянутой grid'ом до высоты соседа. -->
+               ссылку у нижнего края карточки, растянутой grid'ом до высоты соседа.
+               self-start — та же причина, см. комментарий у "Подробнее" выше. -->
           <button
             type="button"
-            class="mt-auto inline-flex items-center gap-1 border-t pt-3 text-left text-sm text-primary hover:underline"
+            class="mt-auto inline-flex items-center gap-1 self-start border-t pt-3 text-left text-sm text-primary hover:underline"
             @click="paymentDialog?.open()"
           >
             {{ t('home.resident.payAction') }}
@@ -256,9 +260,10 @@ function telHref(phone: string): string {
           {{ t('home.resident.chatHeading') }}
         </div>
         <p class="text-sm text-muted-foreground">{{ t('home.resident.chatUnreadCount', { count: residentUnreadCount }) }}</p>
+        <!-- self-start — та же причина, см. комментарий у "Подробнее" в "Моей комнате". -->
         <RouterLink
           to="/student/chat"
-          class="mt-auto inline-flex items-center gap-1 border-t pt-3 text-sm text-primary hover:underline"
+          class="mt-auto inline-flex items-center gap-1 self-start border-t pt-3 text-sm text-primary hover:underline"
         >
           {{ t('home.resident.chatCta') }}
           <ArrowRight class="size-3.5" />
@@ -278,20 +283,24 @@ function telHref(phone: string): string {
         <div class="flex flex-col gap-3">
           <div v-for="group in contactGroups" :key="group.label" class="flex flex-col gap-1.5">
             <p class="text-xs text-muted-foreground">{{ group.label }}</p>
-            <!-- Вся строка — сама ссылка tel: (по прямой просьбе 2026-08-28, "чтобы вся
-                 область телефон вводила"), не только маленькая кнопка сбоку — hover-фон на
-                 весь ряд даёт понятную кликабельную область. Иконка — primary (тоже по
-                 прямой просьбе), не нейтральный/приглушённый цвет по умолчанию. -->
-            <a
-              v-for="phone in group.phones"
-              :key="phone"
-              :href="telHref(phone)"
-              :aria-label="`${t('home.resident.callAction')}: ${phone}`"
-              class="-mx-2 flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent"
-            >
+            <!-- Кликабельна только сама иконка-кнопка справа (не вся строка — по прямой
+                 просьбе 2026-08-28, второй заход: первая версия делала кликабельным весь
+                 ряд, оказалось не то, что нужно). Номер — обычный текст, не ссылка.
+                 :class вместо <Button as-child> — тот же обход бага, что у "Мой договор"
+                 в шапке (см. комментарий там): as-child+Primitive/Slot накидывает merged-
+                 классы на промежуточный <span class="contents"> от Button.vue, а не на
+                 сам <a>, тут это неважно (внутри только одна иконка, переносить нечему),
+                 но раз уж есть готовый безопасный паттерн — используем его и здесь. -->
+            <div v-for="phone in group.phones" :key="phone" class="flex items-center justify-between gap-2 text-sm">
               <span class="font-medium">{{ phone }}</span>
-              <Phone class="size-4 shrink-0 text-primary" />
-            </a>
+              <a
+                :href="telHref(phone)"
+                :aria-label="`${t('home.resident.callAction')}: ${phone}`"
+                :class="buttonVariants({ variant: 'outline', size: 'icon-sm' })"
+              >
+                <Phone class="size-4 text-primary" />
+              </a>
+            </div>
           </div>
         </div>
       </Card>
