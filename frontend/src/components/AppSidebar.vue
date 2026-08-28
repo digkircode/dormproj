@@ -2,7 +2,6 @@
 import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { SidebarProps } from '@/components/ui/sidebar'
-import { ref } from 'vue'
 import {
   BarChart3,
   Users,
@@ -15,14 +14,12 @@ import {
   Info,
   MessageCircle,
   FileSignature,
-  CreditCard,
 } from 'lucide-vue-next'
 import NavStudent from '@/components/NavStudent.vue'
 import NavMain from '@/components/NavMain.vue'
 import NavProjects from '@/components/NavProjects.vue'
 import NavUser from '@/components/NavUser.vue'
 import TeamSwitcher from '@/components/TeamSwitcher.vue'
-import CreatePaymentDialog from '@/components/CreatePaymentDialog.vue'
 import { currentUser } from '@/lib/auth-state'
 import { useChatStream } from '@/lib/chat-stream'
 import { fetchConversations, fetchMyChatUnread } from '@/lib/chat-api'
@@ -33,14 +30,10 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
   SidebarRail,
 } from '@/components/ui/sidebar'
 
 const { t } = useI18n()
-const paymentDialog = ref<InstanceType<typeof CreatePaymentDialog> | null>(null)
 
 const props = withDefaults(defineProps<SidebarProps>(), {
   collapsible: 'icon',
@@ -196,22 +189,6 @@ const data = computed(() => ({
   <Sidebar v-bind="props">
     <SidebarHeader>
       <TeamSwitcher :teams="data.teams" />
-      <!-- Тонкая кнопка "Оплатить" прямо под РосНОУ/Общежитие — по прямой просьбе
-           2026-08-25, делает ровно то же, что кнопка на карточке договора (открывает
-           ту же модалку, contractId не передаём — дефолт "самый свежий договор"). -->
-      <SidebarMenu v-if="canSeeResidentChat">
-        <SidebarMenuItem>
-          <SidebarMenuButton
-            size="sm"
-            class="mx-auto w-[92%] justify-center bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground group-data-[collapsible=icon]:!mx-0 group-data-[collapsible=icon]:!w-8 group-data-[collapsible=icon]:!justify-start"
-            @click="paymentDialog?.open()"
-          >
-            <CreditCard class="size-4" />
-            <span>{{ t('nav.sidebarPay') }}</span>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      </SidebarMenu>
-      <CreatePaymentDialog ref="paymentDialog" />
     </SidebarHeader>
     <SidebarContent>
       <NavStudent :items="navStudent" />

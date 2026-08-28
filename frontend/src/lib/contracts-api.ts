@@ -123,7 +123,10 @@ export interface MyContractDetail {
   actualEndDate: string | null
   status: ContractStatus
   createdAt: string
-  currentRoom: { id: number; room: string } | null
+  // corpus/floor/capacity — характеристики комнаты (EAV, см. промпт проекта), не поля
+  // самой Room; null, если у комнаты нет соответствующей характеристики заведено вообще
+  // (например "Корпус" по факту проставлен не на все комнаты, см. известные ограничения).
+  currentRoom: { id: number; room: string; corpus: string | null; floor: number | null; capacity: number | null } | null
   penaltyAmount: number
   penaltyPaid: number
   penaltyBalance: number

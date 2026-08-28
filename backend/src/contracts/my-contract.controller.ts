@@ -7,6 +7,15 @@ import { PrismaService } from '../prisma/prisma.service';
 import { computePenaltyBalance } from '../billing/penalty-balance';
 import { dateOnly } from '../billing/period-utils';
 import { serializeAccrual, serializePayment, serializeTerms } from './serializers';
+import { pickCurrentCharacteristics } from '../rooms/current-characteristics';
+
+// Те же имена характеристик, что уже используются в rooms.controller.ts/chat-recipients.ts/
+// reports.controller.ts/public-info.controller.ts — единого справочника имён под это в
+// проекте нет (EAV, характеристики — просто строки), совпадение имени поддерживается
+// вручную во всех местах, где они читаются по имени.
+const CORPUS_DEFINITION_NAME = 'Корпус';
+const FLOOR_DEFINITION_NAME = 'Этаж';
+const CAPACITY_DEFINITION_NAME = 'Количество мест';
 
 // Договор самого проживающего — не /contracts/:id (тот целиком STAFF/ADMIN-only, класс-
 // уровня @Roles('STAFF','ADMIN') не сузить снаружи, см. промпт проекта), поэтому отдельный
@@ -93,6 +102,31 @@ export class MyContractController {
       payments,
     });
 
+    // Корпус/Этаж/Вместимость — для карточки "Моя комната" на главной резидента
+    // (ResidentHomeDashboard.vue), по прямой просьбе 2026-08-28. Отдельный запрос, а не
+    // include в основной выборке договора — характеристики нужны только для ОДНОЙ (текущей)
+    // комнаты, а не для всех roomAssignments разом. RESIDENT не имеет доступа к
+    // GET /rooms/:id (тот целиком STAFF/ADMIN-only, см. rooms.controller.ts) — здесь тот же
+    // pickCurrentCharacteristics, что использует и rooms.controller.ts#detail, просто на
+    // собственном self-only эндпоинте.
+    const rawCurrentRoom = roomAssignments.find((a) => a.toDate === null)?.room ?? roomAssignments[0]?.room ?? null;
+    let currentRoom: (typeof rawCurrentRoom & { corpus: string | null; floor: number | null; capacity: number | null }) | null = null;
+    if (rawCurrentRoom) {
+      const characteristicValues = await this.prisma.roomCharacteristicValue.findMany({
+        where: { roomId: rawCurrentRoom.id },
+        include: { definition: true },
+        orderBy: [{ period: 'desc' }, { definition: { name: 'asc' } }],
+      });
+      const characteristics = pickCurrentCharacteristics(characteristicValues);
+      const findValue = (name: string) => characteristics.find((c) => c.name === name)?.value ?? null;
+      currentRoom = {
+        ...rawCurrentRoom,
+        corpus: (findValue(CORPUS_DEFINITION_NAME) as string | null) ?? null,
+        floor: (findValue(FLOOR_DEFINITION_NAME) as number | null) ?? null,
+        capacity: (findValue(CAPACITY_DEFINITION_NAME) as number | null) ?? null,
+      };
+    }
+
     return {
       contract: {
         id: contractFields.id,
@@ -103,7 +137,7 @@ export class MyContractController {
         actualEndDate: contractFields.actualEndDate,
         status: contractFields.status,
         createdAt: contractFields.createdAt,
-        currentRoom: roomAssignments.find((a) => a.toDate === null)?.room ?? roomAssignments[0]?.room ?? null,
+        currentRoom,
         penaltyAmount: Number(penaltyAmount),
         penaltyPaid: Number(penaltyPaid),
         penaltyBalance: Number(penaltyBalance),
