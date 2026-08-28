@@ -23,7 +23,7 @@ import TeamSwitcher from '@/components/TeamSwitcher.vue'
 import { currentUser } from '@/lib/auth-state'
 import { useChatStream } from '@/lib/chat-stream'
 import { fetchConversations, fetchMyChatUnread } from '@/lib/chat-api'
-import { hasUnreadStaffChats, hasUnreadResidentChat } from '@/lib/chat-unread-state'
+import { hasUnreadStaffChats, hasUnreadResidentChat, residentUnreadCount } from '@/lib/chat-unread-state'
 
 import {
   Sidebar,
@@ -98,7 +98,9 @@ async function refreshStaffUnread() {
 }
 async function refreshResidentUnread() {
   try {
-    hasUnreadResidentChat.value = await fetchMyChatUnread()
+    const { unread, count } = await fetchMyChatUnread()
+    hasUnreadResidentChat.value = unread
+    residentUnreadCount.value = count
   } catch {
     // Тот же принцип, что и у refreshStaffUnread выше — сетевой сбой не должен ронять
     // бейджик в тихую ошибку без обновления, просто ждём следующей попытки (SSE/watch).

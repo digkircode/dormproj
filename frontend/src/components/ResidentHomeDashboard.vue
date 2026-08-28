@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ArrowRight, DoorOpen, MessageCircle, Wallet } from 'lucide-vue-next'
+import { ArrowRight, CreditCard, DoorOpen, FileText, MessageCircle, Phone, Wallet } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import CreatePaymentDialog from '@/components/CreatePaymentDialog.vue'
 import { fetchMyContract, type MyContractDetail } from '@/lib/contracts-api'
-import { hasUnreadResidentChat } from '@/lib/chat-unread-state'
+import { residentUnreadCount } from '@/lib/chat-unread-state'
 import { currentUser } from '@/lib/auth-state'
 import { dateLocaleTag } from '@/lib/format-locale'
 // Маскот — сгенерирован пользователем отдельно под референс (2026-08-28, вторая версия —
@@ -51,14 +51,15 @@ function formatMoney(value: number): string {
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString(dateLocaleTag())
 }
-// Тот же приём словоформы, что roomLabel() в StudentGeneralInfo.vue (ключи student.cost.*
-// уже заведены под это там же, переиспользуем, не дублируем словарь).
-function capacityLabel(capacity: number): string {
-  const mod10 = capacity % 10
-  const mod100 = capacity % 100
-  const isFew = mod10 >= 2 && mod10 <= 4 && !(mod100 >= 12 && mod100 <= 14)
-  const unit = isFew ? t('student.cost.personFew') : t('student.cost.personMany')
-  return `${capacity} ${unit}`
+// Контакты общежития — по прямой просьбе 2026-08-28, статические номера (не из API —
+// в проекте нет справочника контактов сотрудников для резидентов). Только label
+// переведён (i18n), сами номера одинаковы в любой локали.
+const contactGroups = computed(() => [
+  { label: t('home.resident.contactsDutyAdmin'), phones: ['+7 (977) 812-81-87', '+7 (495) 223-40-49'] },
+  { label: t('home.resident.contactsYouthDept'), phones: ['+7 (495) 925-03-71'] },
+])
+function telHref(phone: string): string {
+  return `tel:${phone.replace(/[^\d+]/g, '')}`
 }
 </script>
 
@@ -66,28 +67,28 @@ function capacityLabel(capacity: number): string {
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
     <!-- Шапка сделана буквально по присланному пользователем референсу (2026-08-28):
          приветствие по имени + текст + две кнопки слева, маскот с "репликой" справа,
-         фон карточки — светло-голубой (как в референсе, не нейтральный bg-card) +
-         декоративные "облачка" (размытые круги) позади маскота. -->
+         фон карточки — светло-голубой (как в референсе, не нейтральный bg-card). -->
     <Card class="relative flex flex-col items-start gap-6 overflow-hidden bg-sky-50 p-6 dark:bg-sky-500/10 sm:flex-row sm:items-center sm:justify-between">
-      <!-- "Облачка" — просто размытые круги (blur), не картинки: тот же приём, что и
-           хвостик пузыря ниже — CSS без ассетов. aria-hidden/pointer-events-none —
-           чисто декоративный слой, ничего не должно быть кликабельным/озвучиваемым. -->
-      <div class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-        <div class="absolute -top-12 right-8 size-40 rounded-full bg-sky-200/60 blur-2xl dark:bg-sky-400/10" />
-        <div class="absolute right-40 bottom-2 size-24 rounded-full bg-blue-200/50 blur-xl dark:bg-blue-400/10" />
-        <div class="absolute -right-6 -bottom-10 size-36 rounded-full bg-sky-300/40 blur-2xl dark:bg-sky-400/10" />
-      </div>
-
       <div class="relative z-10 max-w-lg">
         <h1 class="text-xl font-semibold">
-          👋 {{ firstName ? t('home.resident.greetingTitle', { name: firstName }) : t('home.resident.greetingTitleFallback') }}
+          <!-- U+FE0F (variation selector-16) сразу после эмодзи — форсирует цветную
+               "эмодзи"-отрисовку вместо чёрно-белой "текстовой" с обводкой, которую
+               иначе рисуют некоторые шрифты/браузеры на Windows для этого символа
+               (по прямой просьбе 2026-08-28, "эмодзи без обводки как на референсе"). -->
+          👋️ {{ firstName ? t('home.resident.greetingTitle', { name: firstName }) : t('home.resident.greetingTitleFallback') }}
         </h1>
         <p class="mt-3 text-sm text-muted-foreground">{{ t('home.resident.greetingBody1') }}</p>
         <p class="mt-3 text-sm text-muted-foreground">{{ t('home.resident.greetingBody2') }}</p>
         <div class="mt-4 flex flex-wrap gap-2">
-          <Button size="sm" @click="paymentDialog?.open()">{{ t('home.resident.payHero') }}</Button>
+          <Button size="sm" @click="paymentDialog?.open()">
+            <CreditCard class="size-4" />
+            {{ t('home.resident.payHero') }}
+          </Button>
           <Button as-child variant="outline" size="sm">
-            <RouterLink to="/student/contract">{{ t('home.resident.myContractButton') }}</RouterLink>
+            <RouterLink to="/student/contract">
+              <FileText class="size-4" />
+              {{ t('home.resident.myContractButton') }}
+            </RouterLink>
           </Button>
         </div>
       </div>
@@ -101,43 +102,57 @@ function capacityLabel(capacity: number): string {
           {{ t('home.resident.mascotBubble') }}
           <span class="absolute top-1/2 -right-1.5 size-3 -translate-y-1/2 rotate-45 border-t border-r bg-background" />
         </div>
-        <img :src="mascotSrc" alt="" class="h-32 w-auto sm:h-40" />
+        <!-- Одно простое "облачко" позади самого маскота (по прямой просьбе 2026-08-28 —
+             упростили из трёх разбросанных по всей шапке кругов до одного, только за
+             персонажем, как в референсе), не за всей карточкой. -->
+        <div class="relative">
+          <div
+            class="pointer-events-none absolute inset-0 -z-10 m-auto size-28 rounded-full bg-sky-200/70 blur-2xl dark:bg-sky-400/15"
+            aria-hidden="true"
+          />
+          <img :src="mascotSrc" alt="" class="relative h-32 w-auto sm:h-40" />
+        </div>
       </div>
       <CreatePaymentDialog ref="paymentDialog" />
     </Card>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <!-- "Моя комната" — по референсу от пользователя (2026-08-28): Корпус/Этаж и
-           Комната/Тип комнаты парами в сетке 2x2, "Подробнее" ссылкой снизу. Корпус/Этаж/
-           Тип комнаты (вместимость) — характеристики комнаты (EAV), не поля самой Room,
-           могут быть не заведены на конкретную комнату (null) — тогда просто "—". -->
+      <!-- "Моя комната" — по прямой просьбе 2026-08-28: слева комната/этаж, через
+           вертикальную черту справа номер договора/дата создания, "Подробнее" под
+           горизонтальной чертой снизу (не 2x2 корпус/этаж/комната/тип, как раньше). -->
       <Card class="flex flex-col gap-3 p-4">
         <div class="flex items-center gap-1.5 text-sm font-medium">
-          <DoorOpen class="size-4 text-primary" />
+          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-500/15">
+            <DoorOpen class="size-4 text-sky-600 dark:text-sky-400" />
+          </div>
           {{ t('home.resident.roomHeading') }}
         </div>
         <template v-if="!isLoading && contract?.currentRoom">
-          <div class="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <p class="text-xs text-muted-foreground">{{ t('home.resident.corpusLabel') }}</p>
-              <p class="font-medium">{{ contract.currentRoom.corpus ?? '—' }}</p>
+          <div class="flex divide-x text-sm">
+            <div class="flex flex-1 flex-col gap-3 pr-4">
+              <div>
+                <p class="text-xs text-muted-foreground">{{ t('home.resident.roomNumberLabel') }}</p>
+                <p class="font-medium">{{ contract.currentRoom.room }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-muted-foreground">{{ t('home.resident.floorLabel') }}</p>
+                <p class="font-medium">
+                  {{ contract.currentRoom.floor != null ? t('home.resident.floorValue', { floor: contract.currentRoom.floor }) : '—' }}
+                </p>
+              </div>
             </div>
-            <div>
-              <p class="text-xs text-muted-foreground">{{ t('home.resident.floorLabel') }}</p>
-              <p class="font-medium">
-                {{ contract.currentRoom.floor != null ? t('home.resident.floorValue', { floor: contract.currentRoom.floor }) : '—' }}
-              </p>
-            </div>
-            <div>
-              <p class="text-xs text-muted-foreground">{{ t('home.resident.roomNumberLabel') }}</p>
-              <p class="font-medium">{{ contract.currentRoom.room }}</p>
-            </div>
-            <div>
-              <p class="text-xs text-muted-foreground">{{ t('home.resident.roomTypeLabel') }}</p>
-              <p class="font-medium">{{ contract.currentRoom.capacity != null ? capacityLabel(contract.currentRoom.capacity) : '—' }}</p>
+            <div class="flex flex-1 flex-col gap-3 pl-4">
+              <div>
+                <p class="text-xs text-muted-foreground">{{ t('home.resident.contractNumberLabel') }}</p>
+                <p class="font-medium">{{ contract.number }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-muted-foreground">{{ t('home.resident.contractCreatedLabel') }}</p>
+                <p class="font-medium">{{ formatDate(contract.createdAt) }}</p>
+              </div>
             </div>
           </div>
-          <RouterLink to="/student/contract" class="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+          <RouterLink to="/student/contract" class="inline-flex items-center gap-1 border-t pt-3 text-sm text-primary hover:underline">
             {{ t('home.resident.contractLink') }}
             <ArrowRight class="size-3.5" />
           </RouterLink>
@@ -148,47 +163,96 @@ function capacityLabel(capacity: number): string {
         </template>
       </Card>
 
-      <!-- "Оплата" — задолженность (как раньше) + следующий платёж (по прямой просьбе
-           2026-08-28: первое начисление с непогашенным остатком, то же самое, в каком
-           порядке единственно и можно платить, см. allocatePaymentFifo/промпт проекта) —
-           дата/сумма подсвечены красным, если срок уже прошёл. -->
+      <!-- "Оплата" (была "Общий баланс") — задолженность в цветной плашке + пилюля
+           "Просрочен платёж", следующий платёж, "Перейти к оплате" ссылкой (не кнопкой)
+           под чертой, открывает модалку оплаты — всё по прямой просьбе 2026-08-28. -->
       <Card class="flex flex-col gap-3 p-4">
         <div class="flex items-center gap-1.5 text-sm font-medium">
-          <Wallet class="size-4 text-primary" />
-          {{ t('contracts.detail.totalBalance') }}
+          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-green-100 dark:bg-green-500/15">
+            <Wallet class="size-4 text-green-600 dark:text-green-400" />
+          </div>
+          {{ t('home.resident.paymentHeading') }}
         </div>
         <template v-if="!isLoading && contract">
-          <p class="text-2xl font-semibold" :class="totalBalance > 0 ? 'text-red-500' : 'text-green-600'">
-            {{ formatMoney(totalBalance) }}
-          </p>
+          <div
+            class="flex items-center justify-between gap-2 rounded-lg px-3 py-2"
+            :class="totalBalance > 0 ? 'bg-red-50 dark:bg-red-500/10' : 'bg-green-50 dark:bg-green-500/10'"
+          >
+            <div>
+              <p class="text-xs text-muted-foreground">{{ t('home.resident.debtLabel') }}</p>
+              <p class="text-xl font-semibold" :class="totalBalance > 0 ? 'text-red-500' : 'text-green-600'">
+                {{ formatMoney(totalBalance) }}
+              </p>
+            </div>
+            <span v-if="isNextPaymentOverdue" class="shrink-0 rounded-full bg-red-500 px-2.5 py-1 text-xs font-medium text-white">
+              {{ t('home.resident.overdue') }}
+            </span>
+          </div>
           <div class="border-t pt-3">
             <p class="text-xs text-muted-foreground">{{ t('home.resident.nextPaymentHeading') }}</p>
             <div v-if="nextAccrual" class="mt-1 flex items-center justify-between gap-2 text-sm">
               <span :class="isNextPaymentOverdue ? 'font-medium text-red-500' : ''">
                 {{ t('home.resident.nextPaymentDue', { date: formatDate(nextAccrual.dueDate) }) }}
-                <template v-if="isNextPaymentOverdue">— {{ t('home.resident.overdue') }}</template>
               </span>
               <span class="font-medium" :class="isNextPaymentOverdue ? 'text-red-500' : ''">{{ formatMoney(nextAccrual.balance) }}</span>
             </div>
             <p v-else class="mt-1 text-sm text-muted-foreground">{{ t('home.resident.noOpenAccruals') }}</p>
           </div>
-          <Button as-child size="sm" class="w-fit">
-            <RouterLink to="/student/contract">{{ t('home.resident.payAction') }}</RouterLink>
-          </Button>
+          <button
+            type="button"
+            class="inline-flex items-center gap-1 border-t pt-3 text-left text-sm text-primary hover:underline"
+            @click="paymentDialog?.open()"
+          >
+            {{ t('home.resident.payAction') }}
+            <ArrowRight class="size-3.5" />
+          </button>
         </template>
         <p v-else-if="!isLoading" class="text-sm text-muted-foreground">{{ t('home.resident.noContract') }}</p>
       </Card>
     </div>
 
-    <Card class="flex flex-wrap items-center justify-between gap-3 p-4">
-      <div class="flex items-center gap-2 text-sm font-medium">
-        <MessageCircle class="size-4 text-primary" />
-        {{ t('home.resident.chatHeading') }}
-        <span v-if="hasUnreadResidentChat" class="size-2 shrink-0 rounded-full bg-primary" />
-      </div>
-      <Button as-child variant="outline" size="sm">
-        <RouterLink to="/student/chat">{{ t('home.resident.chatCta') }}</RouterLink>
-      </Button>
-    </Card>
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <!-- Чат с сотрудниками — жёлтая иконка, счётчик непрочитанных вместо кружка-точки,
+           "Написать сообщение" ссылкой под чертой (тот же паттерн карточки, что выше),
+           по прямой просьбе 2026-08-28. -->
+      <Card class="flex flex-col gap-3 p-4">
+        <div class="flex items-center gap-1.5 text-sm font-medium">
+          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-500/15">
+            <MessageCircle class="size-4 text-amber-600 dark:text-amber-400" />
+          </div>
+          {{ t('home.resident.chatHeading') }}
+        </div>
+        <p class="text-sm text-muted-foreground">{{ t('home.resident.chatUnreadCount', { count: residentUnreadCount }) }}</p>
+        <RouterLink to="/student/chat" class="inline-flex items-center gap-1 border-t pt-3 text-sm text-primary hover:underline">
+          {{ t('home.resident.chatCta') }}
+          <ArrowRight class="size-3.5" />
+        </RouterLink>
+      </Card>
+
+      <!-- Контакты — синяя иконка, номера с кнопкой звонка (tel:), по прямой просьбе
+           2026-08-28. Номера статические (см. contactGroups в script), нет справочника
+           контактов сотрудников в API под резидента. -->
+      <Card class="flex flex-col gap-3 p-4">
+        <div class="flex items-center gap-1.5 text-sm font-medium">
+          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-500/15">
+            <Phone class="size-4 text-blue-600 dark:text-blue-400" />
+          </div>
+          {{ t('home.resident.contactsHeading') }}
+        </div>
+        <div class="flex flex-col gap-3">
+          <div v-for="group in contactGroups" :key="group.label" class="flex flex-col gap-1.5">
+            <p class="text-xs text-muted-foreground">{{ group.label }}</p>
+            <div v-for="phone in group.phones" :key="phone" class="flex items-center justify-between gap-2 text-sm">
+              <span class="font-medium">{{ phone }}</span>
+              <Button as-child variant="outline" size="icon-sm">
+                <a :href="telHref(phone)" :aria-label="t('home.resident.callAction')">
+                  <Phone class="size-4" />
+                </a>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Card>
+    </div>
   </div>
 </template>

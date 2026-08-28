@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import ChatThread from '@/components/chat/ChatThread.vue'
 import { useChatStream, type ChatStreamEvent } from '@/lib/chat-stream'
-import { hasUnreadResidentChat } from '@/lib/chat-unread-state'
+import { hasUnreadResidentChat, residentUnreadCount } from '@/lib/chat-unread-state'
 import { appendNewMessages, prependOlderMessages } from '@/lib/chat-message-list'
 import { fetchMyChat, fetchMyResidentInfo, sendMyMessage, type ChatMessage, type MyResidentInfo } from '@/lib/chat-api'
 import { goBack } from '@/lib/utils'
@@ -43,6 +43,7 @@ async function load() {
     // Открытие страницы = прочтение (fetchMyChat() уже бампнул residentLastReadAt на
     // бэке) — сбрасываем бейджик в сайдбаре сразу, не дожидаясь следующего SSE-события.
     hasUnreadResidentChat.value = false
+    residentUnreadCount.value = 0
   } catch (error) {
     loadError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -94,6 +95,7 @@ useChatStream(
     const chat = await fetchMyChat()
     messages.value = appendNewMessages(messages.value, chat.messages)
     hasUnreadResidentChat.value = false
+    residentUnreadCount.value = 0
   },
   streamEnabled,
 )

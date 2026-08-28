@@ -166,12 +166,25 @@ export class MyChatController {
     const individualUid = await this.resolveIndividualUid(req.user.id);
     const conversation = await this.prisma.chatConversation.findUnique({
       where: { individualUid },
-      select: { lastMessageAt: true, residentLastReadAt: true },
+      select: { id: true, lastMessageAt: true, residentLastReadAt: true },
     });
     if (!conversation) {
-      return { unread: false };
+      return { unread: false, count: 0 };
     }
-    return { unread: !conversation.residentLastReadAt || conversation.lastMessageAt > conversation.residentLastReadAt };
+    const unread = !conversation.residentLastReadAt || conversation.lastMessageAt > conversation.residentLastReadAt;
+    // count — для плашки "Новых сообщений: N" на главной резидента (ResidentHomeDashboard.vue),
+    // не только факт наличия непрочитанного. Считаем только сообщения от STAFF — свои же
+    // сообщения резидента не в счёт (unread — это то, что ждёт его прочтения, не его собственный ввод).
+    const count = unread
+      ? await this.prisma.chatMessage.count({
+          where: {
+            conversationId: conversation.id,
+            senderRole: 'STAFF',
+            ...(conversation.residentLastReadAt ? { createdAt: { gt: conversation.residentLastReadAt } } : {}),
+          },
+        })
+      : 0;
+    return { unread, count };
   }
 
   @Post('messages')

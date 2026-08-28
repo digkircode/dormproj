@@ -206,12 +206,12 @@ export async function fetchMyChat(before?: number): Promise<MyChatResponse> {
 }
 
 // Лёгкая проверка непрочитанного без побочного эффекта пометки прочтения (в отличие от
-// fetchMyChat выше) — для бейджика в сайдбаре, см. lib/chat-unread-state.ts.
-export async function fetchMyChatUnread(): Promise<boolean> {
+// fetchMyChat выше) — для бейджика в сайдбаре и плашки "Новых сообщений: N" на главной
+// резидента (ResidentHomeDashboard.vue), см. lib/chat-unread-state.ts.
+export async function fetchMyChatUnread(): Promise<{ unread: boolean; count: number }> {
   const response = await apiFetch('/my-chat/unread')
-  if (!response.ok) return false
-  const data: { unread: boolean } = await response.json()
-  return data.unread
+  if (!response.ok) return { unread: false, count: 0 }
+  return response.json()
 }
 
 // Без contractId (в отличие от ResidentInfo выше) — /contracts/:id доступен только
