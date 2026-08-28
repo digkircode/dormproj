@@ -138,6 +138,15 @@ async function loadPaymentsData(contractId: number | undefined, silent = false) 
   try {
     data.value = await fetchMyPayments(contractId)
     selectedContractId.value = data.value.contract?.id
+    // Режим суммы и введённая своя сумма/пеня — сбрасываем при КАЖДОЙ загрузке данных
+    // (не только при открытии диалога через open()) — иначе переключение договора при
+    // открытом режиме "Пеня" оставляло старое значение penaltyAmount от предыдущего
+    // договора (реальный баг: у нового договора может не быть пени вообще, а поле всё
+    // ещё показывало сумму от прошлого) — по умолчанию всегда возвращаемся к "Выбрать
+    // начисления" с чистого листа, как при первом открытии.
+    amountMode.value = 'select'
+    customAmount.value = undefined
+    penaltyAmount.value = undefined
     const firstUnpaid = data.value.openAccruals[0]
     selectedAccrualIds.value = firstUnpaid ? [firstUnpaid.id] : []
     accrualPickerOpen.value = false
