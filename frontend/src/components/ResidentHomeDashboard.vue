@@ -70,23 +70,30 @@ function telHref(phone: string): string {
          фон карточки — светло-голубой (как в референсе, не нейтральный bg-card). -->
     <Card class="relative flex flex-col items-start gap-6 overflow-hidden bg-sky-50 p-6 dark:bg-sky-500/10 sm:flex-row sm:items-center sm:justify-between">
       <div class="relative z-10 max-w-lg">
-        <h1 class="text-xl font-semibold">
-          <!-- U+FE0F (variation selector-16) сразу после эмодзи — форсирует цветную
-               "эмодзи"-отрисовку вместо чёрно-белой "текстовой" с обводкой, которую
-               иначе рисуют некоторые шрифты/браузеры на Windows для этого символа
-               (по прямой просьбе 2026-08-28, "эмодзи без обводки как на референсе"). -->
-          👋️ {{ firstName ? t('home.resident.greetingTitle', { name: firstName }) : t('home.resident.greetingTitleFallback') }}
+        <h1 class="text-2xl font-semibold">
+          <!-- Явный эмодзи-шрифт первым в стеке (не общий 'Inter Variable'/sans-serif сайта) —
+               форсирует настоящую цветную отрисовку системным цветным эмодзи-шрифтом вместо
+               чёрно-белого "текстового" глифа с обводкой, который иначе может подставить
+               браузер, если для этого символа в основном шрифте страницы нет цветного
+               покрытия (по прямой просьбе 2026-08-28, уже второй заход — VS16 сам по себе
+               не помог, см. class="font-emoji" ниже). -->
+          <span class="font-emoji">👋</span>
+          {{ firstName ? t('home.resident.greetingTitle', { name: firstName }) : t('home.resident.greetingTitleFallback') }}
         </h1>
-        <p class="mt-3 text-sm text-muted-foreground">{{ t('home.resident.greetingBody1') }}</p>
-        <p class="mt-3 text-sm text-muted-foreground">{{ t('home.resident.greetingBody2') }}</p>
-        <div class="mt-4 flex flex-wrap gap-2">
-          <Button size="sm" @click="paymentDialog?.open()">
+        <p class="mt-3 text-base text-muted-foreground">{{ t('home.resident.greetingBody1') }}</p>
+        <p class="mt-3 text-base text-muted-foreground">{{ t('home.resident.greetingBody2') }}</p>
+        <div class="mt-4 flex flex-wrap gap-3">
+          <Button @click="paymentDialog?.open()">
             <CreditCard class="size-4" />
             {{ t('home.resident.payHero') }}
           </Button>
-          <Button as-child variant="outline" size="sm">
+          <!-- Тот же размер/раскладка, что у "Оплатить проживание" выше (Button без
+               size — оба default), только свой цвет (outline) не трогаем по прямой
+               просьбе — только иконка перекрашена в primary, чтобы кнопка не выглядела
+               полностью нейтральной на фоне соседней заполненной. -->
+          <Button as-child variant="outline">
             <RouterLink to="/student/contract">
-              <FileText class="size-4" />
+              <FileText class="size-4 text-primary" />
               {{ t('home.resident.myContractButton') }}
             </RouterLink>
           </Button>
@@ -98,19 +105,26 @@ function telHref(phone: string): string {
              кнопками уже не остаётся), с sm: и выше показывается как в референсе. Хвостик
              пузыря — повёрнутый на 45° квадрат с двумя видимыми гранями (border-t/border-r),
              тот же трюк, что для CSS-стрелок без картинок/псевдоэлементов ::after. -->
-        <div class="relative hidden max-w-[200px] rounded-2xl border bg-background px-3 py-2 text-xs shadow-sm sm:block">
+        <div class="relative hidden max-w-[220px] rounded-2xl border bg-background px-3 py-2 text-sm shadow-sm sm:block">
           {{ t('home.resident.mascotBubble') }}
           <span class="absolute top-1/2 -right-1.5 size-3 -translate-y-1/2 rotate-45 border-t border-r bg-background" />
         </div>
-        <!-- Одно простое "облачко" позади самого маскота (по прямой просьбе 2026-08-28 —
-             упростили из трёх разбросанных по всей шапке кругов до одного, только за
-             персонажем, как в референсе), не за всей карточкой. -->
-        <div class="relative">
+        <!-- Облачко позади маскота — по прямой просьбе 2026-08-28, второй заход (первая
+             версия не была видна вообще по двум причинам: (1) -z-10 без своего stacking
+             context "проваливался" за всю карточку, а не только за маскота — чинит
+             class="isolate" ниже, контейнер сам формирует stacking context, -z-10 внутри
+             него остаётся строго ЗА img; (2) сам круг (size-28=112px) был МЕНЬШЕ картинки
+             (h-32/h-40), т.е. целиком прятался за непрозрачными пикселями PNG, ничего не
+             выступало наружу — теперь крупнее картинки (size-64/sm:size-80 против
+             h-44/sm:h-60), центрирование через top/left-1/2 + translate вместо inset-0+
+             m-auto — последнее у over-constrained (круг больше контейнера) в Chromium даёт
+             асимметрию (весь излишек в одну сторону), translate центрирует всегда ровно). -->
+        <div class="relative isolate">
           <div
-            class="pointer-events-none absolute inset-0 -z-10 m-auto size-28 rounded-full bg-sky-200/70 blur-2xl dark:bg-sky-400/15"
+            class="pointer-events-none absolute top-1/2 left-1/2 -z-10 size-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-200/90 blur-2xl dark:bg-sky-400/25 sm:size-80"
             aria-hidden="true"
           />
-          <img :src="mascotSrc" alt="" class="relative h-32 w-auto sm:h-40" />
+          <img :src="mascotSrc" alt="" class="relative h-44 w-auto sm:h-60" />
         </div>
       </div>
       <CreatePaymentDialog ref="paymentDialog" />
@@ -152,7 +166,15 @@ function telHref(phone: string): string {
               </div>
             </div>
           </div>
-          <RouterLink to="/student/contract" class="inline-flex items-center gap-1 border-t pt-3 text-sm text-primary hover:underline">
+          <!-- mt-auto — карточка стоит в sm:grid-cols-2 рядом с "Оплатой" (см. grid ниже),
+               grid по умолчанию тянет оба айтема на равную высоту (align-items: stretch) —
+               без mt-auto "Подробнее" оставался бы сразу под контентом, а не у нижнего края
+               карточки, если сосед выше (по прямой просьбе 2026-08-28, "черточку и
+               подробнее во всех блоках снизу"). -->
+          <RouterLink
+            to="/student/contract"
+            class="mt-auto inline-flex items-center gap-1 border-t pt-3 text-sm text-primary hover:underline"
+          >
             {{ t('home.resident.contractLink') }}
             <ArrowRight class="size-3.5" />
           </RouterLink>
@@ -184,11 +206,20 @@ function telHref(phone: string): string {
                 {{ formatMoney(totalBalance) }}
               </p>
             </div>
-            <span v-if="isNextPaymentOverdue" class="shrink-0 rounded-full bg-red-500 px-2.5 py-1 text-xs font-medium text-white">
+            <!-- Нейтральная пилюля вместо сплошной красной заливки (по прямой просьбе
+                 2026-08-28, "слишком явно выделен") — тот же паттерн, что у статусов в
+                 ContractRegistryStatusCell.vue: тонкая обводка + приглушённый фон, акцент
+                 только в цвете текста, не в заливке. -->
+            <span
+              v-if="isNextPaymentOverdue"
+              class="shrink-0 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400"
+            >
               {{ t('home.resident.overdue') }}
             </span>
           </div>
-          <div class="border-t pt-3">
+          <!-- Черта между долгом и следующим платежом убрана по прямой просьбе 2026-08-28 —
+               просто gap-3 родительской Card, без border-t. -->
+          <div>
             <p class="text-xs text-muted-foreground">{{ t('home.resident.nextPaymentHeading') }}</p>
             <div v-if="nextAccrual" class="mt-1 flex items-center justify-between gap-2 text-sm">
               <span :class="isNextPaymentOverdue ? 'font-medium text-red-500' : ''">
@@ -198,9 +229,11 @@ function telHref(phone: string): string {
             </div>
             <p v-else class="mt-1 text-sm text-muted-foreground">{{ t('home.resident.noOpenAccruals') }}</p>
           </div>
+          <!-- mt-auto — тот же приём, что у "Подробнее" в "Моей комнате" выше: держит
+               ссылку у нижнего края карточки, растянутой grid'ом до высоты соседа. -->
           <button
             type="button"
-            class="inline-flex items-center gap-1 border-t pt-3 text-left text-sm text-primary hover:underline"
+            class="mt-auto inline-flex items-center gap-1 border-t pt-3 text-left text-sm text-primary hover:underline"
             @click="paymentDialog?.open()"
           >
             {{ t('home.resident.payAction') }}
@@ -223,7 +256,10 @@ function telHref(phone: string): string {
           {{ t('home.resident.chatHeading') }}
         </div>
         <p class="text-sm text-muted-foreground">{{ t('home.resident.chatUnreadCount', { count: residentUnreadCount }) }}</p>
-        <RouterLink to="/student/chat" class="inline-flex items-center gap-1 border-t pt-3 text-sm text-primary hover:underline">
+        <RouterLink
+          to="/student/chat"
+          class="mt-auto inline-flex items-center gap-1 border-t pt-3 text-sm text-primary hover:underline"
+        >
           {{ t('home.resident.chatCta') }}
           <ArrowRight class="size-3.5" />
         </RouterLink>
@@ -242,17 +278,40 @@ function telHref(phone: string): string {
         <div class="flex flex-col gap-3">
           <div v-for="group in contactGroups" :key="group.label" class="flex flex-col gap-1.5">
             <p class="text-xs text-muted-foreground">{{ group.label }}</p>
-            <div v-for="phone in group.phones" :key="phone" class="flex items-center justify-between gap-2 text-sm">
+            <!-- Вся строка — сама ссылка tel: (по прямой просьбе 2026-08-28, "чтобы вся
+                 область телефон вводила"), не только маленькая кнопка сбоку — hover-фон на
+                 весь ряд даёт понятную кликабельную область. Иконка — primary (тоже по
+                 прямой просьбе), не нейтральный/приглушённый цвет по умолчанию. -->
+            <a
+              v-for="phone in group.phones"
+              :key="phone"
+              :href="telHref(phone)"
+              :aria-label="`${t('home.resident.callAction')}: ${phone}`"
+              class="-mx-2 flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent"
+            >
               <span class="font-medium">{{ phone }}</span>
-              <Button as-child variant="outline" size="icon-sm">
-                <a :href="telHref(phone)" :aria-label="t('home.resident.callAction')">
-                  <Phone class="size-4" />
-                </a>
-              </Button>
-            </div>
+              <Phone class="size-4 shrink-0 text-primary" />
+            </a>
           </div>
         </div>
       </Card>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Явный эмодзи-шрифт первым в стеке — глобальный font-sans сайта ('Inter Variable',
+   sans-serif) не покрывает эмодзи-кодпоинты сам, и на некоторых системах браузер выбирает
+   для generic-фолбэка sans-serif чёрно-белый символьный шрифт (с обводкой) вместо цветного
+   эмодзи-шрифта ОС — VS16 в разметке (был первой попыткой чуть раньше) на такой системе не
+   помогает, т.к. проблема не в presentation-селекторе, а в том, какой шрифт вообще выбран.
+   Явное перечисление реальных цветных эмодзи-шрифтов ОС/браузеров форсирует нужный. */
+.font-emoji {
+  font-family:
+    'Apple Color Emoji',
+    'Segoe UI Emoji',
+    'Segoe UI Symbol',
+    'Noto Color Emoji',
+    sans-serif;
+}
+</style>
