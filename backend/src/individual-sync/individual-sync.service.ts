@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service';
-import { getErrorMessage, SyncAlreadyRunningError } from '../sync/sync.errors';
+import { getErrorMessage, sanitizeErrorStack, SyncAlreadyRunningError } from '../sync/sync.errors';
 import { SyncService } from '../sync/sync.service';
 import { IndividualsSyncService } from '../individuals-sync/individuals-sync.service';
 import { CitizenshipSyncService } from '../citizenship-sync/citizenship-sync.service';
@@ -96,7 +96,7 @@ export class IndividualSyncService {
           status: 'FAILED',
           finishedAt: new Date(),
           errorMessage: getErrorMessage(error),
-          errorStack: error instanceof Error ? error.stack : undefined,
+          errorStack: sanitizeErrorStack(error),
         },
       });
       throw error;

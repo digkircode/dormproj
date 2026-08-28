@@ -42,6 +42,20 @@ model Student {
 
   @@id([zachetnayaKnigaUid, fizicheskoyeLitsoUid])
   @@index([fizicheskoyeLitsoUid])
+  // Под реальные фильтры/сортировки списка "Контингент студентов" (students.controller.ts) —
+  // без них список читает всю таблицу целиком на каждый список/фильтр/сортировку (seq scan),
+  // см. известную проблему в промпте проекта, добавлено 2026-08-28.
+  @@index([fullName])
+  @@index([group])
+  @@index([kursNumber])
+  @@index([facultet])
+  @@index([speciality])
+  @@index([formObuch])
+  @@index([osnovaObuch])
+  @@index([urovenPodgotov])
+  @@index([profilSpec])
+  @@index([dot])
+  @@index([uchebYear])
   @@map("students")
 }
 
@@ -103,6 +117,13 @@ model Individual {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  // Под реальные фильтры/сортировки списка "Физические лица" (individuals.controller.ts) —
+  // см. известную проблему в промпте проекта, добавлено 2026-08-28.
+  @@index([fullName])
+  @@index([code])
+  @@index([snils])
+  @@index([gender])
+  @@index([inn])
   @@map("individuals")
 }
 
@@ -338,6 +359,9 @@ model Room {
   characteristicValues RoomCharacteristicValue[]
   roomAssignments      RoomAssignment[]
 
+  // Под сортировку/поиск списка комнат (rooms.controller.ts) — см. известную проблему в
+  // промпте проекта, добавлено 2026-08-28.
+  @@index([room])
   @@map("rooms")
 }
 

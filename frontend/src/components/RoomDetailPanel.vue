@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import RoomCharacteristicsGrid from '@/components/RoomCharacteristicsGrid.vue'
 import {
   fetchRoomDetail,
   deleteRoom,
@@ -597,48 +598,15 @@ async function confirmDeleteValue() {
         </div>
 
         <!-- Клик по характеристике фильтрует историю ниже только по ней, повторный клик
-             снимает фильтр. Без absolute на leave — на table-элементах ниже он ломает
-             раскладку, здесь для единообразия тоже без него. Полная сетка: вертикальный
-             разделитель по чётности индекса (не divide-x — у CSS grid с 2 колонками
-             divide-x лёг бы на случайную сторону в зависимости от потока) + горизонтальный
-             между строками (border-t от второй строки, на sm — от index>=2, т.к. там 2
-             колонки и первая строка — это index 0 и 1). overflow-hidden на контейнере —
-             чтобы прямоугольные ячейки не вылезали за скруглённые углы рамки, p-0 — чтобы
-             линии сетки доходили до самой рамки, как в таблице. -->
-        <TransitionGroup
-          tag="div"
-          class="grid shrink-0 grid-cols-1 gap-0 overflow-hidden rounded-md border sm:grid-cols-2"
-          enter-active-class="animate-in fade-in-0 duration-200"
-          leave-active-class="animate-out fade-out-0 duration-200"
-          move-class="transition-transform duration-200"
-        >
-          <div
-            v-for="(c, index) in displayCharacteristics"
-            :key="c.definitionId"
-            class="flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-accent"
-            :class="[
-              selectedCharacteristicFilter === c.definitionId ? 'bg-accent' : '',
-              index % 2 === 1 ? 'sm:border-l sm:border-border' : '',
-              index > 0 ? 'border-t border-border' : '',
-              index === 1 ? 'sm:border-t-0' : '',
-            ]"
-            @click="toggleCharacteristicFilter(c.definitionId)"
-          >
-            <span class="min-w-0 truncate text-muted-foreground">{{ c.name }}</span>
-            <span class="shrink-0 font-medium">{{ c.hasValue ? formatValue(c) : '—' }}</span>
-          </div>
-          <!-- Нечётное количество характеристик — последняя карточка одна в своей строке,
-               по прямой просьбе НЕ растягиваем её на обе колонки (пустое место остаётся
-               пустым). Вместо этого невидимая ячейка во второй колонке с той же
-               border-t/border-l линией, что была бы у настоящей пары — только чтобы
-               разделитель всё равно доходил до правого края, а не обрывался на середине. -->
-          <div
-            v-if="displayCharacteristics.length % 2 === 1"
-            key="grid-placeholder"
-            aria-hidden="true"
-            class="hidden border-t border-l border-border sm:block"
-          />
-        </TransitionGroup>
+             снимает фильтр (см. RoomCharacteristicsGrid.vue — общий с RoomInfoTrigger.vue
+             компонент, там же разметка/сортировка/formatValue, вынесено 2026-08-28). -->
+        <RoomCharacteristicsGrid
+          class="shrink-0"
+          :rows="displayCharacteristics"
+          interactive
+          :selected-id="selectedCharacteristicFilter"
+          @select="toggleCharacteristicFilter"
+        />
 
         <div class="flex shrink-0 items-center gap-2">
           <div class="flex items-center gap-2 text-sm font-medium text-muted-foreground">

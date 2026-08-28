@@ -104,6 +104,11 @@
   "footer": {
     "copyright": "© 1991–2026 Russian New University"
   },
+  "session": {
+    "expiredTitle": "Session expired",
+    "expiredDescription": "Log in again to continue.",
+    "expiredAction": "Log in"
+  },
   "errors": {
     "tooManyRequests": "Too many requests — please wait a moment and try again",
     "checkDataFields": "Please check the data you entered"

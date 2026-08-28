@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { LogIn } from 'lucide-vue-next'
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
+import { Button } from '@/components/ui/button'
 import AppSidebar from './components/AppSidebar.vue'
 import AppFooter from './components/AppFooter.vue'
 import { currentUser, isAuthLoading, ensureUserLoaded } from '@/lib/auth-state'
 import { rosnouLoginUrl } from '@/lib/auth-api'
+import { sessionExpired } from '@/lib/api-base'
 import { breadcrumbOverride, breadcrumbTrail as trackedTrail } from '@/lib/breadcrumb-state'
 
 const { t } = useI18n()
@@ -30,6 +33,10 @@ onMounted(async () => {
     window.location.href = rosnouLoginUrl()
   }
 })
+
+function goToLogin() {
+  window.location.href = rosnouLoginUrl()
+}
 </script>
 
 <template>
@@ -74,4 +81,21 @@ onMounted(async () => {
       </div>
     </SidebarInset>
   </SidebarProvider>
+
+  <!-- Сессия истекла (401 с любого API-запроса, кроме /auth/me — см. sessionExpired в
+       api-base.ts) — явное предложение перелогиниться поверх всего экрана, вместо того
+       чтобы оставлять только текст "(401)" на месте сломавшегося запроса. Без крестика
+       и закрытия по клику вне/Escape (не components/ui/dialog — тот всегда несёт свой
+       DialogClose) — уходить отсюда, кроме как логином, всё равно некуда, любой
+       следующий запрос к API получит тот же 401. -->
+  <div v-if="sessionExpired" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4">
+    <div class="flex max-w-sm flex-col items-center gap-3 rounded-lg border bg-background p-6 text-center shadow-lg">
+      <LogIn class="size-8 text-primary" />
+      <div>
+        <p class="text-sm font-medium">{{ t('session.expiredTitle') }}</p>
+        <p class="mt-1 text-sm text-muted-foreground">{{ t('session.expiredDescription') }}</p>
+      </div>
+      <Button class="mt-1" @click="goToLogin">{{ t('session.expiredAction') }}</Button>
+    </div>
+  </div>
 </template>

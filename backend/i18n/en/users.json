@@ -3,6 +3,7 @@
     "userNotFound": "User not found",
     "roleNotFound": "Role not found",
     "individualUidNotFound": "No individual with this univer_id was found (no such uid among individuals)",
-    "roleNameExists": "A role with this name already exists"
+    "roleNameExists": "A role with this name already exists",
+    "cannotRevokeOwnAdminRole": "You can't revoke your own Administrator role — ask another administrator to do it"
   }
 }

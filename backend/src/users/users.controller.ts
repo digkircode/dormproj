@@ -304,6 +304,17 @@ export class UsersController {
     ]);
     if (!user) throw new NotFoundException('users.errors.userNotFound');
 
+    // Самоблокировка админа — вызывающий не может отозвать сам у себя роль ADMIN. У одного
+    // пользователя ровно одна запись на роль (составной PK UserRole в schema.prisma), так
+    // что "своя единственная роль ADMIN" здесь — не частный случай, а всегда весь доступ
+    // целиком. Роли проверяются живьём на каждый запрос (см. auth.guard.ts), поэтому эффект
+    // был бы мгновенным и без права на откат иначе, чем руками через psql. Не мешает
+    // ОСТАЛЬНЫМ администраторам отзывать ADMIN друг у друга — это осознанный размен
+    // (см. известную проблему в промпте проекта, исправлено 2026-08-28).
+    if (role?.name === 'ADMIN' && id === req.user.id) {
+      throw new BadRequestException('users.errors.cannotRevokeOwnAdminRole');
+    }
+
     await this.prisma.$transaction(async (tx) => {
       await tx.userRole.deleteMany({ where: { userId: id, roleId } });
       if (role) {

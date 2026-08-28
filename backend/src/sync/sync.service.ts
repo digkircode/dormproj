@@ -5,6 +5,7 @@ import { ExternalStudentApiService } from './external-student-api.service';
 import { toStudentData } from './student.mapper';
 import {
   getErrorMessage,
+  sanitizeErrorStack,
   SyncAlreadyRunningError,
   SyncGuardTrippedError,
 } from './sync.errors';
@@ -129,7 +130,7 @@ export class SyncService {
           status: 'FAILED',
           finishedAt: new Date(),
           errorMessage: getErrorMessage(error),
-          errorStack: error instanceof Error ? error.stack : undefined,
+          errorStack: sanitizeErrorStack(error),
         },
       });
       throw error;
@@ -142,27 +143,41 @@ export class SyncService {
   // падения количества (тот защищает полный слепок; здесь 0 записей у человека,
   // переставшего быть активным студентом, — легитимный исход, а не сбой источника).
   // Отдельного SyncLog не пишет — это шаг общего лога, который ведёт IndividualSyncService.
+  //
+  // Держит ТОТ ЖЕ лок SYNC_TYPE_STUDENTS, что и runSync() — раньше не держала вообще
+  // (только внешний SYNC_TYPE_INDIVIDUAL у IndividualSyncService, который синка студентов
+  // никак не защищает), из-за чего ночной крон (runSync) и точечный синк с карточки могли
+  // одновременно писать в таблицу student: либо точечный синк молча перезатирался полным
+  // слепком, либо оба upsert'а сталкивались на уникальном ключе необработанной 500-кой
+  // (см. известную проблему в промпте проекта, исправлено 2026-08-28). Теперь при коллизии
+  // точечный синк просто получает SyncAlreadyRunningError → 409 с понятным сообщением
+  // (см. individuals.controller.ts#sync), вместо порчи данных/500.
   async syncOne(uid: string): Promise<{ fetchedCount: number; added: number; removed: number; records: unknown[] }> {
-    const records = await this.externalApi.fetchActiveStudentsByUid(uid);
+    await this.acquireLock();
+    try {
+      const records = await this.externalApi.fetchActiveStudentsByUid(uid);
 
-    return this.prisma.$transaction(
-      async (tx) => {
-        const existingCount = await tx.student.count({ where: { fizicheskoyeLitsoUid: uid } });
-        await tx.student.deleteMany({ where: { fizicheskoyeLitsoUid: uid } });
+      return await this.prisma.$transaction(
+        async (tx) => {
+          const existingCount = await tx.student.count({ where: { fizicheskoyeLitsoUid: uid } });
+          await tx.student.deleteMany({ where: { fizicheskoyeLitsoUid: uid } });
 
-        if (records.length > 0) {
-          await tx.student.createMany({
-            data: records.map((record) => ({
-              zachetnayaKnigaUid: record.ZachetnayaKnigaUID,
-              ...toStudentData(record),
-            })),
-          });
-        }
+          if (records.length > 0) {
+            await tx.student.createMany({
+              data: records.map((record) => ({
+                zachetnayaKnigaUid: record.ZachetnayaKnigaUID,
+                ...toStudentData(record),
+              })),
+            });
+          }
 
-        return { fetchedCount: records.length, added: records.length, removed: existingCount, records };
-      },
-      { timeout: TRANSACTION_TIMEOUT_MS },
-    );
+          return { fetchedCount: records.length, added: records.length, removed: existingCount, records };
+        },
+        { timeout: TRANSACTION_TIMEOUT_MS },
+      );
+    } finally {
+      await this.releaseLock();
+    }
   }
 
   private async acquireLock(): Promise<void> {

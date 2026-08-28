@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service';
-import { getErrorMessage, SyncAlreadyRunningError } from '../sync/sync.errors';
+import { getErrorMessage, sanitizeErrorStack, SyncAlreadyRunningError } from '../sync/sync.errors';
 import type { SyncTriggerType } from '../sync/sync.service';
 import { ExternalContactInfoApiService } from './external-contact-info-api.service';
 import { toContactInfoData } from './contact-info.mapper';
@@ -101,7 +101,7 @@ export class ContactInfoSyncService {
           status: 'FAILED',
           finishedAt: new Date(),
           errorMessage: getErrorMessage(error),
-          errorStack: error instanceof Error ? error.stack : undefined,
+          errorStack: sanitizeErrorStack(error),
         },
       });
       throw error;

@@ -351,29 +351,28 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
               <p class="text-lg font-medium">{{ formatMoney(contract.terms[0]?.dailyRateAmount ?? 0) }}</p>
             </div>
           </div>
-          <!-- Кликабельно — открывает историю начисления по дням (см. isPenaltyDialogOpen),
-               по прямой просьбе 2026-08-26: раньше сумма пени не объяснялась ничем. Сумма
-               подчёркнута пунктиром — тот же приём, что у PenaltyBalanceCell.vue в
-               Финансовом отчёте, чтобы кликабельность считывалась сразу (по прямой просьбе
-               2026-08-27), а не только по hover-фону всего тайла. -->
-          <button
-            type="button"
-            class="-m-1 flex items-center gap-3 rounded-lg p-1 text-left transition-colors hover:bg-accent"
-            @click="isPenaltyDialogOpen = true"
-          >
+          <!-- Кликабельна только сама сумма (открывает историю начисления по дням, см.
+               isPenaltyDialogOpen), не весь тайл — раньше подсвечивался фоном весь блок
+               при наведении, выглядело неопрятно на фоне остальных (некликабельных)
+               тайлов рядом; теперь тот же приём, что у PenaltyBalanceCell.vue в Финансовом
+               отчёте — подчёркнутая сумма без общего hover-фона (по прямой просьбе
+               2026-08-28). -->
+          <div class="flex items-center gap-3">
             <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-500/15">
               <Percent class="size-5 text-orange-600 dark:text-orange-400" />
             </div>
             <div>
               <p class="text-xs text-muted-foreground">{{ t('contracts.detail.penalty') }}</p>
-              <p
-                class="text-lg font-medium underline decoration-dotted underline-offset-2"
-                :class="contract.penaltyBalance > 0 ? 'text-red-500' : ''"
+              <button
+                type="button"
+                class="rounded-sm text-lg font-medium underline decoration-dotted underline-offset-2"
+                :class="contract.penaltyBalance > 0 ? 'text-red-500 hover:text-red-600' : 'hover:text-foreground/80'"
+                @click="isPenaltyDialogOpen = true"
               >
                 {{ formatMoney(contract.penaltyBalance) }}
-              </p>
+              </button>
             </div>
-          </button>
+          </div>
         </div>
       </Card>
 
