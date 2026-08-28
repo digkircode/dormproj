@@ -113,8 +113,8 @@ function isoToday(): string {
 }
 const asOf = ref(isoToday())
 
-function fetchPage(options: ListOptions) {
-  return fetchDebtorsPage(options, asOf.value)
+function fetchPage(options: ListOptions, signal?: AbortSignal) {
+  return fetchDebtorsPage(options, asOf.value, signal)
 }
 
 const summary = ref<DebtorsSummary | null>(null)

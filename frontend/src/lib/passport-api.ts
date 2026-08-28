@@ -19,8 +19,8 @@ export type PassportsPage = ListPage<Passport>
 export type FetchPassportOptions = ListOptions
 export type { FacetOption }
 
-export function fetchPassports(options: FetchPassportOptions): Promise<PassportsPage> {
-  return fetchListPage<Passport>('/passport', options)
+export function fetchPassports(options: FetchPassportOptions, signal?: AbortSignal): Promise<PassportsPage> {
+  return fetchListPage<Passport>('/passport', options, undefined, signal)
 }
 
 export function fetchFacetValues(field: string): Promise<FacetOption[]> {

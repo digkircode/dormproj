@@ -183,8 +183,8 @@ async function downloadFile(path: string, filename: string): Promise<void> {
 }
 
 // --- Финансовый отчёт (бывшая "Задолженность") ---
-export function fetchDebtorsPage(options: ListOptions, asOf: string): Promise<ListPage<DebtorRow>> {
-  return fetchListPage<DebtorRow>('/reports/debtors', options, { asOf })
+export function fetchDebtorsPage(options: ListOptions, asOf: string, signal?: AbortSignal): Promise<ListPage<DebtorRow>> {
+  return fetchListPage<DebtorRow>('/reports/debtors', options, { asOf }, signal)
 }
 export function fetchDebtorsFacets(field: string): Promise<FacetOption[]> {
   return fetchListFacets('/reports/debtors', field)
@@ -212,8 +212,8 @@ export function fetchOccupancy(): Promise<OccupancyReport> {
 }
 
 // --- Реестр проживающих ---
-export function fetchContingentPage(options: ListOptions, asOf: string): Promise<ListPage<ContingentRow>> {
-  return fetchListPage<ContingentRow>('/reports/contingent', options, { asOf })
+export function fetchContingentPage(options: ListOptions, asOf: string, signal?: AbortSignal): Promise<ListPage<ContingentRow>> {
+  return fetchListPage<ContingentRow>('/reports/contingent', options, { asOf }, signal)
 }
 export function fetchContingentFacets(field: string): Promise<FacetOption[]> {
   return fetchListFacets('/reports/contingent', field)
@@ -223,8 +223,8 @@ export function exportContingentExcel(asOf: string): Promise<void> {
 }
 
 // --- Реестр договоров ---
-export function fetchContractsRegistryPage(options: ListOptions): Promise<ListPage<ContractRegistryRow>> {
-  return fetchListPage<ContractRegistryRow>('/reports/contracts-registry', options)
+export function fetchContractsRegistryPage(options: ListOptions, signal?: AbortSignal): Promise<ListPage<ContractRegistryRow>> {
+  return fetchListPage<ContractRegistryRow>('/reports/contracts-registry', options, undefined, signal)
 }
 export function fetchContractsRegistryFacets(field: string): Promise<FacetOption[]> {
   return fetchListFacets('/reports/contracts-registry', field)
@@ -237,8 +237,8 @@ export function exportContractsRegistryExcel(): Promise<void> {
 }
 
 // --- Заселение / выселение ---
-export function fetchMovementsPage(options: ListOptions, from: string, to: string): Promise<ListPage<MovementEvent>> {
-  return fetchListPage<MovementEvent>('/reports/movements', options, { from, to })
+export function fetchMovementsPage(options: ListOptions, from: string, to: string, signal?: AbortSignal): Promise<ListPage<MovementEvent>> {
+  return fetchListPage<MovementEvent>('/reports/movements', options, { from, to }, signal)
 }
 export function fetchMovementsFacets(field: string): Promise<FacetOption[]> {
   return fetchListFacets('/reports/movements', field)

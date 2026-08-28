@@ -14,8 +14,8 @@ export type CitizenshipPage = ListPage<Citizenship>
 export type FetchCitizenshipOptions = ListOptions
 export type { FacetOption }
 
-export function fetchCitizenship(options: FetchCitizenshipOptions): Promise<CitizenshipPage> {
-  return fetchListPage<Citizenship>('/citizenship', options)
+export function fetchCitizenship(options: FetchCitizenshipOptions, signal?: AbortSignal): Promise<CitizenshipPage> {
+  return fetchListPage<Citizenship>('/citizenship', options, undefined, signal)
 }
 
 export function fetchFacetValues(field: string): Promise<FacetOption[]> {

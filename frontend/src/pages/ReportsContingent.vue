@@ -66,8 +66,8 @@ function isoToday(): string {
 }
 const asOf = ref(isoToday())
 
-function fetchPage(options: ListOptions) {
-  return fetchContingentPage(options, asOf.value)
+function fetchPage(options: ListOptions, signal?: AbortSignal) {
+  return fetchContingentPage(options, asOf.value, signal)
 }
 
 const entityTable = ref<{ refresh: () => void } | null>(null)

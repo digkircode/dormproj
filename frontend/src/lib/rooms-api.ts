@@ -43,8 +43,8 @@ export interface RoomDetail extends Room {
 
 export type RoomsPage = ListPage<Room>
 
-export function fetchRooms(options: ListOptions): Promise<RoomsPage> {
-  return fetchListPage<Room>('/rooms', options)
+export function fetchRooms(options: ListOptions, signal?: AbortSignal): Promise<RoomsPage> {
+  return fetchListPage<Room>('/rooms', options, undefined, signal)
 }
 
 // Для дерева "Общежитие → этажи → комнаты" — все комнаты разом, без пагинации.

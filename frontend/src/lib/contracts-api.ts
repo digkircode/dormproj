@@ -211,8 +211,8 @@ export interface CreateContractInput {
   matCapitalDeferredUntil?: string | null
 }
 
-export function fetchContractsPage(options: FetchContractsOptions): Promise<ContractsPage> {
-  return fetchListPage<ContractListItem>('/contracts', options)
+export function fetchContractsPage(options: FetchContractsOptions, signal?: AbortSignal): Promise<ContractsPage> {
+  return fetchListPage<ContractListItem>('/contracts', options, undefined, signal)
 }
 
 export function fetchContractFacets(field: string): Promise<FacetOption[]> {

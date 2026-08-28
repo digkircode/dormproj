@@ -52,7 +52,9 @@ const props = withDefaults(
     columnLabels: Record<string, string>
     filterableFields: string[]
     defaultSort: { id: string; desc: boolean }
-    fetchPage: (options: ListOptions) => Promise<ListPage<TData>>
+    // signal — необязательный, отдаётся при отмене устаревшего запроса (см. loadPage
+    // ниже); реализации на клиентских данных (client-list.ts) его просто игнорируют.
+    fetchPage: (options: ListOptions, signal?: AbortSignal) => Promise<ListPage<TData>>
     fetchFacetValues: (field: string) => Promise<FacetOption[]>
     getRowId: (row: TData) => string
     totalLabel: string
@@ -227,19 +229,37 @@ const columnSizeVars = computed(() => {
   return vars
 })
 
+// Гонка устаревших ответов (была известная проблема, см. промпт проекта) — быстрая смена
+// поиска/фильтров/сортировки/страницы запускала loadPage() заново, не дожидаясь и не отменяя
+// предыдущий вызов; при медленной/неравномерной сети более старый ответ мог прилететь
+// ПОСЛЕ нового и молча перезаписать актуальные данные. Фикс — свой AbortController на
+// каждый вызов: предыдущий (если ещё не завершился) отменяется явно перед стартом нового,
+// а результат/ошибка применяются только если это всё ещё САМЫЙ ПОСЛЕДНИЙ запущенный вызов
+// (controller === activeController) — так отменённый вызов не может ни записать в rows,
+// ни погасить isLoading за уже стартовавший следом новый.
+let activeController: AbortController | undefined
+
 async function loadPage() {
+  activeController?.abort()
+  const controller = new AbortController()
+  activeController = controller
+
   isLoading.value = true
   errorText.value = ''
   try {
     const sort = sorting.value[0]
-    const page = await props.fetchPage({
-      page: pagination.value.pageIndex + 1,
-      pageSize: pagination.value.pageSize,
-      search: search.value,
-      sortBy: sort?.id ?? props.defaultSort.id,
-      sortDir: sort?.desc ? 'desc' : 'asc',
-      filters: filterValues.value,
-    })
+    const page = await props.fetchPage(
+      {
+        page: pagination.value.pageIndex + 1,
+        pageSize: pagination.value.pageSize,
+        search: search.value,
+        sortBy: sort?.id ?? props.defaultSort.id,
+        sortDir: sort?.desc ? 'desc' : 'asc',
+        filters: filterValues.value,
+      },
+      controller.signal,
+    )
+    if (controller.signal.aborted) return
     rows.value = page.data
     total.value = page.total
     // Выбор — только в рамках уже показанной страницы (см. selectable выше), поэтому
@@ -248,11 +268,15 @@ async function loadPage() {
     selected.value = []
     emit('loaded', page.data)
   } catch (error) {
+    // Отменённый нами же запрос — не показывать как ошибку пользователю (см. выше).
+    if (controller.signal.aborted) return
     errorText.value = error instanceof Error ? error.message : String(error)
   } finally {
-    isLoading.value = false
+    if (controller === activeController) isLoading.value = false
   }
 }
+
+onBeforeUnmount(() => activeController?.abort())
 
 // --- Выбор строк чекбоксами (только при selectable, см. проп выше) ---
 function isRowSelected(row: TData): boolean {

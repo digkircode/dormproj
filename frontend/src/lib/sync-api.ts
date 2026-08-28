@@ -28,8 +28,8 @@ export interface SyncLogEntry {
 export type SyncLogsPage = ListPage<SyncLogEntry>
 export type { FacetOption }
 
-export function fetchSyncLogsPage(basePath: string, options: ListOptions): Promise<SyncLogsPage> {
-  return fetchListPage<SyncLogEntry>(`${basePath}/logs`, options)
+export function fetchSyncLogsPage(basePath: string, options: ListOptions, signal?: AbortSignal): Promise<SyncLogsPage> {
+  return fetchListPage<SyncLogEntry>(`${basePath}/logs`, options, undefined, signal)
 }
 
 export function fetchSyncLogFacets(basePath: string, field: string): Promise<FacetOption[]> {

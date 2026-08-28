@@ -22,8 +22,8 @@ export type AuditLogPage = ListPage<AuditLogRow>
 export type FetchAuditLogOptions = ListOptions
 export type { FacetOption }
 
-export function fetchAuditLogPage(options: FetchAuditLogOptions): Promise<AuditLogPage> {
-  return fetchListPage<AuditLogRow>('/audit-log', options)
+export function fetchAuditLogPage(options: FetchAuditLogOptions, signal?: AbortSignal): Promise<AuditLogPage> {
+  return fetchListPage<AuditLogRow>('/audit-log', options, undefined, signal)
 }
 
 export function fetchAuditLogFacets(field: string): Promise<FacetOption[]> {

@@ -70,8 +70,8 @@ function isoToday(): string {
 const from = ref('')
 const to = ref(isoToday())
 
-function fetchPage(options: ListOptions) {
-  return fetchMovementsPage(options, from.value, to.value)
+function fetchPage(options: ListOptions, signal?: AbortSignal) {
+  return fetchMovementsPage(options, from.value, to.value, signal)
 }
 
 const summary = ref<MovementsSummary | null>(null)

@@ -29,8 +29,8 @@ export type StudentsPage = ListPage<Student>
 export type FetchStudentsOptions = ListOptions
 export type { FacetOption }
 
-export function fetchStudents(options: FetchStudentsOptions): Promise<StudentsPage> {
-  return fetchListPage<Student>('/students', options)
+export function fetchStudents(options: FetchStudentsOptions, signal?: AbortSignal): Promise<StudentsPage> {
+  return fetchListPage<Student>('/students', options, undefined, signal)
 }
 
 export function fetchFacetValues(field: string): Promise<FacetOption[]> {

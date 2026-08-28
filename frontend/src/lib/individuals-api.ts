@@ -92,8 +92,8 @@ export type IndividualsPage = ListPage<Individual>
 export type FetchIndividualsOptions = ListOptions
 export type { FacetOption }
 
-export function fetchIndividuals(options: FetchIndividualsOptions): Promise<IndividualsPage> {
-  return fetchListPage<Individual>('/individuals', options)
+export function fetchIndividuals(options: FetchIndividualsOptions, signal?: AbortSignal): Promise<IndividualsPage> {
+  return fetchListPage<Individual>('/individuals', options, undefined, signal)
 }
 
 export function fetchFacetValues(field: string): Promise<FacetOption[]> {

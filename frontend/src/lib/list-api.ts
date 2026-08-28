@@ -25,7 +25,15 @@ export interface FacetOption {
 // extra — доп. параметры вроде asOf/from/to, которые EntityTable сама не знает (не часть
 // ListOptions) — родительская страница добавляет их сама, тот же приём, что уже был у
 // fetchMovementsPage, вынесен сюда, когда понадобился ещё в паре мест.
-export async function fetchListPage<T>(basePath: string, options: ListOptions, extra?: Record<string, string>): Promise<ListPage<T>> {
+// signal — опциональный AbortSignal (см. EntityTable.vue#loadPage): отменяет предыдущий
+// запрос при быстрой смене фильтров/сортировки/страницы, чтобы устаревший ответ не
+// перезаписал уже актуальные данные (была известная гонка, см. промпт проекта).
+export async function fetchListPage<T>(
+  basePath: string,
+  options: ListOptions,
+  extra?: Record<string, string>,
+  signal?: AbortSignal,
+): Promise<ListPage<T>> {
   const params = new URLSearchParams({
     page: String(options.page),
     pageSize: String(options.pageSize),
@@ -40,7 +48,7 @@ export async function fetchListPage<T>(basePath: string, options: ListOptions, e
   if (Object.keys(activeFilters).length > 0) {
     params.set('filters', JSON.stringify(activeFilters))
   }
-  const response = await apiFetch(`${basePath}?${params}`)
+  const response = await apiFetch(`${basePath}?${params}`, { signal })
   if (!response.ok) {
     throw new Error(`Не удалось получить данные (${response.status})`)
   }

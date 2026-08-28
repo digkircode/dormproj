@@ -250,7 +250,10 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
 
 <template>
   <div class="flex min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
-    <div class="flex items-center gap-2">
+    <!-- flex-wrap — на узком экране дропдаун договора + пилюля статуса + кнопка "Оплатить"
+         (ml-auto) не помещаются в одну строку без переноса (особенно с длинным номером
+         договора вроде VIP27-27/01) — без wrap строка вылезала бы за ширину экрана. -->
+    <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
       <Button v-if="!isHome" variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
         <span class="sr-only">{{ t('contracts.list.back') }}</span>

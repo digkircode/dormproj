@@ -438,7 +438,10 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
                 </Avatar>
                 <div v-else class="w-8 shrink-0" />
 
-                <div class="flex max-w-[65%] flex-col gap-1" :class="message.senderRole === viewerRole ? 'items-end' : 'items-start'">
+                <!-- max-w — 85% на узком экране (65% от 375px читалось бы слишком тесно
+                     для многострочных сообщений), обратно к прежним 65% с чуть более
+                     широкого экрана, где это уже не проблема. -->
+                <div class="flex max-w-[85%] flex-col gap-1 sm:max-w-[65%]" :class="message.senderRole === viewerRole ? 'items-end' : 'items-start'">
                   <span v-if="message.senderFullName" class="px-1 text-xs font-medium text-muted-foreground">{{ shortName(message.senderFullName) }}</span>
 
                   <!-- Вложения + подпись — единое "облачко" (по прямой просьбе, как в Telegram):

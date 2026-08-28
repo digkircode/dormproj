@@ -10,8 +10,8 @@ export interface UserRow {
   roles: Role[]
 }
 
-export function fetchUsersPage(options: ListOptions): Promise<ListPage<UserRow>> {
-  return fetchListPage<UserRow>('/users', options)
+export function fetchUsersPage(options: ListOptions, signal?: AbortSignal): Promise<ListPage<UserRow>> {
+  return fetchListPage<UserRow>('/users', options, undefined, signal)
 }
 export function fetchUsersFacets(field: string): Promise<FacetOption[]> {
   return fetchListFacets('/users', field)
@@ -64,8 +64,8 @@ export interface AllUsersRow {
   updatedAt: string
 }
 
-export function fetchAllUsersPage(options: ListOptions): Promise<ListPage<AllUsersRow>> {
-  return fetchListPage<AllUsersRow>('/users/all', options)
+export function fetchAllUsersPage(options: ListOptions, signal?: AbortSignal): Promise<ListPage<AllUsersRow>> {
+  return fetchListPage<AllUsersRow>('/users/all', options, undefined, signal)
 }
 
 export async function updateUserLinks(id: number, data: { azureId: string | null; univerId: string | null }): Promise<AllUsersRow> {

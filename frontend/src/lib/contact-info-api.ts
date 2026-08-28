@@ -22,8 +22,8 @@ export type ContactInfoPage = ListPage<ContactInfo>
 export type FetchContactInfoOptions = ListOptions
 export type { FacetOption }
 
-export function fetchContactInfo(options: FetchContactInfoOptions): Promise<ContactInfoPage> {
-  return fetchListPage<ContactInfo>('/contact-info', options)
+export function fetchContactInfo(options: FetchContactInfoOptions, signal?: AbortSignal): Promise<ContactInfoPage> {
+  return fetchListPage<ContactInfo>('/contact-info', options, undefined, signal)
 }
 
 export function fetchFacetValues(field: string): Promise<FacetOption[]> {

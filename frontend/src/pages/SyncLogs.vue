@@ -88,8 +88,8 @@ const columns = computed(() =>
   ]),
 )
 
-function fetchPage(options: ListOptions) {
-  return fetchSyncLogsPage(entity.value?.basePath ?? '', options)
+function fetchPage(options: ListOptions, signal?: AbortSignal) {
+  return fetchSyncLogsPage(entity.value?.basePath ?? '', options, signal)
 }
 
 function fetchFacetValues(field: string) {

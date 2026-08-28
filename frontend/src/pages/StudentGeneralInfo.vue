@@ -186,26 +186,32 @@ onMounted(async () => {
     </div>
 
     <Tabs default-value="general">
-      <TabsList>
-        <TabsTrigger value="general">
-          <span class="flex items-center gap-1.5">
-            <Building2 class="size-4 text-primary" />
-            {{ t('student.tabs.general') }}
-          </span>
-        </TabsTrigger>
-        <TabsTrigger value="payment">
-          <span class="flex items-center gap-1.5">
-            <Wallet class="size-4 text-primary" />
-            {{ t('student.tabs.payment') }}
-          </span>
-        </TabsTrigger>
-        <TabsTrigger value="contacts">
-          <span class="flex items-center gap-1.5">
-            <Contact class="size-4 text-primary" />
-            {{ t('student.tabs.contacts') }}
-          </span>
-        </TabsTrigger>
-      </TabsList>
+      <!-- overflow-x-auto — на узком экране 3 подписанных таба (иконка+русский текст)
+           могут не поместиться в TabsList (inline-flex, сам не переносится и не сжимается,
+           см. components/ui/tabs/TabsList.vue) — без обёртки это раздвигало бы всю
+           страницу по горизонтали, так скроллится только сама полоска табов. -->
+      <div class="overflow-x-auto">
+        <TabsList>
+          <TabsTrigger value="general">
+            <span class="flex items-center gap-1.5">
+              <Building2 class="size-4 text-primary" />
+              {{ t('student.tabs.general') }}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="payment">
+            <span class="flex items-center gap-1.5">
+              <Wallet class="size-4 text-primary" />
+              {{ t('student.tabs.payment') }}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="contacts">
+            <span class="flex items-center gap-1.5">
+              <Contact class="size-4 text-primary" />
+              {{ t('student.tabs.contacts') }}
+            </span>
+          </TabsTrigger>
+        </TabsList>
+      </div>
 
       <!-- Вкладка 1 — Здание слева развёрнутым текстом, справа Инфраструктура и под ней
            (по прямой просьбе) Доступность — перенесена сюда с левой колонки, чтобы
@@ -402,14 +408,19 @@ onMounted(async () => {
                 <div v-for="c in contacts" :key="c.label" class="flex items-start gap-2 text-sm">
                   <component :is="c.icon" class="size-4 shrink-0 text-primary" />
                   <span class="w-32 shrink-0 text-muted-foreground">{{ c.label }}</span>
-                  <span>{{ c.value }}</span>
+                  <!-- min-w-0 + break-words — email/адрес без пробелов иначе не переносится
+                       внутри flex-строки и растягивает её (и всю страницу) по горизонтали
+                       на узком экране. -->
+                  <span class="min-w-0 break-words">{{ c.value }}</span>
                 </div>
               </div>
               <div class="mt-1 border-t pt-3">
                 <div class="mb-2 text-xs text-muted-foreground">{{ t('student.contactsAdmin.responsibleStaff') }}</div>
                 <div class="flex flex-wrap gap-6">
-                  <div v-for="p in staff" :key="p.name" class="flex w-56 flex-col items-center gap-2 text-center">
-                    <Avatar class="size-56 rounded-full border-4 border-border">
+                  <div v-for="p in staff" :key="p.name" class="flex w-40 flex-col items-center gap-2 text-center sm:w-56">
+                    <!-- size-40 на мобильном (было размером с половину экрана на узком
+                         телефоне), sm:size-56 — прежний размер с планшета и выше. -->
+                    <Avatar class="size-40 rounded-full border-4 border-border sm:size-56">
                       <AvatarImage v-if="p.photo" :src="p.photo" :alt="p.name" />
                       <AvatarFallback class="text-4xl">{{ initials(p.name) }}</AvatarFallback>
                     </Avatar>
@@ -428,14 +439,14 @@ onMounted(async () => {
                 <div v-for="d in ddm" :key="d.label" class="flex items-start gap-2 text-sm">
                   <component :is="d.icon" class="size-4 shrink-0 text-primary" />
                   <span class="w-32 shrink-0 text-muted-foreground">{{ d.label }}</span>
-                  <span>{{ d.value }}</span>
+                  <span class="min-w-0 break-words">{{ d.value }}</span>
                 </div>
               </div>
               <div class="mt-1 border-t pt-3">
                 <div class="mb-2 text-xs text-muted-foreground">{{ t('student.contactsAdmin.responsibleStaff') }}</div>
                 <div class="flex flex-wrap gap-6">
-                  <div v-for="p in ddmStaff" :key="p.name" class="flex w-56 flex-col items-center gap-2 text-center">
-                    <Avatar class="size-56 rounded-full border-4 border-border">
+                  <div v-for="p in ddmStaff" :key="p.name" class="flex w-40 flex-col items-center gap-2 text-center sm:w-56">
+                    <Avatar class="size-40 rounded-full border-4 border-border sm:size-56">
                       <AvatarImage v-if="p.photo" :src="p.photo" :alt="p.name" />
                       <AvatarFallback class="text-4xl">{{ initials(p.name) }}</AvatarFallback>
                     </Avatar>
