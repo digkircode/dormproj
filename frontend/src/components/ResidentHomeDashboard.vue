@@ -69,16 +69,16 @@ function telHref(phone: string): string {
          приветствие по имени + текст + две кнопки слева, маскот с "репликой" справа,
          фон карточки — светло-голубой (как в референсе, не нейтральный bg-card). -->
     <Card class="relative flex flex-col items-start gap-6 overflow-hidden bg-sky-50 p-6 dark:bg-sky-500/10 sm:flex-row sm:items-center sm:justify-between">
-      <!-- "Облачко" — три кружка каскадом от угла карточки (по присланному пользователем
-           скриншоту-референсу 2026-08-28, второй заход: первая попытка — один blur-круг
-           именно за маскотом — не совпадала с референсом вообще, там три кружка чётких
-           краёв в углу самой карточки). Обрезаются overflow-hidden самой Card — снаружи
-           видна только часть, поэтому "выступают" зубчатым краем от угла, как на картинке.
-           Цвет — на шаг темнее фона шапки (bg-sky-50), не яркий/насыщенный ("нежный"). -->
+      <!-- "Облачко" — три кружка каскадом от угла карточки, третий заход 2026-08-28: было
+           слишком мелко и разрозненно (кружки не касались друг друга и почти не задевали
+           край) — теперь плотно перекрываются и садятся прямо на правый нижний угол, самый
+           крупный ~15% ширины шапки, чтобы угол был визуально плотно "закрыт", а не еле
+           заметно тронут. Обрезаются overflow-hidden самой Card. Цвет — на шаг темнее фона
+           шапки (bg-sky-50), не яркий/насыщенный ("нежный"). -->
       <div class="pointer-events-none absolute inset-0" aria-hidden="true">
-        <div class="absolute -right-10 -bottom-10 size-40 rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <div class="absolute right-10 bottom-20 size-28 rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <div class="absolute right-24 bottom-32 size-20 rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute -right-10 -bottom-10 size-36 rounded-full bg-sky-100 dark:bg-sky-400/15 sm:size-48" />
+        <div class="absolute -right-2 bottom-8 size-28 rounded-full bg-sky-100 dark:bg-sky-400/15 sm:size-36" />
+        <div class="absolute right-14 bottom-1 size-20 rounded-full bg-sky-100 dark:bg-sky-400/15 sm:size-28" />
       </div>
 
       <div class="relative z-10 max-w-lg">
@@ -94,8 +94,12 @@ function telHref(phone: string): string {
         </h1>
         <p class="mt-3 text-base text-muted-foreground">{{ t('home.resident.greetingBody1') }}</p>
         <p class="mt-3 text-base text-muted-foreground">{{ t('home.resident.greetingBody2') }}</p>
-        <div class="mt-4 flex flex-wrap gap-3">
-          <Button @click="paymentDialog?.open()">
+        <!-- grid grid-cols-2 (не flex) — гарантирует РАВНУЮ ширину обеих кнопок независимо
+             от разной длины текста ("Оплатить проживание" длиннее "Мой договор"), а не
+             просто равную высоту — по прямой просьбе 2026-08-28, третий заход. w-full на
+             каждой кнопке — растягивает её на всю ширину своей grid-колонки. -->
+        <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Button class="w-full" @click="paymentDialog?.open()">
             <CreditCard class="size-4" />
             {{ t('home.resident.payHero') }}
           </Button>
@@ -104,11 +108,10 @@ function telHref(phone: string): string {
                получает merged-классы кнопки (см. reka-ui Primitive/Slot.ts#mergeProps) —
                RouterLink остаётся без layout-классов вообще, из-за чего иконка (block по
                Tailwind preflight для svg) и текст переносятся на разные строки внутри
-               него. Обходим — RouterLink напрямую с теми же классами buttonVariants,
-               без Button/as-child посредника вообще, гарантированно тот же size/паддинги/
-               высота, что у "Оплатить проживание" выше. Сам цвет (outline) не трогаем по
-               прямой просьбе — только иконка перекрашена в primary. -->
-          <RouterLink to="/student/contract" :class="buttonVariants({ variant: 'outline' })">
+               него. Обходим — RouterLink напрямую с теми же классами buttonVariants, без
+               Button/as-child посредника вообще. Сам цвет (outline) не трогаем по прямой
+               просьбе — только иконка перекрашена в primary. -->
+          <RouterLink to="/student/contract" :class="[buttonVariants({ variant: 'outline' }), 'w-full']">
             <FileText class="size-4 text-primary" />
             {{ t('home.resident.myContractButton') }}
           </RouterLink>
@@ -165,22 +168,22 @@ function telHref(phone: string): string {
               </div>
             </div>
           </div>
-          <!-- mt-auto — карточка стоит в sm:grid-cols-2 рядом с "Оплатой" (см. grid ниже),
-               grid по умолчанию тянет оба айтема на равную высоту (align-items: stretch) —
-               без mt-auto "Подробнее" оставался бы сразу под контентом, а не у нижнего края
-               карточки, если сосед выше (по прямой просьбе 2026-08-28, "черточку и
-               подробнее во всех блоках снизу"). self-start — та же причина, по которой без
-               него кликабельна вся ширина карточки: flex-child в flex-col по умолчанию
-               растягивается на всю ширину (align-items: stretch), а RouterLink — реальный
-               <a>, значит растянутый инвизибл-хвост тоже кликабелен (по прямой просьбе
-               2026-08-28, "не всё пространство кликабельным, а только надписи"). -->
-          <RouterLink
-            to="/student/contract"
-            class="mt-auto inline-flex items-center gap-1 self-start border-t pt-3 text-sm text-primary hover:underline"
-          >
-            {{ t('home.resident.contractLink') }}
-            <ArrowRight class="size-3.5" />
-          </RouterLink>
+          <!-- mt-auto на ОБЁРТКЕ (не на самой ссылке) — карточка стоит в sm:grid-cols-2
+               рядом с "Оплатой" (см. grid ниже), grid тянет оба айтема на равную высоту
+               (align-items: stretch), без mt-auto блок остался бы сразу под контентом, а
+               не у нижнего края более высокой карточки-соседа. Черта (border-t) — на этой
+               же обёртке, поэтому тянется на всю ширину карточки (обёртка — обычный div,
+               растягивается по умолчанию) — а кликабельна только сама ссылка внутри неё,
+               по размеру своего текста (inline-flex, ужимается по контенту сам по себе, раз
+               уж он не прямой flex-child растягивающегося контейнера) — оба требования
+               2026-08-28 (третий заход: "черточка на всю ширину" + "кликабельны только
+               надписи") больше не противоречат друг другу. -->
+          <div class="mt-auto border-t pt-3">
+            <RouterLink to="/student/contract" class="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+              {{ t('home.resident.contractLink') }}
+              <ArrowRight class="size-3.5" />
+            </RouterLink>
+          </div>
         </template>
         <template v-else-if="!isLoading">
           <p class="text-sm text-muted-foreground">{{ t('home.resident.noContract') }}</p>
@@ -232,17 +235,18 @@ function telHref(phone: string): string {
             </div>
             <p v-else class="mt-1 text-sm text-muted-foreground">{{ t('home.resident.noOpenAccruals') }}</p>
           </div>
-          <!-- mt-auto — тот же приём, что у "Подробнее" в "Моей комнате" выше: держит
-               ссылку у нижнего края карточки, растянутой grid'ом до высоты соседа.
-               self-start — та же причина, см. комментарий у "Подробнее" выше. -->
-          <button
-            type="button"
-            class="mt-auto inline-flex items-center gap-1 self-start border-t pt-3 text-left text-sm text-primary hover:underline"
-            @click="paymentDialog?.open()"
-          >
-            {{ t('home.resident.payAction') }}
-            <ArrowRight class="size-3.5" />
-          </button>
+          <!-- mt-auto + черта на обёртке, кликабельна только кнопка внутри — тот же приём,
+               что у "Подробнее" в "Моей комнате" выше (см. комментарий там). -->
+          <div class="mt-auto border-t pt-3">
+            <button
+              type="button"
+              class="inline-flex items-center gap-1 text-left text-sm text-primary hover:underline"
+              @click="paymentDialog?.open()"
+            >
+              {{ t('home.resident.payAction') }}
+              <ArrowRight class="size-3.5" />
+            </button>
+          </div>
         </template>
         <p v-else-if="!isLoading" class="text-sm text-muted-foreground">{{ t('home.resident.noContract') }}</p>
       </Card>
@@ -260,14 +264,14 @@ function telHref(phone: string): string {
           {{ t('home.resident.chatHeading') }}
         </div>
         <p class="text-sm text-muted-foreground">{{ t('home.resident.chatUnreadCount', { count: residentUnreadCount }) }}</p>
-        <!-- self-start — та же причина, см. комментарий у "Подробнее" в "Моей комнате". -->
-        <RouterLink
-          to="/student/chat"
-          class="mt-auto inline-flex items-center gap-1 self-start border-t pt-3 text-sm text-primary hover:underline"
-        >
-          {{ t('home.resident.chatCta') }}
-          <ArrowRight class="size-3.5" />
-        </RouterLink>
+        <!-- mt-auto + черта на обёртке, кликабельна только ссылка внутри — тот же приём,
+             что у "Подробнее" в "Моей комнате" выше (см. комментарий там). -->
+        <div class="mt-auto border-t pt-3">
+          <RouterLink to="/student/chat" class="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+            {{ t('home.resident.chatCta') }}
+            <ArrowRight class="size-3.5" />
+          </RouterLink>
+        </div>
       </Card>
 
       <!-- Контакты — синяя иконка, номера с кнопкой звонка (tel:), по прямой просьбе
