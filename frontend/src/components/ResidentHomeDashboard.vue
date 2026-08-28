@@ -9,10 +9,10 @@ import { fetchMyContract, type MyContractDetail } from '@/lib/contracts-api'
 import { hasUnreadResidentChat } from '@/lib/chat-unread-state'
 import { currentUser } from '@/lib/auth-state'
 import { dateLocaleTag } from '@/lib/format-locale'
-// Маскот (енот) — прислан пользователем как PNG 1.5 МБ, пережат в webp 480px/62 КБ через
-// sharp (тот же пакет, что уже используется на бэкенде для сжатия фото вложений чата) —
-// сырой файл при исходном размере ощутимо утяжелил бы бандл ради картинки 128-160px высотой.
-import mascotSrc from '@/assets/enot.webp'
+// Маскот — сгенерирован пользователем отдельно под референс (2026-08-28, вторая версия —
+// первая была фото енота без позы "как на референсе"), пережат через sharp (456×365,
+// ~22 КБ, альфа-канал сохранён) тем же приёмом, что и первая версия.
+import mascotSrc from '@/assets/mascot.webp'
 
 const { t } = useI18n()
 
@@ -65,9 +65,20 @@ function capacityLabel(capacity: number): string {
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
     <!-- Шапка сделана буквально по присланному пользователем референсу (2026-08-28):
-         приветствие по имени + текст + две кнопки слева, маскот с "репликой" справа. -->
-    <Card class="flex flex-col items-start gap-6 overflow-hidden p-6 sm:flex-row sm:items-center sm:justify-between">
-      <div class="max-w-lg">
+         приветствие по имени + текст + две кнопки слева, маскот с "репликой" справа,
+         фон карточки — светло-голубой (как в референсе, не нейтральный bg-card) +
+         декоративные "облачка" (размытые круги) позади маскота. -->
+    <Card class="relative flex flex-col items-start gap-6 overflow-hidden bg-sky-50 p-6 dark:bg-sky-500/10 sm:flex-row sm:items-center sm:justify-between">
+      <!-- "Облачка" — просто размытые круги (blur), не картинки: тот же приём, что и
+           хвостик пузыря ниже — CSS без ассетов. aria-hidden/pointer-events-none —
+           чисто декоративный слой, ничего не должно быть кликабельным/озвучиваемым. -->
+      <div class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+        <div class="absolute -top-12 right-8 size-40 rounded-full bg-sky-200/60 blur-2xl dark:bg-sky-400/10" />
+        <div class="absolute right-40 bottom-2 size-24 rounded-full bg-blue-200/50 blur-xl dark:bg-blue-400/10" />
+        <div class="absolute -right-6 -bottom-10 size-36 rounded-full bg-sky-300/40 blur-2xl dark:bg-sky-400/10" />
+      </div>
+
+      <div class="relative z-10 max-w-lg">
         <h1 class="text-xl font-semibold">
           👋 {{ firstName ? t('home.resident.greetingTitle', { name: firstName }) : t('home.resident.greetingTitleFallback') }}
         </h1>
@@ -81,7 +92,7 @@ function capacityLabel(capacity: number): string {
         </div>
       </div>
 
-      <div class="flex shrink-0 items-center gap-3">
+      <div class="relative z-10 flex shrink-0 items-center gap-3">
         <!-- "Реплика" маскота — hidden на самом узком экране (места впритык с текстом+
              кнопками уже не остаётся), с sm: и выше показывается как в референсе. Хвостик
              пузыря — повёрнутый на 45° квадрат с двумя видимыми гранями (border-t/border-r),
