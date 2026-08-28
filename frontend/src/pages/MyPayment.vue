@@ -132,16 +132,15 @@ onMounted(async () => {
       <p class="text-sm font-medium">{{ t('contracts.myContract.noContractFound') }}</p>
     </Card>
 
-    <!-- md:min-h-0/md:overflow-hidden — тот же приём, что в EntityTable.vue/Table.vue:
-         на мобильном таблица растёт по контенту и скроллится вместе со страницей, не
-         схлопывается в зажатой firm-высоте. -->
-    <Card v-if="data?.contract" class="flex flex-1 flex-col gap-0 py-0 md:min-h-0 md:overflow-hidden">
+    <!-- h-[60vh] на мобильном — см. EntityTable.vue: явная гарантированная высота вместо
+         хрупкой пропагации min-h-0 через цепочку flex-родителей. -->
+    <Card v-if="data?.contract" class="flex h-[60vh] flex-col gap-0 overflow-hidden py-0 md:h-auto md:min-h-0 md:flex-1">
       <p class="flex shrink-0 items-center gap-1.5 border-b p-4 text-sm font-medium">
         <Wallet class="size-4 text-primary" />
         {{ t('payment.myPayment.paymentHistory') }}
       </p>
       <p v-if="!data.history.length" class="p-6 text-sm text-muted-foreground">{{ t('contracts.detail.noPaymentsYet') }}</p>
-      <div v-else class="flex-1 overflow-y-auto md:min-h-0">
+      <div v-else class="min-h-0 flex-1 overflow-y-auto">
         <Table>
           <TableHeader class="sticky top-0 z-10 bg-muted">
             <TableRow>

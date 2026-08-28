@@ -400,16 +400,7 @@ defineExpose({ refresh: loadPage })
 </script>
 
 <template>
-  <!-- md:min-h-0 (не голый min-h-0) — на десктопе вся цепочка flex/min-h-0 (см. промпт
-       проекта) держит Card на фиксированной высоте родителя, таблица скроллится только
-       внутри себя, пагинация всегда видна под ней. На мобильном эта цепочка ломается
-       (родительские контейнеры страниц вроде MyContract.vue не дают настоящую firm-высоту
-       так же надёжно, как на десктопе) — Card схлопывалась, а пагинация "улетала" вниз
-       страницы, ниже общего футера сайта (реальный баг, поймано на телефоне 2026-08-28).
-       Без min-h-0 на мобильном таблица просто растёт по контенту в обычном потоке —
-       скроллится вся страница целиком (тот же overflow-y-auto в App.vue), пагинация идёт
-       сразу за таблицей, как и ожидается на телефоне. -->
-  <div class="flex flex-1 flex-col gap-4 md:min-h-0">
+  <div class="flex min-h-0 flex-1 flex-col gap-4">
     <p v-if="errorText" class="text-sm text-red-500">{{ errorText }}</p>
 
     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -526,9 +517,20 @@ defineExpose({ refresh: loadPage })
       </DialogScrollContent>
     </Dialog>
 
-    <Card class="flex min-w-0 flex-1 flex-col gap-0 py-0 md:min-h-0">
-      <div class="flex flex-1 flex-col rounded-lg border md:min-h-0 md:overflow-hidden">
-        <div class="flex flex-1 flex-col transition-opacity md:min-h-0" :class="{ 'opacity-60': isLoading }">
+    <!-- h-[60vh] на мобильном — предыдущая попытка (md:min-h-0 вместо явной высоты)
+         полагалась на то, что вся цепочка flex/min-h-0 через много уровней предков
+         (страница → Tabs → TabsContent → этот компонент) даст Card настоящую firm-высоту
+         так же надёжно, как на десктопе — на реальном телефоне это не сработало: Card
+         схлопывалась, а её собственная пагинация (сосед Card внутри этого компонента)
+         рендерилась в неожиданном месте относительно общего футера сайта (реальный баг,
+         2026-08-28). Явная высота в vh не зависит от того, дал ли родитель firm-высоту —
+         тот же приём, что уже проверенно работает у списка начислений в модалке оплаты
+         (max-h-56) и у истории пени (max-height: 50vh) — просто гарантированная высота,
+         не хрупкая пропагация через flex. md:h-auto — на десктопе (и выше) возвращаемся
+         к прежней flex-заполняющей схеме без изменений. -->
+    <Card class="flex h-[60vh] min-w-0 flex-col gap-0 py-0 md:h-auto md:min-h-0 md:flex-1">
+      <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
+        <div class="flex min-h-0 flex-1 flex-col transition-opacity" :class="{ 'opacity-60': isLoading }">
           <Table class="table-fixed" :style="columnSizeVars">
             <!-- table-layout: fixed по спецификации должен брать ширины колонок из первой
                  строки, но во время загрузки тело — один <td colspan> без индивидуальных

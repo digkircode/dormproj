@@ -17,10 +17,7 @@ const props = defineProps<{
 </script>
 
 <template>
-  <!-- md:min-h-0 — см. EntityTable.vue, тот же приём: на десктопе таблица скроллится
-       внутри себя (родитель даёт firm-высоту), на мобильном естественно растёт по
-       контенту и скроллится вместе со всей страницей. -->
-  <div class="relative w-full flex-1 overflow-auto md:min-h-0">
+  <div class="relative min-h-0 w-full flex-1 overflow-auto">
     <table v-bind="$attrs" :class="cn('w-full caption-bottom text-sm', props.class)">
       <slot />
     </table>
