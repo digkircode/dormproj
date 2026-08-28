@@ -248,6 +248,16 @@ function paymentCellText(columnId: string, value: unknown): string {
 }
 const paymentCellRenderers = { status: PaymentStatusPillCell, fiscalReceiptUrl: PaymentReceiptCell }
 const paymentFilterableFields = ['status']
+// На мобильном "Статус"/"Описание" тоже скрыты по умолчанию (тот же приём, что у
+// начислений выше) — без видимой колонки статуса список без фильтра выглядел бы как
+// нечитаемая мешанина из оплаченных/неудачных/отменённых попыток, поэтому здесь же
+// подставляется дефолтный фильтр "Оплачено" (по прямой просьбе 2026-08-28) — колонки
+// можно вернуть вручную через настройку колонок, фильтр — снять через крестик на чипе.
+const paymentHiddenByDefault = computed(() => (isMobile.value ? ['status', 'description'] : []))
+const paymentDefaultFilters = computed(() => {
+  const filters: Record<string, string[]> = isMobile.value ? { status: ['PAID'] } : {}
+  return filters
+})
 const fetchPaymentsPage = createClientFetchPage(() => unifiedPayments.value, {
   searchText: (row) => row.description,
   sortValue: (row, sortBy) => (row as unknown as Record<string, string | number>)[sortBy],
@@ -454,6 +464,8 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
             :total-label="t('contracts.myContract.totalPayments')"
             :cell-text="paymentCellText"
             :cell-renderers="paymentCellRenderers"
+            :hidden-by-default="paymentHiddenByDefault"
+            :default-filters="paymentDefaultFilters"
             storage-key="my-contract-payments"
             accent-icons
           />

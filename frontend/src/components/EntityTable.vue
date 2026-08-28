@@ -65,6 +65,12 @@ const props = withDefaults(
     cellRenderers?: Record<string, Component>
     pageSizeOptions?: number[]
     hiddenByDefault?: string[]
+    // Стартовые значения фильтров (field -> values), применяются один раз при монтировании —
+    // тот же принцип, что hiddenByDefault, но для filterValues/activeFilterFields вместо
+    // columnVisibility. В отличие от hiddenByDefault не завязан на storageKey (фильтры и так
+    // никогда не персистятся в localStorage, см. комментарий у readStoredTableState) —
+    // применяется при каждом монтировании таблицы одинаково.
+    defaultFilters?: Record<string, string[]>
     // Необязательная колонка-кнопка в конце таблицы — по умолчанию не рендерится,
     // чтобы остальные таблицы не менялись. getHref — внутренний роут, рендерится как
     // RouterLink (обычный клик — переход внутри SPA без перезагрузки, колёсико/Ctrl+клик —
@@ -88,6 +94,7 @@ const props = withDefaults(
     cellText: (_columnId: string, value: unknown) => String(value ?? ''),
     pageSizeOptions: () => [10, 20, 30, 50, 100],
     hiddenByDefault: () => [],
+    defaultFilters: () => ({}),
   },
 )
 
@@ -128,8 +135,8 @@ const sorting = ref<SortingState>(storedTableState?.sorting ?? [props.defaultSor
 const columnSizing = ref<ColumnSizingState>({})
 const searchInput = ref('')
 const search = ref('')
-const activeFilterFields = ref<string[]>([])
-const filterValues = ref<Record<string, string[]>>({})
+const activeFilterFields = ref<string[]>(Object.keys(props.defaultFilters))
+const filterValues = ref<Record<string, string[]>>({ ...props.defaultFilters })
 const facetOptions = ref<Record<string, FacetOption[]>>({})
 
 // Модалка работает с черновиком: пока не нажали "Готово", ничего не применяется
