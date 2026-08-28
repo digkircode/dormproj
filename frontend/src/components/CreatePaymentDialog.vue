@@ -300,12 +300,17 @@ async function submit() {
             <p v-if="!openAccruals.length" class="text-sm text-muted-foreground">{{ t('payment.createDialog.noOpenAccruals') }}</p>
             <Collapsible v-else v-model:open="accrualPickerOpen">
               <CollapsibleTrigger as-child>
+                <!-- min-w-0 + truncate на сводке — при выборе много начислений сразу (например
+                     все 12 месяцев) строка "сентябрь 2026 г., октябрь 2026 г., ..." переносилась
+                     на несколько строк и распирала кнопку по высоте (реальный баг, скриншот
+                     2026-08-28) — теперь одна строка с многоточием, shrink-0 на сумме/стрелке
+                     защищает их от сжатия при этом. -->
                 <button
                   type="button"
                   class="flex h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-md border px-3 text-sm hover:bg-accent"
                 >
-                  <span>{{ selectedAccrualsSummary }}</span>
-                  <span class="flex items-center gap-1.5">
+                  <span class="min-w-0 truncate">{{ selectedAccrualsSummary }}</span>
+                  <span class="flex shrink-0 items-center gap-1.5">
                     <span class="font-medium">{{ formatMoney(selectedAmount) }}</span>
                     <ChevronDown class="size-3.5 shrink-0 text-muted-foreground transition-transform duration-200" :class="accrualPickerOpen ? 'rotate-180' : ''" />
                   </span>

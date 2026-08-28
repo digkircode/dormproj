@@ -121,19 +121,23 @@ onMounted(load)
                "Информация о договоре" (см. router/index.ts: /student/contract, доступна
                той же роли RESIDENT, что и сам чат, без :id — "чужой по ссылке" не
                посмотреть, см. my-contract.controller.ts). -->
+          <!-- hidden md:flex — на телефоне номер договора/комната убраны из шапки чата (по
+               прямой просьбе 2026-08-28: занимали место в узкой строке, сам договор/комната
+               и так доступны со страницы "Информация о договоре"/на карточке договора) —
+               с планшета и выше показываются как раньше. -->
           <RouterLink
             v-if="residentInfo?.contractNumber"
             to="/student/contract"
-            class="-mx-1.5 -my-0.5 flex h-10 items-center gap-1.5 rounded-md px-1.5 transition-colors hover:bg-accent hover:text-accent-foreground"
+            class="-mx-1.5 -my-0.5 hidden h-10 items-center gap-1.5 rounded-md px-1.5 transition-colors hover:bg-accent hover:text-accent-foreground md:flex"
           >
             <FileText class="size-4 text-primary" />
             {{ t('contracts.detail.titleWithNumber', { number: residentInfo.contractNumber }) }}
           </RouterLink>
-          <span v-else class="flex h-10 items-center gap-1.5">
+          <span v-else class="hidden h-10 items-center gap-1.5 md:flex">
             <FileText class="size-4 text-primary" />
             {{ t('chat.noActiveContract') }}
           </span>
-          <span v-if="residentInfo?.room" class="flex h-10 items-center gap-1.5">
+          <span v-if="residentInfo?.room" class="hidden h-10 items-center gap-1.5 md:flex">
             <DoorClosed class="size-4 text-primary" />
             {{ t('roomInfo.dialogTitle', { room: residentInfo.room }) }}
           </span>

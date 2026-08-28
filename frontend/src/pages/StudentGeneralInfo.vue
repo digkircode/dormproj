@@ -416,7 +416,10 @@ onMounted(async () => {
               </div>
               <div class="mt-1 border-t pt-3">
                 <div class="mb-2 text-xs text-muted-foreground">{{ t('student.contactsAdmin.responsibleStaff') }}</div>
-                <div class="flex flex-wrap gap-6">
+                <!-- justify-center — по прямой просьбе: когда фото не помещаются в ряд
+                     (например 2 фото на узком экране) и переносятся, неполная строка
+                     раньше прижималась к левому краю, теперь центрируется. -->
+                <div class="flex flex-wrap justify-center gap-6">
                   <div v-for="p in staff" :key="p.name" class="flex w-40 flex-col items-center gap-2 text-center sm:w-56">
                     <!-- size-40 на мобильном (было размером с половину экрана на узком
                          телефоне), sm:size-56 — прежний размер с планшета и выше. -->
@@ -444,7 +447,10 @@ onMounted(async () => {
               </div>
               <div class="mt-1 border-t pt-3">
                 <div class="mb-2 text-xs text-muted-foreground">{{ t('student.contactsAdmin.responsibleStaff') }}</div>
-                <div class="flex flex-wrap gap-6">
+                <!-- justify-center — по прямой просьбе: когда фото не помещаются в ряд
+                     (например 2 фото на узком экране) и переносятся, неполная строка
+                     раньше прижималась к левому краю, теперь центрируется. -->
+                <div class="flex flex-wrap justify-center gap-6">
                   <div v-for="p in ddmStaff" :key="p.name" class="flex w-40 flex-col items-center gap-2 text-center sm:w-56">
                     <Avatar class="size-40 rounded-full border-4 border-border sm:size-56">
                       <AvatarImage v-if="p.photo" :src="p.photo" :alt="p.name" />

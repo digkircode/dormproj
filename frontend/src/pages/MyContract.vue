@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useMediaQuery } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -160,6 +161,17 @@ const accrualColumns = computed(() =>
     accrualColumnHelper.accessor('balance', { header: accrualColumnLabels.value.balance, size: 120, minSize: 100 }),
   ]),
 )
+// Срок оплаты и стоимость найма — скрыты по умолчанию на телефоне (по прямой просьбе
+// 2026-08-28, после реального использования с узкого экрана): 5 колонок на 320-375px
+// давали заголовки в 2-3 буквы, нечитаемо. Период/Оплачено/Остаток — минимум, без
+// которого таблица теряет смысл, остальное можно вернуть вручную через "Настройка
+// колонок" (EntityTable.vue сам это умеет, hiddenByDefault только задаёт стартовое
+// состояние). useMediaQuery — тот же приём/тот же breakpoint (768px), что у сайдбара
+// (SidebarProvider.vue) — вычисляется один раз на маунт, не переигрывает при повороте
+// экрана (не нужно для этого случая).
+const isMobile = useMediaQuery('(max-width: 768px)')
+const accrualHiddenByDefault = computed(() => (isMobile.value ? ['dueDate', 'rentAmount'] : []))
+
 function accrualCellText(columnId: string, value: unknown): string {
   if (columnId === 'periodStart' && typeof value === 'string') return monthLabel(value)
   if (columnId === 'dueDate' && typeof value === 'string') return formatDate(value)
@@ -249,7 +261,22 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
+  <!-- md:min-h-0 (не голый min-h-0) — реальная причина бага "футер внутри таблицы"
+       (2026-08-28): min-h-0 БЕЗ overflow-hidden/overflow-y-auto НА ЭТОМ ЖЕ элементе не
+       обрезает контент, если он не помещается в выделенное flex-пространство — контент
+       просто визуально вылезает ЗА пределы блока (сам блок при этом остаётся МЕНЬШЕ
+       содержимого), а следующий сосед по DOM (AppFooter, см. App.vue) как раз и есть
+       следующий элемент сразу после этого div — вылезающий хвост таблицы рисуется поверх
+       него/рядом с ним. Раньше искал причину внутри EntityTable.vue (там уже есть honest
+       h-[60vh] на мобильном, см. компонент) — а настоящая причина была здесь, на уровне
+       страницы: KPI-карточка+вкладки+таблица суммарно легко превышают то, что достаётся
+       этому div по flex-grow (после вычета места под AppFooter) на типичном экране
+       телефона. md:min-h-0 — на десктопе (где узкого места нет, и flex-высота обычно
+       не меньше контента) поведение не меняется; на мобильном без min-h-0 блок берёт
+       свою ЕСТЕСТВЕННУЮ высоту по контенту, дальше эта высота корректно учитывается
+       overflow-y-auto на уровне App.vue — скроллится вся страница целиком, футер идёт
+       строго после всего контента, без наложения. -->
+  <div class="flex flex-1 flex-col gap-4 p-4 md:min-h-0 md:p-6">
     <!-- flex-wrap — на узком экране дропдаун договора + пилюля статуса + кнопка "Оплатить"
          (ml-auto) не помещаются в одну строку без переноса (особенно с длинным номером
          договора вроде VIP27-27/01) — без wrap строка вылезала бы за ширину экрана. -->
@@ -305,7 +332,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
     <template v-if="contract">
       <!-- opacity/transition — та же смена договора, что и переключатель выше, но резче
            бросается в глаза именно тут (весь блок цифр), поэтому приглушаем отдельно. -->
-      <div class="flex min-h-0 flex-1 flex-col gap-4 transition-opacity duration-200" :class="isSwitching ? 'opacity-50' : ''">
+      <div class="flex flex-1 flex-col gap-4 transition-opacity duration-200 md:min-h-0" :class="isSwitching ? 'opacity-50' : ''">
       <Card class="flex flex-col gap-4 p-4">
         <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           <span v-if="contract.currentRoom" class="flex items-center gap-1.5">
@@ -379,7 +406,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
         </div>
       </Card>
 
-      <Tabs default-value="accruals" class="flex min-h-0 flex-1 flex-col">
+      <Tabs default-value="accruals" class="flex flex-1 flex-col md:min-h-0">
         <TabsList class="w-fit self-start">
           <TabsTrigger value="accruals">
             <span class="flex items-center gap-1.5">
@@ -395,7 +422,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="accruals" class="flex min-h-0 flex-1 flex-col">
+        <TabsContent value="accruals" class="flex flex-1 flex-col md:min-h-0">
           <EntityTable
             :key="`accruals-${contract.id}`"
             :columns="accrualColumns"
@@ -408,12 +435,13 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
             :total-label="t('contracts.myContract.totalAccruals')"
             :cell-text="accrualCellText"
             :cell-renderers="accrualCellRenderers"
+            :hidden-by-default="accrualHiddenByDefault"
             storage-key="my-contract-accruals"
             accent-icons
           />
         </TabsContent>
 
-        <TabsContent value="payments" class="flex min-h-0 flex-1 flex-col">
+        <TabsContent value="payments" class="flex flex-1 flex-col md:min-h-0">
           <EntityTable
             :key="`payments-${contract.id}`"
             :columns="paymentColumns"
