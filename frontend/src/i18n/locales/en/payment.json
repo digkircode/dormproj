@@ -21,6 +21,8 @@
       "contractNumber": "Contract No. {number}",
       "room": "Room {room}",
       "amountSection": "Amount",
+      "howItWorksLabel": "How this works",
+      "howItWorksText": "The penalty is always paid as a separate payment, not together with accruals. When paying a custom amount, the money is automatically allocated to the nearest outstanding accruals in order.",
       "chooseAccruals": "Choose accruals",
       "customAmount": "Custom amount",
       "noOpenAccruals": "No outstanding accruals.",

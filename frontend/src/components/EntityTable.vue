@@ -645,11 +645,16 @@ defineExpose({ refresh: loadPage })
       </div>
     </Card>
 
-    <div class="flex items-center justify-between px-1">
+    <!-- flex-col на мобильном — исходный flex items-center justify-between без переноса
+         сжимал "N начислений" + селект строк/страницу + "страница X из Y" + 4 кнопки
+         навигации в одну неразрывную строку с gap-8 между блоками, на узком экране текст
+         переносился посреди слов и налезал на кнопки (реальный баг, поймано на телефоне
+         2026-08-28). sm: и выше — прежняя раскладка в одну строку. -->
+    <div class="flex flex-col gap-2 px-1 sm:flex-row sm:items-center sm:justify-between">
       <div class="text-muted-foreground text-sm">
         {{ t('entityTable.total', { label: totalLabel, count: total }) }}
       </div>
-      <div class="flex w-fit items-center gap-8">
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2 sm:w-fit sm:gap-8">
         <div class="flex items-center gap-2">
           <Label for="rows-per-page" class="text-sm font-medium">{{ t('entityTable.rowsPerPage') }}</Label>
           <Select

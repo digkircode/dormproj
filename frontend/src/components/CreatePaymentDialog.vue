@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { AlertTriangle, ChevronDown, CreditCard, DoorOpen, Info, Loader, Percent } from 'lucide-vue-next'
+import { AlertTriangle, ChevronDown, CreditCard, DoorOpen, HelpCircle, Info, Loader, Percent } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -74,6 +74,15 @@ function selectPenaltyMode() {
   amountMode.value = 'penalty'
   if (penaltyAmount.value == null) penaltyAmount.value = penaltyBalance.value
 }
+
+// Компактная подсказка "как это работает" (пеня отдельным платежом, своя сумма
+// разносится по FIFO) — по прямой просьбе 2026-08-28, после того как на телефоне
+// это оказалось неочевидно. НЕ Popover/Tooltip (оба — Reka-портал) — этот диалог
+// уже несёт один портал (DropdownMenu переключателя договора), второй вложенный
+// модальный Reka-портал здесь уже ловил ловушку №10 (см. историю правок ниже про
+// голый <select> вместо Select) — вместо портала простой локальный toggle, текст
+// рендерится в обычном потоке DOM.
+const showAmountHelp = ref(false)
 
 // Список начислений свёрнут по умолчанию — под выбором по умолчанию (последнее
 // неоплаченное, см. open()) обычно ничего менять не нужно, полный чек-лист занимает
@@ -244,8 +253,25 @@ async function submit() {
         </div>
 
         <div class="flex flex-col gap-3 rounded-lg border p-3">
-          <p class="text-sm font-medium">{{ t('payment.createDialog.amountSection') }}</p>
-          <div class="flex w-fit items-center gap-1 rounded-md border p-0.5">
+          <div class="flex items-center gap-1">
+            <p class="text-sm font-medium">{{ t('payment.createDialog.amountSection') }}</p>
+            <button
+              type="button"
+              :title="t('payment.createDialog.howItWorksLabel')"
+              class="rounded-sm p-0.5 text-muted-foreground transition-colors hover:text-primary"
+              @click="showAmountHelp = !showAmountHelp"
+            >
+              <HelpCircle class="size-3.5" />
+              <span class="sr-only">{{ t('payment.createDialog.howItWorksLabel') }}</span>
+            </button>
+          </div>
+          <p v-if="showAmountHelp" class="rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
+            {{ t('payment.createDialog.howItWorksText') }}
+          </p>
+          <!-- flex-wrap (без w-fit — тот сжимал бы box к содержимому и мешал переносу) —
+               3 подписанные кнопки ("Выбрать начисления"/"Своя сумма"/"Пеня") не помещались
+               в одну строку на узком телефоне. -->
+          <div class="flex flex-wrap items-center gap-1 rounded-md border p-0.5">
             <Button :variant="amountMode === 'select' ? 'default' : 'ghost'" size="sm" @click="amountMode = 'select'">
               {{ t('payment.createDialog.chooseAccruals') }}
             </Button>
@@ -276,7 +302,11 @@ async function submit() {
                   </span>
                 </button>
               </CollapsibleTrigger>
-              <CollapsibleContent class="flex flex-col gap-1 pt-1">
+              <!-- max-h + overflow-y-auto — при большом числе начислений список раньше рос
+                   безгранично внутри и без того скроллящейся модалки (DialogScrollContent
+                   max-h-[80vh]), из-за чего в нём было легко потерять кнопку "Оплатить"
+                   далеко внизу; теперь длинный список скроллится сам в своих границах. -->
+              <CollapsibleContent class="flex max-h-56 flex-col gap-1 overflow-y-auto pt-1">
                 <label
                   v-for="accrual in openAccruals"
                   :key="accrual.id"
@@ -320,7 +350,7 @@ async function submit() {
 
         <div class="flex flex-col gap-3 rounded-lg border p-3">
           <p class="text-sm font-medium">{{ t('payment.createDialog.payerSection') }}</p>
-          <div class="flex w-fit items-center gap-1 rounded-md border p-0.5">
+          <div class="flex flex-wrap items-center gap-1 rounded-md border p-0.5">
             <Button :variant="payerIsResident ? 'default' : 'ghost'" size="sm" @click="payerIsResident = true">
               {{ t('payment.createDialog.payerIsResident') }}
             </Button>
