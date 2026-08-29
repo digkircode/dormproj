@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ArrowRight, CreditCard, DoorOpen, FileText, MessageCircle, Phone, Wallet } from 'lucide-vue-next'
+import { ArrowRight, CreditCard, DoorOpen, MessageCircle, Phone, Wallet } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button, buttonVariants } from '@/components/ui/button'
 import CreatePaymentDialog from '@/components/CreatePaymentDialog.vue'
@@ -9,7 +9,6 @@ import { fetchMyContract, type MyContractDetail } from '@/lib/contracts-api'
 import { residentUnreadCount } from '@/lib/chat-unread-state'
 import { currentUser } from '@/lib/auth-state'
 import { dateLocaleTag } from '@/lib/format-locale'
-import { cn } from '@/lib/utils'
 // Маскот — сгенерирован пользователем отдельно под референс (2026-08-28, вторая версия —
 // первая была фото енота без позы "как на референсе"), пережат через sharp (456×365,
 // ~22 КБ, альфа-канал сохранён) тем же приёмом, что и первая версия.
@@ -67,9 +66,10 @@ function telHref(phone: string): string {
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
     <!-- Шапка сделана буквально по присланному пользователем референсу (2026-08-28):
-         приветствие по имени + текст + две кнопки слева, маскот с "репликой" справа,
-         фон карточки — светло-голубой (как в референсе, не нейтральный bg-card). -->
-    <Card class="relative flex flex-col items-start gap-6 overflow-hidden bg-sky-50 p-6 dark:bg-sky-500/10 sm:flex-row sm:items-center sm:gap-8">
+         приветствие по имени + текст + кнопка слева, маскот с "репликой" справа.
+         Фон — по прямой просьбе 2026-08-29 приведён к тому же bg-card, что у остальных
+         карточек ниже (раньше был отдельный светло-голубой оттенок). -->
+    <Card class="relative flex flex-col items-start gap-6 overflow-hidden p-6 sm:flex-row sm:items-center sm:gap-8">
       <!-- "Облачка" — девятый заход 2026-08-28, по прямой просьбе отказались от попытки
            воспроизвести точный силуэт — просто россыпь кружков разного размера по всей
            шапке (не только в углу), тот же самый мягкий цвет (bg-sky-100/dark:bg-sky-400/15),
@@ -109,46 +109,15 @@ function telHref(phone: string): string {
         </h1>
         <p class="mt-3 text-base text-muted-foreground">{{ t('home.resident.greetingBody1') }}</p>
         <p class="mt-3 text-base text-muted-foreground">{{ t('home.resident.greetingBody2') }}</p>
-        <!-- flex + flex-1 на каждой кнопке (не grid) — оба flex-item растут/сжимаются
-             СТРОГО одинаково (flex: 1 1 0%) независимо от длины текста — по прямой просьбе
-             2026-08-28, четвёртый заход на этот конкретный баг. ВАЖНО: одного flex-1 мало —
-             базовые классы кнопки несут whitespace-nowrap (нужен, чтобы текст не переносился
-             сам по себе на других кнопках сайта), а у flex-item ПО УМОЛЧАНИЮ min-width:auto,
-             который у nowrap-контента равен ширине его "однострочного" текста — это ЖЁСТКИЙ
-             пол, который flex-basis:0 (из flex-1) не может пробить: до этой правки более
-             длинный текст "Оплатить проживание" просто не мог сжаться уже своих 200px, и вся
-             дистрибуция пространства съезжала (проверено — 200/140px, не поровну, несмотря
-             на одинаковый flex-1 у обеих). min-w-0 снимает эту неявную нижнюю границу —
-             теперь flex-grow действительно делит место 50/50. justify-center (уже в
-             buttonVariants) центрирует текст внутри итоговой ширины. -->
-        <div class="mt-4 flex flex-col gap-3 sm:flex-row">
-          <Button class="min-w-0 flex-1" @click="paymentDialog?.open()">
+        <!-- Кнопка "Мой договор" убрана из шапки по прямой просьбе 2026-08-29 — тот же
+             переход теперь доступен через заголовок карточки "Моя комната" ниже
+             (переименована в "Мой договор", см. roomHeading). Осталась одна кнопка,
+             flex-1/min-w-0 больше не нужны — делить пространство больше не с кем. -->
+        <div class="mt-4">
+          <Button @click="paymentDialog?.open()">
             <CreditCard class="size-4" />
             {{ t('home.resident.payHero') }}
           </Button>
-          <!-- ВАЖНО: не Button as-child + RouterLink — Button.vue оборачивает свой slot в
-               <span class="contents">, и при as-child именно ЭТОТ span (не RouterLink)
-               получает merged-классы кнопки (см. reka-ui Primitive/Slot.ts#mergeProps) —
-               RouterLink остаётся без layout-классов вообще, из-за чего иконка (block по
-               Tailwind preflight для svg) и текст переносятся на разные строки внутри
-               него. Обходим — RouterLink напрямую с теми же классами buttonVariants, без
-               Button/as-child посредника вообще. Сам цвет (outline) не трогаем по прямой
-               просьбе — только иконка перекрашена в primary.
-               border-0 + inset-shadow вместо border — по прямой просьбе 2026-08-28,
-               проверено скриншотом DevTools: у outline-варианта border (1px со всех
-               сторон) при одинаковой ВНЕШНЕЙ высоте (40px, box-sizing: border-box) съедает
-               2px из CONTENT-BOX (22px против 24px у безрамочной "Оплатить проживание") —
-               внешне незаметно (контент центрирован по items-center в обоих случаях), но
-               раз попросили "одинаково" буквально — заменили border на inset box-shadow
-               той же толщины/цвета (var(--input), тот же токен, что у border-input), он не
-               участвует в box-model вообще, content-box становится 24px у обеих кнопок. -->
-          <RouterLink
-            to="/student/contract"
-            :class="cn(buttonVariants({ variant: 'outline' }), 'min-w-0 flex-1 border-0 shadow-[inset_0_0_0_1px_var(--input)]')"
-          >
-            <FileText class="size-4 text-primary" />
-            {{ t('home.resident.myContractButton') }}
-          </RouterLink>
         </div>
       </div>
 
@@ -157,16 +126,22 @@ function telHref(phone: string): string {
            просто шёл сразу за текстом через gap-8, оставляя пустоту СПРАВА от него до края
            карточки, а не наоборот. ml-auto съедает именно эту пустоту, подтягивая маскот к
            краю; gap-8 остаётся минимальным отступом от текста, когда свободного места нет. -->
-      <div class="relative z-10 flex shrink-0 items-center gap-3 sm:ml-auto">
+      <!-- gap-1 (было gap-3) — по прямой просьбе 2026-08-29 маскот подвинут ближе к
+           пузырю с текстом. mascot.webp сам обрезан по прозрачным краям (был запас
+           ~37px пустоты под лапами, см. комментарий у mascotSrc) — на бóльшей высоте
+           (h-64/sm:h-96, было h-56/sm:h-80) лапы теперь у самого нижнего края
+           картинки, а не в пустом поле под ними. -->
+      <div class="relative z-10 flex shrink-0 items-center gap-1 sm:ml-auto">
         <!-- "Реплика" маскота — hidden на самом узком экране (места впритык с текстом+
              кнопками уже не остаётся), с sm: и выше показывается как в референсе. Хвостик
              пузыря — повёрнутый на 45° квадрат с двумя видимыми гранями (border-t/border-r),
-             тот же трюк, что для CSS-стрелок без картинок/псевдоэлементов ::after. -->
-        <div class="relative hidden max-w-[220px] rounded-2xl border bg-background px-3 py-2 text-sm shadow-sm sm:block">
+             тот же трюк, что для CSS-стрелок без картинок/псевдоэлементов ::after.
+             text-base (было text-sm) — по прямой просьбе 2026-08-29. -->
+        <div class="relative hidden max-w-[220px] rounded-2xl border bg-background px-3 py-2 text-base shadow-sm sm:block">
           {{ t('home.resident.mascotBubble') }}
           <span class="absolute top-1/2 -right-1.5 size-3 -translate-y-1/2 rotate-45 border-t border-r bg-background" />
         </div>
-        <img :src="mascotSrc" alt="" class="relative h-56 w-auto sm:h-80" />
+        <img :src="mascotSrc" alt="" class="relative h-64 w-auto sm:h-96" />
       </div>
       <CreatePaymentDialog ref="paymentDialog" />
     </Card>
