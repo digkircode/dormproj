@@ -70,54 +70,27 @@ function telHref(phone: string): string {
          приветствие по имени + текст + две кнопки слева, маскот с "репликой" справа,
          фон карточки — светло-голубой (как в референсе, не нейтральный bg-card). -->
     <Card class="relative flex flex-col items-start gap-6 overflow-hidden bg-sky-50 p-6 dark:bg-sky-500/10 sm:flex-row sm:items-center sm:gap-8">
-      <!-- "Облачко" — седьмой заход 2026-08-28, по присланному пользователем скриншоту с
-           нарисованной красной линией: не плавная диагональ, а силуэт классического
-           "облака" с двумя выступами (один пониже, за нижней частью маскота, второй
-           повыше — почти до верха, за головой/машущей рукой), всё НИЖЕ этой линии — сплошная
-           заливка без просветов (проверено скан-скриптом по пикселям, не на глаз). База —
-           плотный "нижний ряд" вплотную к правому нижнему углу, поверх него — два крупных
-           круга-"выступа" и один у самого верха справа, продолжающий силуэт почти до
-           top-right угла. z-index не нужен — это ПЕРВЫЙ ребёнок Card, обычный поток, а
-           текст/маскот ниже оба свои z-10 явно — рисуются поверх по DOM-порядку/explicit z. -->
+      <!-- "Облачка" — девятый заход 2026-08-28, по прямой просьбе отказались от попытки
+           воспроизвести точный силуэт — просто россыпь кружков разного размера по всей
+           шапке (не только в углу), тот же самый мягкий цвет (bg-sky-100/dark:bg-sky-400/15),
+           без blur, как и раньше. Позиции/размеры вперемешку (top/bottom/left/right,
+           4–14% ширины) — намеренно нерегулярно, "красиво", не по сетке. -->
       <div class="pointer-events-none absolute inset-0" aria-hidden="true">
-        <div class="absolute right-[36%] bottom-0 aspect-square w-[16%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <div class="absolute right-[23%] -bottom-[2%] aspect-square w-[19%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <div class="absolute right-[8%] -bottom-[3%] aspect-square w-[21%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <!-- Этот круг — единственный, кому нужно ОДНОВРЕМЕННО отрицательные right И bottom:
-             без этого ни один круг физически не задевает саму точку угла (проверено —
-             у всех остальных либо только right, либо только bottom уходит за край, но не
-             оба сразу), и в самом угле остаётся пустой клин, даже когда соседние круги его
-             визуально почти закрывают. -->
-        <div class="absolute -right-[6%] -bottom-[5%] aspect-square w-[20%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <div class="absolute right-[16%] bottom-[19%] aspect-square w-[18%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <div class="absolute right-0 bottom-[22%] aspect-square w-[19%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <div class="absolute right-[6%] bottom-[38%] aspect-square w-[16%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <div class="absolute -right-[2%] bottom-[40%] aspect-square w-[15%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <div class="absolute right-[2%] bottom-[54%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <!-- Три "выступа" силуэта — восьмой заход 2026-08-28, по второму скриншоту с более
-             точной от руки нарисованной линией (пользователь также дал точную ширину шапки —
-             1551px — пересчитано под неё, не примерно на глаз): первый пониже и правее
-             (right≈34%, вершина на ~35% высоты), второй заметно выше и левее (right≈25%,
-             вершина на ~74%), третий почти у самого верха (right≈15%, вершина на ~93%,
-             в районе головы/машущей руки маскота). Между выступами — провалы, там линия
-             специально ниже, это не баги/пропуски. -->
-        <div class="absolute right-[26%] bottom-[2%] aspect-square w-[16%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <div class="absolute right-[11%] bottom-[15%] aspect-square w-[28%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <div class="absolute -right-[3%] bottom-[20%] aspect-square w-[35%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <!-- "Базовый ряд" — плотный частый ряд у самого низа, отдельно от круп­ных кругов
-             выше. Проверено скан-скриптом по пикселям (не на глаз): между кругами выше на
-             самом нижнем крае оставались просветы-"долины" (круг — не прямоугольник, у
-             соседних кругов, совпадающих по касанию верхних дуг, ниже уровня центров уже
-             есть зазор) — здесь центры специально ближе друг к другу, чем сумма радиусов,
-             гарантированное перекрытие по всей ширине клина. -->
-        <div class="absolute -right-[8%] -bottom-[4%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <div class="absolute -right-[2%] -bottom-[4%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <div class="absolute right-[4%] -bottom-[4%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <div class="absolute right-[10%] -bottom-[4%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <div class="absolute right-[16%] -bottom-[4%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <div class="absolute right-[22%] -bottom-[4%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <div class="absolute right-[28%] -bottom-[4%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <div class="absolute right-[34%] -bottom-[4%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute top-[8%] left-[6%] aspect-square w-[6%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute top-[38%] left-[16%] aspect-square w-[4%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute bottom-[10%] left-[28%] aspect-square w-[8%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute top-[14%] left-[38%] aspect-square w-[5%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute bottom-[30%] left-[46%] aspect-square w-[10%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute top-[4%] right-[38%] aspect-square w-[7%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute bottom-[6%] right-[30%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute top-[22%] right-[24%] aspect-square w-[6%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute -bottom-[4%] right-[18%] aspect-square w-[16%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute top-[2%] right-[14%] aspect-square w-[9%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute bottom-[42%] right-[10%] aspect-square w-[5%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute -right-[4%] bottom-[16%] aspect-square w-[14%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute -right-[3%] -bottom-[6%] aspect-square w-[18%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute -top-[3%] -right-[2%] aspect-square w-[11%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute top-[46%] -right-[2%] aspect-square w-[7%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
       </div>
 
       <!-- justify-between → gap-8 на самой Card (по прямой просьбе 2026-08-28: расстояние
