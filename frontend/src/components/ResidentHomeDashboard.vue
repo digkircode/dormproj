@@ -9,6 +9,7 @@ import { fetchMyContract, type MyContractDetail } from '@/lib/contracts-api'
 import { residentUnreadCount } from '@/lib/chat-unread-state'
 import { currentUser } from '@/lib/auth-state'
 import { dateLocaleTag } from '@/lib/format-locale'
+import { cn } from '@/lib/utils'
 // Маскот — сгенерирован пользователем отдельно под референс (2026-08-28, вторая версия —
 // первая была фото енота без позы "как на референсе"), пережат через sharp (456×365,
 // ~22 КБ, альфа-канал сохранён) тем же приёмом, что и первая версия.
@@ -69,14 +70,15 @@ function telHref(phone: string): string {
          приветствие по имени + текст + две кнопки слева, маскот с "репликой" справа,
          фон карточки — светло-голубой (как в референсе, не нейтральный bg-card). -->
     <Card class="relative flex flex-col items-start gap-6 overflow-hidden bg-sky-50 p-6 dark:bg-sky-500/10 sm:flex-row sm:items-center sm:gap-8">
-      <!-- "Облачки" — шестой заход 2026-08-28, снова карточный угол (не за маскотом): плоские
-           кружки БЕЗ blur (по прямой просьбе — "без рассеивания и прочих эффектов"), цвет
-           вернули на исходный bg-sky-100 (мягче/бледнее bg-sky-300, который был с blur).
-           Много кружков (без ограничения "ровно 3"), плотно перекрывающихся — сплошным
-           клином от нижнего края (чуть левее маскота) по диагонали вверх вдоль правого края,
-           чтобы весь правый нижний угол шапки был закрыт без просветов. z-index не нужен —
-           это ПЕРВЫЙ ребёнок Card, обычный поток, а текст/маскот ниже оба свои z-10 явно —
-           они просто рисуются поверх по DOM-порядку и explicit z. -->
+      <!-- "Облачко" — седьмой заход 2026-08-28, по присланному пользователем скриншоту с
+           нарисованной красной линией: не плавная диагональ, а силуэт классического
+           "облака" с двумя выступами (один пониже, за нижней частью маскота, второй
+           повыше — почти до верха, за головой/машущей рукой), всё НИЖЕ этой линии — сплошная
+           заливка без просветов (проверено скан-скриптом по пикселям, не на глаз). База —
+           плотный "нижний ряд" вплотную к правому нижнему углу, поверх него — два крупных
+           круга-"выступа" и один у самого верха справа, продолжающий силуэт почти до
+           top-right угла. z-index не нужен — это ПЕРВЫЙ ребёнок Card, обычный поток, а
+           текст/маскот ниже оба свои z-10 явно — рисуются поверх по DOM-порядку/explicit z. -->
       <div class="pointer-events-none absolute inset-0" aria-hidden="true">
         <div class="absolute right-[36%] bottom-0 aspect-square w-[16%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
         <div class="absolute right-[23%] -bottom-[2%] aspect-square w-[19%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
@@ -92,10 +94,20 @@ function telHref(phone: string): string {
         <div class="absolute right-[6%] bottom-[38%] aspect-square w-[16%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
         <div class="absolute -right-[2%] bottom-[40%] aspect-square w-[15%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
         <div class="absolute right-[2%] bottom-[54%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <!-- "Базовый ряд" — плотный частый ряд у самого низа, отдельно от диагонального
-             каскада выше. Проверено скан-скриптом по пикселям (не на глаз): между кругами
-             выше на самом нижнем крае оставались просветы-"долины" (круг — не прямоугольник,
-             у соседних кругов совпадающих по касанию верхних дуг ниже уровня центров уже
+        <!-- Два "выступа" силуэта — пониже (за нижней частью маскота) и повыше (почти до
+             верха, за головой/рукой), плюс "хвост", продолжающий силуэт к самому
+             top-right углу — все три крупные, чтобы верхняя дуга каждого реально доходила
+             до нужной высоты (по прямой просьбе, красная линия на скриншоте). -->
+        <div class="absolute right-[20%] bottom-[6%] aspect-square w-[21%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute right-[8%] bottom-[8%] aspect-square w-[29%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute -right-[2%] bottom-[28%] aspect-square w-[24%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <!-- Самый кончик силуэта — почти у top-right угла шапки, тянет линию (по скриншоту)
+             до самого верха, а не только до высоты второго выступа. -->
+        <div class="absolute -right-[4%] -top-[1%] aspect-square w-[20%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <!-- "Базовый ряд" — плотный частый ряд у самого низа, отдельно от круп­ных кругов
+             выше. Проверено скан-скриптом по пикселям (не на глаз): между кругами выше на
+             самом нижнем крае оставались просветы-"долины" (круг — не прямоугольник, у
+             соседних кругов, совпадающих по касанию верхних дуг, ниже уровня центров уже
              есть зазор) — здесь центры специально ближе друг к другу, чем сумма радиусов,
              гарантированное перекрытие по всей ширине клина. -->
         <div class="absolute -right-[8%] -bottom-[4%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
@@ -148,8 +160,19 @@ function telHref(phone: string): string {
                Tailwind preflight для svg) и текст переносятся на разные строки внутри
                него. Обходим — RouterLink напрямую с теми же классами buttonVariants, без
                Button/as-child посредника вообще. Сам цвет (outline) не трогаем по прямой
-               просьбе — только иконка перекрашена в primary. -->
-          <RouterLink to="/student/contract" :class="[buttonVariants({ variant: 'outline' }), 'min-w-0', 'flex-1']">
+               просьбе — только иконка перекрашена в primary.
+               border-0 + inset-shadow вместо border — по прямой просьбе 2026-08-28,
+               проверено скриншотом DevTools: у outline-варианта border (1px со всех
+               сторон) при одинаковой ВНЕШНЕЙ высоте (40px, box-sizing: border-box) съедает
+               2px из CONTENT-BOX (22px против 24px у безрамочной "Оплатить проживание") —
+               внешне незаметно (контент центрирован по items-center в обоих случаях), но
+               раз попросили "одинаково" буквально — заменили border на inset box-shadow
+               той же толщины/цвета (var(--input), тот же токен, что у border-input), он не
+               участвует в box-model вообще, content-box становится 24px у обеих кнопок. -->
+          <RouterLink
+            to="/student/contract"
+            :class="cn(buttonVariants({ variant: 'outline' }), 'min-w-0 flex-1 border-0 shadow-[inset_0_0_0_1px_var(--input)]')"
+          >
             <FileText class="size-4 text-primary" />
             {{ t('home.resident.myContractButton') }}
           </RouterLink>
