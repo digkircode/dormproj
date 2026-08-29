@@ -94,16 +94,16 @@ function telHref(phone: string): string {
         <div class="absolute right-[6%] bottom-[38%] aspect-square w-[16%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
         <div class="absolute -right-[2%] bottom-[40%] aspect-square w-[15%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
         <div class="absolute right-[2%] bottom-[54%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <!-- Два "выступа" силуэта — пониже (за нижней частью маскота) и повыше (почти до
-             верха, за головой/рукой), плюс "хвост", продолжающий силуэт к самому
-             top-right углу — все три крупные, чтобы верхняя дуга каждого реально доходила
-             до нужной высоты (по прямой просьбе, красная линия на скриншоте). -->
-        <div class="absolute right-[20%] bottom-[6%] aspect-square w-[21%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <div class="absolute right-[8%] bottom-[8%] aspect-square w-[29%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <div class="absolute -right-[2%] bottom-[28%] aspect-square w-[24%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
-        <!-- Самый кончик силуэта — почти у top-right угла шапки, тянет линию (по скриншоту)
-             до самого верха, а не только до высоты второго выступа. -->
-        <div class="absolute -right-[4%] -top-[1%] aspect-square w-[20%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <!-- Три "выступа" силуэта — восьмой заход 2026-08-28, по второму скриншоту с более
+             точной от руки нарисованной линией (пользователь также дал точную ширину шапки —
+             1551px — пересчитано под неё, не примерно на глаз): первый пониже и правее
+             (right≈34%, вершина на ~35% высоты), второй заметно выше и левее (right≈25%,
+             вершина на ~74%), третий почти у самого верха (right≈15%, вершина на ~93%,
+             в районе головы/машущей руки маскота). Между выступами — провалы, там линия
+             специально ниже, это не баги/пропуски. -->
+        <div class="absolute right-[26%] bottom-[2%] aspect-square w-[16%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute right-[11%] bottom-[15%] aspect-square w-[28%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute -right-[3%] bottom-[20%] aspect-square w-[35%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
         <!-- "Базовый ряд" — плотный частый ряд у самого низа, отдельно от круп­ных кругов
              выше. Проверено скан-скриптом по пикселям (не на глаз): между кругами выше на
              самом нижнем крае оставались просветы-"долины" (круг — не прямоугольник, у
