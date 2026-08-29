@@ -92,6 +92,20 @@ function telHref(phone: string): string {
         <div class="absolute right-[6%] bottom-[38%] aspect-square w-[16%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
         <div class="absolute -right-[2%] bottom-[40%] aspect-square w-[15%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
         <div class="absolute right-[2%] bottom-[54%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <!-- "Базовый ряд" — плотный частый ряд у самого низа, отдельно от диагонального
+             каскада выше. Проверено скан-скриптом по пикселям (не на глаз): между кругами
+             выше на самом нижнем крае оставались просветы-"долины" (круг — не прямоугольник,
+             у соседних кругов совпадающих по касанию верхних дуг ниже уровня центров уже
+             есть зазор) — здесь центры специально ближе друг к другу, чем сумма радиусов,
+             гарантированное перекрытие по всей ширине клина. -->
+        <div class="absolute -right-[8%] -bottom-[4%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute -right-[2%] -bottom-[4%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute right-[4%] -bottom-[4%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute right-[10%] -bottom-[4%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute right-[16%] -bottom-[4%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute right-[22%] -bottom-[4%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute right-[28%] -bottom-[4%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute right-[34%] -bottom-[4%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
       </div>
 
       <!-- justify-between → gap-8 на самой Card (по прямой просьбе 2026-08-28: расстояние
@@ -142,7 +156,12 @@ function telHref(phone: string): string {
         </div>
       </div>
 
-      <div class="relative z-10 flex shrink-0 items-center gap-3">
+      <!-- sm:ml-auto — маскот прижат к правому краю шапки (по прямой просьбе 2026-08-28):
+           без него на широкой карточке (текст ýже max-w-xl, а карточка ещё шире) маскот
+           просто шёл сразу за текстом через gap-8, оставляя пустоту СПРАВА от него до края
+           карточки, а не наоборот. ml-auto съедает именно эту пустоту, подтягивая маскот к
+           краю; gap-8 остаётся минимальным отступом от текста, когда свободного места нет. -->
+      <div class="relative z-10 flex shrink-0 items-center gap-3 sm:ml-auto">
         <!-- "Реплика" маскота — hidden на самом узком экране (места впритык с текстом+
              кнопками уже не остаётся), с sm: и выше показывается как в референсе. Хвостик
              пузыря — повёрнутый на 45° квадрат с двумя видимыми гранями (border-t/border-r),
