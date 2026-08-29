@@ -68,19 +68,10 @@ function telHref(phone: string): string {
     <!-- Шапка сделана буквально по присланному пользователем референсу (2026-08-28):
          приветствие по имени + текст + две кнопки слева, маскот с "репликой" справа,
          фон карточки — светло-голубой (как в референсе, не нейтральный bg-card). -->
-    <Card class="relative flex flex-col items-start gap-6 overflow-hidden bg-sky-50 p-6 dark:bg-sky-500/10 sm:flex-row sm:items-center sm:justify-between">
-      <!-- "Облачко" — три кружка каскадом от угла карточки, третий заход 2026-08-28: было
-           слишком мелко и разрозненно (кружки не касались друг друга и почти не задевали
-           край) — теперь плотно перекрываются и садятся прямо на правый нижний угол, самый
-           крупный ~15% ширины шапки, чтобы угол был визуально плотно "закрыт", а не еле
-           заметно тронут. Обрезаются overflow-hidden самой Card. Цвет — на шаг темнее фона
-           шапки (bg-sky-50), не яркий/насыщенный ("нежный"). -->
-      <div class="pointer-events-none absolute inset-0" aria-hidden="true">
-        <div class="absolute -right-10 -bottom-10 size-36 rounded-full bg-sky-100 dark:bg-sky-400/15 sm:size-48" />
-        <div class="absolute -right-2 bottom-8 size-28 rounded-full bg-sky-100 dark:bg-sky-400/15 sm:size-36" />
-        <div class="absolute right-14 bottom-1 size-20 rounded-full bg-sky-100 dark:bg-sky-400/15 sm:size-28" />
-      </div>
-
+    <Card class="relative flex flex-col items-start gap-6 overflow-hidden bg-sky-50 p-6 dark:bg-sky-500/10 sm:flex-row sm:items-center sm:gap-8">
+      <!-- justify-between → gap-8 на самой Card (по прямой просьбе 2026-08-28: расстояние
+           между приветственным текстом и маскотом/облачком было слишком большим на широких
+           экранах — justify-between растягивал его на весь остаток ширины). -->
       <div class="relative z-10 max-w-lg">
         <h1 class="text-2xl font-semibold">
           <!-- Явный эмодзи-шрифт первым в стеке (не общий 'Inter Variable'/sans-serif сайта) —
@@ -127,7 +118,22 @@ function telHref(phone: string): string {
           {{ t('home.resident.mascotBubble') }}
           <span class="absolute top-1/2 -right-1.5 size-3 -translate-y-1/2 rotate-45 border-t border-r bg-background" />
         </div>
-        <img :src="mascotSrc" alt="" class="relative h-48 w-auto sm:h-64" />
+        <!-- Облачки — пятый заход 2026-08-28, по присланному пользователем скриншоту
+             актуального деплоя: не в углу шапки и не вдоль всей высоты, а привязаны к
+             самому маскоту — каскад мягких (blur) кругов по диагонали от его нижнего левого
+             угла (мелкий, ближе к пузырю реплики) вверх направо (крупный, за головой/рукой).
+             isolate — тот же приём, что уже чинил невидимость раньше: без своего stacking
+             context -z-10 "проваливался" бы за всю Card, а не только за img. Число кругов —
+             4, не обязательно 3 (по прямой просьбе). -->
+        <div class="relative isolate">
+          <div class="pointer-events-none absolute inset-0 -z-10" aria-hidden="true">
+            <div class="absolute bottom-2 left-2 size-10 rounded-full bg-sky-300 blur-md dark:bg-sky-400/40" />
+            <div class="absolute bottom-10 left-8 size-16 rounded-full bg-sky-300 blur-lg dark:bg-sky-400/40" />
+            <div class="absolute top-1/3 left-1/4 size-24 rounded-full bg-sky-300 blur-xl dark:bg-sky-400/40" />
+            <div class="absolute -top-4 right-4 size-36 rounded-full bg-sky-300 blur-2xl dark:bg-sky-400/40" />
+          </div>
+          <img :src="mascotSrc" alt="" class="relative h-56 w-auto sm:h-80" />
+        </div>
       </div>
       <CreatePaymentDialog ref="paymentDialog" />
     </Card>
