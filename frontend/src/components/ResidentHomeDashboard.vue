@@ -69,10 +69,35 @@ function telHref(phone: string): string {
          приветствие по имени + текст + две кнопки слева, маскот с "репликой" справа,
          фон карточки — светло-голубой (как в референсе, не нейтральный bg-card). -->
     <Card class="relative flex flex-col items-start gap-6 overflow-hidden bg-sky-50 p-6 dark:bg-sky-500/10 sm:flex-row sm:items-center sm:gap-8">
+      <!-- "Облачки" — шестой заход 2026-08-28, снова карточный угол (не за маскотом): плоские
+           кружки БЕЗ blur (по прямой просьбе — "без рассеивания и прочих эффектов"), цвет
+           вернули на исходный bg-sky-100 (мягче/бледнее bg-sky-300, который был с blur).
+           Много кружков (без ограничения "ровно 3"), плотно перекрывающихся — сплошным
+           клином от нижнего края (чуть левее маскота) по диагонали вверх вдоль правого края,
+           чтобы весь правый нижний угол шапки был закрыт без просветов. z-index не нужен —
+           это ПЕРВЫЙ ребёнок Card, обычный поток, а текст/маскот ниже оба свои z-10 явно —
+           они просто рисуются поверх по DOM-порядку и explicit z. -->
+      <div class="pointer-events-none absolute inset-0" aria-hidden="true">
+        <div class="absolute right-[36%] bottom-0 aspect-square w-[16%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute right-[23%] -bottom-[2%] aspect-square w-[19%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute right-[8%] -bottom-[3%] aspect-square w-[21%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <!-- Этот круг — единственный, кому нужно ОДНОВРЕМЕННО отрицательные right И bottom:
+             без этого ни один круг физически не задевает саму точку угла (проверено —
+             у всех остальных либо только right, либо только bottom уходит за край, но не
+             оба сразу), и в самом угле остаётся пустой клин, даже когда соседние круги его
+             визуально почти закрывают. -->
+        <div class="absolute -right-[6%] -bottom-[5%] aspect-square w-[20%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute right-[16%] bottom-[19%] aspect-square w-[18%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute right-0 bottom-[22%] aspect-square w-[19%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute right-[6%] bottom-[38%] aspect-square w-[16%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute -right-[2%] bottom-[40%] aspect-square w-[15%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+        <div class="absolute right-[2%] bottom-[54%] aspect-square w-[13%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
+      </div>
+
       <!-- justify-between → gap-8 на самой Card (по прямой просьбе 2026-08-28: расстояние
            между приветственным текстом и маскотом/облачком было слишком большим на широких
            экранах — justify-between растягивал его на весь остаток ширины). -->
-      <div class="relative z-10 max-w-lg">
+      <div class="relative z-10 max-w-xl">
         <h1 class="text-2xl font-semibold">
           <!-- Явный эмодзи-шрифт первым в стеке (не общий 'Inter Variable'/sans-serif сайта) —
                форсирует настоящую цветную отрисовку системным цветным эмодзи-шрифтом вместо
@@ -85,12 +110,20 @@ function telHref(phone: string): string {
         </h1>
         <p class="mt-3 text-base text-muted-foreground">{{ t('home.resident.greetingBody1') }}</p>
         <p class="mt-3 text-base text-muted-foreground">{{ t('home.resident.greetingBody2') }}</p>
-        <!-- grid grid-cols-2 (не flex) — гарантирует РАВНУЮ ширину обеих кнопок независимо
-             от разной длины текста ("Оплатить проживание" длиннее "Мой договор"), а не
-             просто равную высоту — по прямой просьбе 2026-08-28, третий заход. w-full на
-             каждой кнопке — растягивает её на всю ширину своей grid-колонки. -->
-        <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Button class="w-full" @click="paymentDialog?.open()">
+        <!-- flex + flex-1 на каждой кнопке (не grid) — оба flex-item растут/сжимаются
+             СТРОГО одинаково (flex: 1 1 0%) независимо от длины текста — по прямой просьбе
+             2026-08-28, четвёртый заход на этот конкретный баг. ВАЖНО: одного flex-1 мало —
+             базовые классы кнопки несут whitespace-nowrap (нужен, чтобы текст не переносился
+             сам по себе на других кнопках сайта), а у flex-item ПО УМОЛЧАНИЮ min-width:auto,
+             который у nowrap-контента равен ширине его "однострочного" текста — это ЖЁСТКИЙ
+             пол, который flex-basis:0 (из flex-1) не может пробить: до этой правки более
+             длинный текст "Оплатить проживание" просто не мог сжаться уже своих 200px, и вся
+             дистрибуция пространства съезжала (проверено — 200/140px, не поровну, несмотря
+             на одинаковый flex-1 у обеих). min-w-0 снимает эту неявную нижнюю границу —
+             теперь flex-grow действительно делит место 50/50. justify-center (уже в
+             buttonVariants) центрирует текст внутри итоговой ширины. -->
+        <div class="mt-4 flex flex-col gap-3 sm:flex-row">
+          <Button class="min-w-0 flex-1" @click="paymentDialog?.open()">
             <CreditCard class="size-4" />
             {{ t('home.resident.payHero') }}
           </Button>
@@ -102,7 +135,7 @@ function telHref(phone: string): string {
                него. Обходим — RouterLink напрямую с теми же классами buttonVariants, без
                Button/as-child посредника вообще. Сам цвет (outline) не трогаем по прямой
                просьбе — только иконка перекрашена в primary. -->
-          <RouterLink to="/student/contract" :class="[buttonVariants({ variant: 'outline' }), 'w-full']">
+          <RouterLink to="/student/contract" :class="[buttonVariants({ variant: 'outline' }), 'min-w-0', 'flex-1']">
             <FileText class="size-4 text-primary" />
             {{ t('home.resident.myContractButton') }}
           </RouterLink>
@@ -118,22 +151,7 @@ function telHref(phone: string): string {
           {{ t('home.resident.mascotBubble') }}
           <span class="absolute top-1/2 -right-1.5 size-3 -translate-y-1/2 rotate-45 border-t border-r bg-background" />
         </div>
-        <!-- Облачки — пятый заход 2026-08-28, по присланному пользователем скриншоту
-             актуального деплоя: не в углу шапки и не вдоль всей высоты, а привязаны к
-             самому маскоту — каскад мягких (blur) кругов по диагонали от его нижнего левого
-             угла (мелкий, ближе к пузырю реплики) вверх направо (крупный, за головой/рукой).
-             isolate — тот же приём, что уже чинил невидимость раньше: без своего stacking
-             context -z-10 "проваливался" бы за всю Card, а не только за img. Число кругов —
-             4, не обязательно 3 (по прямой просьбе). -->
-        <div class="relative isolate">
-          <div class="pointer-events-none absolute inset-0 -z-10" aria-hidden="true">
-            <div class="absolute bottom-2 left-2 size-10 rounded-full bg-sky-300 blur-md dark:bg-sky-400/40" />
-            <div class="absolute bottom-10 left-8 size-16 rounded-full bg-sky-300 blur-lg dark:bg-sky-400/40" />
-            <div class="absolute top-1/3 left-1/4 size-24 rounded-full bg-sky-300 blur-xl dark:bg-sky-400/40" />
-            <div class="absolute -top-4 right-4 size-36 rounded-full bg-sky-300 blur-2xl dark:bg-sky-400/40" />
-          </div>
-          <img :src="mascotSrc" alt="" class="relative h-56 w-auto sm:h-80" />
-        </div>
+        <img :src="mascotSrc" alt="" class="relative h-56 w-auto sm:h-80" />
       </div>
       <CreatePaymentDialog ref="paymentDialog" />
     </Card>
