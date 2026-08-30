@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { AlertTriangle, Clock, DoorOpen, FileSignature, Megaphone, MessageCircle, MoreVertical, Pencil, Trash2, UserPlus } from 'lucide-vue-next'
+import { AlertTriangle, Clock, DoorOpen, FileSignature, MessageCircle, MoreVertical, Newspaper, Pencil, Trash2, UserPlus } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -213,7 +213,7 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
         {{ t('home.quickNewContract') }}
       </Button>
       <Button size="sm" variant="outline" class="flex items-center gap-2" @click="announcementDialogRef?.open()">
-        <Megaphone class="size-4 shrink-0 text-primary" />
+        <Newspaper class="size-4 shrink-0 text-primary" />
         {{ t('home.quickNewAnnouncement') }}
       </Button>
       <CreateIndividualDialog ref="individualDialogRef" />
@@ -250,7 +250,7 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
          там весь БЛОК один, тут список из МНОГИХ объявлений. -->
     <Card class="p-4">
       <div class="mb-3 flex items-center gap-1.5 text-sm font-medium">
-        <Megaphone class="size-4 text-primary" />
+        <Newspaper class="size-4 text-primary" />
         {{ t('home.staffAnnouncementsTitle') }}
       </div>
       <p v-if="isAnnouncementsLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
@@ -258,7 +258,7 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
       <div v-else class="flex flex-col divide-y divide-border">
         <div v-for="a in announcements" :key="a.id" class="-mx-2 flex items-start gap-3 rounded-md px-2 py-2">
           <div class="flex size-8 shrink-0 items-center justify-center rounded-lg" :class="iconBadgeColorClasses(a.id).container">
-            <Megaphone class="size-4" :class="iconBadgeColorClasses(a.id).icon" />
+            <Newspaper class="size-4" :class="iconBadgeColorClasses(a.id).icon" />
           </div>
           <div class="min-w-0 flex-1">
             <p class="truncate text-sm font-medium">{{ a.title }}</p>

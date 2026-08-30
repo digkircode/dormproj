@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Megaphone } from 'lucide-vue-next'
+import { Newspaper } from 'lucide-vue-next'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { dateLocaleTag } from '@/lib/format-locale'
 import { markAnnouncementRead, type ResidentAnnouncement } from '@/lib/announcements-api'
@@ -49,7 +49,7 @@ function formatDate(value: string): string {
       <DialogHeader>
         <div class="flex items-start gap-3">
           <div class="flex size-8 shrink-0 items-center justify-center rounded-lg" :class="iconColors.container">
-            <Megaphone class="size-4" :class="iconColors.icon" />
+            <Newspaper class="size-4" :class="iconColors.icon" />
           </div>
           <div class="min-w-0 flex-1">
             <DialogTitle class="text-left">{{ current?.title }}</DialogTitle>

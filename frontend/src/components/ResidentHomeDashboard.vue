@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ArrowRight, CreditCard, DoorOpen, Megaphone, MessageCircle, Phone, Wallet } from 'lucide-vue-next'
+import { ArrowRight, CreditCard, DoorOpen, MessageCircle, Newspaper, Phone, Wallet } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button, buttonVariants } from '@/components/ui/button'
 import CreatePaymentDialog from '@/components/CreatePaymentDialog.vue'
@@ -372,21 +372,25 @@ function telHref(phone: string): string {
     <Card class="flex flex-col gap-3 p-6">
       <div class="flex items-center gap-1.5 text-base font-medium">
         <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-500/15">
-          <Megaphone class="size-4 text-violet-600 dark:text-violet-400" />
+          <Newspaper class="size-4 text-violet-600 dark:text-violet-400" />
         </div>
         {{ t('home.resident.announcementsHeading') }}
       </div>
       <p v-if="!isLoading && !announcements.length" class="text-sm text-muted-foreground">{{ t('home.resident.announcementsEmpty') }}</p>
-      <div v-else class="flex flex-col divide-y divide-border">
+      <!-- Раньше — hover:bg-accent на голом ряду + divide-y между рядами. По прямой
+           просьбе 2026-08-30 — каждый ряд теперь "невзрачный" блок с постоянным приглушённым
+           фоном (не разделительные линии), gap между блоками вместо divide-y, hover — синим
+           (не нейтральным accent, как у остальных карточек — акцент специально другой). -->
+      <div v-else class="flex flex-col gap-2">
         <button
           v-for="a in announcementsPreview"
           :key="a.id"
           type="button"
-          class="-mx-2 flex items-start gap-3 rounded-md px-2 py-2 text-left hover:bg-accent"
+          class="flex items-start gap-3 rounded-lg bg-muted/50 p-3 text-left transition-colors hover:bg-blue-50 dark:bg-muted/20 dark:hover:bg-blue-500/10"
           @click="announcementReadDialog?.open(a)"
         >
           <div class="flex size-8 shrink-0 items-center justify-center rounded-lg" :class="iconBadgeColorClasses(a.id).container">
-            <Megaphone class="size-4" :class="iconBadgeColorClasses(a.id).icon" />
+            <Newspaper class="size-4" :class="iconBadgeColorClasses(a.id).icon" />
           </div>
           <div class="min-w-0 flex-1">
             <p class="truncate text-sm font-semibold">{{ a.title }}</p>

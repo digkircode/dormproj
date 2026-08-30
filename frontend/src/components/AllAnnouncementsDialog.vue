@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Megaphone } from 'lucide-vue-next'
+import { Newspaper } from 'lucide-vue-next'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { dateLocaleTag } from '@/lib/format-locale'
 import { markAnnouncementRead, type ResidentAnnouncement } from '@/lib/announcements-api'
@@ -56,11 +56,18 @@ function formatDate(value: string): string {
       </DialogHeader>
 
       <p v-if="!props.announcements.length" class="text-sm text-muted-foreground">{{ t('home.resident.announcementsEmpty') }}</p>
-      <div v-else class="flex flex-col divide-y divide-border overflow-y-auto">
-        <div v-for="a in props.announcements" :key="a.id" class="py-2">
-          <button type="button" class="flex w-full items-start gap-3 rounded-md px-2 py-1.5 text-left hover:bg-accent" @click="toggle(a)">
+      <!-- Тот же "невзрачный" фон + синий hover, что и в превью на ResidentHomeDashboard.vue
+           (по прямой просьбе 2026-08-30) — gap между блоками вместо divide-y, кнопка и
+           раскрывающийся текст внутри ОДНОГО скруглённого блока, не разделены рамкой. -->
+      <div v-else class="flex flex-col gap-2 overflow-y-auto">
+        <div
+          v-for="a in props.announcements"
+          :key="a.id"
+          class="rounded-lg bg-muted/50 transition-colors hover:bg-blue-50 dark:bg-muted/20 dark:hover:bg-blue-500/10"
+        >
+          <button type="button" class="flex w-full items-start gap-3 p-3 text-left" @click="toggle(a)">
             <div class="flex size-8 shrink-0 items-center justify-center rounded-lg" :class="iconBadgeColorClasses(a.id).container">
-              <Megaphone class="size-4" :class="iconBadgeColorClasses(a.id).icon" />
+              <Newspaper class="size-4" :class="iconBadgeColorClasses(a.id).icon" />
             </div>
             <div class="min-w-0 flex-1">
               <p class="truncate text-sm font-semibold">{{ a.title }}</p>
@@ -73,7 +80,7 @@ function formatDate(value: string): string {
                RoomInfoTrigger.vue, см. промпт). -->
           <div class="grid transition-[grid-template-rows] duration-200" :style="{ gridTemplateRows: expandedIds.has(a.id) ? '1fr' : '0fr' }">
             <div class="overflow-hidden">
-              <p class="px-2 pt-1 pb-2 pl-[2.75rem] text-sm whitespace-pre-wrap text-muted-foreground">{{ a.body }}</p>
+              <p class="px-3 pb-3 pl-[3.25rem] text-sm whitespace-pre-wrap text-muted-foreground">{{ a.body }}</p>
             </div>
           </div>
         </div>
