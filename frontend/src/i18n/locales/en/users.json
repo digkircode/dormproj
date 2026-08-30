@@ -87,6 +87,7 @@
     "entityDormitoryInfo": "Dormitory settings",
     "entityRole": "Role",
     "entityUserRole": "User role",
+    "entityAnnouncement": "Announcement",
     "colCreatedAt": "Date and time",
     "colUser": "User",
     "colAction": "Action",

@@ -52,12 +52,16 @@ function formatDate(value: string): string {
             <Newspaper class="size-4" :class="iconColors.icon" />
           </div>
           <div class="min-w-0 flex-1">
-            <DialogTitle class="text-left">{{ current?.title }}</DialogTitle>
+            <DialogTitle class="text-left break-words">{{ current?.title }}</DialogTitle>
             <p v-if="current" class="mt-0.5 text-xs text-muted-foreground">{{ formatDate(current.createdAt) }}</p>
           </div>
         </div>
       </DialogHeader>
-      <p v-if="current" class="whitespace-pre-wrap text-sm">{{ current.body }}</p>
+      <!-- break-words — иначе одно длинное "слово" без пробелов (URL, склеенный текст без
+           переносов и т.п.) распирает модалку по ширине вместо переноса, по прямой просьбе
+           2026-08-30. whitespace-pre-wrap сам по себе переносит только по пробелам/явным
+           \n, не внутри непрерывного токена. -->
+      <p v-if="current" class="text-sm whitespace-pre-wrap break-words">{{ current.body }}</p>
     </DialogScrollContent>
   </Dialog>
 </template>

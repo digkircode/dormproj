@@ -83,7 +83,9 @@ function formatDate(value: string): string {
                RoomInfoTrigger.vue, см. промпт). -->
           <div class="grid transition-[grid-template-rows] duration-200" :style="{ gridTemplateRows: expandedIds.has(a.id) ? '1fr' : '0fr' }">
             <div class="overflow-hidden">
-              <p class="px-3 pb-3 pl-[3.25rem] text-sm whitespace-pre-wrap text-muted-foreground">{{ a.body }}</p>
+              <!-- break-words — длинное "слово" без пробелов иначе распирает модалку по
+                   ширине вместо переноса (по прямой просьбе 2026-08-30). -->
+              <p class="px-3 pb-3 pl-[3.25rem] text-sm whitespace-pre-wrap text-muted-foreground break-words">{{ a.body }}</p>
             </div>
           </div>
         </div>

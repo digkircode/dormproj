@@ -29,6 +29,7 @@ const ENTITY_TYPE_LABELS = computed<Record<string, string>>(() => ({
   DormitoryInfo: t('audit.entityDormitoryInfo'),
   Role: t('audit.entityRole'),
   UserRole: t('audit.entityUserRole'),
+  Announcement: t('audit.entityAnnouncement'),
 }))
 
 const columnLabels = computed<Record<string, string>>(() => ({
