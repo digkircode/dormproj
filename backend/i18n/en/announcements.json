@@ -1,0 +1,6 @@
+{
+  "errors": {
+    "invalidId": "Invalid announcement id",
+    "notFound": "Announcement not found"
+  }
+}

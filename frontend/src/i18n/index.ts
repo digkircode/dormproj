@@ -19,6 +19,8 @@ import ruChat from './locales/ru/chat.json'
 import enChat from './locales/en/chat.json'
 import ruStudent from './locales/ru/student.json'
 import enStudent from './locales/en/student.json'
+import ruAnnouncements from './locales/ru/announcements.json'
+import enAnnouncements from './locales/en/announcements.json'
 
 export type AppLocale = 'ru' | 'en'
 export const LOCALE_STORAGE_KEY = 'dormproj-locale'
@@ -39,7 +41,7 @@ export const i18n = createI18n({
   locale: getStoredLocale(),
   fallbackLocale: 'ru',
   messages: {
-    ru: { ...ruCommon, ...ruContracts, ...ruPayment, ...ruRooms, ...ruIndividuals, ...ruUsers, ...ruReports, ...ruSync, ...ruChat, ...ruStudent },
-    en: { ...enCommon, ...enContracts, ...enPayment, ...enRooms, ...enIndividuals, ...enUsers, ...enReports, ...enSync, ...enChat, ...enStudent },
+    ru: { ...ruCommon, ...ruContracts, ...ruPayment, ...ruRooms, ...ruIndividuals, ...ruUsers, ...ruReports, ...ruSync, ...ruChat, ...ruStudent, ...ruAnnouncements },
+    en: { ...enCommon, ...enContracts, ...enPayment, ...enRooms, ...enIndividuals, ...enUsers, ...enReports, ...enSync, ...enChat, ...enStudent, ...enAnnouncements },
   },
 })

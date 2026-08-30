@@ -1,14 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ArrowRight, CreditCard, DoorOpen, MessageCircle, Phone, Wallet } from 'lucide-vue-next'
+import { ArrowRight, CreditCard, DoorOpen, Megaphone, MessageCircle, Phone, Wallet } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button, buttonVariants } from '@/components/ui/button'
 import CreatePaymentDialog from '@/components/CreatePaymentDialog.vue'
+import AnnouncementReadDialog from '@/components/AnnouncementReadDialog.vue'
+import AllAnnouncementsDialog from '@/components/AllAnnouncementsDialog.vue'
 import { fetchMyContract, type MyContractDetail } from '@/lib/contracts-api'
+import { fetchMyAnnouncements, type ResidentAnnouncement } from '@/lib/announcements-api'
 import { residentUnreadCount } from '@/lib/chat-unread-state'
 import { currentUser } from '@/lib/auth-state'
 import { dateLocaleTag } from '@/lib/format-locale'
+import { iconBadgeColorClasses } from '@/lib/avatar-color'
 // Маскот — сгенерирован пользователем отдельно под референс (2026-08-28, вторая версия —
 // первая была фото енота без позы "как на референсе"), пережат через sharp (456×365,
 // ~22 КБ, альфа-канал сохранён) тем же приёмом, что и первая версия.
@@ -30,8 +34,31 @@ const paymentDialog = ref<InstanceType<typeof CreatePaymentDialog> | null>(null)
 // (теоретически возможно, если у аккаунта в rosnou-id имя не заполнено).
 const firstName = computed(() => currentUser.value?.name || null)
 
+// Объявления — по прямой просьбе 2026-08-30, без markdown/HTML (текст рендерится как есть
+// через {{ }}, не через v-html — см. обсуждение в промпте про XSS-инвариант проекта).
+// Видны ВСЕМ с ролью RESIDENT без таргетинга (см. MyAnnouncementsController на бэке).
+const announcements = ref<ResidentAnnouncement[]>([])
+const ANNOUNCEMENTS_PREVIEW_COUNT = 3
+const announcementsPreview = computed(() => announcements.value.slice(0, ANNOUNCEMENTS_PREVIEW_COUNT))
+const announcementReadDialog = ref<InstanceType<typeof AnnouncementReadDialog> | null>(null)
+const allAnnouncementsDialog = ref<InstanceType<typeof AllAnnouncementsDialog> | null>(null)
+
+// Общий обработчик для обеих модалок (карточка-превью и "Все объявления") — один и тот же
+// массив announcements лежит в основе обеих, поэтому достаточно найти запись по id и снять
+// unread — реактивность Vue подхватывает мутацию вложенного объекта сама (тот же принцип,
+// что и у residentUnreadCount/чата), отдельный рефетч всего списка не нужен.
+function markAnnouncementAsRead(id: number) {
+  const found = announcements.value.find((a) => a.id === id)
+  if (found) found.unread = false
+}
+
 onMounted(async () => {
-  contract.value = await fetchMyContract().catch(() => null)
+  const [contractResult, announcementsResult] = await Promise.all([
+    fetchMyContract().catch(() => null),
+    fetchMyAnnouncements().catch(() => []),
+  ])
+  contract.value = contractResult
+  announcements.value = announcementsResult
   isLoading.value = false
 })
 
@@ -68,10 +95,12 @@ function telHref(phone: string): string {
     <!-- Шапка сделана буквально по присланному пользователем референсу (2026-08-28):
          приветствие по имени + текст + кнопка слева, маскот с "репликой" справа.
          Фон — по прямой просьбе 2026-08-29 приведён к тому же bg-card, что у остальных
-         карточек ниже (раньше был отдельный светло-голубой оттенок). px-16 (64px), pt-6
-         (24px, вернули по прямой просьбе — первая версия убрала верхний отступ вместе с
-         нижним), без нижнего паддинга (было p-6=24px со всех сторон). -->
-    <Card class="relative flex flex-col items-start gap-6 overflow-hidden px-16 pt-6 sm:flex-row sm:items-center sm:gap-8">
+         карточек ниже (раньше был отдельный светло-голубой оттенок). px-[72px] (72px, было
+         px-16=64px — 72 не попадает в стандартную шкалу Tailwind, отсюда произвольное
+         значение вместо именованного класса), pt-6 (24px, вернули по прямой просьбе —
+         первая версия убрала верхний отступ вместе с нижним), без нижнего паддинга (было
+         p-6=24px со всех сторон). -->
+    <Card class="relative flex flex-col items-start gap-6 overflow-hidden px-[72px] pt-6 sm:flex-row sm:items-center sm:gap-8">
       <!-- "Облачка" — девятый заход 2026-08-28, по прямой просьбе отказались от попытки
            воспроизвести точный силуэт — просто россыпь кружков разного размера по всей
            шапке (не только в углу), тот же самый мягкий цвет (bg-sky-100/dark:bg-sky-400/15),
@@ -162,8 +191,8 @@ function telHref(phone: string): string {
       <!-- "Моя комната" — по прямой просьбе 2026-08-28: слева комната/этаж, через
            вертикальную черту справа номер договора/дата создания, "Подробнее" под
            горизонтальной чертой снизу (не 2x2 корпус/этаж/комната/тип, как раньше). -->
-      <Card class="flex flex-col gap-3 p-4">
-        <div class="flex items-center gap-1.5 text-sm font-medium">
+      <Card class="flex flex-col gap-3 p-6">
+        <div class="flex items-center gap-1.5 text-base font-medium">
           <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-500/15">
             <DoorOpen class="size-4 text-sky-600 dark:text-sky-400" />
           </div>
@@ -220,8 +249,8 @@ function telHref(phone: string): string {
       <!-- "Оплата" (была "Общий баланс") — задолженность в цветной плашке + пилюля
            "Просрочен платёж", следующий платёж, "Перейти к оплате" ссылкой (не кнопкой)
            под чертой, открывает модалку оплаты — всё по прямой просьбе 2026-08-28. -->
-      <Card class="flex flex-col gap-3 p-4">
-        <div class="flex items-center gap-1.5 text-sm font-medium">
+      <Card class="flex flex-col gap-3 p-6">
+        <div class="flex items-center gap-1.5 text-base font-medium">
           <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-green-100 dark:bg-green-500/15">
             <Wallet class="size-4 text-green-600 dark:text-green-400" />
           </div>
@@ -282,8 +311,8 @@ function telHref(phone: string): string {
       <!-- Чат с сотрудниками — жёлтая иконка, счётчик непрочитанных вместо кружка-точки,
            "Написать сообщение" ссылкой под чертой (тот же паттерн карточки, что выше),
            по прямой просьбе 2026-08-28. -->
-      <Card class="flex flex-col gap-3 p-4">
-        <div class="flex items-center gap-1.5 text-sm font-medium">
+      <Card class="flex flex-col gap-3 p-6">
+        <div class="flex items-center gap-1.5 text-base font-medium">
           <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-500/15">
             <MessageCircle class="size-4 text-amber-600 dark:text-amber-400" />
           </div>
@@ -303,8 +332,8 @@ function telHref(phone: string): string {
       <!-- Контакты — синяя иконка, номера с кнопкой звонка (tel:), по прямой просьбе
            2026-08-28. Номера статические (см. contactGroups в script), нет справочника
            контактов сотрудников в API под резидента. -->
-      <Card class="flex flex-col gap-3 p-4">
-        <div class="flex items-center gap-1.5 text-sm font-medium">
+      <Card class="flex flex-col gap-3 p-6">
+        <div class="flex items-center gap-1.5 text-base font-medium">
           <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-500/15">
             <Phone class="size-4 text-blue-600 dark:text-blue-400" />
           </div>
@@ -335,6 +364,51 @@ function telHref(phone: string): string {
         </div>
       </Card>
     </div>
+
+    <!-- Объявления — по прямой просьбе 2026-08-30, фиолетовая иконка (в отличие от
+         остальных карточек, у каждой свой фиксированный цвет — sky/green/amber/blue выше),
+         показывает последние ANNOUNCEMENTS_PREVIEW_COUNT штук, полный список — в модалке
+         "Все объявления" ниже (та же кнопка-ссылка под чертой, что и у остальных карточек). -->
+    <Card class="flex flex-col gap-3 p-6">
+      <div class="flex items-center gap-1.5 text-base font-medium">
+        <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-500/15">
+          <Megaphone class="size-4 text-violet-600 dark:text-violet-400" />
+        </div>
+        {{ t('home.resident.announcementsHeading') }}
+      </div>
+      <p v-if="!isLoading && !announcements.length" class="text-sm text-muted-foreground">{{ t('home.resident.announcementsEmpty') }}</p>
+      <div v-else class="flex flex-col divide-y divide-border">
+        <button
+          v-for="a in announcementsPreview"
+          :key="a.id"
+          type="button"
+          class="-mx-2 flex items-start gap-3 rounded-md px-2 py-2 text-left hover:bg-accent"
+          @click="announcementReadDialog?.open(a)"
+        >
+          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg" :class="iconBadgeColorClasses(a.id).container">
+            <Megaphone class="size-4" :class="iconBadgeColorClasses(a.id).icon" />
+          </div>
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-sm font-semibold">{{ a.title }}</p>
+            <p class="truncate text-sm text-muted-foreground">{{ a.body }}</p>
+          </div>
+          <span v-if="a.unread" class="mt-1.5 size-2 shrink-0 rounded-full bg-blue-500" />
+        </button>
+      </div>
+      <div class="mt-auto border-t pt-3">
+        <button
+          type="button"
+          class="inline-flex items-center gap-1 text-left text-sm text-primary hover:underline"
+          @click="allAnnouncementsDialog?.open()"
+        >
+          {{ t('home.resident.announcementsSeeAll') }}
+          <ArrowRight class="size-3.5" />
+        </button>
+      </div>
+    </Card>
+
+    <AnnouncementReadDialog ref="announcementReadDialog" @read="markAnnouncementAsRead" />
+    <AllAnnouncementsDialog ref="allAnnouncementsDialog" :announcements="announcements" @read="markAnnouncementAsRead" />
   </div>
 </template>
 

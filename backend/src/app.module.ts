@@ -34,6 +34,7 @@ import { RolesModule } from './roles/roles.module';
 import { PublicInfoModule } from './public-info/public-info.module';
 import { ChatsModule } from './chats/chats.module';
 import { MyPaymentsModule } from './my-payments/my-payments.module';
+import { AnnouncementsModule } from './announcements/announcements.module';
 
 @Module({
   imports: [
@@ -79,6 +80,7 @@ import { MyPaymentsModule } from './my-payments/my-payments.module';
     PublicInfoModule,
     ChatsModule,
     MyPaymentsModule,
+    AnnouncementsModule,
   ],
   controllers: [AppController],
   providers: [

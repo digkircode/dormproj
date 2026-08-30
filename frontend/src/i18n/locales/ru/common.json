@@ -83,12 +83,15 @@
     "kpiUnread": "Непрочитанные сообщения",
     "quickNewIndividual": "Новое физлицо",
     "quickNewContract": "Новый договор",
+    "quickNewAnnouncement": "Создать объявление",
     "attentionTitle": "Требует внимания",
     "attentionEmpty": "Ничего не требует внимания.",
     "attentionContractLine": "Договор № {number} — {name}",
     "attentionDebtorLine": "{name} — комн. {room}",
     "attentionUnreadChats": "Непрочитанных обращений: {count}",
     "attentionUnreadChatsHint": "Чат с проживающими",
+    "staffAnnouncementsTitle": "Объявления",
+    "staffAnnouncementsEmpty": "Пока нет объявлений — создайте первое.",
     "resident": {
       "greetingTitle": "Привет, {name}!",
       "greetingTitleFallback": "Привет!",
@@ -118,7 +121,10 @@
       "contactsHeading": "Контакты",
       "contactsDutyAdmin": "Дежурный администратор",
       "contactsYouthDept": "Департамент по делам молодёжи",
-      "callAction": "Позвонить"
+      "callAction": "Позвонить",
+      "announcementsHeading": "Объявления",
+      "announcementsEmpty": "Пока нет объявлений",
+      "announcementsSeeAll": "Все объявления"
     }
   },
   "roomInfo": {

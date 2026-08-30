@@ -228,11 +228,13 @@ model User {
 
   individual Individual? @relation(fields: [univerId], references: [fizicheskoyeLitsoUid], onDelete: SetNull)
 
-  contractsCreated Contract[] @relation("ContractCreatedBy")
-  paymentsCreated  Payment[]  @relation("PaymentCreatedBy")
-  roles            UserRole[]
-  auditLogs        AuditLog[]
-  chatMessages     ChatMessage[]
+  contractsCreated     Contract[]         @relation("ContractCreatedBy")
+  paymentsCreated      Payment[]          @relation("PaymentCreatedBy")
+  roles                UserRole[]
+  auditLogs            AuditLog[]
+  chatMessages         ChatMessage[]
+  announcementsCreated Announcement[]
+  announcementReads    AnnouncementRead[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -935,4 +937,48 @@ model ChatAttachment {
 
   @@index([messageId])
   @@map("chat_attachments")
+}
+
+// Объявления сотрудников для проживающих — лента на "Главной" резидента + секция на
+// "Главной" сотрудника (по прямой просьбе 2026-08-30). Без markdown/HTML — обычный текст,
+// см. обсуждение в промпте проекта: рендерится как есть через {{ }}, не через v-html,
+// поэтому не открывает XSS-поверхность (тот же инвариант, что и у остального сайта).
+model Announcement {
+  id       Int    @id @default(autoincrement())
+  title    String
+  body     String
+
+  authorUserId Int  @map("author_user_id")
+  author       User @relation(fields: [authorUserId], references: [id])
+
+  reads AnnouncementRead[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  // Прочитанность считается по этому полю (см. AnnouncementRead.readAt ниже) — редактирование
+  // объявления сдвигает updatedAt вперёд, и синяя точка "непрочитано" автоматически
+  // возвращается всем, кто уже успел прочитать старую версию, без отдельного флага/события.
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("announcements")
+}
+
+// Отметка прочтения объявления конкретным пользователем (не Individual — читает тот, кто
+// залогинен, независимо от привязки к физлицу) — один ряд на пару (объявление, юзер), тем
+// же принципом, что chat_conversations.residentLastReadAt, но здесь на уровне отдельной
+// записи, а не одной колонки: объявлений может быть много одновременно, в отличие от
+// одного чата на резидента.
+model AnnouncementRead {
+  id Int @id @default(autoincrement())
+
+  announcementId Int          @map("announcement_id")
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  userId Int  @map("user_id")
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  readAt DateTime @default(now()) @map("read_at")
+
+  @@unique([announcementId, userId])
+  @@index([userId])
+  @@map("announcement_reads")
 }

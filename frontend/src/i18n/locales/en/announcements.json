@@ -1,0 +1,32 @@
+{
+  "announcements": {
+    "dialog": {
+      "createTitle": "New announcement",
+      "editTitle": "Edit announcement",
+      "titleLabel": "Subject",
+      "titlePlaceholder": "E.g.: Hot water shutdown",
+      "bodyLabel": "Text",
+      "bodyPlaceholder": "Announcement text...",
+      "create": "Create",
+      "save": "Save",
+      "emptyFields": "Fill in the subject and text"
+    },
+    "deleteDialog": {
+      "title": "Delete announcement?",
+      "description": "This cannot be undone. The announcement will disappear from every resident's feed.",
+      "confirm": "Delete",
+      "cancel": "Cancel"
+    },
+    "errors": {
+      "fetchFailed": "Failed to load announcements ({status})",
+      "createFailed": "Failed to create the announcement ({status})",
+      "updateFailed": "Failed to save the announcement ({status})",
+      "deleteFailed": "Failed to delete the announcement ({status})",
+      "markReadFailed": "Failed to mark as read ({status})"
+    },
+    "edit": "Edit",
+    "delete": "Delete",
+    "allDialogTitle": "All announcements",
+    "editedHint": "edited"
+  }
+}

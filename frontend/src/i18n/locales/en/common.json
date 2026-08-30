@@ -83,12 +83,15 @@
     "kpiUnread": "Unread messages",
     "quickNewIndividual": "New individual",
     "quickNewContract": "New contract",
+    "quickNewAnnouncement": "New announcement",
     "attentionTitle": "Needs attention",
     "attentionEmpty": "Nothing needs attention.",
     "attentionContractLine": "Contract No. {number} — {name}",
     "attentionDebtorLine": "{name} — room {room}",
     "attentionUnreadChats": "Unread messages: {count}",
     "attentionUnreadChatsHint": "Chat with residents",
+    "staffAnnouncementsTitle": "Announcements",
+    "staffAnnouncementsEmpty": "No announcements yet — create the first one.",
     "resident": {
       "greetingTitle": "Hi, {name}!",
       "greetingTitleFallback": "Hi!",
@@ -118,7 +121,10 @@
       "contactsHeading": "Contacts",
       "contactsDutyAdmin": "Duty administrator",
       "contactsYouthDept": "Youth Affairs Department",
-      "callAction": "Call"
+      "callAction": "Call",
+      "announcementsHeading": "Announcements",
+      "announcementsEmpty": "No announcements yet",
+      "announcementsSeeAll": "All announcements"
     }
   },
   "roomInfo": {

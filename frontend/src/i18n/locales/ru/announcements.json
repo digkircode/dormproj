@@ -1,0 +1,32 @@
+{
+  "announcements": {
+    "dialog": {
+      "createTitle": "Новое объявление",
+      "editTitle": "Редактировать объявление",
+      "titleLabel": "Тема",
+      "titlePlaceholder": "Например: Отключение горячей воды",
+      "bodyLabel": "Текст",
+      "bodyPlaceholder": "Текст объявления...",
+      "create": "Создать",
+      "save": "Сохранить",
+      "emptyFields": "Заполните тему и текст"
+    },
+    "deleteDialog": {
+      "title": "Удалить объявление?",
+      "description": "Действие необратимо. Объявление исчезнет из ленты у всех проживающих.",
+      "confirm": "Удалить",
+      "cancel": "Отмена"
+    },
+    "errors": {
+      "fetchFailed": "Не удалось загрузить объявления ({status})",
+      "createFailed": "Не удалось создать объявление ({status})",
+      "updateFailed": "Не удалось сохранить объявление ({status})",
+      "deleteFailed": "Не удалось удалить объявление ({status})",
+      "markReadFailed": "Не удалось отметить как прочитанное ({status})"
+    },
+    "edit": "Редактировать",
+    "delete": "Удалить",
+    "allDialogTitle": "Все объявления",
+    "editedHint": "изменено"
+  }
+}
