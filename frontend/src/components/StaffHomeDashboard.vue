@@ -58,7 +58,10 @@ function formatDate(value: string): string {
 
 onMounted(async () => {
   const asOf = isoToday()
-  const baseListOptions = { page: 1, pageSize: 4, search: '' }
+  // pageSize 3 (было 4) — по прямой просьбе 2026-08-30, после того как "Требует внимания"
+  // и "Объявления" встали бок о бок (см. template) карточка стала уже, 4 строки уже не
+  // помещались так же комфортно, как раньше в полную ширину.
+  const baseListOptions = { page: 1, pageSize: 3, search: '' }
   const [occ, debtSummary, debtRows, regSummary, expiringRows, conversations] = await Promise.all([
     fetchOccupancy().catch(() => null),
     fetchDebtorsSummary(asOf).catch(() => null),
@@ -221,75 +224,80 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
       <AnnouncementDialog ref="announcementDialogRef" @saved="loadAnnouncements" />
     </div>
 
-    <Card class="p-4">
-      <div class="mb-3 flex items-center gap-1.5 text-sm font-medium">
-        <AlertTriangle class="size-4 text-primary" />
-        {{ t('home.attentionTitle') }}
-      </div>
-      <p v-if="isLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
-      <p v-else-if="!attentionRows.length" class="text-sm text-muted-foreground">{{ t('home.attentionEmpty') }}</p>
-      <div v-else class="flex flex-col divide-y divide-border">
-        <RouterLink
-          v-for="row in attentionRows"
-          :key="row.key"
-          :to="row.to"
-          class="-mx-2 flex items-center gap-3 rounded-md px-2 py-2 hover:bg-accent"
-        >
-          <component :is="row.icon" class="size-4 shrink-0" :class="row.iconClass" />
-          <div class="min-w-0 flex-1">
-            <p class="truncate text-sm">{{ row.title }}</p>
-            <p class="text-xs text-muted-foreground">{{ row.subtitle }}</p>
-          </div>
-        </RouterLink>
-      </div>
-    </Card>
-
-    <!-- Объявления — по прямой просьбе 2026-08-30. Иконка каждой строки — свой цвет по
-         хэшу id (iconBadgeColorClasses, тот же приём, что у аватарок в чате), не путать с
-         фиксированной фиолетовой иконкой на резидентской карточке (ResidentHomeDashboard.vue) —
-         там весь БЛОК один, тут список из МНОГИХ объявлений. -->
-    <Card class="p-4">
-      <div class="mb-3 flex items-center gap-1.5 text-sm font-medium">
-        <Megaphone class="size-4 text-primary" />
-        {{ t('home.staffAnnouncementsTitle') }}
-      </div>
-      <p v-if="isAnnouncementsLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
-      <p v-else-if="!announcements.length" class="text-sm text-muted-foreground">{{ t('home.staffAnnouncementsEmpty') }}</p>
-      <div v-else class="flex flex-col divide-y divide-border">
-        <!-- pb-6 + relative — освобождает место под ФИО/дату, притянутые в правый нижний
-             угол абсолютным позиционированием (по прямой просьбе 2026-08-30, было третьей
-             строкой в текстовом столбце). Кебаб-меню остаётся в потоке (верх строки), с
-             подписью в углу не пересекается — она ниже и у правого края. -->
-        <div v-for="a in announcements" :key="a.id" class="relative -mx-2 flex items-start gap-3 rounded-md px-2 py-2 pb-6">
-          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg" :class="iconBadgeColorClasses(a.id).container">
-            <Newspaper class="size-4" :class="iconBadgeColorClasses(a.id).icon" />
-          </div>
-          <div class="min-w-0 flex-1">
-            <p class="truncate text-sm font-medium">{{ a.title }}</p>
-            <p class="truncate text-xs text-muted-foreground">{{ a.body }}</p>
-          </div>
-          <p class="absolute right-2 bottom-1 text-xs text-muted-foreground">{{ a.authorFullName }} · {{ formatDate(a.createdAt) }}</p>
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <Button variant="ghost" size="icon" class="size-7 shrink-0">
-                <MoreVertical class="size-4" />
-                <span class="sr-only">{{ a.title }}</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem @click="announcementDialogRef?.open(a)">
-                <Pencil class="text-primary" />
-                {{ t('announcements.edit') }}
-              </DropdownMenuItem>
-              <DropdownMenuItem class="text-red-500" @click="deleteAnnouncementTarget = a">
-                <Trash2 class="text-red-500" />
-                {{ t('announcements.delete') }}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+    <!-- "Требует внимания" и "Объявления" — по прямой просьбе 2026-08-30 бок о бок
+         (было друг под другом), тот же grid-паттерн, что у пар карточек на
+         ResidentHomeDashboard.vue (Мой договор/Оплата, Чат/Контакты). -->
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <Card class="p-4">
+        <div class="mb-3 flex items-center gap-1.5 text-sm font-medium">
+          <AlertTriangle class="size-4 text-primary" />
+          {{ t('home.attentionTitle') }}
         </div>
-      </div>
-    </Card>
+        <p v-if="isLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
+        <p v-else-if="!attentionRows.length" class="text-sm text-muted-foreground">{{ t('home.attentionEmpty') }}</p>
+        <div v-else class="flex flex-col divide-y divide-border">
+          <RouterLink
+            v-for="row in attentionRows"
+            :key="row.key"
+            :to="row.to"
+            class="-mx-2 flex items-center gap-3 rounded-md px-2 py-2 hover:bg-accent"
+          >
+            <component :is="row.icon" class="size-4 shrink-0" :class="row.iconClass" />
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm">{{ row.title }}</p>
+              <p class="text-xs text-muted-foreground">{{ row.subtitle }}</p>
+            </div>
+          </RouterLink>
+        </div>
+      </Card>
+
+      <!-- Объявления — по прямой просьбе 2026-08-30. Иконка каждой строки — свой цвет по
+           хэшу id (iconBadgeColorClasses, тот же приём, что у аватарок в чате), не путать с
+           фиксированной фиолетовой иконкой на резидентской карточке (ResidentHomeDashboard.vue) —
+           там весь БЛОК один, тут список из МНОГИХ объявлений. -->
+      <Card class="p-4">
+        <div class="mb-3 flex items-center gap-1.5 text-sm font-medium">
+          <Megaphone class="size-4 text-primary" />
+          {{ t('home.staffAnnouncementsTitle') }}
+        </div>
+        <p v-if="isAnnouncementsLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
+        <p v-else-if="!announcements.length" class="text-sm text-muted-foreground">{{ t('home.staffAnnouncementsEmpty') }}</p>
+        <div v-else class="flex flex-col divide-y divide-border">
+          <!-- pb-6 + relative — освобождает место под ФИО/дату, притянутые в правый нижний
+               угол абсолютным позиционированием (по прямой просьбе 2026-08-30, было третьей
+               строкой в текстовом столбце). Кебаб-меню остаётся в потоке (верх строки), с
+               подписью в углу не пересекается — она ниже и у правого края. -->
+          <div v-for="a in announcements" :key="a.id" class="relative -mx-2 flex items-start gap-3 rounded-md px-2 py-2 pb-6">
+            <div class="flex size-8 shrink-0 items-center justify-center rounded-lg" :class="iconBadgeColorClasses(a.id).container">
+              <Newspaper class="size-4" :class="iconBadgeColorClasses(a.id).icon" />
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-medium">{{ a.title }}</p>
+              <p class="truncate text-xs text-muted-foreground">{{ a.body }}</p>
+            </div>
+            <p class="absolute right-2 bottom-1 text-xs text-muted-foreground">{{ a.authorFullName }} · {{ formatDate(a.createdAt) }}</p>
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <Button variant="ghost" size="icon" class="size-7 shrink-0">
+                  <MoreVertical class="size-4" />
+                  <span class="sr-only">{{ a.title }}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem @click="announcementDialogRef?.open(a)">
+                  <Pencil class="text-primary" />
+                  {{ t('announcements.edit') }}
+                </DropdownMenuItem>
+                <DropdownMenuItem class="text-red-500" @click="deleteAnnouncementTarget = a">
+                  <Trash2 class="text-red-500" />
+                  {{ t('announcements.delete') }}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      </Card>
+    </div>
 
     <!-- Подтверждение удаления объявления — тот же паттерн, что и у удаления комнаты
          (RoomDetailPanel.vue): обычный Dialog с Cancel/Delete, без отдельного

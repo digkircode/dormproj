@@ -30,7 +30,9 @@ export class MyAnnouncementsController {
     }
     const userId = req.user.id;
     const [rows, reads] = await Promise.all([
-      this.prisma.announcement.findMany({ orderBy: { createdAt: 'desc' } }),
+      // updatedAt, не createdAt (по прямой просьбе 2026-08-30, тот же принцип, что и в
+      // AnnouncementsController#list) — отредактированное объявление всплывает наверх.
+      this.prisma.announcement.findMany({ orderBy: { updatedAt: 'desc' } }),
       this.prisma.announcementRead.findMany({ where: { userId }, select: { announcementId: true, readAt: true } }),
     ]);
     const readByAnnouncementId = new Map(reads.map((r) => [r.announcementId, r.readAt]));

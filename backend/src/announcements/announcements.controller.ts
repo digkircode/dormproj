@@ -42,8 +42,12 @@ export class AnnouncementsController {
 
   @Get()
   async list() {
+    // updatedAt, не createdAt (по прямой просьбе 2026-08-30) — только что отредактированное
+    // объявление тоже всплывает наверх, не только только что созданное. @updatedAt сам
+    // проставляется равным createdAt в момент создания, так что для нетронутых объявлений
+    // порядок не отличается от сортировки по дате создания.
     const rows = await this.prisma.announcement.findMany({
-      orderBy: { createdAt: 'desc' },
+      orderBy: { updatedAt: 'desc' },
       include: { author: { select: { fullName: true } } },
     });
     return rows.map((row) => ({
