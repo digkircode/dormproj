@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ArrowRight, CreditCard, DoorOpen, MessageCircle, Newspaper, Phone, Wallet } from 'lucide-vue-next'
+import { ArrowRight, CreditCard, DoorOpen, Megaphone, MessageCircle, Newspaper, Phone, Wallet } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button, buttonVariants } from '@/components/ui/button'
 import CreatePaymentDialog from '@/components/CreatePaymentDialog.vue'
@@ -372,7 +372,7 @@ function telHref(phone: string): string {
     <Card class="flex flex-col gap-3 p-6">
       <div class="flex items-center gap-1.5 text-base font-medium">
         <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-500/15">
-          <Newspaper class="size-4 text-violet-600 dark:text-violet-400" />
+          <Megaphone class="size-4 text-violet-600 dark:text-violet-400" />
         </div>
         {{ t('home.resident.announcementsHeading') }}
       </div>
@@ -380,13 +380,15 @@ function telHref(phone: string): string {
       <!-- Раньше — hover:bg-accent на голом ряду + divide-y между рядами. По прямой
            просьбе 2026-08-30 — каждый ряд теперь "невзрачный" блок с постоянным приглушённым
            фоном (не разделительные линии), gap между блоками вместо divide-y, hover — синим
-           (не нейтральным accent, как у остальных карточек — акцент специально другой). -->
+           (не нейтральным accent, как у остальных карточек — акцент специально другой).
+           items-center (не items-start) — дата+точка справа (см. ниже) центрируются по
+           всей высоте ряда, а не только по заголовку, по прямой просьбе того же дня. -->
       <div v-else class="flex flex-col gap-2">
         <button
           v-for="a in announcementsPreview"
           :key="a.id"
           type="button"
-          class="flex items-start gap-3 rounded-lg bg-muted/50 p-3 text-left transition-colors hover:bg-blue-50 dark:bg-muted/20 dark:hover:bg-blue-500/10"
+          class="flex items-center gap-3 rounded-lg bg-muted/50 p-3 text-left transition-colors hover:bg-blue-50 dark:bg-muted/20 dark:hover:bg-blue-500/10"
           @click="announcementReadDialog?.open(a)"
         >
           <div class="flex size-8 shrink-0 items-center justify-center rounded-lg" :class="iconBadgeColorClasses(a.id).container">
@@ -396,7 +398,12 @@ function telHref(phone: string): string {
             <p class="truncate text-sm font-semibold">{{ a.title }}</p>
             <p class="truncate text-sm text-muted-foreground">{{ a.body }}</p>
           </div>
-          <span v-if="a.unread" class="mt-1.5 size-2 shrink-0 rounded-full bg-blue-500" />
+          <!-- Дата — справа (по прямой просьбе), точка непрочитанного под ней, вся колонка
+               центрирована по высоте ряда через items-center на родителе выше. -->
+          <div class="flex shrink-0 flex-col items-end gap-1">
+            <span class="text-xs text-muted-foreground">{{ formatDate(a.createdAt) }}</span>
+            <span v-if="a.unread" class="size-2 shrink-0 rounded-full bg-blue-500" />
+          </div>
         </button>
       </div>
       <div class="mt-auto border-t pt-3">

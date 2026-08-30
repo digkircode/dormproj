@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { AlertTriangle, Clock, DoorOpen, FileSignature, MessageCircle, MoreVertical, Newspaper, Pencil, Trash2, UserPlus } from 'lucide-vue-next'
+import { AlertTriangle, Clock, DoorOpen, FileSignature, Megaphone, MessageCircle, MoreVertical, Newspaper, Pencil, Trash2, UserPlus } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -213,7 +213,7 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
         {{ t('home.quickNewContract') }}
       </Button>
       <Button size="sm" variant="outline" class="flex items-center gap-2" @click="announcementDialogRef?.open()">
-        <Newspaper class="size-4 shrink-0 text-primary" />
+        <Megaphone class="size-4 shrink-0 text-primary" />
         {{ t('home.quickNewAnnouncement') }}
       </Button>
       <CreateIndividualDialog ref="individualDialogRef" />
@@ -250,21 +250,25 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
          там весь БЛОК один, тут список из МНОГИХ объявлений. -->
     <Card class="p-4">
       <div class="mb-3 flex items-center gap-1.5 text-sm font-medium">
-        <Newspaper class="size-4 text-primary" />
+        <Megaphone class="size-4 text-primary" />
         {{ t('home.staffAnnouncementsTitle') }}
       </div>
       <p v-if="isAnnouncementsLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
       <p v-else-if="!announcements.length" class="text-sm text-muted-foreground">{{ t('home.staffAnnouncementsEmpty') }}</p>
       <div v-else class="flex flex-col divide-y divide-border">
-        <div v-for="a in announcements" :key="a.id" class="-mx-2 flex items-start gap-3 rounded-md px-2 py-2">
+        <!-- pb-6 + relative — освобождает место под ФИО/дату, притянутые в правый нижний
+             угол абсолютным позиционированием (по прямой просьбе 2026-08-30, было третьей
+             строкой в текстовом столбце). Кебаб-меню остаётся в потоке (верх строки), с
+             подписью в углу не пересекается — она ниже и у правого края. -->
+        <div v-for="a in announcements" :key="a.id" class="relative -mx-2 flex items-start gap-3 rounded-md px-2 py-2 pb-6">
           <div class="flex size-8 shrink-0 items-center justify-center rounded-lg" :class="iconBadgeColorClasses(a.id).container">
             <Newspaper class="size-4" :class="iconBadgeColorClasses(a.id).icon" />
           </div>
           <div class="min-w-0 flex-1">
             <p class="truncate text-sm font-medium">{{ a.title }}</p>
             <p class="truncate text-xs text-muted-foreground">{{ a.body }}</p>
-            <p class="text-xs text-muted-foreground">{{ a.authorFullName }} · {{ formatDate(a.createdAt) }}</p>
           </div>
+          <p class="absolute right-2 bottom-1 text-xs text-muted-foreground">{{ a.authorFullName }} · {{ formatDate(a.createdAt) }}</p>
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
               <Button variant="ghost" size="icon" class="size-7 shrink-0">

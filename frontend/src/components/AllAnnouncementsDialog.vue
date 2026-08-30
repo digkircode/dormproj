@@ -65,15 +65,18 @@ function formatDate(value: string): string {
           :key="a.id"
           class="rounded-lg bg-muted/50 transition-colors hover:bg-blue-50 dark:bg-muted/20 dark:hover:bg-blue-500/10"
         >
-          <button type="button" class="flex w-full items-start gap-3 p-3 text-left" @click="toggle(a)">
+          <button type="button" class="flex w-full items-center gap-3 p-3 text-left" @click="toggle(a)">
             <div class="flex size-8 shrink-0 items-center justify-center rounded-lg" :class="iconBadgeColorClasses(a.id).container">
               <Newspaper class="size-4" :class="iconBadgeColorClasses(a.id).icon" />
             </div>
-            <div class="min-w-0 flex-1">
-              <p class="truncate text-sm font-semibold">{{ a.title }}</p>
-              <p class="text-xs text-muted-foreground">{{ formatDate(a.createdAt) }}</p>
+            <p class="min-w-0 flex-1 truncate text-sm font-semibold">{{ a.title }}</p>
+            <!-- Дата — справа (по прямой просьбе), точка непрочитанного под ней, вся
+                 колонка центрирована по высоте ряда (items-center на кнопке выше), не по
+                 заголовку. -->
+            <div class="flex shrink-0 flex-col items-end gap-1">
+              <span class="text-xs text-muted-foreground">{{ formatDate(a.createdAt) }}</span>
+              <span v-if="a.unread" class="size-2 shrink-0 rounded-full bg-blue-500" />
             </div>
-            <span v-if="a.unread" class="mt-1.5 size-2 shrink-0 rounded-full bg-blue-500" />
           </button>
           <!-- Плавное раскрытие через grid-template-rows 0fr→1fr (без замера высоты в JS) —
                тот же приём, что уже используется в проекте (RoomDetailPanel.vue/
