@@ -70,12 +70,12 @@ function formatDate(value: string): string {
               <Newspaper class="size-4" :class="iconBadgeColorClasses(a.id).icon" />
             </div>
             <p class="min-w-0 flex-1 truncate text-sm font-semibold">{{ a.title }}</p>
-            <!-- Дата — справа (по прямой просьбе), точка непрочитанного под ней, вся
-                 колонка центрирована по высоте ряда (items-center на кнопке выше), не по
-                 заголовку. -->
-            <div class="flex shrink-0 flex-col items-end gap-1">
+            <!-- Дата слева от точки (не над/под ней), группа центрирована по высоте ряда
+                 (items-center на кнопке выше). Точка не исчезает после прочтения — становится
+                 серой (тот же приём, что в ResidentHomeDashboard.vue). -->
+            <div class="flex shrink-0 items-center gap-1.5">
               <span class="text-xs text-muted-foreground">{{ formatDate(a.createdAt) }}</span>
-              <span v-if="a.unread" class="size-2 shrink-0 rounded-full bg-blue-500" />
+              <span class="size-2 shrink-0 rounded-full" :class="a.unread ? 'bg-blue-500' : 'bg-muted-foreground/40'" />
             </div>
           </button>
           <!-- Плавное раскрытие через grid-template-rows 0fr→1fr (без замера высоты в JS) —

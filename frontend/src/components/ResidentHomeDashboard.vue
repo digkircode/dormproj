@@ -398,11 +398,14 @@ function telHref(phone: string): string {
             <p class="truncate text-sm font-semibold">{{ a.title }}</p>
             <p class="truncate text-sm text-muted-foreground">{{ a.body }}</p>
           </div>
-          <!-- Дата — справа (по прямой просьбе), точка непрочитанного под ней, вся колонка
-               центрирована по высоте ряда через items-center на родителе выше. -->
-          <div class="flex shrink-0 flex-col items-end gap-1">
+          <!-- Дата слева от точки (не над/под ней — по прямой просьбе), вся группа
+               центрирована по высоте ряда через items-center на родителе выше. Точка не
+               исчезает после прочтения (было v-if="a.unread") — становится серой
+               (text-muted-foreground/40), а не пропадает, чтобы место оставалось стабильным
+               и был виден сам факт "уже открывали". -->
+          <div class="flex shrink-0 items-center gap-1.5">
             <span class="text-xs text-muted-foreground">{{ formatDate(a.createdAt) }}</span>
-            <span v-if="a.unread" class="size-2 shrink-0 rounded-full bg-blue-500" />
+            <span class="size-2 shrink-0 rounded-full" :class="a.unread ? 'bg-blue-500' : 'bg-muted-foreground/40'" />
           </div>
         </button>
       </div>
