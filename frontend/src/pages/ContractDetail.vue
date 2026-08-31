@@ -48,7 +48,6 @@ import {
 } from '@/lib/contracts-api'
 import { createPayment, reversePayment } from '@/lib/billing-api'
 import { fetchDormitoryInfo, type DormitoryInfo } from '@/lib/dormitory-info-api'
-import { getContractDisplayStatus } from '@/lib/contracts-format'
 import { blockNonNumericKeys, goBack } from '@/lib/utils'
 import { breadcrumbOverride } from '@/lib/breadcrumb-state'
 import { dateLocaleTag } from '@/lib/format-locale'
@@ -98,11 +97,6 @@ const dormInfo = ref<DormitoryInfo | null>(null)
 onMounted(async () => {
   dormInfo.value = await fetchDormitoryInfo()
 })
-
-// Тот же вычисляемый бакет "Истекает" (ACTIVE + endDate в пределах 30 дней), что и в
-// списке договоров/Финансовом отчёте (см. contracts-format.ts) — на карточке договора
-// раньше в пилюлю уходил сырой contract.status, EXPIRING никогда не показывался.
-const displayStatus = computed(() => (contract.value ? getContractDisplayStatus(contract.value.status, contract.value.endDate) : null))
 
 // Пеня — единая сумма на договор (не входит в accrual.balance, см. penalty-balance.ts на
 // бэке) — добавляем её отдельно, иначе общий баланс не совпадал бы с реальным долгом.
@@ -324,7 +318,7 @@ async function confirmReversePayment() {
       <h1 class="text-lg font-medium">
         {{ contract ? t('contracts.detail.titleWithNumber', { number: contract.number }) : t('contracts.detail.titleFallback') }}
       </h1>
-      <ContractStatusPill v-if="displayStatus" :status="displayStatus" />
+      <ContractStatusPill v-if="contract" :status="contract.status" />
       <!-- Меню действий — тут же, на уровне номера договора (было отдельной тонкой строкой
            над карточкой, легко теряющейся), с текстовой подписью — заметнее, чем голая
            иконка (по прямой просьбе 2026-08-26). -->

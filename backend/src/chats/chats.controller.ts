@@ -325,7 +325,9 @@ export class ChatsController {
     }
 
     const contract = await this.prisma.contract.findFirst({
-      where: { residentIndividualUid: conversation.individualUid, status: 'ACTIVE' },
+      // ACTIVE/EXPIRING — оба ещё "сейчас проживает" (срок не вышел), см. ContractStatus
+      // в schema.prisma.
+      where: { residentIndividualUid: conversation.individualUid, status: { in: ['ACTIVE', 'EXPIRING'] } },
       orderBy: { contractDate: 'desc' },
       include: { roomAssignments: { where: { toDate: null }, include: { room: { select: { room: true } } } } },
     });

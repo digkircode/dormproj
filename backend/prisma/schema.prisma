@@ -462,10 +462,21 @@ model DormitoryInfo {
 // Начисления и оплаты — раздельные потоки данных (AR-леджер), не "остаток на договоре":
 // долг — не хранимое поле, а производная (начислено − оплачено), см. Accrual/Payment ниже.
 
+// Полный жизненный цикл (переписано 2026-08-31 — раньше только ACTIVE/TERMINATED,
+// EXPIRED был заведён в схеме, но нигде не проставлялся и не читался, 0 строк с ним):
+// ACTIVE (обычное течение) → EXPIRING (осталось ≤30 дней до endDate, тот же порог, что
+// раньше был чисто вычисляемым "Истекает" на фронте/в отчётах, см. contracts-status.scheduler.ts)
+// → COMPLETED (endDate прошёл, долга по начислениям+пене нет) ИЛИ OVERDUE (endDate прошёл,
+// долг есть). TERMINATED — единственный статус, который НЕ проставляется автоматически,
+// только явным действием сотрудника (contracts.controller.ts#terminate), в любой момент
+// из любого из перечисленных выше. Переходы считает ночной крон
+// billing/contract-status.scheduler.ts — см. его комментарий насчёт порядка/идемпотентности.
 enum ContractStatus {
   ACTIVE
+  EXPIRING
+  OVERDUE
+  COMPLETED
   TERMINATED
-  EXPIRED
 }
 
 enum DailyRateCategory {
@@ -716,6 +727,13 @@ model Payment {
   method  PaymentMethod
   source  PaymentSource
 
+  // Сколько из этого платежа реально ушло на пеню (добавлено 2026-08-31) — реальное
+  // разнесение, не эвристика "leftover" на чтении (см. billing/penalty-balance.ts):
+  // проставляется в allocatePaymentFifo вторым шагом, после наступивших начислений и до
+  // будущих (см. billing/payment-allocation.ts). Нужно для выгрузки в 1С — там пеня
+  // отдельной строкой ("Пени") в DocumentSummDetails, не вместе с начислениями.
+  penaltyAmount Decimal @default(0) @map("penalty_amount") @db.Decimal(12, 2)
+
   // id платёжного документа в 1С — для идемпотентности повторного импорта и связи с
   // PaymentImportRecord. rawComment — исходное "Назначение платежа", на случай, если
   // авто-сопоставление ошиблось и нужно разбираться руками.
@@ -751,6 +769,15 @@ model PaymentAllocation {
   accrual   Accrual @relation(fields: [accrualId], references: [id])
 
   amount Decimal @db.Decimal(12, 2)
+
+  // true, если эта КОНКРЕТНАЯ разноска меньше полной исходной суммы начисления
+  // (rentAmount+utilitiesAmount+adjustmentAmount) — неважно, из-за чего: сам платёж
+  // частичный, или начисление уже было частично оплачено раньше другим платежом.
+  // Добавлено 2026-08-31 для выгрузки в 1С — найм/коммуналка разносятся отдельными
+  // строками в DocumentSummDetails только когда isPartial=false (сумма разноски точно
+  // равна rentAmount/utilitiesAmount начисления); при isPartial=true вся сумма разноски
+  // одной строкой "Найм", без деления — делить пропорционально не просили.
+  isPartial Boolean @default(false) @map("is_partial")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -818,12 +845,15 @@ model PaymentIntent {
   status      PaymentIntentStatus @default(CREATED)
   description String              @map("description")
 
-  // Платёж заведён как оплата ТОЛЬКО пени (см. my-payments.controller.ts#createIntent) —
-  // при подтверждении банком (reconcileBankStatus) НЕ проходит через allocatePaymentFifo
-  // вообще, вся сумма остаётся неразнесённой по начислениям, и тем самым целиком
-  // засчитывается в пеню (computePenaltyBalance трактует любые неразнесённые деньги как
-  // покрытие пени, см. billing/penalty-balance.ts). Без этого флага такой платёж, случись
-  // на договоре ещё непогашенные начисления, ушёл бы по FIFO сначала на них, а не в пеню.
+  // УСТАРЕЛО (2026-08-31) — раньше отдельный режим "оплатить только пеню" в модалке,
+  // не проходивший через allocatePaymentFifo вообще (вся сумма оставалась неразнесённой,
+  // computePenaltyBalance трактовал остаток как покрытие пени). С 2026-08-31 модалка
+  // избавилась от "своей суммы"/отдельного режима пени — пеня добавляется к сумме
+  // автоматически поверх выбранных начислений, allocatePaymentFifo сам разносит её вторым
+  // шагом (наступившие начисления → пеня → будущие, см. billing/payment-allocation.ts) в
+  // Payment.penaltyAmount. Новые intent'ы это поле больше не выставляют (всегда false) —
+  // оставлено только ради уже существующих исторических записей (в т.ч. демо-данные
+  // Цуйкова, см. промпт проекта), не читать как признак чего-либо в новом коде.
   penaltyOnly Boolean @default(false) @map("penalty_only")
 
   payerFullName String  @map("payer_full_name")

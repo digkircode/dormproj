@@ -3,6 +3,7 @@
     "ACTIVE": "Active",
     "EXPIRING": "Expiring",
     "OVERDUE": "Overdue",
+    "COMPLETED": "Completed",
     "TERMINATED": "Terminated"
   },
   "movementOperation": {

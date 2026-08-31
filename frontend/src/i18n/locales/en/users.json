@@ -45,6 +45,7 @@
       "colAzureId": "azure_id",
       "colUniverId": "univer_id",
       "colRoles": "Roles",
+      "colRole": "Role",
       "colCreatedAt": "Added",
       "totalLabel": "users",
       "editAction": "Edit azure_id/univer_id",

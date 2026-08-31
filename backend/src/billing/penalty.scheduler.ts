@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service';
-import { PENALTY_DAILY_RATE, penaltyStartsAt } from './accrual-generation';
+import { PENALTY_DAILY_RATE, isFullMonthAccrualPeriod, penaltyStartsAt } from './accrual-generation';
 import { addDays, dateOnly, daysBetweenInclusive } from './period-utils';
 
 const { Decimal } = Prisma;
@@ -10,6 +10,10 @@ const { Decimal } = Prisma;
 // Ночной крон — 0,14%/день (п. 4.8/5.9 договора) от суммы всех ПРОСРОЧЕННЫХ и непогашенных
 // начислений договора ЦЕЛИКОМ (не по каждому начислению отдельно) — начисление считается
 // просроченным с 10 числа месяца, следующего за его periodStart (см. penaltyStartsAt).
+// База по каждому начислению — стоимость комнаты за месяц целиком (principal), а не остаток
+// после частичной оплаты, кроме посуточных начислений (неполный месяц/комнаты 112-2/410-2),
+// где своей "стоимости" нет и берётся фактически начисленная сумма — см. правку 2026-08-31
+// ниже.
 // Каждый начисленный день — отдельная строка PenaltyAccrualLog (не общий инкремент одним
 // числом): и аудит "откуда взялась сумма" (по прямой просьбе 2026-08-22), и единственный
 // способ восстановить пеню на прошлую дату для финансового отчёта (сумма строк журнала по
@@ -66,7 +70,32 @@ export class PenaltyScheduler {
         const outstanding = principal.minus(paid);
         if (outstanding.lessThanOrEqualTo(0)) continue;
 
-        overdueSum = overdueSum.plus(outstanding);
+        // База пени — по прямой просьбе (2026-08-31, найдено пользователем при сверке с
+        // реальными данными): для ОБЫЧНОГО (не посуточного) начисления это фиксированная
+        // стоимость комнаты за месяц (principal, найм+коммуналка+корректировка) — частичная
+        // оплата НЕ уменьшает базу, пока начисление не закрыто полностью (см. `continue`
+        // выше на outstanding<=0). Уменьшается от факта оплаты база только у посуточных
+        // начислений (неполный крайний месяц ИЛИ комната без месячной "Стоимости", 112-2/
+        // 410-2 — там rentAmount/utilitiesAmount не два раздельных обязательства, а один и
+        // тот же посуточный платёж, искусственно разбитый пополам для отчётности, см.
+        // accrual-generation.ts#computeAccrualAmounts, поэтому для них берём фактическую
+        // (уже уменьшенную оплатой) сумму, как и раньше).
+        const terms = await this.prisma.contractTerms.findFirst({
+          where: {
+            contractId: contract.id,
+            validFrom: { lte: accrual.periodStart },
+            OR: [{ validTo: null }, { validTo: { gt: accrual.periodStart } }],
+          },
+          orderBy: { validFrom: 'desc' },
+        });
+        // rentAmount=0 и utilitiesAmount=0 одновременно на ContractTerms — признак полностью
+        // посуточной комнаты (см. termination.ts#isDailyOnly), обычная комната всегда имеет
+        // ненулевую месячную "Стоимость".
+        const isDailyOnlyRoom = !!terms && terms.rentAmount.isZero() && terms.utilitiesAmount.isZero();
+        const isDailyRateAccrual = isDailyOnlyRoom || !isFullMonthAccrualPeriod(accrual.periodStart, accrual.periodEnd);
+        const penaltyBase = isDailyRateAccrual ? outstanding : principal;
+
+        overdueSum = overdueSum.plus(penaltyBase);
         if (!earliestStartsAt || startsAt < earliestStartsAt) earliestStartsAt = startsAt;
       }
 

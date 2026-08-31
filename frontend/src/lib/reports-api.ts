@@ -111,7 +111,7 @@ export interface ContingentRow {
   movedInDate: string
 }
 
-export type ContractRegistryBucket = 'ACTIVE' | 'EXPIRING' | 'OVERDUE' | 'TERMINATED'
+export type ContractRegistryBucket = 'ACTIVE' | 'EXPIRING' | 'OVERDUE' | 'COMPLETED' | 'TERMINATED'
 
 export interface ContractRegistryRow {
   contractId: number

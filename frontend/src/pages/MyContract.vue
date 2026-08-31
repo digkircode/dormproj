@@ -31,7 +31,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { createAppColumnHelper } from '@/lib/table'
 import { createClientFetchPage, createClientFacetValues } from '@/lib/client-list'
 import { fetchMyContract, fetchMyContracts, type AccrualRow, type MyContractDetail, type MyContractSummary } from '@/lib/contracts-api'
-import { getContractDisplayStatus, STATUS_LABELS as CONTRACT_STATUS_LABELS } from '@/lib/contracts-format'
+import { STATUS_LABELS as CONTRACT_STATUS_LABELS } from '@/lib/contracts-format'
 import {
   fetchMyPayments,
   UNIFIED_PAYMENT_STATUS_LABELS,
@@ -117,9 +117,6 @@ const PENALTY_DAILY_RATE_PERCENT = '0,14%'
 const totalBalance = computed(() =>
   contract.value ? contract.value.accruals.reduce((sum, a) => sum + a.balance, 0) + contract.value.penaltyBalance : 0,
 )
-// Тот же вычисляемый бакет "Истекает", что в ContractDetail.vue/списке договоров — см.
-// contracts-format.ts, держать в актуальном состоянии вместе с остальными местами.
-const displayStatus = computed(() => (contract.value ? getContractDisplayStatus(contract.value.status, contract.value.endDate) : null))
 const rentAmount = computed(() => contract.value?.terms[0]?.rentAmount ?? 0)
 const isDailyOnlyContract = computed(
   () => (contract.value?.terms[0]?.rentAmount ?? 0) === 0 && (contract.value?.terms[0]?.utilitiesAmount ?? 0) === 0,
@@ -306,14 +303,14 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
           <DropdownMenuItem v-for="c in contracts" :key="c.id" :class="c.id === selectedContractId ? 'font-medium' : ''" @click="switchContract(c.id)">
-            {{ t('contracts.myContract.contractOption', { number: c.number, status: CONTRACT_STATUS_LABELS[getContractDisplayStatus(c.status, c.endDate)] }) }}
+            {{ t('contracts.myContract.contractOption', { number: c.number, status: CONTRACT_STATUS_LABELS[c.status] }) }}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       <h1 v-else class="text-lg font-medium">
         {{ contract ? t('contracts.detail.titleWithNumber', { number: contract.number }) : t('nav.studentContract') }}
       </h1>
-      <ContractStatusPill v-if="displayStatus" :status="displayStatus" />
+      <ContractStatusPill v-if="contract" :status="contract.status" />
       <Loader v-if="isSwitching" class="size-4 shrink-0 animate-spin text-muted-foreground" />
       <!-- Тут же, на уровне номера договора — было тесно вперемешку с датой создания,
            та переехала в карточку ниже (по прямой просьбе 2026-08-26). -->

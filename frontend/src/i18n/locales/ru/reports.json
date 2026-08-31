@@ -6,6 +6,7 @@
     },
     "registryBucket": {
       "ACTIVE": "Действует",
+      "COMPLETED": "Завершён",
       "TERMINATED": "Расторгнут"
     },
     "movementOperation": {

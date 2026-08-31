@@ -9,17 +9,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { dateOnly, addDays } from '../billing/period-utils';
 import { computePenaltyBalance, sumPenaltyLog } from '../billing/penalty-balance';
 import { fromStoredValue } from '../rooms/characteristic-value';
-import {
-  parseListOptions,
-  paginateInMemory,
-  filterAndSortInMemory,
-  facetsFromValues,
-  type FacetOption,
-  type InMemoryListOptions,
-} from './list-helpers';
+import { parseListOptions, paginateInMemory, filterAndSortInMemory, facetsFromValues, type FacetOption } from './list-helpers';
 import { sendExcelReport, type ExcelColumn } from './excel-export';
 import { buildDebtorRows, type DebtorRow } from './debtor-rows';
-import { getContractDisplayStatus, CONTRACT_DISPLAY_STATUS_LABELS, type ContractDisplayStatus } from '../contracts/contract-display-status';
+import { CONTRACT_STATUS_LABELS } from '../contracts/contract-display-status';
 
 const { Decimal } = Prisma;
 
@@ -30,16 +23,17 @@ function t(key: string, fallback: string): string {
   return I18nContext.current()?.t(key) ?? fallback;
 }
 
-type ContractRegistryBucket = 'ACTIVE' | 'EXPIRING' | 'OVERDUE' | 'TERMINATED';
+type ContractRegistryBucket = ContractStatus;
 
 // Proxy-таргет — сам объект с русскими фолбэками, не пустой {} — иначе
 // Object.keys(BUCKET_LABELS) (см. contractsRegistryFacets ниже) вернул бы [] (ownKeys
 // форвардится на реальные ключи target, а не на get-ловушку), тот же приём и та же
-// ловушка, что уже почищена в contract-display-status.ts#CONTRACT_DISPLAY_STATUS_LABELS.
+// ловушка, что уже почищена в contract-display-status.ts#CONTRACT_STATUS_LABELS.
 const BUCKET_LABELS_RU: Record<ContractRegistryBucket, string> = {
   ACTIVE: 'Действует',
   EXPIRING: 'Истекает',
   OVERDUE: 'Просрочен',
+  COMPLETED: 'Завершён',
   TERMINATED: 'Расторгнут',
 };
 const BUCKET_LABELS: Record<ContractRegistryBucket, string> = new Proxy(BUCKET_LABELS_RU, {
@@ -130,34 +124,19 @@ function resolveAsOf(asOfParam?: string): Date {
   return asOfParam ? dateOnly(new Date(asOfParam)) : dateOnly(new Date());
 }
 
-// displayStatus — тот же вычисляемый бакет, что уже показывает колонка "Статус" в
-// таблице (ContractStatusCell.vue на фронте), считается здесь относительно ТОЙ ЖЕ asOf,
-// что и остальные суммы отчёта (не Date.now() — отчёт умеет смотреть на прошлую дату,
-// EXPIRING должен считаться относительно неё же, а не "сегодня").
-// hasDebt/hasPenalty — те же строковые псевдо-поля под фильтр, что и displayStatus ниже
-// (реального такого столбца в DebtorRow нет, только YES/NO по знаку totalBalance/
-// penaltyBalance) — по прямой просьбе 2026-08-27, фильтры "Только должники"/"Есть пеня"
-// на Финансовом отчёте.
-type DebtorRowWithDisplayStatus = DebtorRow & { displayStatus: ContractDisplayStatus; hasDebt: 'YES' | 'NO'; hasPenalty: 'YES' | 'NO' };
-function withDisplayStatus(rows: DebtorRow[], asOf: Date): DebtorRowWithDisplayStatus[] {
+// hasDebt/hasPenalty — строковые псевдо-поля под фильтр (реального такого столбца в
+// DebtorRow нет, только YES/NO по знаку totalBalance/penaltyBalance) — по прямой просьбе
+// 2026-08-27, фильтры "Только должники"/"Есть пеня" на Финансовом отчёте. status —
+// реальное поле ContractStatus (с 2026-08-31 включает EXPIRING/OVERDUE/COMPLETED, см.
+// contracts/contract-display-status.ts) — до этой даты тут был отдельный вычисляемый
+// displayStatus и подмена ключа фильтра, теперь не нужны, фильтруем/сортируем прямо по status.
+type DebtorRowWithFlags = DebtorRow & { hasDebt: 'YES' | 'NO'; hasPenalty: 'YES' | 'NO' };
+function withDebtFlags(rows: DebtorRow[]): DebtorRowWithFlags[] {
   return rows.map((r) => ({
     ...r,
-    displayStatus: getContractDisplayStatus(r.status, r.endDate, asOf),
     hasDebt: r.totalBalance > 0 ? 'YES' : 'NO',
     hasPenalty: r.penaltyBalance > 0 ? 'YES' : 'NO',
   }));
-}
-
-// Фронт (ReportsDebt.vue) ничего не знает про displayStatus — фильтрует/запрашивает
-// facets по колонке "status", как и раньше (не трогаем фронт под это разведение). Здесь
-// же, перед сопоставлением с полем строки, подменяем ключ фильтра на displayStatus —
-// тот же приём, что и facets ниже (отдают значения ACTIVE/EXPIRING/TERMINATED/EXPIRED
-// под именем "status", хотя реального такого значения ACTIVE+EXPIRING в БД нет).
-function remapStatusFilterKey(options: InMemoryListOptions): void {
-  if (options.filters.status) {
-    options.filters.displayStatus = options.filters.status;
-    delete options.filters.status;
-  }
 }
 
 @Controller('reports')
@@ -181,17 +160,12 @@ export class ReportsController {
     @Query('asOf') asOfParam?: string,
   ) {
     const asOf = resolveAsOf(asOfParam);
-    const rows = withDisplayStatus(await buildDebtorRows(this.prisma, asOf), asOf);
+    const rows = withDebtFlags(await buildDebtorRows(this.prisma, asOf));
     const options = parseListOptions(pageParam, pageSizeParam, searchParam, sortByParam, sortDirParam, filtersParam, 'totalBalance');
-    remapStatusFilterKey(options);
     return paginateInMemory(rows, options, {
       searchFields: ['contractNumber', 'residentFullName', 'room'],
       sortableFields: ['contractNumber', 'residentFullName', 'room', 'createdAt', 'status', 'totalAccrued', 'totalPaid', 'penaltyBalance', 'totalBalance'],
-      // displayStatus, не status — разводит "Действует"/"Истекает" в фильтре так же, как
-      // уже разведено в самой колонке (ContractStatusCell.vue), см. contract-display-status.ts
-      // и remapStatusFilterKey (фронт по-прежнему фильтрует и запрашивает facets по
-      // колонке "status", ключ подменяется здесь же, чтобы не трогать фронт вообще).
-      filterFields: ['displayStatus', 'hasDebt', 'hasPenalty'],
+      filterFields: ['status', 'hasDebt', 'hasPenalty'],
     });
   }
 
@@ -225,9 +199,9 @@ export class ReportsController {
       ];
     }
     if (field !== 'status') return [];
-    return (Object.keys(CONTRACT_DISPLAY_STATUS_LABELS) as ContractDisplayStatus[]).map((value) => ({
+    return (Object.keys(CONTRACT_STATUS_LABELS) as ContractStatus[]).map((value) => ({
       value,
-      label: CONTRACT_DISPLAY_STATUS_LABELS[value],
+      label: CONTRACT_STATUS_LABELS[value],
     }));
   }
 
@@ -243,20 +217,19 @@ export class ReportsController {
     @Query('asOf') asOfParam?: string,
   ) {
     const asOf = resolveAsOf(asOfParam);
-    const rows = withDisplayStatus(await buildDebtorRows(this.prisma, asOf), asOf);
+    const rows = withDebtFlags(await buildDebtorRows(this.prisma, asOf));
     const options = parseListOptions(undefined, undefined, searchParam, sortByParam, sortDirParam, filtersParam, 'totalBalance');
-    remapStatusFilterKey(options);
     const sorted = filterAndSortInMemory(rows, options, {
       searchFields: ['contractNumber', 'residentFullName', 'room'],
       sortableFields: ['contractNumber', 'residentFullName', 'room', 'createdAt', 'status', 'totalAccrued', 'totalPaid', 'penaltyBalance', 'totalBalance'],
-      filterFields: ['displayStatus', 'hasDebt', 'hasPenalty'],
+      filterFields: ['status', 'hasDebt', 'hasPenalty'],
     });
 
-    const columns: ExcelColumn<DebtorRowWithDisplayStatus>[] = [
+    const columns: ExcelColumn<DebtorRowWithFlags>[] = [
       { header: t('reports.excel.colContractNumber', '№ договора'), value: (r) => r.contractNumber, width: 16 },
       { header: t('reports.excel.colFullName', 'ФИО'), value: (r) => r.residentFullName, width: 32 },
       { header: t('reports.excel.colRoom', 'Комната'), value: (r) => r.room ?? '', width: 12 },
-      { header: t('reports.excel.colStatus', 'Статус'), value: (r) => CONTRACT_DISPLAY_STATUS_LABELS[r.displayStatus], width: 14 },
+      { header: t('reports.excel.colStatus', 'Статус'), value: (r) => CONTRACT_STATUS_LABELS[r.status], width: 14 },
       { header: t('reports.excel.colCreatedAt', 'Дата создания'), value: (r) => r.createdAt, format: 'date', width: 14 },
       { header: t('reports.excel.colAccrued', 'Начислено'), value: (r) => r.totalAccrued, format: 'money', width: 16 },
       { header: t('reports.excel.colPaid', 'Оплачено'), value: (r) => r.totalPaid, format: 'money', width: 16 },
@@ -318,7 +291,6 @@ export class ReportsController {
     const { penaltyBalance } = computePenaltyBalance({
       asOf,
       penaltyLogs: contract.penaltyLogs,
-      accruals: contract.accruals,
       payments: contract.payments,
     });
     const principalDebt = periods.reduce((sum, p) => sum + p.balance, 0);
@@ -627,10 +599,11 @@ export class ReportsController {
   }
 
   // ===== Отчёт "Реестр договоров" =====
-  // bucket — не хранимое поле, а классификация на лету по датам: OVERDUE здесь
-  // возникает для договоров, у которых endDate уже прошёл, а сотрудник ещё не расторг
-  // (см. известный гэп "автоматического перехода в EXPIRED нет" в промпте проекта) —
-  // этот отчёт как раз и есть способ его увидеть, ничего в БД при этом не меняя.
+  // bucket — реальный ContractStatus (с 2026-08-31, переходы считает
+  // billing/contract-status.scheduler.ts), не вычисляемая на лету классификация — раньше
+  // тут была date-math копия того же порога, что и на фронте/в Финансовом отчёте.
+  // daysUntilEnd остаётся своим отдельным информационным полем (справочная колонка),
+  // от него больше ничего не зависит.
   private async buildContractRegistryRows(asOf: Date): Promise<ContractRegistryRow[]> {
     const contracts = await this.prisma.contract.findMany({
       include: {
@@ -642,11 +615,7 @@ export class ReportsController {
     const MS_PER_DAY = 24 * 60 * 60 * 1000;
     return contracts.map((c) => {
       const daysUntilEnd = Math.round((c.endDate.getTime() - asOf.getTime()) / MS_PER_DAY);
-      let bucket: ContractRegistryBucket;
-      if (c.status === ContractStatus.TERMINATED) bucket = 'TERMINATED';
-      else if (daysUntilEnd < 0) bucket = 'OVERDUE';
-      else if (daysUntilEnd <= 30) bucket = 'EXPIRING';
-      else bucket = 'ACTIVE';
+      const bucket: ContractRegistryBucket = c.status;
 
       return {
         contractId: c.id,
@@ -689,7 +658,7 @@ export class ReportsController {
     return {
       active: rows.filter((r) => r.bucket === 'ACTIVE').length,
       expiring30: rows.filter((r) => r.bucket === 'EXPIRING').length,
-      ended: rows.filter((r) => r.bucket === 'OVERDUE' || r.bucket === 'TERMINATED').length,
+      ended: rows.filter((r) => r.bucket === 'OVERDUE' || r.bucket === 'COMPLETED' || r.bucket === 'TERMINATED').length,
     };
   }
 

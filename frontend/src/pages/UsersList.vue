@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, provide, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, Pencil } from 'lucide-vue-next'
@@ -9,12 +9,19 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import EntityTable from '@/components/EntityTable.vue'
 import UserRolesCell from '@/components/UserRolesCell.vue'
+import ManageUserRolesDialog from '@/components/ManageUserRolesDialog.vue'
 import { createAppColumnHelper } from '@/lib/table'
-import { fetchAllUsersPage, updateUserLinks, type AllUsersRow } from '@/lib/users-api'
+import { fetchAllUsersPage, fetchUsersFacets, updateUserLinks, type AllUsersRow } from '@/lib/users-api'
+import { USER_ROLES_CLICK_KEY } from '@/lib/user-roles-click'
 import { goBack, parseApiError } from '@/lib/utils'
 
 const router = useRouter()
 const { t } = useI18n()
+
+// Клик по ячейке "Роли" открывает выдачу/отзыв — единственный rowAction EntityTable уже
+// занят правкой bind/azure/univer id (см. openEdit ниже), см. комментарий в UserRolesCell.vue.
+const rolesDialogRef = ref<InstanceType<typeof ManageUserRolesDialog> | null>(null)
+provide(USER_ROLES_CLICK_KEY, (row) => rolesDialogRef.value?.open(row as AllUsersRow))
 
 function formatDateIso(iso: string): string {
   const date = new Date(iso)
@@ -30,7 +37,11 @@ const columnLabels = computed<Record<string, string>>(() => ({
   univerId: t('users.list.colUniverId'),
   roles: t('users.list.colRoles'),
   createdAt: t('users.list.colCreatedAt'),
+  // 'role' — фильтр, не колонка (сама колонка называется 'roles', см. ниже) — та же
+  // схема, что в UsersStaff.vue.
+  role: t('users.list.colRole'),
 }))
+const filterableFields = ['role']
 const cellRenderers = { roles: UserRolesCell }
 function cellText(columnId: string, value: unknown): string {
   if (columnId === 'createdAt' && typeof value === 'string') return formatDateIso(value)
@@ -104,8 +115,8 @@ async function submitEdit() {
       ref="tableRef"
       :columns="columns"
       :column-labels="columnLabels"
-      :filterable-fields="[]"
-      :fetch-facet-values="async () => []"
+      :filterable-fields="filterableFields"
+      :fetch-facet-values="fetchUsersFacets"
       :default-sort="{ id: 'fullName', desc: false }"
       :fetch-page="fetchAllUsersPage"
       :get-row-id="(u: AllUsersRow) => String(u.id)"
@@ -139,5 +150,7 @@ async function submitEdit() {
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>
+
+    <ManageUserRolesDialog ref="rolesDialogRef" @changed="tableRef?.refresh()" />
   </div>
 </template>

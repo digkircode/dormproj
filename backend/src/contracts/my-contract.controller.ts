@@ -98,7 +98,6 @@ export class MyContractController {
     const { penaltyAmount, penaltyPaid, penaltyBalance } = computePenaltyBalance({
       asOf: dateOnly(new Date()),
       penaltyLogs,
-      accruals,
       payments,
     });
 

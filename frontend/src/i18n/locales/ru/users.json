@@ -45,6 +45,7 @@
       "colAzureId": "azure_id",
       "colUniverId": "univer_id",
       "colRoles": "Роли",
+      "colRole": "Роль",
       "colCreatedAt": "Добавлен",
       "totalLabel": "пользователей",
       "editAction": "Изменить azure_id/univer_id",

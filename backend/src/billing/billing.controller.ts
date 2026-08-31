@@ -72,7 +72,7 @@ export class BillingController {
           createdByUserId,
         },
       });
-      await allocatePaymentFifo(tx, contractId, payment.id, amount);
+      await allocatePaymentFifo(tx, contractId, payment.id, amount, parsed.data.paidAt);
 
       await this.auditLog.log(tx, {
         userId: createdByUserId,

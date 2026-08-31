@@ -2,8 +2,9 @@
   "status": {
     "ACTIVE": "Active",
     "EXPIRING": "Expiring",
-    "TERMINATED": "Terminated",
-    "EXPIRED": "Expired"
+    "OVERDUE": "Overdue",
+    "COMPLETED": "Completed",
+    "TERMINATED": "Terminated"
   },
   "errors": {
     "invalidId": "Invalid id",

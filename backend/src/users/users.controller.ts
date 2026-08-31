@@ -147,6 +147,7 @@ export class UsersController {
     @Query('search') searchParam?: string,
     @Query('sortBy') sortByParam?: string,
     @Query('sortDir') sortDirParam?: string,
+    @Query('filters') filtersParam?: string,
   ) {
     const page = Math.max(1, Number.parseInt(pageParam ?? '', 10) || 1);
     const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, Number.parseInt(pageSizeParam ?? '', 10) || DEFAULT_PAGE_SIZE));
@@ -154,9 +155,32 @@ export class UsersController {
     const sortField = ALL_USERS_SORTABLE_FIELDS[sortByParam ?? ''] ?? 'fullName';
     const sortDir: Prisma.SortOrder = sortDirParam === 'desc' ? 'desc' : 'asc';
 
-    const where: Prisma.UserWhereInput | undefined = search
+    // Фильтр по роли — по прямой просьбе 2026-08-31, тот же приём, что уже есть в list()
+    // выше ("Сотрудники"), но здесь без исключения чистых RESIDENT — эта страница
+    // показывает ВСЕХ пользователей как есть.
+    let roleNames: string[] = [];
+    if (filtersParam) {
+      try {
+        const parsed: unknown = JSON.parse(filtersParam);
+        if (parsed && typeof parsed === 'object') {
+          const values = (parsed as Record<string, unknown>).role;
+          if (Array.isArray(values)) {
+            roleNames = values.filter((v): v is string => typeof v === 'string');
+          }
+        }
+      } catch {
+        // Битый JSON в необязательном параметре — просто игнорируем фильтр, не 400'им весь запрос.
+      }
+    }
+
+    const searchClause: Prisma.UserWhereInput | undefined = search
       ? { OR: ALL_USERS_SEARCHABLE_FIELDS.map((field) => ({ [field]: { contains: search, mode: 'insensitive' } })) }
       : undefined;
+    const roleClause: Prisma.UserWhereInput | undefined = roleNames.length
+      ? { roles: { some: { role: { name: { in: roleNames } } } } }
+      : undefined;
+    const where: Prisma.UserWhereInput | undefined =
+      searchClause || roleClause ? { AND: [...(searchClause ? [searchClause] : []), ...(roleClause ? [roleClause] : [])] } : undefined;
 
     const [rows, total] = await Promise.all([
       this.prisma.user.findMany({

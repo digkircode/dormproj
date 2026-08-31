@@ -76,7 +76,6 @@ export async function buildDebtorRows(prisma: PrismaService, asOf: Date): Promis
     const { penaltyBalance } = computePenaltyBalance({
       asOf,
       penaltyLogs: contract.penaltyLogs,
-      accruals: contract.accruals,
       payments: contract.payments,
     });
     const totalPaid = contract.payments.filter((p) => !p.reversedAt).reduce((sum, p) => sum.plus(p.amount), new Decimal(0));

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { AlertTriangle, ChevronDown, CreditCard, DoorOpen, HelpCircle, Info, Loader, Percent } from 'lucide-vue-next'
+import { AlertTriangle, ChevronDown, CreditCard, DoorOpen, Info, Loader } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -16,15 +16,12 @@ import {
   type OpenAccrualRow,
 } from '@/lib/my-payments-api'
 import { fetchMyContracts, type MyContractSummary } from '@/lib/contracts-api'
-import { getContractDisplayStatus, STATUS_LABELS as CONTRACT_STATUS_LABELS } from '@/lib/contracts-format'
+import { STATUS_LABELS as CONTRACT_STATUS_LABELS } from '@/lib/contracts-format'
 import { isValidEmailFormat, sanitizeLettersOnly } from '@/lib/utils'
 import { dateLocaleTag } from '@/lib/format-locale'
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
-// Та же маска, что и у "своей суммы" в CreateContractDialog.vue — прячет нативные
-// стрелочки +/- у <input type="number"> (Chrome/Safari + Firefox).
-const NO_SPINNER_CLASS = '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
 
 const { t } = useI18n()
 
@@ -48,20 +45,15 @@ function formatMoney(value: number): string {
 // --- Форма создания платежа — та же логика, что была на отдельной странице /student/payment
 // (см. историю MyPayment.vue), перенесена в модалку по прямой просьбе 2026-08-25: кнопка
 // "Оплатить" на карточке договора больше никуда не переходит, а сразу открывает эту форму. ---
-// Пеня — всегда отдельным платежом (по прямой просьбе 2026-08-27), не сочетается ни с
-// выбором начислений, ни со своей суммой — свой собственный третий режим (см. ниже), а
-// не чекбокс внутри "Выбрать начисления". Раньше пеню можно было включить в общий платёж,
-// только если этим же платежом закрывались ВСЕ открытые начисления (иначе деньги по FIFO
-// ушли бы сначала на начисления, см. allocatePaymentFifo) — теперь бэк для penaltyOnly-
-// платежей вообще не пропускает сумму через FIFO (см. my-payments.controller.ts), поэтому
-// пеню можно оплатить в любой момент независимо от того, сколько ещё открытых начислений.
-type AmountMode = 'select' | 'custom' | 'penalty'
-const amountMode = ref<AmountMode>('select')
+// Сумма — исключительно по выбранным начислениям (по прямой просьбе 2026-08-31 убрана
+// "своя сумма" и отдельный режим "только пеня" — раньше это были три переключаемых режима,
+// см. историю правок). Пеня в выборе не участвует — не чекбокс, не отдельная кнопка,
+// а автоматически прибавляется к сумме поверх выбранных начислений (см. finalAmount ниже)
+// и подписывается отдельной строкой под итогом. Можно оплатить только пеню, не выбрав ни
+// одного начисления — то же самое поведение, что раньше давал отдельный penaltyOnly-режим,
+// просто без явного переключателя. Бэк сам разносит платёж (allocatePaymentFifo — сначала
+// наступившие начисления, потом пеня, см. my-payments.controller.ts).
 const selectedAccrualIds = ref<number[]>([])
-const customAmount = ref<number | undefined>(undefined)
-// Своя (в т.ч. частичная) сумма в режиме "Пеня" — по умолчанию подставляется полный
-// остаток пени (см. selectPenaltyMode), можно уменьшить вручную.
-const penaltyAmount = ref<number | undefined>(undefined)
 
 const openAccruals = computed<OpenAccrualRow[]>(() => data.value?.openAccruals ?? [])
 const penaltyBalance = computed(() => data.value?.penaltyBalance ?? 0)
@@ -69,20 +61,6 @@ const penaltyBalance = computed(() => data.value?.penaltyBalance ?? 0)
 function toggleAccrual(id: number, checked: boolean) {
   selectedAccrualIds.value = checked ? [...selectedAccrualIds.value, id] : selectedAccrualIds.value.filter((v) => v !== id)
 }
-
-function selectPenaltyMode() {
-  amountMode.value = 'penalty'
-  if (penaltyAmount.value == null) penaltyAmount.value = penaltyBalance.value
-}
-
-// Компактная подсказка "как это работает" (пеня отдельным платежом, своя сумма
-// разносится по FIFO) — по прямой просьбе 2026-08-28, после того как на телефоне
-// это оказалось неочевидно. НЕ Popover/Tooltip (оба — Reka-портал) — этот диалог
-// уже несёт один портал (DropdownMenu переключателя договора), второй вложенный
-// модальный Reka-портал здесь уже ловил ловушку №10 (см. историю правок ниже про
-// голый <select> вместо Select) — вместо портала простой локальный toggle, текст
-// рендерится в обычном потоке DOM.
-const showAmountHelp = ref(false)
 
 // Список начислений свёрнут по умолчанию — под выбором по умолчанию (последнее
 // неоплаченное, см. open()) обычно ничего менять не нужно, полный чек-лист занимает
@@ -96,11 +74,8 @@ const selectedAccrualsSummary = computed(() => {
 const selectedAmount = computed(() =>
   openAccruals.value.filter((a) => selectedAccrualIds.value.includes(a.id)).reduce((sum, a) => sum + a.balance, 0),
 )
-const finalAmount = computed(() => {
-  if (amountMode.value === 'penalty') return penaltyAmount.value ?? 0
-  if (amountMode.value === 'custom') return customAmount.value ?? 0
-  return selectedAmount.value
-})
+// Пеня всегда прибавляется целиком поверх выбранных начислений — см. комментарий выше.
+const finalAmount = computed(() => selectedAmount.value + penaltyBalance.value)
 
 const payerIsResident = ref(true)
 const representativeFullName = ref('')
@@ -138,15 +113,9 @@ async function loadPaymentsData(contractId: number | undefined, silent = false) 
   try {
     data.value = await fetchMyPayments(contractId)
     selectedContractId.value = data.value.contract?.id
-    // Режим суммы и введённая своя сумма/пеня — сбрасываем при КАЖДОЙ загрузке данных
-    // (не только при открытии диалога через open()) — иначе переключение договора при
-    // открытом режиме "Пеня" оставляло старое значение penaltyAmount от предыдущего
-    // договора (реальный баг: у нового договора может не быть пени вообще, а поле всё
-    // ещё показывало сумму от прошлого) — по умолчанию всегда возвращаемся к "Выбрать
-    // начисления" с чистого листа, как при первом открытии.
-    amountMode.value = 'select'
-    customAmount.value = undefined
-    penaltyAmount.value = undefined
+    // Выбор начислений — сбрасываем при КАЖДОЙ загрузке данных (не только при открытии
+    // диалога через open()), иначе переключение договора оставляло выбранными id
+    // начислений от предыдущего договора.
     const firstUnpaid = data.value.openAccruals[0]
     selectedAccrualIds.value = firstUnpaid ? [firstUnpaid.id] : []
     accrualPickerOpen.value = false
@@ -166,11 +135,8 @@ async function switchContract(id: number) {
 }
 
 async function open(contractId?: number) {
-  amountMode.value = 'select'
   selectedAccrualIds.value = []
   accrualPickerOpen.value = false
-  customAmount.value = undefined
-  penaltyAmount.value = undefined
   payerIsResident.value = true
   representativeFullName.value = ''
   payerEmail.value = ''
@@ -197,10 +163,7 @@ async function submit() {
   try {
     const { paymentPageUrl } = await createPaymentIntent({
       contractId: selectedContractId.value,
-      accrualIds: amountMode.value === 'select' ? selectedAccrualIds.value : [],
-      penaltyOnly: amountMode.value === 'penalty',
-      customAmount:
-        amountMode.value === 'custom' ? (customAmount.value ?? null) : amountMode.value === 'penalty' ? (penaltyAmount.value ?? null) : null,
+      accrualIds: selectedAccrualIds.value,
       payerIsResident: payerIsResident.value,
       representativeFullName: payerIsResident.value ? null : representativeFullName.value.trim(),
       payerEmail: payerEmail.value.trim(),
@@ -247,7 +210,7 @@ async function submit() {
                   :class="c.id === selectedContractId ? 'font-medium' : ''"
                   @click="switchContract(c.id)"
                 >
-                  № {{ c.number }} — {{ CONTRACT_STATUS_LABELS[getContractDisplayStatus(c.status, c.endDate)] }}
+                  № {{ c.number }} — {{ CONTRACT_STATUS_LABELS[c.status] }}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -262,104 +225,49 @@ async function submit() {
         </div>
 
         <div class="flex flex-col gap-3 rounded-lg border p-3">
-          <div class="flex items-center gap-1">
-            <p class="text-sm font-medium">{{ t('payment.createDialog.amountSection') }}</p>
-            <button
-              type="button"
-              :title="t('payment.createDialog.howItWorksLabel')"
-              class="rounded-sm p-0.5 text-muted-foreground transition-colors hover:text-primary"
-              @click="showAmountHelp = !showAmountHelp"
-            >
-              <HelpCircle class="size-3.5" />
-              <span class="sr-only">{{ t('payment.createDialog.howItWorksLabel') }}</span>
-            </button>
-          </div>
-          <p v-if="showAmountHelp" class="rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
-            {{ t('payment.createDialog.howItWorksText') }}
-          </p>
-          <!-- flex-wrap (без w-fit — тот сжимал бы box к содержимому и мешал переносу) —
-               3 подписанные кнопки ("Выбрать начисления"/"Своя сумма"/"Пеня") не помещались
-               в одну строку на узком телефоне. -->
-          <div class="flex flex-wrap items-center gap-1 rounded-md border p-0.5">
-            <Button :variant="amountMode === 'select' ? 'default' : 'ghost'" size="sm" @click="amountMode = 'select'">
-              {{ t('payment.createDialog.chooseAccruals') }}
-            </Button>
-            <Button :variant="amountMode === 'custom' ? 'default' : 'ghost'" size="sm" @click="amountMode = 'custom'">
-              {{ t('payment.createDialog.customAmount') }}
-            </Button>
-            <!-- Пеня — свой отдельный режим, не чекбокс внутри "Выбрать начисления" (по
-                 прямой просьбе 2026-08-27) — платится всегда отдельным платежом, независимо
-                 от того, сколько ещё открытых начислений на договоре, см. selectPenaltyMode. -->
-            <Button v-if="penaltyBalance > 0" :variant="amountMode === 'penalty' ? 'default' : 'ghost'" size="sm" @click="selectPenaltyMode">
-              <Percent class="size-3.5 shrink-0" />
-              {{ t('payment.createDialog.penaltyMode') }}
-            </Button>
-          </div>
+          <p class="text-sm font-medium">{{ t('payment.createDialog.amountSection') }}</p>
+          <p class="text-xs text-muted-foreground">{{ t('payment.createDialog.taxDeductionNotice') }}</p>
 
-          <template v-if="amountMode === 'select'">
-            <p v-if="!openAccruals.length" class="text-sm text-muted-foreground">{{ t('payment.createDialog.noOpenAccruals') }}</p>
-            <Collapsible v-else v-model:open="accrualPickerOpen">
-              <CollapsibleTrigger as-child>
-                <!-- min-w-0 + truncate на сводке — при выборе много начислений сразу (например
-                     все 12 месяцев) строка "сентябрь 2026 г., октябрь 2026 г., ..." переносилась
-                     на несколько строк и распирала кнопку по высоте (реальный баг, скриншот
-                     2026-08-28) — теперь одна строка с многоточием, shrink-0 на сумме/стрелке
-                     защищает их от сжатия при этом. -->
-                <button
-                  type="button"
-                  class="flex h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-md border px-3 text-sm hover:bg-accent"
-                >
-                  <span class="min-w-0 truncate">{{ selectedAccrualsSummary }}</span>
-                  <span class="flex shrink-0 items-center gap-1.5">
-                    <span class="font-medium">{{ formatMoney(selectedAmount) }}</span>
-                    <ChevronDown class="size-3.5 shrink-0 text-muted-foreground transition-transform duration-200" :class="accrualPickerOpen ? 'rotate-180' : ''" />
-                  </span>
-                </button>
-              </CollapsibleTrigger>
-              <!-- max-h + overflow-y-auto — при большом числе начислений список раньше рос
-                   безгранично внутри и без того скроллящейся модалки (DialogScrollContent
-                   max-h-[80vh]), из-за чего в нём было легко потерять кнопку "Оплатить"
-                   далеко внизу; теперь длинный список скроллится сам в своих границах. -->
-              <CollapsibleContent class="flex max-h-56 flex-col gap-1 overflow-y-auto pt-1">
-                <label
-                  v-for="accrual in openAccruals"
-                  :key="accrual.id"
-                  class="flex cursor-pointer items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-sm hover:bg-accent"
-                >
-                  <span class="flex items-center gap-1.5">
-                    <Checkbox
-                      :model-value="selectedAccrualIds.includes(accrual.id)"
-                      @update:model-value="(checked) => toggleAccrual(accrual.id, !!checked)"
-                    />
-                    {{ monthLabel(accrual.periodStart) }}
-                  </span>
-                  <span class="font-medium">{{ formatMoney(accrual.balance) }}</span>
-                </label>
-              </CollapsibleContent>
-            </Collapsible>
-          </template>
-          <template v-else-if="amountMode === 'custom'">
-            <Input
-              :class="NO_SPINNER_CLASS"
-              id="custom-amount"
-              v-model.number="customAmount"
-              type="number"
-              min="1"
-              :placeholder="t('payment.createDialog.amountPlaceholder')"
-            />
-          </template>
-          <template v-else>
-            <Input
-              :class="NO_SPINNER_CLASS"
-              id="penalty-amount"
-              v-model.number="penaltyAmount"
-              type="number"
-              min="1"
-              :max="penaltyBalance"
-              :placeholder="t('payment.createDialog.amountPlaceholder')"
-            />
-            <p class="text-xs text-muted-foreground">{{ t('payment.createDialog.penaltyModeHint', { amount: formatMoney(penaltyBalance) }) }}</p>
-          </template>
+          <p v-if="!openAccruals.length" class="text-sm text-muted-foreground">{{ t('payment.createDialog.noOpenAccruals') }}</p>
+          <Collapsible v-else v-model:open="accrualPickerOpen">
+            <CollapsibleTrigger as-child>
+              <!-- min-w-0 + truncate на сводке — при выборе много начислений сразу (например
+                   все 12 месяцев) строка "сентябрь 2026 г., октябрь 2026 г., ..." переносилась
+                   на несколько строк и распирала кнопку по высоте (реальный баг, скриншот
+                   2026-08-28) — теперь одна строка с многоточием, shrink-0 на сумме/стрелке
+                   защищает их от сжатия при этом. -->
+              <button
+                type="button"
+                class="flex h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-md border px-3 text-sm hover:bg-accent"
+              >
+                <span class="min-w-0 truncate">{{ selectedAccrualsSummary }}</span>
+                <span class="flex shrink-0 items-center gap-1.5">
+                  <span class="font-medium">{{ formatMoney(selectedAmount) }}</span>
+                  <ChevronDown class="size-3.5 shrink-0 text-muted-foreground transition-transform duration-200" :class="accrualPickerOpen ? 'rotate-180' : ''" />
+                </span>
+              </button>
+            </CollapsibleTrigger>
+            <!-- max-h + overflow-y-auto — при большом числе начислений список раньше рос
+                 безгранично внутри и без того скроллящейся модалки (DialogScrollContent
+                 max-h-[80vh]), из-за чего в нём было легко потерять кнопку "Оплатить"
+                 далеко внизу; теперь длинный список скроллится сам в своих границах. -->
+            <CollapsibleContent class="flex max-h-56 flex-col gap-1 overflow-y-auto pt-1">
+              <label
+                v-for="accrual in openAccruals"
+                :key="accrual.id"
+                class="flex cursor-pointer items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-sm hover:bg-accent"
+              >
+                <span class="flex items-center gap-1.5">
+                  <Checkbox
+                    :model-value="selectedAccrualIds.includes(accrual.id)"
+                    @update:model-value="(checked) => toggleAccrual(accrual.id, !!checked)"
+                  />
+                  {{ monthLabel(accrual.periodStart) }}
+                </span>
+                <span class="font-medium">{{ formatMoney(accrual.balance) }}</span>
+              </label>
+            </CollapsibleContent>
+          </Collapsible>
         </div>
 
         <div class="flex flex-col gap-3 rounded-lg border p-3">
@@ -392,10 +300,6 @@ async function submit() {
             <Info class="size-3.5 shrink-0 translate-y-0.5" />
             {{ t('payment.createDialog.certificateNotice') }}
           </p>
-          <p class="flex items-start gap-1.5">
-            <Info class="size-3.5 shrink-0 translate-y-0.5" />
-            {{ t('payment.createDialog.taxDeductionNotice') }}
-          </p>
         </div>
 
         <div class="flex flex-col gap-2">
@@ -403,6 +307,9 @@ async function submit() {
             <span class="text-sm text-muted-foreground">{{ t('payment.createDialog.amountDue') }}</span>
             <span class="text-lg font-semibold">{{ formatMoney(finalAmount) }}</span>
           </div>
+          <p v-if="penaltyBalance > 0" class="text-right text-xs text-muted-foreground">
+            {{ t('payment.createDialog.includingPenalty', { amount: formatMoney(penaltyBalance) }) }}
+          </p>
           <p v-if="!data.acquiringAvailable" class="flex items-center gap-1.5 text-xs text-muted-foreground">
             <AlertTriangle class="size-3.5 shrink-0 text-orange-500" />
             {{ t('payment.createDialog.acquiringUnavailable') }}

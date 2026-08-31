@@ -2,7 +2,7 @@ import { apiFetch } from './api-base'
 import { fetchListPage, fetchListFacets, type ListOptions, type ListPage, type FacetOption } from './list-api'
 import { i18n } from '@/i18n'
 
-export type ContractStatus = 'ACTIVE' | 'TERMINATED' | 'EXPIRED'
+export type ContractStatus = 'ACTIVE' | 'EXPIRING' | 'OVERDUE' | 'COMPLETED' | 'TERMINATED'
 export type DailyRateCategory = 'OWN_UNIVERSITY' | 'OTHER_UNIVERSITY'
 export type PaymentMethod = 'CASH' | 'CARD_ACQUIRING' | 'BANK_TRANSFER' | 'MAT_CAPITAL' | 'WEBSITE'
 

@@ -2,8 +2,9 @@
   "status": {
     "ACTIVE": "Действует",
     "EXPIRING": "Истекает",
-    "TERMINATED": "Расторгнут",
-    "EXPIRED": "Истёк"
+    "OVERDUE": "Просрочен",
+    "COMPLETED": "Завершён",
+    "TERMINATED": "Расторгнут"
   },
   "errors": {
     "invalidId": "Некорректный id",

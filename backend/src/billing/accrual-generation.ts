@@ -23,13 +23,7 @@ export function generateMonthlyPeriods(startDate: Date, endDate: Date): AccrualP
     const monthEnd = endOfMonth(cursor);
     const periodStart = monthStart < startDate ? startDate : monthStart;
     const periodEnd = monthEnd > endDate ? endDate : monthEnd;
-    // periodEnd < monthEnd означает, что это последний период договора (обрезан по
-    // endDate) — обычно это триггерит посуточный расчёт. Исключение: договоры по
-    // умолчанию заканчиваются 30 августа, не 31-го (см. Contracts.vue), это типовая, а
-    // не укороченная дата конца месяца — не должна давать посуточный расчёт последнего месяца.
-    const endsAtMonthBoundary = periodEnd.getTime() === monthEnd.getTime() || isAugustConventionalEnd(periodEnd);
-    const isFullMonth = periodStart.getTime() === monthStart.getTime() && endsAtMonthBoundary;
-    periods.push({ periodStart, periodEnd, isFullMonth });
+    periods.push({ periodStart, periodEnd, isFullMonth: isFullMonthAccrualPeriod(periodStart, periodEnd) });
     cursor = addMonths(cursor, 1);
   }
   return periods;
@@ -37,6 +31,21 @@ export function generateMonthlyPeriods(startDate: Date, endDate: Date): AccrualP
 
 function isAugustConventionalEnd(date: Date): boolean {
   return date.getUTCMonth() === 7 && date.getUTCDate() === 30;
+}
+
+// periodEnd < конца календарного месяца означает, что период обрезан по дате договора
+// (заселение/выезд не по границе месяца) — обычно это триггерит посуточный расчёт.
+// Исключение: договоры по умолчанию заканчиваются 30 августа, не 31-го (см. Contracts.vue),
+// это типовая, а не укороченная дата конца месяца — не должна давать посуточный расчёт
+// последнего месяца. Вынесено отдельной функцией (не только для generateMonthlyPeriods) —
+// нужна и в billing/penalty.scheduler.ts, чтобы отличить обычное полное начисление (база
+// пени — фиксированная стоимость комнаты, см. penalty.scheduler.ts) от посуточного (база —
+// фактически начисленная сумма) уже по готовому Accrual, без доступа к исходному cursor.
+export function isFullMonthAccrualPeriod(periodStart: Date, periodEnd: Date): boolean {
+  const monthStart = startOfMonth(periodStart);
+  const monthEnd = endOfMonth(periodStart);
+  const endsAtMonthBoundary = periodEnd.getTime() === monthEnd.getTime() || isAugustConventionalEnd(periodEnd);
+  return periodStart.getTime() === monthStart.getTime() && endsAtMonthBoundary;
 }
 
 export interface AccrualTerms {

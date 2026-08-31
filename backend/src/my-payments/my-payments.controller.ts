@@ -52,12 +52,12 @@ const REPRESENTATIVE_NAME_PATTERN = /^[A-Za-zА-Яа-яЁё\s-]+$/;
 const createIntentSchema = z
   .object({
     contractId: z.number().int().positive().nullish(),
+    // Единственный способ выбрать сумму (с 2026-08-31, по прямой просьбе — убрали "свою
+    // сумму" и отдельный режим "только пеня", см. CreatePaymentDialog.vue) — выбор из
+    // непогашенных начислений. Пеня в этот список не входит: она добавляется к сумме
+    // автоматически поверх выбранного (см. createIntent ниже), allocatePaymentFifo сам
+    // разносит её вторым шагом (после наступивших начислений, до будущих).
     accrualIds: z.array(z.number().int().positive()).default([]),
-    // Пеня всегда платится отдельным платежом (см. buildPeriodLabel/payment-description.ts)
-    // — не сочетается с accrualIds/customAmount, гасит строго пеню (см. createIntent ниже
-    // и penaltyOnly на PaymentIntent, reconcileBankStatus пропускает для неё allocatePaymentFifo).
-    penaltyOnly: z.boolean().default(false),
-    customAmount: z.number().positive().nullish(),
     payerIsResident: z.boolean(),
     representativeFullName: z
       .string()
@@ -190,7 +190,6 @@ export class MyPaymentsController {
     const { penaltyBalance } = computePenaltyBalance({
       asOf: dateOnly(new Date()),
       penaltyLogs: contract.penaltyLogs,
-      accruals: contract.accruals,
       payments: contract.payments,
     });
 
@@ -249,44 +248,23 @@ export class MyPaymentsController {
     const { penaltyBalance } = computePenaltyBalance({
       asOf: dateOnly(new Date()),
       penaltyLogs: contract.penaltyLogs,
-      accruals: contract.accruals,
       payments: contract.payments,
     });
 
-    let amount: number;
-    let selectedAccrualStarts: Date[] = [];
-    let includesPenalty = false;
-
-    if (input.penaltyOnly) {
-      // Пеню можно платить в любом случае (даже если на договоре ещё есть непогашенные
-      // начисления) — только и всегда отдельным платежом, никогда вперемешку с accrualIds/
-      // customAmount, см. схему выше. reconcileBankStatus не пропускает такой платёж через
-      // allocatePaymentFifo вообще (см. penaltyOnly на PaymentIntent), поэтому вся сумма
-      // гарантированно засчитывается именно в пеню, независимо от того, сколько ещё
-      // открытых начислений на договоре — по прямой просьбе 2026-08-27.
-      if (Number(penaltyBalance) <= 0) {
-        throw new BadRequestException('payment.errors.nothingToPay');
-      }
-      amount = input.customAmount ?? Number(penaltyBalance);
-      if (amount > Number(penaltyBalance) + 0.01) {
-        throw new BadRequestException('payment.errors.amountExceedsDebt');
-      }
-      includesPenalty = true;
-    } else if (input.customAmount != null) {
-      const totalDebt = openAccruals.reduce((sum, a) => sum + a.balance, 0);
-      if (input.customAmount > totalDebt + 0.01) {
-        throw new BadRequestException('payment.errors.amountExceedsDebt');
-      }
-      amount = input.customAmount;
-    } else {
-      const selected = openAccruals.filter((a) => input.accrualIds.includes(a.id));
-      if (selected.length !== input.accrualIds.length) {
-        throw new BadRequestException('payment.errors.accrualsUnavailable');
-      }
-      amount = selected.reduce((sum, a) => sum + a.balance, 0);
-      selectedAccrualStarts = selected.map((a) => a.periodStart);
-      if (amount <= 0) throw new BadRequestException('payment.errors.nothingToPay');
+    // Сумма — исключительно выбранные начисления + вся текущая пеня целиком, автоматически
+    // (с 2026-08-31 нет ни "своей суммы", ни отдельного режима "только пеня" — см. схему
+    // выше). Можно оплатить только пеню, ничего не выбрав из начислений (amount тогда
+    // равен ровно penaltyBalance) — ровно то же самое поведение, что раньше давал
+    // отдельный penaltyOnly-режим, просто без явного переключателя.
+    const selected = openAccruals.filter((a) => input.accrualIds.includes(a.id));
+    if (selected.length !== input.accrualIds.length) {
+      throw new BadRequestException('payment.errors.accrualsUnavailable');
     }
+    const accrualsTotal = selected.reduce((sum, a) => sum + a.balance, 0);
+    const amount = accrualsTotal + Number(penaltyBalance);
+    const selectedAccrualStarts = selected.map((a) => a.periodStart);
+    const includesPenalty = Number(penaltyBalance) > 0;
+    if (amount <= 0) throw new BadRequestException('payment.errors.nothingToPay');
 
     const periodLabel = buildPeriodLabel(selectedAccrualStarts, includesPenalty);
     const description = buildPaymentDescription(
@@ -304,7 +282,6 @@ export class MyPaymentsController {
         description,
         payerFullName,
         payerEmail: input.payerEmail,
-        penaltyOnly: input.penaltyOnly,
       },
     });
 
@@ -412,13 +389,11 @@ export class MyPaymentsController {
           rawComment: fresh.description,
         },
       });
-      // penaltyOnly — намеренно НЕ разносим по начислениям: вся сумма остаётся
-      // неаллоцированной, computePenaltyBalance трактует такой "остаток" как покрытие
-      // пени (см. billing/penalty-balance.ts) — это и гарантирует, что деньги уходят
-      // именно в пеню, а не в старейшее непогашенное начисление по FIFO.
-      if (!fresh.penaltyOnly) {
-        await allocatePaymentFifo(tx, fresh.contractId, payment.id, fresh.amount);
-      }
+      // Разносится тем же allocatePaymentFifo, что и ручные платежи сотрудников —
+      // наступившие начисления → пеня (Payment.penaltyAmount) → будущие начисления, см.
+      // billing/payment-allocation.ts. Сумма уже включает пеню целиком (см. createIntent
+      // выше), отдельно её выделять здесь не нужно.
+      await allocatePaymentFifo(tx, fresh.contractId, payment.id, fresh.amount, payment.paidAt);
 
       await this.auditLog.log(tx, {
         userId,

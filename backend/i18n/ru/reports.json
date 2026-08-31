@@ -3,6 +3,7 @@
     "ACTIVE": "Действует",
     "EXPIRING": "Истекает",
     "OVERDUE": "Просрочен",
+    "COMPLETED": "Завершён",
     "TERMINATED": "Расторгнут"
   },
   "movementOperation": {

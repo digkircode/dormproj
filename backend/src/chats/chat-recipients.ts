@@ -70,18 +70,22 @@ function currentByRoom(rows: CharacteristicRow[], definitionName: string): Map<n
 }
 
 // Базовая выборка "реальных" проживающих для чата/рассылки — те, у кого прямо сейчас
-// действующий (ACTIVE) договор с активным заселением в комнату. Сознательно не роль
-// RESIDENT — та выдаётся по присутствию в Student (контингент вуза), не привязана к
-// факту проживания/комнате (см. resident-role-sync.ts) — фильтры по этажу/корпусу без
-// комнаты физически не имеют смысла, поэтому берём именно эту базу.
+// действующий договор (ACTIVE или EXPIRING — срок ещё не вышел, см. ContractStatus в
+// schema.prisma) с активным заселением в комнату. Сознательно не роль RESIDENT — та
+// завязана на весь жизненный цикл договора включая 30-дневный грейс-период после
+// естественного завершения (см. resident-role-sync.ts), не привязана к факту проживания/
+// комнате — фильтры по этажу/корпусу без комнаты физически не имеют смысла, поэтому
+// берём именно эту базу.
 // buildDebtorRows отдаёт строку НА ДОГОВОР, не на проживающего — бизнес-правила не
-// запрещают явно два ACTIVE-договора одного физлица в разных комнатах одновременно
+// запрещают явно два одновременных договора одного физлица в разных комнатах
 // (редкий случай, но не невозможный), а у чата ровно один диалог на Individual
 // (@@unique на individualUid, см. schema.prisma) — дедуп по individualUid здесь,
 // чтобы рассылка не отправила такому человеку одно и то же сообщение дважды.
 async function currentResidents(prisma: PrismaService): Promise<(DebtorRow & { roomId: number })[]> {
   const rows = await buildDebtorRows(prisma, dateOnly(new Date()));
-  const active = rows.filter((r): r is DebtorRow & { roomId: number } => r.status === 'ACTIVE' && r.roomId !== null);
+  const active = rows.filter(
+    (r): r is DebtorRow & { roomId: number } => (r.status === 'ACTIVE' || r.status === 'EXPIRING') && r.roomId !== null,
+  );
 
   const byIndividual = new Map<string, DebtorRow & { roomId: number }>();
   for (const row of active) {

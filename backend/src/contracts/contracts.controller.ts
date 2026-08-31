@@ -31,7 +31,8 @@ import { isMinorAt } from './minor';
 import { buildResidentSnapshot, fillManualFallbacks, type ResidentSnapshot } from './resident-snapshot';
 import { renderContractDocument } from './contract-document';
 import { buildDocumentData } from './contract-document-data';
-import { EXPIRING_WINDOW_DAYS, CONTRACT_DISPLAY_STATUS_LABELS, type ContractDisplayStatus } from './contract-display-status';
+import { CONTRACT_STATUS_LABELS } from './contract-display-status';
+import { ContractStatus } from '../../generated/prisma/client.js';
 import { zodErrorMessage } from '../i18n/zod-error-message';
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -52,11 +53,9 @@ function isFilterableField(field: string): field is FilterableField {
   return (FILTERABLE_FIELDS as readonly string[]).includes(field);
 }
 
-// Опции фильтра/facets — включают вычисляемый бакет EXPIRING (не реальный ContractStatus
-// в БД, см. contract-display-status.ts), поэтому это НЕ то же самое, что просто ключи
-// ContractStatus enum. Порядок — тот же, что и в выпадающем списке фильтра на фронте
-// (contracts-format.ts#STATUS_LABELS): "Истекает" сразу после "Действует".
-const STATUS_FACET_LABELS: Record<ContractDisplayStatus, string> = CONTRACT_DISPLAY_STATUS_LABELS;
+// EXPIRING/OVERDUE/COMPLETED — реальные значения ContractStatus (с 2026-08-31, см.
+// schema.prisma), не вычисляемый бакет — фильтр просто сопоставляет значение как есть.
+const STATUS_FACET_LABELS: Record<ContractStatus, string> = CONTRACT_STATUS_LABELS;
 
 const legalRepFields = {
   legalRepName: z.string().trim().min(1).nullish(),
@@ -144,26 +143,13 @@ const AUDITED_CONTRACT_FIELDS = [
   'matCapitalDeferredUntil',
 ];
 
-// Разводит "Действует" и "Истекает" в SQL, а не только в отображении (по прямой
-// просьбе — раньше фильтр "Действует" включал в себя и те договоры, что в самой
-// строке таблицы уже показывались как "Истекает", см. ContractStatusCell.vue). EXPIRING
-// не хранится в БД — это тот же вычисляемый бакет (ACTIVE + endDate в ближайшие
-// EXPIRING_WINDOW_DAYS дней), что и на фронте (contract-display-status.ts), просто
-// выраженный здесь через WHERE, а не через JS-функцию после выборки.
+// EXPIRING/OVERDUE/COMPLETED — реальные значения ContractStatus с 2026-08-31 (переходы
+// считает billing/contract-status.scheduler.ts) — фильтр просто сравнивает значение,
+// вычислять по датам уже не нужно (раньше здесь была date-math копия того, что уже есть
+// на фронте в contracts-format.ts).
 function buildStatusFilterClause(values: string[]): Prisma.ContractWhereInput | undefined {
-  const now = new Date();
-  const windowEnd = new Date(now.getTime() + EXPIRING_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-  const clauses: Prisma.ContractWhereInput[] = [];
-  for (const value of values) {
-    if (value === 'EXPIRING') {
-      clauses.push({ status: 'ACTIVE', endDate: { gte: now, lte: windowEnd } });
-    } else if (value === 'ACTIVE') {
-      clauses.push({ status: 'ACTIVE', NOT: { endDate: { gte: now, lte: windowEnd } } });
-    } else if (value === 'TERMINATED' || value === 'EXPIRED') {
-      clauses.push({ status: value });
-    }
-  }
-  return clauses.length > 0 ? { OR: clauses } : undefined;
+  const statusValues = values.filter((v): v is ContractStatus => (Object.values(ContractStatus) as string[]).includes(v));
+  return statusValues.length > 0 ? { status: { in: statusValues } } : undefined;
 }
 
 function parseIdParam(idParam: string): number {
@@ -334,7 +320,6 @@ export class ContractsController {
     const { penaltyAmount, penaltyPaid, penaltyBalance } = computePenaltyBalance({
       asOf: dateOnly(new Date()),
       penaltyLogs,
-      accruals,
       payments,
     });
     return {

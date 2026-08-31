@@ -6,6 +6,7 @@
     },
     "registryBucket": {
       "ACTIVE": "Active",
+      "COMPLETED": "Completed",
       "TERMINATED": "Terminated"
     },
     "movementOperation": {
