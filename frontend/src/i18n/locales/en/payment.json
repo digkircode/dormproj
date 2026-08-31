@@ -23,6 +23,7 @@
       "amountSection": "Amount",
       "noOpenAccruals": "No outstanding accruals.",
       "noAccrualsSelected": "No accruals selected",
+      "penaltyRowLabel": "Penalty",
       "includingPenalty": "including penalty — {amount}",
       "payerSection": "Payer",
       "payerIsResident": "Paying myself",

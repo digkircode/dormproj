@@ -47,13 +47,14 @@ function formatMoney(value: number): string {
 // "Оплатить" на карточке договора больше никуда не переходит, а сразу открывает эту форму. ---
 // Сумма — исключительно по выбранным начислениям (по прямой просьбе 2026-08-31 убрана
 // "своя сумма" и отдельный режим "только пеня" — раньше это были три переключаемых режима,
-// см. историю правок). Пеня в выборе не участвует — не чекбокс, не отдельная кнопка,
-// а автоматически прибавляется к сумме поверх выбранных начислений (см. finalAmount ниже)
-// и подписывается отдельной строкой под итогом. Можно оплатить только пеню, не выбрав ни
-// одного начисления — то же самое поведение, что раньше давал отдельный penaltyOnly-режим,
-// просто без явного переключателя. Бэк сам разносит платёж (allocatePaymentFifo — сначала
-// наступившие начисления, потом пеня, см. my-payments.controller.ts).
+// см. историю правок). Пеня (по прямой просьбе 2026-08-31, второй заход) — такой же
+// выбираемый пункт в этом же списке, как начисление (см. CollapsibleContent в шаблоне), не
+// обязательная надбавка: по умолчанию отмечена, если есть чем платить (penaltyBalance>0),
+// но снять галочку можно. Бэк сам разносит платёж (allocatePaymentFifo — сначала
+// наступившие начисления, потом пеня — если её отметили и прислали в сумме, см.
+// my-payments.controller.ts).
 const selectedAccrualIds = ref<number[]>([])
+const includePenalty = ref(true)
 
 const openAccruals = computed<OpenAccrualRow[]>(() => data.value?.openAccruals ?? [])
 const penaltyBalance = computed(() => data.value?.penaltyBalance ?? 0)
@@ -67,15 +68,18 @@ function toggleAccrual(id: number, checked: boolean) {
 // место зря (по прямой просьбе 2026-08-25). Разворачивается по клику на сводку.
 const accrualPickerOpen = ref(false)
 const selectedAccrualsSummary = computed(() => {
-  const selected = openAccruals.value.filter((a) => selectedAccrualIds.value.includes(a.id))
-  return selected.map((a) => monthLabel(a.periodStart)).join(', ') || t('payment.createDialog.noAccrualsSelected')
+  const selected = openAccruals.value.filter((a) => selectedAccrualIds.value.includes(a.id)).map((a) => monthLabel(a.periodStart))
+  if (includePenalty.value && penaltyBalance.value > 0) selected.push(t('payment.createDialog.penaltyRowLabel'))
+  return selected.join(', ') || t('payment.createDialog.noAccrualsSelected')
 })
 
-const selectedAmount = computed(() =>
-  openAccruals.value.filter((a) => selectedAccrualIds.value.includes(a.id)).reduce((sum, a) => sum + a.balance, 0),
-)
-// Пеня всегда прибавляется целиком поверх выбранных начислений — см. комментарий выше.
-const finalAmount = computed(() => selectedAmount.value + penaltyBalance.value)
+// Пеня — часть той же суммы, что и выбранные начисления (не надбавка поверх неё, см.
+// комментарий выше) — учитывается, только если отмечена галочкой.
+const selectedAmount = computed(() => {
+  const accrualsTotal = openAccruals.value.filter((a) => selectedAccrualIds.value.includes(a.id)).reduce((sum, a) => sum + a.balance, 0)
+  return accrualsTotal + (includePenalty.value ? penaltyBalance.value : 0)
+})
+const finalAmount = computed(() => selectedAmount.value)
 
 const payerIsResident = ref(true)
 const representativeFullName = ref('')
@@ -118,6 +122,7 @@ async function loadPaymentsData(contractId: number | undefined, silent = false) 
     // начислений от предыдущего договора.
     const firstUnpaid = data.value.openAccruals[0]
     selectedAccrualIds.value = firstUnpaid ? [firstUnpaid.id] : []
+    includePenalty.value = true
     accrualPickerOpen.value = false
     payerEmail.value = data.value.payerEmail ?? ''
   } catch (error) {
@@ -136,6 +141,7 @@ async function switchContract(id: number) {
 
 async function open(contractId?: number) {
   selectedAccrualIds.value = []
+  includePenalty.value = true
   accrualPickerOpen.value = false
   payerIsResident.value = true
   representativeFullName.value = ''
@@ -164,6 +170,7 @@ async function submit() {
     const { paymentPageUrl } = await createPaymentIntent({
       contractId: selectedContractId.value,
       accrualIds: selectedAccrualIds.value,
+      includePenalty: includePenalty.value,
       payerIsResident: payerIsResident.value,
       representativeFullName: payerIsResident.value ? null : representativeFullName.value.trim(),
       payerEmail: payerEmail.value.trim(),
@@ -228,7 +235,11 @@ async function submit() {
           <p class="text-sm font-medium">{{ t('payment.createDialog.amountSection') }}</p>
           <p class="text-xs text-muted-foreground">{{ t('payment.createDialog.taxDeductionNotice') }}</p>
 
-          <p v-if="!openAccruals.length" class="text-sm text-muted-foreground">{{ t('payment.createDialog.noOpenAccruals') }}</p>
+          <!-- Список остаётся пустым только если вообще нечем платить — ни начислений, ни
+               пени (пеня — тоже пункт списка, см. ниже, а не надбавка поверх него). -->
+          <p v-if="!openAccruals.length && penaltyBalance <= 0" class="text-sm text-muted-foreground">
+            {{ t('payment.createDialog.noOpenAccruals') }}
+          </p>
           <Collapsible v-else v-model:open="accrualPickerOpen">
             <CollapsibleTrigger as-child>
               <!-- min-w-0 + truncate на сводке — при выборе много начислений сразу (например
@@ -265,6 +276,18 @@ async function submit() {
                   {{ monthLabel(accrual.periodStart) }}
                 </span>
                 <span class="font-medium">{{ formatMoney(accrual.balance) }}</span>
+              </label>
+              <!-- Пеня — такой же пункт списка, как начисление (по прямой просьбе
+                   2026-08-31), не обязательная надбавка — можно снять галочку. -->
+              <label
+                v-if="penaltyBalance > 0"
+                class="flex cursor-pointer items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-sm hover:bg-accent"
+              >
+                <span class="flex items-center gap-1.5">
+                  <Checkbox :model-value="includePenalty" @update:model-value="(checked) => (includePenalty = !!checked)" />
+                  {{ t('payment.createDialog.penaltyRowLabel') }}
+                </span>
+                <span class="font-medium">{{ formatMoney(penaltyBalance) }}</span>
               </label>
             </CollapsibleContent>
           </Collapsible>
@@ -307,7 +330,7 @@ async function submit() {
             <span class="text-sm text-muted-foreground">{{ t('payment.createDialog.amountDue') }}</span>
             <span class="text-lg font-semibold">{{ formatMoney(finalAmount) }}</span>
           </div>
-          <p v-if="penaltyBalance > 0" class="text-right text-xs text-muted-foreground">
+          <p v-if="includePenalty && penaltyBalance > 0" class="text-right text-xs text-muted-foreground">
             {{ t('payment.createDialog.includingPenalty', { amount: formatMoney(penaltyBalance) }) }}
           </p>
           <p v-if="!data.acquiringAvailable" class="flex items-center gap-1.5 text-xs text-muted-foreground">

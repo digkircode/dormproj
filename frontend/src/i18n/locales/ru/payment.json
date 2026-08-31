@@ -23,6 +23,7 @@
       "amountSection": "Сумма",
       "noOpenAccruals": "Непогашенных начислений нет.",
       "noAccrualsSelected": "Начисления не выбраны",
+      "penaltyRowLabel": "Пеня",
       "includingPenalty": "с учётом пени — {amount}",
       "payerSection": "Плательщик",
       "payerIsResident": "Оплачиваю сам(а)",

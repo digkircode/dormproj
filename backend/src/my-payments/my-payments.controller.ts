@@ -54,10 +54,12 @@ const createIntentSchema = z
     contractId: z.number().int().positive().nullish(),
     // Единственный способ выбрать сумму (с 2026-08-31, по прямой просьбе — убрали "свою
     // сумму" и отдельный режим "только пеня", см. CreatePaymentDialog.vue) — выбор из
-    // непогашенных начислений. Пеня в этот список не входит: она добавляется к сумме
-    // автоматически поверх выбранного (см. createIntent ниже), allocatePaymentFifo сам
-    // разносит её вторым шагом (после наступивших начислений, до будущих).
+    // непогашенных начислений. Пеня — такой же выбираемый пункт (includePenalty), не
+    // обязательная надбавка: по умолчанию отмечена на фронте, но можно снять галочку.
+    // allocatePaymentFifo сам разносит её (после наступивших начислений, до будущих),
+    // если она вошла в сумму.
     accrualIds: z.array(z.number().int().positive()).default([]),
+    includePenalty: z.boolean().default(true),
     payerIsResident: z.boolean(),
     representativeFullName: z
       .string()
@@ -251,19 +253,19 @@ export class MyPaymentsController {
       payments: contract.payments,
     });
 
-    // Сумма — исключительно выбранные начисления + вся текущая пеня целиком, автоматически
-    // (с 2026-08-31 нет ни "своей суммы", ни отдельного режима "только пеня" — см. схему
-    // выше). Можно оплатить только пеню, ничего не выбрав из начислений (amount тогда
-    // равен ровно penaltyBalance) — ровно то же самое поведение, что раньше давал
-    // отдельный penaltyOnly-режим, просто без явного переключателя.
+    // Сумма — выбранные начисления + пеня, если галочка включена (includePenalty, по
+    // умолчанию true на фронте, но необязательна — CreatePaymentDialog.vue). Можно
+    // оплатить только пеню, ничего не выбрав из начислений (amount тогда равен ровно
+    // penaltyBalance) — то же поведение, что раньше давал отдельный penaltyOnly-режим,
+    // просто без явного переключателя.
     const selected = openAccruals.filter((a) => input.accrualIds.includes(a.id));
     if (selected.length !== input.accrualIds.length) {
       throw new BadRequestException('payment.errors.accrualsUnavailable');
     }
     const accrualsTotal = selected.reduce((sum, a) => sum + a.balance, 0);
-    const amount = accrualsTotal + Number(penaltyBalance);
+    const includesPenalty = input.includePenalty && Number(penaltyBalance) > 0;
+    const amount = accrualsTotal + (includesPenalty ? Number(penaltyBalance) : 0);
     const selectedAccrualStarts = selected.map((a) => a.periodStart);
-    const includesPenalty = Number(penaltyBalance) > 0;
     if (amount <= 0) throw new BadRequestException('payment.errors.nothingToPay');
 
     const periodLabel = buildPeriodLabel(selectedAccrualStarts, includesPenalty);

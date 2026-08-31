@@ -61,10 +61,10 @@ export const UNIFIED_PAYMENT_STATUS_LABELS: Record<UnifiedPaymentStatus, string>
 export interface CreateIntentInput {
   contractId?: number | null
   // Единственный способ выбрать сумму (с 2026-08-31) — выбор из непогашенных начислений.
-  // Пеня в этот список не входит — бэк добавляет её к сумме автоматически поверх
-  // выбранного (см. my-payments.controller.ts#createIntent), выбирать/исключать её
-  // отдельно нельзя.
   accrualIds: number[]
+  // Пеня — такой же выбираемый пункт, как начисление, не обязательная надбавка (см.
+  // CreatePaymentDialog.vue) — по умолчанию true, можно снять галочку.
+  includePenalty: boolean
   payerIsResident: boolean
   representativeFullName: string | null
   payerEmail: string
