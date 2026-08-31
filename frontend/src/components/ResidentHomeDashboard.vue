@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ArrowRight, CreditCard, DoorOpen, Megaphone, MessageCircle, Newspaper, Phone, Wallet } from 'lucide-vue-next'
+import { ArrowRight, CreditCard, DoorOpen, Megaphone, MessageCircle, Newspaper, Wallet } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { Button } from '@/components/ui/button'
 import CreatePaymentDialog from '@/components/CreatePaymentDialog.vue'
 import AnnouncementReadDialog from '@/components/AnnouncementReadDialog.vue'
 import AllAnnouncementsDialog from '@/components/AllAnnouncementsDialog.vue'
@@ -78,16 +78,6 @@ function formatMoney(value: number): string {
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString(dateLocaleTag())
 }
-// Контакты общежития — по прямой просьбе 2026-08-28, статические номера (не из API —
-// в проекте нет справочника контактов сотрудников для резидентов). Только label
-// переведён (i18n), сами номера одинаковы в любой локали.
-const contactGroups = computed(() => [
-  { label: t('home.resident.contactsDutyAdmin'), phones: ['+7 (977) 812-81-87', '+7 (495) 223-40-49'] },
-  { label: t('home.resident.contactsYouthDept'), phones: ['+7 (495) 925-03-71'] },
-])
-function telHref(phone: string): string {
-  return `tel:${phone.replace(/[^\d+]/g, '')}`
-}
 </script>
 
 <template>
@@ -95,12 +85,12 @@ function telHref(phone: string): string {
     <!-- Шапка сделана буквально по присланному пользователем референсу (2026-08-28):
          приветствие по имени + текст + кнопка слева, маскот с "репликой" справа.
          Фон — по прямой просьбе 2026-08-29 приведён к тому же bg-card, что у остальных
-         карточек ниже (раньше был отдельный светло-голубой оттенок). px-[72px] (72px, было
-         px-16=64px — 72 не попадает в стандартную шкалу Tailwind, отсюда произвольное
-         значение вместо именованного класса), pt-6 (24px, вернули по прямой просьбе —
+         карточек ниже (раньше был отдельный светло-голубой оттенок). px-[80px] (80px по
+         прямой просьбе 2026-08-31, было px-[72px] — не попадает в стандартную шкалу
+         Tailwind, отсюда произвольное значение вместо именованного класса), pt-6 (24px, вернули по прямой просьбе —
          первая версия убрала верхний отступ вместе с нижним), без нижнего паддинга (было
          p-6=24px со всех сторон). -->
-    <Card class="relative flex flex-col items-start gap-6 overflow-hidden px-[72px] pt-6 sm:flex-row sm:items-center sm:gap-8">
+    <Card class="relative flex flex-col items-start gap-6 overflow-hidden px-[80px] pt-6 sm:flex-row sm:items-center sm:gap-8">
       <!-- "Облачка" — девятый заход 2026-08-28, по прямой просьбе отказались от попытки
            воспроизвести точный силуэт — просто россыпь кружков разного размера по всей
            шапке (не только в углу), тот же самый мягкий цвет (bg-sky-100/dark:bg-sky-400/15),
@@ -177,11 +167,14 @@ function telHref(phone: string): string {
              контейнера и обрезается именно там. Разница высот подобрана по факту разметки
              самой картинки (сверил направляющими линиями через sharp/composite на разных %
              высоты) так, чтобы обрезка проходила ровно по ступням, не задевая голени —
-             ~10%, не произвольные "покрупнее". Видимая высота (h-64/sm:h-96) не поменялась.
-             -translate-x — сдвиг чуть левее (по просьбе), transform не занимает места в
-             layout, на соседа (пузырь) не влияет. -->
-        <div class="relative h-64 -translate-x-2 overflow-hidden sm:h-96 sm:-translate-x-3">
-          <img :src="mascotSrc" alt="" class="h-[284px] w-auto sm:h-[427px]" />
+             ~10% от высоты картинки, соотношение сохранено и после уменьшения 2026-08-31
+             (маскот поменьше по прямой просьбе — h-[218px]/img h-[241px] на мобильном,
+             sm:h-[326px]/sm:img h-[363px], было h-64(256px)/img h-[284px] и
+             sm:h-96(384px)/sm:img h-[427px] — те же ~10% контейнер короче картинки, лапы
+             по-прежнему обрезаны). -translate-x — сдвиг чуть левее (по просьбе), transform
+             не занимает места в layout, на соседа (пузырь) не влияет. -->
+        <div class="relative h-[218px] -translate-x-2 overflow-hidden sm:h-[326px] sm:-translate-x-3">
+          <img :src="mascotSrc" alt="" class="h-[241px] w-auto sm:h-[363px]" />
         </div>
       </div>
       <CreatePaymentDialog ref="paymentDialog" />
@@ -307,7 +300,68 @@ function telHref(phone: string): string {
       </Card>
     </div>
 
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <!-- По прямой просьбе 2026-08-31: блок "Контакты" убран целиком (был здесь справа от
+         чата), "Объявления" переехали с отдельной полноширинной строки сюда, слева от чата.
+         Раньше это были два отдельных grid grid-cols-2 (чат+контакты 50/50, объявления
+         отдельной строкой на всю ширину) — теперь одна строка с sm:grid-cols-[7fr_3fr]
+         (не обычный grid-cols-2, чтобы деление было 70/30, а не ровно посередине). -->
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-[7fr_3fr]">
+      <!-- Объявления — по прямой просьбе 2026-08-30, фиолетовая иконка (в отличие от
+           остальных карточек, у каждой свой фиксированный цвет — sky/green/amber/blue выше),
+           показывает последние ANNOUNCEMENTS_PREVIEW_COUNT штук, полный список — в модалке
+           "Все объявления" ниже (та же кнопка-ссылка под чертой, что и у остальных карточек). -->
+      <Card class="flex flex-col gap-3 p-6">
+        <div class="flex items-center gap-1.5 text-base font-medium">
+          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-500/15">
+            <Megaphone class="size-4 text-violet-600 dark:text-violet-400" />
+          </div>
+          {{ t('home.resident.announcementsHeading') }}
+        </div>
+        <p v-if="!isLoading && !announcements.length" class="text-sm text-muted-foreground">{{ t('home.resident.announcementsEmpty') }}</p>
+        <!-- Раньше — hover:bg-accent на голом ряду + divide-y между рядами. По прямой
+             просьбе 2026-08-30 — каждый ряд теперь "невзрачный" блок с постоянным приглушённым
+             фоном (не разделительные линии), gap между блоками вместо divide-y, hover — синим
+             (не нейтральным accent, как у остальных карточек — акцент специально другой).
+             items-center (не items-start) — дата+точка справа (см. ниже) центрируются по
+             всей высоте ряда, а не только по заголовку, по прямой просьбе того же дня. -->
+        <div v-else class="flex flex-col gap-2">
+          <button
+            v-for="a in announcementsPreview"
+            :key="a.id"
+            type="button"
+            class="flex items-center gap-3 rounded-lg bg-muted/50 p-3 text-left transition-colors hover:bg-blue-50 dark:bg-muted/20 dark:hover:bg-blue-500/10"
+            @click="announcementReadDialog?.open(a)"
+          >
+            <div class="flex size-8 shrink-0 items-center justify-center rounded-lg" :class="iconBadgeColorClasses(a.id).container">
+              <Newspaper class="size-4" :class="iconBadgeColorClasses(a.id).icon" />
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-semibold">{{ a.title }}</p>
+              <p class="truncate text-sm text-muted-foreground">{{ a.body }}</p>
+            </div>
+            <!-- Дата слева от точки (не над/под ней — по прямой просьбе), вся группа
+                 центрирована по высоте ряда через items-center на родителе выше. Точка не
+                 исчезает после прочтения (было v-if="a.unread") — становится серой
+                 (text-muted-foreground/40), а не пропадает, чтобы место оставалось стабильным
+                 и был виден сам факт "уже открывали". -->
+            <div class="flex shrink-0 items-center gap-1.5">
+              <span class="text-xs text-muted-foreground">{{ formatDate(a.createdAt) }}</span>
+              <span class="size-2 shrink-0 rounded-full" :class="a.unread ? 'bg-blue-500' : 'bg-muted-foreground/40'" />
+            </div>
+          </button>
+        </div>
+        <div class="mt-auto border-t pt-3">
+          <button
+            type="button"
+            class="inline-flex items-center gap-1 text-left text-sm text-primary hover:underline"
+            @click="allAnnouncementsDialog?.open()"
+          >
+            {{ t('home.resident.announcementsSeeAll') }}
+            <ArrowRight class="size-3.5" />
+          </button>
+        </div>
+      </Card>
+
       <!-- Чат с сотрудниками — жёлтая иконка, счётчик непрочитанных вместо кружка-точки,
            "Написать сообщение" ссылкой под чертой (тот же паттерн карточки, что выше),
            по прямой просьбе 2026-08-28. -->
@@ -328,98 +382,7 @@ function telHref(phone: string): string {
           </RouterLink>
         </div>
       </Card>
-
-      <!-- Контакты — синяя иконка, номера с кнопкой звонка (tel:), по прямой просьбе
-           2026-08-28. Номера статические (см. contactGroups в script), нет справочника
-           контактов сотрудников в API под резидента. -->
-      <Card class="flex flex-col gap-3 p-6">
-        <div class="flex items-center gap-1.5 text-base font-medium">
-          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-500/15">
-            <Phone class="size-4 text-blue-600 dark:text-blue-400" />
-          </div>
-          {{ t('home.resident.contactsHeading') }}
-        </div>
-        <div class="flex flex-col gap-3">
-          <div v-for="group in contactGroups" :key="group.label" class="flex flex-col gap-1.5">
-            <p class="text-xs text-muted-foreground">{{ group.label }}</p>
-            <!-- Кликабельна только сама иконка-кнопка справа (не вся строка — по прямой
-                 просьбе 2026-08-28, второй заход: первая версия делала кликабельным весь
-                 ряд, оказалось не то, что нужно). Номер — обычный текст, не ссылка.
-                 :class вместо <Button as-child> — тот же обход бага, что у "Мой договор"
-                 в шапке (см. комментарий там): as-child+Primitive/Slot накидывает merged-
-                 классы на промежуточный <span class="contents"> от Button.vue, а не на
-                 сам <a>, тут это неважно (внутри только одна иконка, переносить нечему),
-                 но раз уж есть готовый безопасный паттерн — используем его и здесь. -->
-            <div v-for="phone in group.phones" :key="phone" class="flex items-center justify-between gap-2 text-sm">
-              <span class="font-medium">{{ phone }}</span>
-              <a
-                :href="telHref(phone)"
-                :aria-label="`${t('home.resident.callAction')}: ${phone}`"
-                :class="buttonVariants({ variant: 'outline', size: 'icon-sm' })"
-              >
-                <Phone class="size-4 text-primary" />
-              </a>
-            </div>
-          </div>
-        </div>
-      </Card>
     </div>
-
-    <!-- Объявления — по прямой просьбе 2026-08-30, фиолетовая иконка (в отличие от
-         остальных карточек, у каждой свой фиксированный цвет — sky/green/amber/blue выше),
-         показывает последние ANNOUNCEMENTS_PREVIEW_COUNT штук, полный список — в модалке
-         "Все объявления" ниже (та же кнопка-ссылка под чертой, что и у остальных карточек). -->
-    <Card class="flex flex-col gap-3 p-6">
-      <div class="flex items-center gap-1.5 text-base font-medium">
-        <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-500/15">
-          <Megaphone class="size-4 text-violet-600 dark:text-violet-400" />
-        </div>
-        {{ t('home.resident.announcementsHeading') }}
-      </div>
-      <p v-if="!isLoading && !announcements.length" class="text-sm text-muted-foreground">{{ t('home.resident.announcementsEmpty') }}</p>
-      <!-- Раньше — hover:bg-accent на голом ряду + divide-y между рядами. По прямой
-           просьбе 2026-08-30 — каждый ряд теперь "невзрачный" блок с постоянным приглушённым
-           фоном (не разделительные линии), gap между блоками вместо divide-y, hover — синим
-           (не нейтральным accent, как у остальных карточек — акцент специально другой).
-           items-center (не items-start) — дата+точка справа (см. ниже) центрируются по
-           всей высоте ряда, а не только по заголовку, по прямой просьбе того же дня. -->
-      <div v-else class="flex flex-col gap-2">
-        <button
-          v-for="a in announcementsPreview"
-          :key="a.id"
-          type="button"
-          class="flex items-center gap-3 rounded-lg bg-muted/50 p-3 text-left transition-colors hover:bg-blue-50 dark:bg-muted/20 dark:hover:bg-blue-500/10"
-          @click="announcementReadDialog?.open(a)"
-        >
-          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg" :class="iconBadgeColorClasses(a.id).container">
-            <Newspaper class="size-4" :class="iconBadgeColorClasses(a.id).icon" />
-          </div>
-          <div class="min-w-0 flex-1">
-            <p class="truncate text-sm font-semibold">{{ a.title }}</p>
-            <p class="truncate text-sm text-muted-foreground">{{ a.body }}</p>
-          </div>
-          <!-- Дата слева от точки (не над/под ней — по прямой просьбе), вся группа
-               центрирована по высоте ряда через items-center на родителе выше. Точка не
-               исчезает после прочтения (было v-if="a.unread") — становится серой
-               (text-muted-foreground/40), а не пропадает, чтобы место оставалось стабильным
-               и был виден сам факт "уже открывали". -->
-          <div class="flex shrink-0 items-center gap-1.5">
-            <span class="text-xs text-muted-foreground">{{ formatDate(a.createdAt) }}</span>
-            <span class="size-2 shrink-0 rounded-full" :class="a.unread ? 'bg-blue-500' : 'bg-muted-foreground/40'" />
-          </div>
-        </button>
-      </div>
-      <div class="mt-auto border-t pt-3">
-        <button
-          type="button"
-          class="inline-flex items-center gap-1 text-left text-sm text-primary hover:underline"
-          @click="allAnnouncementsDialog?.open()"
-        >
-          {{ t('home.resident.announcementsSeeAll') }}
-          <ArrowRight class="size-3.5" />
-        </button>
-      </div>
-    </Card>
 
     <AnnouncementReadDialog ref="announcementReadDialog" @read="markAnnouncementAsRead" />
     <AllAnnouncementsDialog ref="allAnnouncementsDialog" :announcements="announcements" @read="markAnnouncementAsRead" />
