@@ -1,3 +1,21 @@
-export { LOCK_STALE_MS, TRANSACTION_TIMEOUT_MS } from '../sync/sync.constants';
+export { LOCK_STALE_MS } from '../sync/sync.constants';
 
 export const SYNC_TYPE_CONTACT_INFO = 'contact-info';
+
+// Настоящая причина падений 2026-08-28..2026-08-31 ("Transaction API error: commit
+// cannot be executed on an expired transaction", 9-13 минут вместо тогдашних 120с) — не
+// объём данных сам по себе (45526 строк спокойно писались за 60-80с ещё 2026-08-28
+// утром), а память на проде (1.9 ГБ RAM всего): сборка ВСЕХ ~45 тыс. записей (с XML/JSON)
+// одним массивом и один createMany на все разом периодически вгоняли сервер в своп —
+// живьём подтверждено через pg_stat_activity 2026-09-01: Postgres к этому моменту УЖЕ
+// заканчивал DELETE и просто ждал (idle in transaction/ClientRead) следующую команду от
+// Node, пока тот тормозил под свопом. С переходом на чанки (см. contact-info-sync.service.ts)
+// каждая транзакция обрабатывает на порядок меньше строк — снижаем таймаут обратно до
+// разумного (был временно поднят до 20 минут как костыль до чанкинга).
+export const CONTACT_INFO_TRANSACTION_TIMEOUT_MS = 5 * 60 * 1000;
+
+// Physical UID'ов на пачку, не строк contact_infos (на одно физлицо в среднем ~4 записи
+// контактов на 2026-09-01) — то есть по факту ~4000 строк за один createMany вместо
+// прежних ~45000, на порядок меньше пиковой памяти. Тот же принцип "удалить по uid,
+// вставить по uid", что уже был в syncOne() ниже, просто на группу, не на одно физлицо.
+export const CONTACT_INFO_CHUNK_SIZE = 1000;

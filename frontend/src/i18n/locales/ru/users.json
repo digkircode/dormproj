@@ -62,6 +62,7 @@
       "user": "Пользователь",
       "userPlaceholder": "Введите ФИО или email",
       "currentRoles": "Текущие роли",
+      "selectUserFirst": "Сначала выберите пользователя",
       "noRoles": "Ролей нет",
       "revokeRole": "Отозвать роль «{role}»",
       "grantRoleLabel": "Выдать роль",

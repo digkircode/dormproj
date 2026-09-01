@@ -62,6 +62,7 @@
       "user": "User",
       "userPlaceholder": "Enter full name or email",
       "currentRoles": "Current roles",
+      "selectUserFirst": "Select a user first",
       "noRoles": "No roles",
       "revokeRole": "Revoke role “{role}”",
       "grantRoleLabel": "Grant role",

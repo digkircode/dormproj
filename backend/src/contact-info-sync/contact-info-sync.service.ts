@@ -6,9 +6,10 @@ import type { SyncTriggerType } from '../sync/sync.service';
 import { ExternalContactInfoApiService } from './external-contact-info-api.service';
 import { toContactInfoData } from './contact-info.mapper';
 import {
+  CONTACT_INFO_CHUNK_SIZE,
+  CONTACT_INFO_TRANSACTION_TIMEOUT_MS,
   LOCK_STALE_MS,
   SYNC_TYPE_CONTACT_INFO,
-  TRANSACTION_TIMEOUT_MS,
 } from './contact-info-sync.constants';
 import { listSyncLogs, syncLogFacetValues, type SyncLogsListQuery } from '../sync/sync-logs-list';
 
@@ -46,27 +47,44 @@ export class ContactInfoSyncService {
       });
       const uids = individuals.map((i) => i.fizicheskoyeLitsoUid);
 
-      const records = await this.externalApi.fetchContactInfo(uids);
+      // Слепок пачками, не всей таблицей за один раз (переписано 2026-09-01 — прошлая
+      // версия собирала ВСЕ ~45 тыс. записей одним массивом в памяти Node и одной
+      // транзакцией на всю таблицу, что на проде (1.9 ГБ RAM) периодически вгоняло сервер
+      // в своп и валило транзакцию по таймауту — подтверждено живым наблюдением через
+      // pg_stat_activity, см. contact-info-sync.constants.ts). Каждая пачка — тот же
+      // принцип "удалить по uid, вставить по uid", что и в syncOne() ниже, просто на
+      // группу uid, а не на одно физлицо — полноту слепка не теряем: пробегаем ВСЕ uids
+      // пачками, включая те, по которым 1С в этот раз ничего не вернула (их контакты
+      // удаляются и не восстанавливаются, как и раньше).
+      let fetchedCount = 0;
+      let added = 0;
+      let removed = 0;
 
-      // Слепок, а не апсерт по ключу — у контактной информации нет стабильного UID
-      // (несколько адресов/телефонов на одно физлицо), поэтому каждый запуск полностью
-      // очищает и заново заполняет таблицу (как citizenships/passports).
-      const { added, removed } = await this.prisma.$transaction(
-        async (tx) => {
-          const existingCount = await tx.contactInfo.count();
+      for (let i = 0; i < uids.length; i += CONTACT_INFO_CHUNK_SIZE) {
+        const batch = uids.slice(i, i + CONTACT_INFO_CHUNK_SIZE);
+        const records = await this.externalApi.fetchContactInfo(batch);
 
-          await tx.contactInfo.deleteMany({});
+        const { added: batchAdded, removed: batchRemoved } = await this.prisma.$transaction(
+          async (tx) => {
+            const existingCount = await tx.contactInfo.count({ where: { fizicheskoyeLitsoUid: { in: batch } } });
 
-          if (records.length > 0) {
-            await tx.contactInfo.createMany({
-              data: records.map((record) => toContactInfoData(record)),
-            });
-          }
+            await tx.contactInfo.deleteMany({ where: { fizicheskoyeLitsoUid: { in: batch } } });
 
-          return { added: records.length, removed: existingCount };
-        },
-        { timeout: TRANSACTION_TIMEOUT_MS },
-      );
+            if (records.length > 0) {
+              await tx.contactInfo.createMany({
+                data: records.map((record) => toContactInfoData(record)),
+              });
+            }
+
+            return { added: records.length, removed: existingCount };
+          },
+          { timeout: CONTACT_INFO_TRANSACTION_TIMEOUT_MS },
+        );
+
+        fetchedCount += records.length;
+        added += batchAdded;
+        removed += batchRemoved;
+      }
 
       const finishedAt = new Date();
       await this.prisma.syncLog.update({
@@ -74,7 +92,7 @@ export class ContactInfoSyncService {
         data: {
           status: 'SUCCESS',
           finishedAt,
-          fetchedCount: records.length,
+          fetchedCount,
           added,
           updated: 0,
           removed,
@@ -87,7 +105,7 @@ export class ContactInfoSyncService {
 
       return {
         status: 'SUCCESS',
-        fetchedCount: records.length,
+        fetchedCount,
         added,
         updated: 0,
         removed,
@@ -127,7 +145,7 @@ export class ContactInfoSyncService {
 
         return { fetchedCount: records.length, added: records.length, removed: existingCount, records };
       },
-      { timeout: TRANSACTION_TIMEOUT_MS },
+      { timeout: CONTACT_INFO_TRANSACTION_TIMEOUT_MS },
     );
   }
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { UserRound, X } from 'lucide-vue-next'
+import { AlertTriangle, UserRound, X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -103,7 +103,7 @@ async function onRevoke(roleId: number) {
 
 <template>
   <Dialog :open="isOpen" @update:open="(open) => (isOpen = open)">
-    <DialogScrollContent :class="['flex flex-col gap-4 sm:max-w-xl', DIALOG_ANIMATE_CLASS]">
+    <DialogScrollContent :class="['flex min-h-[26rem] flex-col gap-4 sm:max-w-xl', DIALOG_ANIMATE_CLASS]">
       <DialogHeader>
         <DialogTitle>{{ t('users.manageDialog.title') }}</DialogTitle>
       </DialogHeader>
@@ -127,51 +127,64 @@ async function onRevoke(roleId: number) {
         {{ selectedUser?.fullName }}
       </div>
 
-      <template v-if="selectedUser">
-        <div class="flex flex-col gap-2">
-          <Label>{{ t('users.manageDialog.currentRoles') }}</Label>
-          <p v-if="!selectedUser.roles.length" class="text-sm text-muted-foreground">{{ t('users.manageDialog.noRoles') }}</p>
-          <div v-else class="flex flex-wrap gap-2">
-            <span
-              v-for="r in selectedUser.roles"
-              :key="r.id"
-              class="flex items-center gap-1.5 rounded-full border bg-background py-1 pl-2.5 pr-1 text-sm"
+      <!-- Секции ниже отрисовываются сразу, даже пока пользователь не выбран (по прямой
+           просьбе 2026-09-01) — не только когда пришли с готовым (isLocked), но и в самом
+           обычном сценарии поиска: без этого высота диалога скакала между "только поиск" и
+           "поиск + роли", теперь она стабильна с самого открытия. Пока пользователь не
+           выбран — вместо пилюль ролей предупреждение, а сам селект недоступен. -->
+      <div class="flex flex-col gap-2">
+        <Label>{{ t('users.manageDialog.currentRoles') }}</Label>
+        <p v-if="!selectedUser" class="flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-400">
+          <AlertTriangle class="size-3.5 shrink-0" />
+          {{ t('users.manageDialog.selectUserFirst') }}
+        </p>
+        <p v-else-if="!selectedUser.roles.length" class="text-sm text-muted-foreground">{{ t('users.manageDialog.noRoles') }}</p>
+        <div v-else class="flex flex-wrap gap-2">
+          <span
+            v-for="r in selectedUser.roles"
+            :key="r.id"
+            class="flex items-center gap-1.5 rounded-full border bg-background py-1 pl-2.5 pr-1 text-sm"
+          >
+            <component :is="roleIcon(r.name)" class="size-3.5 shrink-0 text-primary" />
+            {{ roleLabel(r.name) }}
+            <button
+              type="button"
+              class="shrink-0 rounded-sm p-0.5 hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+              :disabled="isRevokingId === r.id"
+              @click="onRevoke(r.id)"
             >
-              <component :is="roleIcon(r.name)" class="size-3.5 shrink-0 text-primary" />
-              {{ roleLabel(r.name) }}
-              <button
-                type="button"
-                class="shrink-0 rounded-sm p-0.5 hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
-                :disabled="isRevokingId === r.id"
-                @click="onRevoke(r.id)"
-              >
-                <X class="size-3.5" />
-                <span class="sr-only">{{ t('users.manageDialog.revokeRole', { role: roleLabel(r.name) }) }}</span>
-              </button>
-            </span>
-          </div>
+              <X class="size-3.5" />
+              <span class="sr-only">{{ t('users.manageDialog.revokeRole', { role: roleLabel(r.name) }) }}</span>
+            </button>
+          </span>
         </div>
+      </div>
 
-        <div class="flex items-end gap-2">
-          <div class="flex flex-1 flex-col gap-2">
-            <Label>{{ t('users.manageDialog.grantRoleLabel') }}</Label>
-            <Select :model-value="roleToGrant ? String(roleToGrant) : undefined" @update:model-value="(v) => (roleToGrant = Number(v))">
-              <SelectTrigger>
-                <SelectValue :placeholder="t('users.manageDialog.selectRolePlaceholder')" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem v-for="r in availableRoles" :key="r.id" :value="String(r.id)">
-                  <span class="flex items-center gap-1.5">
-                    <component :is="roleIcon(r.name)" class="size-3.5 shrink-0 text-primary" />
-                    {{ roleLabel(r.name) }}
-                  </span>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <Button :disabled="roleToGrant === undefined" :loading="isGranting" @click="submitGrant">{{ t('users.manageDialog.grant') }}</Button>
+      <div class="flex items-end gap-2">
+        <div class="flex flex-1 flex-col gap-2">
+          <Label>{{ t('users.manageDialog.grantRoleLabel') }}</Label>
+          <Select
+            :disabled="!selectedUser"
+            :model-value="roleToGrant ? String(roleToGrant) : undefined"
+            @update:model-value="(v) => (roleToGrant = Number(v))"
+          >
+            <SelectTrigger>
+              <SelectValue :placeholder="t('users.manageDialog.selectRolePlaceholder')" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem v-for="r in availableRoles" :key="r.id" :value="String(r.id)">
+                <span class="flex items-center gap-1.5">
+                  <component :is="roleIcon(r.name)" class="size-3.5 shrink-0 text-primary" />
+                  {{ roleLabel(r.name) }}
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-      </template>
+        <Button :disabled="!selectedUser || roleToGrant === undefined" :loading="isGranting" @click="submitGrant">
+          {{ t('users.manageDialog.grant') }}
+        </Button>
+      </div>
 
       <p v-if="error" class="text-sm text-red-500">{{ error }}</p>
     </DialogScrollContent>
