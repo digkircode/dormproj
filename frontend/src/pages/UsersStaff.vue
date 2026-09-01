@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, provide, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, Shield, UserPlus } from 'lucide-vue-next'
@@ -10,10 +10,17 @@ import UserRolesCell from '@/components/UserRolesCell.vue'
 import ManageUserRolesDialog from '@/components/ManageUserRolesDialog.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import { fetchUsersPage, fetchUsersFacets, type UserRow } from '@/lib/users-api'
+import { USER_ROLES_CLICK_KEY } from '@/lib/user-roles-click'
 import { goBack } from '@/lib/utils'
 
 const router = useRouter()
 const { t } = useI18n()
+
+const dialogRef = ref<InstanceType<typeof ManageUserRolesDialog> | null>(null)
+// Клик по ячейке "Роли" — тот же диалог, что и по кнопке-действию на строку (Shield) и по
+// кнопке "+" в шапке (UserPlus) ниже, просто ещё один способ его открыть (по прямой
+// просьбе 2026-08-31, тот же приём, что уже есть в UsersList.vue).
+provide(USER_ROLES_CLICK_KEY, (row) => dialogRef.value?.open(row as UserRow))
 
 const columnLabels = computed<Record<string, string>>(() => ({
   fullName: t('users.staff.colFullName'),
@@ -35,7 +42,6 @@ const columns = computed(() =>
   ]),
 )
 
-const dialogRef = ref<InstanceType<typeof ManageUserRolesDialog> | null>(null)
 const tableRef = ref<{ refresh: () => void | Promise<void> } | null>(null)
 </script>
 

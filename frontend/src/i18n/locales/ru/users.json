@@ -48,6 +48,7 @@
       "colRole": "Роль",
       "colCreatedAt": "Добавлен",
       "totalLabel": "пользователей",
+      "grantRole": "Выдать роль",
       "editAction": "Изменить azure_id/univer_id",
       "editDialogTitle": "azure_id / univer_id",
       "azureId": "azure_id",

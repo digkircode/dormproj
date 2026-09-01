@@ -2,11 +2,12 @@
 import { computed, provide, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Pencil } from 'lucide-vue-next'
+import { ArrowLeft, Pencil, UserPlus } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import EntityTable from '@/components/EntityTable.vue'
 import UserRolesCell from '@/components/UserRolesCell.vue'
 import ManageUserRolesDialog from '@/components/ManageUserRolesDialog.vue'
@@ -126,7 +127,19 @@ async function submitEdit() {
       storage-key="users-all"
       accent-icons
       :row-action="{ icon: Pencil, label: t('users.list.editAction'), onClick: (u: AllUsersRow) => openEdit(u) }"
-    />
+    >
+      <template #actions>
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button size="icon" @click="rolesDialogRef?.open()">
+              <UserPlus />
+              <span class="sr-only">{{ t('users.list.grantRole') }}</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{{ t('users.list.grantRole') }}</TooltipContent>
+        </Tooltip>
+      </template>
+    </EntityTable>
 
     <Dialog :open="isEditOpen" @update:open="(v) => (isEditOpen = v)">
       <DialogScrollContent class="sm:max-w-md">

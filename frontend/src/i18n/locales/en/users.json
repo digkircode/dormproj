@@ -48,6 +48,7 @@
       "colRole": "Role",
       "colCreatedAt": "Added",
       "totalLabel": "users",
+      "grantRole": "Grant role",
       "editAction": "Edit azure_id/univer_id",
       "editDialogTitle": "azure_id / univer_id",
       "azureId": "azure_id",

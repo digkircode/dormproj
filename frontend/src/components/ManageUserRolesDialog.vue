@@ -103,7 +103,7 @@ async function onRevoke(roleId: number) {
 
 <template>
   <Dialog :open="isOpen" @update:open="(open) => (isOpen = open)">
-    <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
+    <DialogScrollContent :class="['flex flex-col gap-4 sm:max-w-xl', DIALOG_ANIMATE_CLASS]">
       <DialogHeader>
         <DialogTitle>{{ t('users.manageDialog.title') }}</DialogTitle>
       </DialogHeader>
