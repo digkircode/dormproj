@@ -91,7 +91,6 @@ export async function listPaymentImports(prisma: PrismaService, query: PaymentIm
 }
 
 const STATUS_LABELS_RU: Record<string, string> = {
-  IMPORTED: 'Новый',
   MATCHED: 'Подтверждён',
   NEEDS_REVIEW: 'Ожидает подтверждения',
 };
@@ -100,12 +99,13 @@ function facetLabel(field: FilterableField, value: string): string {
 }
 
 // Все возможные значения статуса, а не только те, что distinct-запрос находит в текущих
-// данных — иначе, пока в таблице нет ни одной записи в конкретном статусе (например все
-// IMPORTED уже разобраны в NEEDS_REVIEW/MATCHED), этот вариант просто не появлялся бы в
-// списке фильтра — а defaultFilters на фронте (`{ status: ['IMPORTED', 'NEEDS_REVIEW'] }`)
-// всё равно ссылается на него, и чип фильтра падал на сырой enum вместо перевода
-// (facetLabel() в EntityTable.vue ищет по value в этом списке, не находит — берёт как есть).
-const STATUS_FIELD_VALUES: readonly string[] = ['IMPORTED', 'NEEDS_REVIEW', 'MATCHED'];
+// данных — иначе, пока в таблице нет ни одной записи в конкретном статусе, этот вариант
+// просто не появлялся бы в списке фильтра, а чип фильтра, ссылающийся на него, падал бы
+// на сырой enum вместо перевода (facetLabel() в EntityTable.vue ищет по value в этом
+// списке, не находит — берёт как есть). Раньше сюда же входил IMPORTED — убран вместе со
+// всем enum-значением целиком (см. 20260903020000_remove_payment_import_imported_status),
+// он никогда фактически не проставлялся ни одним путём создания записи.
+const STATUS_FIELD_VALUES: readonly string[] = ['NEEDS_REVIEW', 'MATCHED'];
 
 export async function paymentImportsFacetValues(prisma: PrismaService, field: string) {
   if (!isFilterableField(field)) return [];

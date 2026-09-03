@@ -820,7 +820,6 @@ model PaymentAllocation {
 }
 
 enum PaymentImportStatus {
-  IMPORTED
   MATCHED
   NEEDS_REVIEW
 }
@@ -837,7 +836,7 @@ model PaymentImportRecord {
   externalId String              @map("external_id")
   rawPayload Json                @map("raw_payload")
   importedAt DateTime            @default(now()) @map("imported_at")
-  status     PaymentImportStatus @default(IMPORTED)
+  status     PaymentImportStatus @default(NEEDS_REVIEW)
 
   // Предложение системы (по ContractorUID/ContractUID из rawPayload, либо fallback по
   // ФИО/номеру договора) — НЕ решение. Статус при появлении предложения — NEEDS_REVIEW,

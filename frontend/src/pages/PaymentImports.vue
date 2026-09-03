@@ -49,11 +49,10 @@ function formatMoney(value: number | null): string {
 // ===== Таб "Из бухгалтерии" — очередь одобрения (флоу 2), см. промпт проекта =====
 
 const IMPORT_STATUS_LABELS: Record<PaymentImportRow['status'], string> = {
-  IMPORTED: t('paymentImports.status.IMPORTED'),
   NEEDS_REVIEW: t('paymentImports.status.NEEDS_REVIEW'),
   MATCHED: t('paymentImports.status.MATCHED'),
 }
-const ACTIONABLE_IMPORT_STATUSES = new Set<PaymentImportRow['status']>(['IMPORTED', 'NEEDS_REVIEW']);
+const ACTIONABLE_IMPORT_STATUSES = new Set<PaymentImportRow['status']>(['NEEDS_REVIEW']);
 
 const importColumnLabels = computed<Record<string, string>>(() => ({
   paidAt: t('paymentImports.colDate'),
@@ -219,7 +218,7 @@ async function openReview(row: PaymentImportRow) {
   }
 }
 
-const isActionable = computed(() => reviewDetail.value?.status === 'IMPORTED' || reviewDetail.value?.status === 'NEEDS_REVIEW')
+const isActionable = computed(() => reviewDetail.value?.status === 'NEEDS_REVIEW')
 
 async function submitApprove() {
   if (!reviewDetail.value) return
@@ -374,13 +373,13 @@ async function submitBulkRetry() {
       <TabsList class="w-fit self-start">
         <TabsTrigger value="import">
           <span class="flex items-center gap-1.5">
-            <Landmark class="size-4" />
+            <Landmark class="size-4 text-primary" />
             {{ t('paymentImports.tabImport') }}
           </span>
         </TabsTrigger>
         <TabsTrigger value="website">
           <span class="flex items-center gap-1.5">
-            <Globe class="size-4" />
+            <Globe class="size-4 text-primary" />
             {{ t('paymentImports.tabWebsite') }}
           </span>
         </TabsTrigger>
@@ -394,7 +393,7 @@ async function submitBulkRetry() {
           :column-labels="importColumnLabels"
           :filterable-fields="importFilterableFields"
           :default-sort="{ id: 'paidAt', desc: true }"
-          :default-filters="{ status: ['IMPORTED', 'NEEDS_REVIEW'] }"
+          :default-filters="{ status: ['NEEDS_REVIEW'] }"
           :fetch-page="fetchPaymentImportsPage"
           :fetch-facet-values="fetchPaymentImportsFacets"
           :get-row-id="(r: PaymentImportRow) => String(r.id)"

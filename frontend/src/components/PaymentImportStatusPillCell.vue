@@ -10,13 +10,11 @@ const { t } = useI18n()
 // платежей резидента) — нейтральная рамка+фон у пилюли для всех статусов, цвет только
 // у иконки внутри.
 const STATUS_ICON = {
-  IMPORTED: Clock,
   NEEDS_REVIEW: Clock,
   MATCHED: Check,
 } as const satisfies Record<PaymentImportRow['status'], unknown>
 
 const STATUS_ICON_CLASS: Record<PaymentImportRow['status'], string> = {
-  IMPORTED: 'text-orange-500',
   NEEDS_REVIEW: 'text-orange-500',
   MATCHED: 'text-emerald-500',
 }

@@ -3,7 +3,7 @@ import { fetchListPage, fetchListFacets, type ListOptions, type ListPage, type F
 import type { PaymentMethod, PaymentRow } from './contracts-api'
 import { i18n } from '@/i18n'
 
-export type PaymentImportStatus = 'IMPORTED' | 'MATCHED' | 'NEEDS_REVIEW'
+export type PaymentImportStatus = 'MATCHED' | 'NEEDS_REVIEW'
 
 export interface PaymentImportSuggestedContract {
   id: number

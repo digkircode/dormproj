@@ -126,6 +126,11 @@ const navMain = computed(() => [
     icon: FileText,
   },
   {
+    title: t('nav.paymentImports'),
+    url: '/payment-imports',
+    icon: Banknote,
+  },
+  {
     title: t('nav.individuals'),
     url: '/individuals',
     icon: User,
@@ -140,11 +145,6 @@ const navMain = computed(() => [
     title: t('nav.rooms'),
     url: '/rooms',
     icon: DoorOpen,
-  },
-  {
-    title: t('nav.paymentImports'),
-    url: '/payment-imports',
-    icon: Banknote,
   },
   {
     title: t('nav.reports'),

@@ -10,7 +10,6 @@
     "colSuggestedContract": "Договор",
     "colStatus": "Статус",
     "status": {
-      "IMPORTED": "Новый",
       "NEEDS_REVIEW": "Ожидает подтверждения",
       "MATCHED": "Подтверждён"
     },

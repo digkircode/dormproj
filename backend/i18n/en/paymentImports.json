@@ -6,7 +6,6 @@
     "amountRequired": "Could not determine the payment amount from 1C"
   },
   "status": {
-    "IMPORTED": "New",
     "MATCHED": "Confirmed",
     "NEEDS_REVIEW": "Awaiting confirmation"
   }
