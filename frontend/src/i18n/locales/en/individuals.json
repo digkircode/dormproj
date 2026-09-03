@@ -77,6 +77,25 @@
       "noData": "No data",
       "manualPassportType": "Passport (entered manually)"
     },
+    "merge": {
+      "button": "Merge with individual",
+      "title": "Merge individuals",
+      "description": "Pick the synced record from 1C University to move this manual individual's contracts, payments and other data into. The manual record itself won't be deleted, but will stop being used.",
+      "loadingCandidates": "Looking for similar records…",
+      "candidatesLabel": "Looks like:",
+      "candidateMeta": "Date of birth: {birthDate} · SNILS: {snils}",
+      "searchLabel": "Find an individual",
+      "searchOtherLabel": "Or find a different individual",
+      "searchPlaceholder": "Name, SNILS, code…",
+      "selectedHint": "Will be merged into: {name}",
+      "cancel": "Cancel",
+      "confirm": "Merge",
+      "mergedBanner": "This individual has been merged into another record — the data has been moved, work with it instead:",
+      "mergedBannerLink": "Open the current record",
+      "undoButton": "Undo merge",
+      "hintBanner": "Found {count} similar synced individual(s) — this might be a duplicate.",
+      "hintBannerAction": "Check"
+    },
     "history": {
       "title": "Change history",
       "loading": "Loading…",

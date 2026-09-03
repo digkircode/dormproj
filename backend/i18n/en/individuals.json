@@ -6,6 +6,16 @@
     "subdivisionCodeFormat": "The issuing department code must be in the format 000-000",
     "citizenshipRequired": "Select a citizenship from the list",
     "rfPassportSeriesFormat": "A Russian citizen's passport series must consist of 4 digits",
-    "rfPassportNumberFormat": "A Russian citizen's passport number must consist of 6 digits"
+    "rfPassportNumberFormat": "A Russian citizen's passport number must consist of 6 digits",
+    "mergeSameIndividual": "Can't merge an individual with itself",
+    "mergeTargetNotFound": "Target individual not found",
+    "mergeSourceMustBeManual": "Only a manually created individual can be merged",
+    "mergeSourceAlreadyMerged": "This individual has already been merged into another one",
+    "mergeTargetMustBeSynced": "Can only merge into a synced record from 1C, not another manual one",
+    "mergeTargetAlreadyMerged": "The target individual has already been merged into another — pick its current record",
+    "mergeUserConflict": "Both individuals already have a linked rosnou-id account — unlink one of them manually via \"User list\" first",
+    "mergeChatConflict": "Both individuals already have a chat conversation — contact a developer for a manual merge",
+    "unmergeNotMerged": "This individual isn't merged into anything",
+    "unmergeNoSnapshot": "Couldn't find data to undo the merge"
   }
 }

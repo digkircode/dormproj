@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -15,6 +15,8 @@ import {
   MapPin,
   Pencil,
   History,
+  Combine,
+  TriangleAlert,
 } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -26,13 +28,27 @@ import StudentFields from '@/components/StudentFields.vue'
 import CreateContractDialog from '@/components/CreateContractDialog.vue'
 import EditIndividualDialog from '@/components/EditIndividualDialog.vue'
 import IndividualHistoryDialog from '@/components/IndividualHistoryDialog.vue'
-import { fetchIndividualDetail, syncIndividual, type IndividualDetail, type IndividualPassport } from '@/lib/individuals-api'
+import MergeIndividualDialog from '@/components/MergeIndividualDialog.vue'
+import {
+  fetchIndividualDetail,
+  fetchIndividualMergeCandidates,
+  syncIndividual,
+  unmergeIndividual,
+  type IndividualDetail,
+  type IndividualMergeCandidate,
+  type IndividualPassport,
+} from '@/lib/individuals-api'
 import { copyToClipboard, goBack } from '@/lib/utils'
 import { breadcrumbOverride } from '@/lib/breadcrumb-state'
+import { currentUser } from '@/lib/auth-state'
 
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
+
+// Отмена слияния — только ADMIN (см. backend#unmerge), тот же приём проверки роли, что
+// и в AppSidebar.vue.
+const isAdmin = computed(() => currentUser.value?.roles?.includes('ADMIN') ?? false)
 const uid = computed(() => String(route.params.uid))
 
 const detail = ref<IndividualDetail | null>(null)
@@ -155,6 +171,30 @@ const isSyncIconAnimating = ref(false)
 const createDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(null)
 const editDialogRef = ref<InstanceType<typeof EditIndividualDialog> | null>(null)
 const historyDialogRef = ref<InstanceType<typeof IndividualHistoryDialog> | null>(null)
+const mergeDialogRef = ref<InstanceType<typeof MergeIndividualDialog> | null>(null)
+
+// После успешного слияния текущая карточка (источник) больше не актуальна — сразу
+// уходим на карточку той записи, в которую слили (см. merge() на бэкенде).
+function onMerged(targetUid: string) {
+  router.replace(`/individuals/${targetUid}`)
+}
+
+// Отмена слияния — только ADMIN, см. isAdmin выше. uid здесь — источник (см. баннер
+// в шаблоне, кнопка видна только на слитой карточке), перечитываем ту же карточку.
+const isUnmerging = ref(false)
+const unmergeError = ref('')
+async function onUnmerge() {
+  isUnmerging.value = true
+  unmergeError.value = ''
+  try {
+    await unmergeIndividual(uid.value)
+    await loadDetail()
+  } catch (error) {
+    unmergeError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isUnmerging.value = false
+  }
+}
 
 // После сохранения правки перечитываем всю карточку (проще, чем точечно
 // синхронизировать локальное состояние с тем, что реально записалось в БД).
@@ -191,16 +231,36 @@ async function copyValue(field: 'uid' | 'code', value: string | null | undefined
   copyResetTimeout = setTimeout(() => (copiedField.value = null), 1500)
 }
 
-onMounted(async () => {
+// "Второй слой" слияния (см. промпт проекта) — тихая фоновая подсказка на карточке
+// ручного физлица, если среди синхронных нашлось что-то похожее по СНИЛС/паспорту/ФИО
+// (backend#mergeCandidates). Только подсказка — ничего не решает и не сливает сама,
+// сотрудник кликает и подтверждает вручную в диалоге, как и с самой кнопкой "Слить".
+const mergeHintCandidates = ref<IndividualMergeCandidate[]>([])
+
+// Функция, а не только onMounted — после слияния (см. onMerged выше) переход идёт на
+// тот же роут с другим :uid, Vue Router переиспользует уже смонтированный компонент
+// (onMounted второй раз не сработает), поэтому подписка на смену uid обязательна.
+async function loadDetail() {
+  isLoading.value = true
+  notFound.value = false
+  mergeHintCandidates.value = []
   try {
     detail.value = await fetchIndividualDetail(uid.value)
     breadcrumbOverride.value = detail.value.fullName
+    if (detail.value.isManual && !detail.value.mergedIntoUid) {
+      try {
+        mergeHintCandidates.value = await fetchIndividualMergeCandidates(uid.value)
+      } catch {
+        // Не критично — это только подсказка, кнопка "Слить" всё равно работает сама по себе.
+      }
+    }
   } catch {
     notFound.value = true
   } finally {
     isLoading.value = false
   }
-})
+}
+watch(uid, loadDetail, { immediate: true })
 onUnmounted(() => {
   breadcrumbOverride.value = null
 })
@@ -220,6 +280,33 @@ onUnmounted(() => {
     <p v-else-if="notFound" class="text-sm text-red-500">{{ t('individuals.detail.notFound') }}</p>
 
     <template v-else-if="detail">
+      <!-- Источник слияния (см. MergeIndividualDialog.vue) — карточка сама больше не
+           актуальна, дальше работать нужно с той, в которую слили. Не скрываем остальной
+           контент карточки целиком (историческая справка всё ещё может понадобиться),
+           только явно предупреждаем и даём ссылку. -->
+      <div v-if="detail.mergedIntoUid" class="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm">
+        <TriangleAlert class="size-4 shrink-0 text-amber-500" />
+        <span>{{ t('individuals.merge.mergedBanner') }}</span>
+        <RouterLink :to="`/individuals/${detail.mergedIntoUid}`" class="font-medium text-primary underline underline-offset-2">
+          {{ t('individuals.merge.mergedBannerLink') }}
+        </RouterLink>
+        <!-- Только ADMIN, см. isAdmin — восстановление после ошибки, не рядовое действие. -->
+        <Button v-if="isAdmin" variant="outline" size="sm" class="ml-auto" :loading="isUnmerging" @click="onUnmerge">
+          {{ t('individuals.merge.undoButton') }}
+        </Button>
+        <p v-if="unmergeError" class="w-full text-sm text-red-500">{{ unmergeError }}</p>
+      </div>
+
+      <!-- "Второй слой" — тихая подсказка о вероятном дубле (см. mergeHintCandidates
+           выше), не автоматическое действие, только приглашение проверить. -->
+      <div v-else-if="mergeHintCandidates.length > 0" class="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
+        <Combine class="size-4 shrink-0 text-primary" />
+        <span>{{ t('individuals.merge.hintBanner', { count: mergeHintCandidates.length }) }}</span>
+        <button type="button" class="font-medium text-primary underline underline-offset-2" @click="mergeDialogRef?.open(uid)">
+          {{ t('individuals.merge.hintBannerAction') }}
+        </button>
+      </div>
+
       <!-- Card по умолчанию не flex-контейнер (см. заметки проекта) — здесь несколько
            дочерних блоков подряд, поэтому flex flex-col обязателен, иначе gap/divide
            между ними ничего не делает. Один Card с внутренним разделителем на 3 части
@@ -315,6 +402,18 @@ onUnmounted(() => {
             <Button variant="outline" size="sm" class="w-full justify-start" @click="historyDialogRef?.open(uid)">
               <History class="text-primary" />
               {{ t('individuals.detail.history') }}
+            </Button>
+            <!-- Только для ручных физлиц, ещё не слитых — слить синхронную запись саму
+                 с собой или уже слитую заново не даёт и бэкенд, кнопку тоже не показываем. -->
+            <Button
+              v-if="detail.isManual && !detail.mergedIntoUid"
+              variant="outline"
+              size="sm"
+              class="w-full justify-start"
+              @click="mergeDialogRef?.open(uid)"
+            >
+              <Combine class="text-primary" />
+              {{ t('individuals.merge.button') }}
             </Button>
           </div>
           <p v-if="syncError" class="text-sm text-red-500">{{ syncError }}</p>
@@ -412,5 +511,6 @@ onUnmounted(() => {
     <CreateContractDialog ref="createDialogRef" />
     <EditIndividualDialog ref="editDialogRef" @saved="onIndividualSaved" />
     <IndividualHistoryDialog ref="historyDialogRef" />
+    <MergeIndividualDialog ref="mergeDialogRef" @merged="onMerged" />
   </div>
 </template>

@@ -120,6 +120,22 @@ model Individual {
   contractsAsLegalRep Contract[]        @relation("ContractLegalRep")
   chatConversation    ChatConversation?
 
+  // Слияние ручного физлица (isManual) в настоящую синхронную запись, когда она позже
+  // появилась в 1С Университет (см. individuals.controller.ts#merge) — ТОЛЬКО по явному
+  // действию сотрудника, никогда автоматически синхроном. Строка-источник не удаляется
+  // физически (иначе исторические AuditLog.entityId/старые ссылки повисли бы в никуда) —
+  // помечается mergedIntoUid, скрывается из обычных списков/поиска, но остаётся доступна
+  // по прямой ссылке с баннером "объединено с...".
+  mergedIntoUid String?      @map("merged_into_uid")
+  mergedInto    Individual?  @relation("IndividualMerge", fields: [mergedIntoUid], references: [fizicheskoyeLitsoUid])
+  mergedFrom    Individual[] @relation("IndividualMerge")
+  mergedAt      DateTime?    @map("merged_at")
+  // Точный слепок того, что именно было перенесено при слиянии (id договоров/паспортов/
+  // etc, см. IndividualMergeSnapshot в individuals.controller.ts) — только для отмены
+  // (unmerge(), ADMIN). Без этого снимка нельзя надёжно понять, какие из ТЕКУЩИХ данных
+  // цели принадлежали именно источнику на момент слияния, а какие были у цели и так.
+  mergedSnapshot Json?       @map("merged_snapshot")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -130,6 +146,7 @@ model Individual {
   @@index([snils])
   @@index([gender])
   @@index([inn])
+  @@index([mergedIntoUid])
   @@map("individuals")
 }
 

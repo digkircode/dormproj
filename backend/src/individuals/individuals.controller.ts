@@ -189,6 +189,24 @@ const createIndividualSchema = z
     }
   });
 
+const mergeIndividualSchema = z.object({
+  targetUid: z.string().trim().min(1),
+});
+
+// Точный слепок того, что было перенесено с источника на цель при слиянии — только так
+// unmerge() (ниже) может надёжно понять, какие ИЗ ТЕКУЩИХ данных цели принадлежали именно
+// источнику на момент слияния, а не появились у цели независимо (до или после слияния).
+interface IndividualMergeSnapshot {
+  contractResidentIds: number[];
+  contractLegalRepIds: number[];
+  citizenshipIds: number[];
+  passportIds: number[];
+  contactInfoIds: number[];
+  userId: number | null;
+  chatConversationId: number | null;
+  accountingContractorUidCopied: boolean;
+}
+
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 
@@ -262,8 +280,13 @@ export class IndividualsController {
       ? { OR: SEARCHABLE_FIELDS.map((field) => ({ [field]: { contains: search, mode: 'insensitive' } })) }
       : undefined;
 
-    const where: Prisma.IndividualWhereInput | undefined =
-      searchClause || filterClauses.length > 0 ? { AND: [...(searchClause ? [searchClause] : []), ...filterClauses] } : undefined;
+    // Слитые (см. merge() ниже) не показываем в обычном списке/поиске — это одна и та же
+    // запись с точки зрения дела, только неактуальная строка-источник, дальше работать
+    // нужно с той, в которую слили. Сама строка не удаляется физически (историческая
+    // ссылка на неё в AuditLog/старых логах не должна повиснуть) — просто скрыта здесь.
+    const where: Prisma.IndividualWhereInput = {
+      AND: [{ mergedIntoUid: null }, ...(searchClause ? [searchClause] : []), ...filterClauses],
+    };
 
     const [data, total] = await Promise.all([
       this.prisma.individual.findMany({
@@ -492,15 +515,265 @@ export class IndividualsController {
     };
   }
 
+  // "Второй слой" — только ПОДСКАЗКА кандидатов для ручного слияния (кнопка merge() ниже),
+  // ничего не выполняет и не решает сама: сотрудник видит список и подтверждает выбор
+  // явным кликом, как и везде в проекте (тот же принцип, что у suggestContractMatch в
+  // разборе платежей из 1С — по прямой просьбе не делать автоматическое слияние).
+  // Совпадение по СНИЛС/паспорту — сильный сигнал, по ФИО — слабый (мог просто
+  // совпасть у разных людей), но остаётся полезной подсказкой, если СНИЛС/паспорт
+  // ещё не заполнены ни у одной из сторон.
+  @Get(':uid/merge-candidates')
+  async mergeCandidates(@Param('uid') uid: string) {
+    const source = await this.prisma.individual.findUnique({ where: { fizicheskoyeLitsoUid: uid } });
+    if (!source) {
+      throw new NotFoundException('individuals.errors.individualNotFound');
+    }
+    if (!source.isManual || source.mergedIntoUid) {
+      return [];
+    }
+
+    const orClauses: Prisma.IndividualWhereInput[] = [{ fullName: { equals: source.fullName, mode: 'insensitive' } }];
+    if (source.snils) {
+      orClauses.push({ snils: source.snils });
+    }
+    if (source.passportSeries && source.passportNumber) {
+      orClauses.push({ passports: { some: { series: source.passportSeries, number: source.passportNumber } } });
+    }
+
+    return this.prisma.individual.findMany({
+      where: { isManual: false, mergedIntoUid: null, OR: orClauses },
+      select: { fizicheskoyeLitsoUid: true, fullName: true, snils: true, birthDate: true, code: true },
+      take: 5,
+    });
+  }
+
+  // Слияние ручного физлица (isManual) в настоящую синхронную запись, которая позже
+  // появилась в 1С Университет (частый случай — сотрудник завёл человека вручную ДО того,
+  // как университет прислал его официальные данные). ТОЛЬКО по явному действию сотрудника
+  // — вызывается исключительно с этой кнопки, синхрон физлиц (individuals-sync) сам этот
+  // эндпоинт никогда не дёргает и вообще не знает о ручных записях (см. schema.prisma).
+  // Источник не удаляется физически — помечается mergedIntoUid/mergedAt и перестаёт
+  // попадать в список() выше, но остаётся доступен по прямой ссылке (детальная страница
+  // покажет баннер "Объединено с..."), чтобы старые ссылки (AuditLog и т.п.) не повисли.
+  @Post(':uid/merge')
+  @HttpCode(200)
+  async merge(@Param('uid') uid: string, @Body() body: unknown, @Req() req: Request) {
+    const parsed = mergeIndividualSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(zodErrorMessage(parsed.error));
+    }
+    if (!req.user) {
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
+    }
+    const { targetUid } = parsed.data;
+
+    if (targetUid === uid) {
+      throw new BadRequestException('individuals.errors.mergeSameIndividual');
+    }
+
+    const [source, target] = await Promise.all([
+      this.prisma.individual.findUnique({ where: { fizicheskoyeLitsoUid: uid } }),
+      this.prisma.individual.findUnique({ where: { fizicheskoyeLitsoUid: targetUid } }),
+    ]);
+    if (!source) {
+      throw new NotFoundException('individuals.errors.individualNotFound');
+    }
+    if (!target) {
+      throw new NotFoundException('individuals.errors.mergeTargetNotFound');
+    }
+    if (!source.isManual) {
+      throw new BadRequestException('individuals.errors.mergeSourceMustBeManual');
+    }
+    if (source.mergedIntoUid) {
+      throw new BadRequestException('individuals.errors.mergeSourceAlreadyMerged');
+    }
+    if (target.isManual) {
+      throw new BadRequestException('individuals.errors.mergeTargetMustBeSynced');
+    }
+    if (target.mergedIntoUid) {
+      throw new BadRequestException('individuals.errors.mergeTargetAlreadyMerged');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // User.univerId и ChatConversation.individualUid оба @unique в схеме — если ОБЕ
+      // стороны уже успели обзавестись своей записью, автоматически объединить их некуда
+      // (какую из двух оставить — решение не техническое, а человеческое). Останавливаемся
+      // явной ошибкой, а не тихо теряем одну из них.
+      const [sourceUser, targetUser, sourceChat, targetChat] = await Promise.all([
+        tx.user.findFirst({ where: { univerId: uid } }),
+        tx.user.findFirst({ where: { univerId: targetUid } }),
+        tx.chatConversation.findUnique({ where: { individualUid: uid } }),
+        tx.chatConversation.findUnique({ where: { individualUid: targetUid } }),
+      ]);
+      if (sourceUser && targetUser) {
+        throw new ConflictException('individuals.errors.mergeUserConflict');
+      }
+      if (sourceChat && targetChat) {
+        throw new ConflictException('individuals.errors.mergeChatConflict');
+      }
+
+      // Список конкретных id ДО переноса — не только чтобы перенести, но и чтобы записать
+      // точный снепшот для unmerge() ниже (см. IndividualMergeSnapshot). updateMany() сам
+      // по себе не возвращает, какие строки затронул, только count — поэтому сначала находим
+      // id, потом обновляем по ним же явно (эквивалентно where на исходном uid, но с id на руках).
+      const [residentContracts, legalRepContracts, citizenships, passports, contactInfos] = await Promise.all([
+        tx.contract.findMany({ where: { residentIndividualUid: uid }, select: { id: true } }),
+        tx.contract.findMany({ where: { legalRepIndividualUid: uid }, select: { id: true } }),
+        tx.citizenship.findMany({ where: { fizicheskoyeLitsoUid: uid }, select: { id: true } }),
+        tx.passport.findMany({ where: { fizicheskoyeLitsoUid: uid }, select: { id: true } }),
+        tx.contactInfo.findMany({ where: { fizicheskoyeLitsoUid: uid }, select: { id: true } }),
+      ]);
+      // ContractorUID из 1С Бухгалтерии (не путать с User/чатом выше — не @unique, поэтому
+      // не может технически "конфликтовать") — если он уже проставлен у цели, ничего не
+      // трогаем: он уже реально используется её собственными платежами. Переносим только
+      // если у цели его ещё нет, а у источника есть (иначе следующий платёж по
+      // перенесённому договору уйдёт в 1С без UID и заведёт там контрагента-дубля).
+      const accountingContractorUidCopied = !target.accounting1cContractorUid && !!source.accounting1cContractorUid;
+
+      await Promise.all([
+        residentContracts.length
+          ? tx.contract.updateMany({ where: { id: { in: residentContracts.map((c) => c.id) } }, data: { residentIndividualUid: targetUid } })
+          : Promise.resolve(),
+        legalRepContracts.length
+          ? tx.contract.updateMany({ where: { id: { in: legalRepContracts.map((c) => c.id) } }, data: { legalRepIndividualUid: targetUid } })
+          : Promise.resolve(),
+        citizenships.length
+          ? tx.citizenship.updateMany({ where: { id: { in: citizenships.map((c) => c.id) } }, data: { fizicheskoyeLitsoUid: targetUid } })
+          : Promise.resolve(),
+        passports.length
+          ? tx.passport.updateMany({ where: { id: { in: passports.map((c) => c.id) } }, data: { fizicheskoyeLitsoUid: targetUid } })
+          : Promise.resolve(),
+        contactInfos.length
+          ? tx.contactInfo.updateMany({ where: { id: { in: contactInfos.map((c) => c.id) } }, data: { fizicheskoyeLitsoUid: targetUid } })
+          : Promise.resolve(),
+        sourceUser ? tx.user.update({ where: { id: sourceUser.id }, data: { univerId: targetUid } }) : Promise.resolve(),
+        sourceChat ? tx.chatConversation.update({ where: { id: sourceChat.id }, data: { individualUid: targetUid } }) : Promise.resolve(),
+        accountingContractorUidCopied
+          ? tx.individual.update({ where: { fizicheskoyeLitsoUid: targetUid }, data: { accounting1cContractorUid: source.accounting1cContractorUid } })
+          : Promise.resolve(),
+      ]);
+
+      const snapshot: IndividualMergeSnapshot = {
+        contractResidentIds: residentContracts.map((c) => c.id),
+        contractLegalRepIds: legalRepContracts.map((c) => c.id),
+        citizenshipIds: citizenships.map((c) => c.id),
+        passportIds: passports.map((c) => c.id),
+        contactInfoIds: contactInfos.map((c) => c.id),
+        userId: sourceUser?.id ?? null,
+        chatConversationId: sourceChat?.id ?? null,
+        accountingContractorUidCopied,
+      };
+
+      await tx.individual.update({
+        where: { fizicheskoyeLitsoUid: uid },
+        data: { mergedIntoUid: targetUid, mergedAt: new Date(), mergedSnapshot: snapshot as unknown as Prisma.InputJsonValue },
+      });
+
+      const userId = await ensureUserRecord(tx, req.user!);
+      await this.auditLog.log(tx, {
+        userId,
+        action: 'UPDATE',
+        entityType: 'Individual',
+        entityId: uid,
+        entityLabel: `${source.fullName} → объединено с ${target.fullName}`,
+        before: { mergedIntoUid: null },
+        after: { mergedIntoUid: targetUid },
+        fields: ['mergedIntoUid'],
+      });
+    });
+
+    return this.detail(targetUid);
+  }
+
+  // Отмена слияния — только ADMIN (не STAFF, см. @Roles ниже, переопределяет уровень
+  // класса), это восстановление после ошибки сотрудника, не рядовое действие. По
+  // сохранённому mergedSnapshot (см. merge() выше) переносит обратно РОВНО те строки,
+  // что были перенесены при слиянии — не всё подряд, что сейчас есть у цели (у нее могли
+  // появиться собственные новые данные уже после слияния, их не трогаем).
+  @Roles('ADMIN')
+  @Post(':uid/unmerge')
+  @HttpCode(200)
+  async unmerge(@Param('uid') uid: string, @Req() req: Request) {
+    const source = await this.prisma.individual.findUnique({ where: { fizicheskoyeLitsoUid: uid } });
+    if (!source) {
+      throw new NotFoundException('individuals.errors.individualNotFound');
+    }
+    if (!source.mergedIntoUid) {
+      throw new BadRequestException('individuals.errors.unmergeNotMerged');
+    }
+    const targetUid = source.mergedIntoUid;
+    const snapshot = source.mergedSnapshot as unknown as IndividualMergeSnapshot | null;
+    if (!snapshot) {
+      throw new BadRequestException('individuals.errors.unmergeNoSnapshot');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await Promise.all([
+        snapshot.contractResidentIds.length
+          ? tx.contract.updateMany({ where: { id: { in: snapshot.contractResidentIds } }, data: { residentIndividualUid: uid } })
+          : Promise.resolve(),
+        snapshot.contractLegalRepIds.length
+          ? tx.contract.updateMany({ where: { id: { in: snapshot.contractLegalRepIds } }, data: { legalRepIndividualUid: uid } })
+          : Promise.resolve(),
+        snapshot.citizenshipIds.length
+          ? tx.citizenship.updateMany({ where: { id: { in: snapshot.citizenshipIds } }, data: { fizicheskoyeLitsoUid: uid } })
+          : Promise.resolve(),
+        snapshot.passportIds.length
+          ? tx.passport.updateMany({ where: { id: { in: snapshot.passportIds } }, data: { fizicheskoyeLitsoUid: uid } })
+          : Promise.resolve(),
+        snapshot.contactInfoIds.length
+          ? tx.contactInfo.updateMany({ where: { id: { in: snapshot.contactInfoIds } }, data: { fizicheskoyeLitsoUid: uid } })
+          : Promise.resolve(),
+        snapshot.userId ? tx.user.update({ where: { id: snapshot.userId }, data: { univerId: uid } }) : Promise.resolve(),
+        snapshot.chatConversationId
+          ? tx.chatConversation.update({ where: { id: snapshot.chatConversationId }, data: { individualUid: uid } })
+          : Promise.resolve(),
+        // Возвращаем в null, а не на какое-то старое значение цели — до слияния его там не
+        // было (мы копировали только когда у цели было пусто, см. merge() выше).
+        snapshot.accountingContractorUidCopied
+          ? tx.individual.update({ where: { fizicheskoyeLitsoUid: targetUid }, data: { accounting1cContractorUid: null } })
+          : Promise.resolve(),
+      ]);
+
+      await tx.individual.update({
+        where: { fizicheskoyeLitsoUid: uid },
+        data: { mergedIntoUid: null, mergedAt: null, mergedSnapshot: Prisma.DbNull },
+      });
+
+      const userId = await ensureUserRecord(tx, req.user!);
+      await this.auditLog.log(tx, {
+        userId,
+        action: 'UPDATE',
+        entityType: 'Individual',
+        entityId: uid,
+        entityLabel: `${source.fullName} — слияние отменено`,
+        before: { mergedIntoUid: targetUid },
+        after: { mergedIntoUid: null },
+        fields: ['mergedIntoUid'],
+      });
+    });
+
+    return this.detail(uid);
+  }
+
   // История изменений одного физлица — кнопка "История изменений" на карточке
   // (IndividualDetail.vue). Отдельно от общего /audit-log (тот — только ADMIN, показывает
   // все типы сущностей сразу) — здесь тот же уровень доступа, что и у самой карточки
   // (STAFF/ADMIN), т.к. это просто история по уже открытой записи, не отдельная
   // административная возможность. Без пагинации — объём на одно физлицо небольшой.
+  // Если в это физлицо когда-то что-то слили (merge(), см. выше) — история слитых
+  // записей (кто их создавал, что в них правили ДО слияния) тоже подмешивается сюда,
+  // иначе она была бы навсегда недостижима с карточки актуальной записи.
   @Get(':uid/audit-log')
   async individualAuditLog(@Param('uid') uid: string) {
+    const mergedFrom = await this.prisma.individual.findMany({
+      where: { mergedIntoUid: uid },
+      select: { fizicheskoyeLitsoUid: true },
+    });
+    const entityIds = [uid, ...mergedFrom.map((m) => m.fizicheskoyeLitsoUid)];
+
     const rows = await this.prisma.auditLog.findMany({
-      where: { entityType: 'Individual', entityId: uid },
+      where: { entityType: 'Individual', entityId: { in: entityIds } },
       orderBy: { createdAt: 'desc' },
       take: 200,
       include: { user: { select: { fullName: true } } },

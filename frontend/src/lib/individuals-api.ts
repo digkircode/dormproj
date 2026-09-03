@@ -27,6 +27,11 @@ export interface Individual {
   passportIssuedCode: string | null
   passportIssuedAt: string | null
   citizenship: string | null
+  // Слияние ручного физлица в синхронную запись (см. IndividualDetail.vue/merge-*) —
+  // mergedIntoUid не null означает "эта запись больше не актуальна, работать нужно с той,
+  // в которую слили".
+  mergedIntoUid: string | null
+  mergedAt: string | null
   createdAt: string
   updatedAt: string
 }
@@ -211,6 +216,50 @@ export async function syncIndividual(uid: string): Promise<IndividualSyncResult>
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
     throw new Error(body.message ?? `Не удалось синхронизировать физлицо (${response.status})`)
+  }
+  return response.json()
+}
+
+// Слияние ручного физлица в синхронную запись — см. IndividualDetail.vue, только по
+// явному действию сотрудника, ничего автоматического (backend/individuals.controller.ts#merge).
+export interface IndividualMergeCandidate {
+  fizicheskoyeLitsoUid: string
+  fullName: string
+  snils: string | null
+  birthDate: string | null
+  code: string | null
+}
+
+// Только подсказка (СНИЛС/паспорт/ФИО) — сотрудник сам решает, сливать ли, и может
+// выбрать любое другое физлицо через поиск, не только из этого списка.
+export async function fetchIndividualMergeCandidates(uid: string): Promise<IndividualMergeCandidate[]> {
+  const response = await apiFetch(`/individuals/${encodeURIComponent(uid)}/merge-candidates`)
+  if (!response.ok) {
+    throw new Error(`Не удалось получить кандидатов на объединение (${response.status})`)
+  }
+  return response.json()
+}
+
+export async function mergeIndividual(uid: string, targetUid: string): Promise<IndividualDetail> {
+  const response = await apiFetch(`/individuals/${encodeURIComponent(uid)}/merge`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ targetUid }),
+  })
+  if (!response.ok) {
+    const body: { message?: string } = await response.json().catch(() => ({}))
+    throw new Error(body.message ?? `Не удалось объединить физлица (${response.status})`)
+  }
+  return response.json()
+}
+
+// Отмена слияния — только ADMIN (см. backend#unmerge), восстановление после ошибки
+// сотрудника, не рядовое действие. uid — та самая слитая (источник) карточка.
+export async function unmergeIndividual(uid: string): Promise<IndividualDetail> {
+  const response = await apiFetch(`/individuals/${encodeURIComponent(uid)}/unmerge`, { method: 'POST' })
+  if (!response.ok) {
+    const body: { message?: string } = await response.json().catch(() => ({}))
+    throw new Error(body.message ?? `Не удалось отменить объединение (${response.status})`)
   }
   return response.json()
 }

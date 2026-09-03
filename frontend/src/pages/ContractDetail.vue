@@ -17,7 +17,6 @@ import {
   History,
   MoreVertical,
   Percent,
-  Plus,
   Printer,
   Receipt,
   Trash2,
@@ -27,12 +26,10 @@ import {
 } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import ContractStatusPill from '@/components/ContractStatusPill.vue'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Dialog, DialogScrollContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import DatePickerField from '@/components/DatePickerField.vue'
@@ -45,13 +42,12 @@ import {
   fetchContractDocumentPdf,
   type AccrualRow,
   type ContractDetail,
-  type PaymentMethod,
   type PaymentRow,
 } from '@/lib/contracts-api'
-import { createPayment, reversePayment, syncPaymentToAccounting1c } from '@/lib/billing-api'
+import { reversePayment, syncPaymentToAccounting1c } from '@/lib/billing-api'
 import Accounting1cStatusPill from '@/components/Accounting1cStatusPill.vue'
 import { fetchDormitoryInfo, type DormitoryInfo } from '@/lib/dormitory-info-api'
-import { blockNonNumericKeys, goBack } from '@/lib/utils'
+import { goBack } from '@/lib/utils'
 import { breadcrumbOverride } from '@/lib/breadcrumb-state'
 import { dateLocaleTag } from '@/lib/format-locale'
 import { printPdfBlob } from '@/lib/print-pdf'
@@ -61,10 +57,6 @@ const DIALOG_ANIMATE_CLASS =
 // Вертикальные разделители колонок — тот же приём, что и в общей таблице (EntityTable.vue),
 // для визуального единства всех таблиц в приложении.
 const CELL_BORDER_CLASS = 'border-r border-border last:border-r-0'
-// Скрывает нативные стрелочки +/- у <input type="number"> — та же константа, что в
-// Rooms.vue/RoomDetailPanel.vue/Contracts.vue (не выносили в общий модуль и там, см. промпт
-// проекта — этот повтор по той же причине).
-const NO_SPINNER_CLASS = '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
 
 const { t } = useI18n()
 
@@ -263,48 +255,6 @@ async function printDocumentPdf() {
   }
 }
 
-// --- Внесение платежа ---
-const isPaymentOpen = ref(false)
-const paymentAmount = ref<number | undefined>(undefined)
-const paymentDate = ref('')
-const paymentMethod = ref<PaymentMethod>('CASH')
-const paymentComment = ref('')
-const paymentError = ref('')
-const isSavingPayment = ref(false)
-
-function openPayment() {
-  // Подставляем месячную сумму (стоимость комнаты), а не весь накопленный долг —
-  // по умолчанию вносят обычный ежемесячный платёж, а не гасят всё сразу.
-  paymentAmount.value = rentAmount.value > 0 ? rentAmount.value : undefined
-  paymentDate.value = new Date().toISOString().slice(0, 10)
-  paymentMethod.value = 'CASH'
-  paymentComment.value = ''
-  paymentError.value = ''
-  isPaymentOpen.value = true
-}
-async function submitPayment() {
-  if (!paymentAmount.value || paymentAmount.value <= 0 || !paymentDate.value) {
-    paymentError.value = t('contracts.detail.amountAndDateRequired')
-    return
-  }
-  isSavingPayment.value = true
-  paymentError.value = ''
-  try {
-    await createPayment(contractId.value, {
-      amount: paymentAmount.value,
-      paidAt: paymentDate.value,
-      method: paymentMethod.value,
-      rawComment: paymentComment.value.trim() || null,
-    })
-    isPaymentOpen.value = false
-    await load()
-  } catch (error) {
-    paymentError.value = error instanceof Error ? error.message : String(error)
-  } finally {
-    isSavingPayment.value = false
-  }
-}
-
 // --- Сторнирование платежа ---
 const reversingPayment = ref<PaymentRow | null>(null)
 const isReversing = ref(false)
@@ -376,10 +326,6 @@ async function retrySyncToAccounting1c(payment: PaymentRow) {
           <DropdownMenuItem :disabled="isDownloading" @click="downloadDocument">
             <Download class="text-primary" />
             {{ t('contracts.detail.downloadContract') }}
-          </DropdownMenuItem>
-          <DropdownMenuItem @click="openPayment">
-            <Plus class="text-primary" />
-            {{ t('contracts.detail.addPayment') }}
           </DropdownMenuItem>
           <DropdownMenuItem :disabled="contract.status !== 'ACTIVE'" @click="openTerminate">
             <Ban class="text-red-500" />
@@ -661,47 +607,6 @@ async function retrySyncToAccounting1c(payment: PaymentRow) {
           >
             {{ t('contracts.detail.confirmDelete') }}
           </Button>
-        </DialogFooter>
-      </DialogScrollContent>
-    </Dialog>
-
-    <Dialog :open="isPaymentOpen" @update:open="(open) => (isPaymentOpen = open)">
-      <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
-        <DialogHeader>
-          <DialogTitle>{{ t('contracts.detail.addPaymentDialogTitle') }}</DialogTitle>
-        </DialogHeader>
-        <div class="flex flex-col gap-4">
-          <div class="flex flex-col gap-2">
-            <Label>{{ t('contracts.detail.amount') }}</Label>
-            <Input v-model.number="paymentAmount" type="number" :class="NO_SPINNER_CLASS" @keydown="blockNonNumericKeys" />
-          </div>
-          <div class="flex flex-col gap-2">
-            <Label>{{ t('contracts.detail.date') }}</Label>
-            <DatePickerField v-model="paymentDate" />
-          </div>
-          <div class="flex flex-col gap-2">
-            <Label>{{ t('contracts.detail.paymentMethod') }}</Label>
-            <Select :model-value="paymentMethod" @update:model-value="(v) => (paymentMethod = v as PaymentMethod)">
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="CASH">{{ t('payment.method.CASH') }}</SelectItem>
-                <SelectItem value="CARD_ACQUIRING">{{ t('payment.method.CARD_ACQUIRING') }}</SelectItem>
-                <SelectItem value="BANK_TRANSFER">{{ t('payment.method.BANK_TRANSFER') }}</SelectItem>
-                <SelectItem value="MAT_CAPITAL">{{ t('payment.method.MAT_CAPITAL') }}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div class="flex flex-col gap-2">
-            <Label>{{ t('contracts.detail.comment') }}</Label>
-            <Input v-model="paymentComment" />
-          </div>
-          <p v-if="paymentError" class="text-sm text-red-500">{{ paymentError }}</p>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" @click="isPaymentOpen = false">{{ t('contracts.detail.cancel') }}</Button>
-          <Button :loading="isSavingPayment" @click="submitPayment">{{ t('contracts.detail.save') }}</Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>
