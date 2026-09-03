@@ -49,6 +49,8 @@ export interface AccrualRow {
   balance: number
 }
 
+export type Accounting1cSyncStatus = 'NOT_SYNCED' | 'SYNCED' | 'FAILED'
+
 export interface PaymentRow {
   id: number
   amount: number
@@ -59,6 +61,15 @@ export interface PaymentRow {
   rawComment: string | null
   reversedAt: string | null
   createdAt: string
+  // "Откуда | Описание | Период" (billing/payment-purpose.ts) — готовая строка с бэка,
+  // не пересобирается на фронте.
+  purpose?: string
+  // Актуально только для source==='WEBSITE' — остальные источники всегда NOT_SYNCED и
+  // никогда не отправляются (см. billing/accounting-1c-push.service.ts).
+  accounting1cSyncStatus?: Accounting1cSyncStatus
+  accounting1cDocumentUid?: string | null
+  accounting1cSyncError?: string | null
+  accounting1cSyncedAt?: string | null
 }
 
 export interface ContractDetail {

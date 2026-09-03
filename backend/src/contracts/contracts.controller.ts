@@ -27,6 +27,7 @@ import { recalcAccrualsForTermination } from '../billing/termination';
 import { computePenaltyBalance } from '../billing/penalty-balance';
 import { dateOnly } from '../billing/period-utils';
 import { serializeAccrual, serializePayment, serializeTerms } from './serializers';
+import { buildPaymentPurpose } from '../billing/payment-purpose';
 import { isMinorAt } from './minor';
 import { buildResidentSnapshot, fillManualFallbacks, type ResidentSnapshot } from './resident-snapshot';
 import { renderContractDocument } from './contract-document';
@@ -304,7 +305,13 @@ export class ContractsController {
           orderBy: { periodStart: 'asc' },
           include: { allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } } },
         },
-        payments: { orderBy: { paidAt: 'desc' } },
+        payments: {
+          orderBy: { paidAt: 'desc' },
+          include: {
+            paymentIntent: { select: { payerFullName: true } },
+            allocations: { include: { accrual: { select: { periodStart: true } } } },
+          },
+        },
         penaltyLogs: true,
       },
     });
@@ -336,7 +343,18 @@ export class ContractsController {
       roomHistory: roomAssignments,
       terms: terms.map(serializeTerms),
       accruals: accruals.map(serializeAccrual),
-      payments: payments.map(serializePayment),
+      payments: payments.map((payment) =>
+        serializePayment({
+          ...payment,
+          purpose: buildPaymentPurpose({
+            source: payment.source,
+            residentFullName: resident.fullName,
+            payerFullName: payment.paymentIntent?.payerFullName,
+            periodStarts: payment.allocations.map((a) => a.accrual.periodStart),
+            includePenalty: payment.penaltyAmount.greaterThan(0),
+          }),
+        }),
+      ),
       // Определяет, доступно ли "Удалить договор" в UI — после первой же оплаты (даже
       // сторнированной) удаление блокируется навсегда, см. remove() ниже.
       hasPayments: payments.length > 0,

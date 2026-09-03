@@ -1,0 +1,36 @@
+{
+  "paymentImports": {
+    "title": "1C Payment Imports",
+    "description": "Payments that arrived outside the website (cash desk, bank transfer, wire) — require confirmation before entering the ledger.",
+    "colDate": "Date",
+    "colAmount": "Amount",
+    "colPayer": "Name (from 1C)",
+    "colComment": "Purpose",
+    "colSuggestedContract": "Suggested contract",
+    "colStatus": "Status",
+    "status": "Status",
+    "noSuggestion": "Not found",
+    "approve": "Approve",
+    "reject": "Reject",
+    "approveDialogTitle": "Confirm payment",
+    "rejectDialogTitle": "Reject payment?",
+    "rejectDialogDescription": "The record stays in history as Rejected — it will not enter the ledger.",
+    "rejectReason": "Reason (optional)",
+    "contract": "Contract",
+    "selectContract": "Select a contract",
+    "method": "Received via",
+    "amount": "Amount",
+    "date": "Payment date",
+    "rawPayload": "Raw data from 1C",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "alreadyReviewedHint": "Already reviewed",
+    "errors": {
+      "fetchListFailed": "Failed to load payments ({status})",
+      "fetchDetailFailed": "Failed to load the payment ({status})",
+      "approveFailed": "Failed to approve the payment ({status})",
+      "rejectFailed": "Failed to reject the payment ({status})",
+      "contractRequired": "Select a contract"
+    }
+  }
+}

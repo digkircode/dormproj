@@ -10,7 +10,8 @@
       "documentFailed": "Failed to generate the contract document ({status})",
       "batchDocumentFailed": "Failed to generate the contract documents ({status})",
       "addPaymentFailed": "Failed to add the payment ({status})",
-      "reversePaymentFailed": "Failed to reverse the payment ({status})"
+      "reversePaymentFailed": "Failed to reverse the payment ({status})",
+      "syncPaymentToAccounting1cFailed": "Failed to send the payment to 1C ({status})"
     },
     "status": {
       "ACTIVE": "Active",
@@ -66,6 +67,13 @@
       "colAmount": "Amount",
       "colMethod": "Method",
       "colComment": "Comment",
+      "colPurpose": "Purpose",
+      "colAccounting1c": "1C",
+      "accounting1cNotSynced": "Not sent",
+      "accounting1cSynced": "Sent",
+      "accounting1cFailed": "Error",
+      "accounting1cRetry": "Retry",
+      "accounting1cSyncedAt": "Sent: {date}",
       "voided": "voided",
       "noPaymentsYet": "No payments yet",
       "reversed": "reversed",

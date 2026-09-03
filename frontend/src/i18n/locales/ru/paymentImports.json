@@ -1,0 +1,36 @@
+{
+  "paymentImports": {
+    "title": "Импорт платежей 1С",
+    "description": "Платежи, пришедшие мимо сайта (касса, перевод, по реквизитам) — требуют подтверждения перед тем, как попасть в леджер.",
+    "colDate": "Дата",
+    "colAmount": "Сумма",
+    "colPayer": "ФИО (из 1С)",
+    "colComment": "Назначение",
+    "colSuggestedContract": "Предложенный договор",
+    "colStatus": "Статус",
+    "status": "Статус",
+    "noSuggestion": "Не найдено",
+    "approve": "Одобрить",
+    "reject": "Отклонить",
+    "approveDialogTitle": "Подтверждение платежа",
+    "rejectDialogTitle": "Отклонить платёж?",
+    "rejectDialogDescription": "Запись останется в истории со статусом «Отклонён», в леджер платёж не попадёт.",
+    "rejectReason": "Причина (необязательно)",
+    "contract": "Договор",
+    "selectContract": "Выберите договор",
+    "method": "Способ поступления",
+    "amount": "Сумма",
+    "date": "Дата платежа",
+    "rawPayload": "Исходные данные из 1С",
+    "cancel": "Отмена",
+    "confirm": "Подтвердить",
+    "alreadyReviewedHint": "Уже обработано",
+    "errors": {
+      "fetchListFailed": "Не удалось получить список платежей ({status})",
+      "fetchDetailFailed": "Не удалось получить платёж ({status})",
+      "approveFailed": "Не удалось подтвердить платёж ({status})",
+      "rejectFailed": "Не удалось отклонить платёж ({status})",
+      "contractRequired": "Выберите договор"
+    }
+  }
+}

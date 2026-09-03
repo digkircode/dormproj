@@ -10,7 +10,8 @@
       "documentFailed": "Не удалось сформировать договор ({status})",
       "batchDocumentFailed": "Не удалось сформировать договоры ({status})",
       "addPaymentFailed": "Не удалось внести платёж ({status})",
-      "reversePaymentFailed": "Не удалось сторнировать платёж ({status})"
+      "reversePaymentFailed": "Не удалось сторнировать платёж ({status})",
+      "syncPaymentToAccounting1cFailed": "Не удалось отправить платёж в 1С ({status})"
     },
     "status": {
       "ACTIVE": "Действует",
@@ -66,6 +67,13 @@
       "colAmount": "Сумма",
       "colMethod": "Способ",
       "colComment": "Комментарий",
+      "colPurpose": "Назначение",
+      "colAccounting1c": "1С",
+      "accounting1cNotSynced": "Не отправлен",
+      "accounting1cSynced": "Отправлен",
+      "accounting1cFailed": "Ошибка",
+      "accounting1cRetry": "Отправить повторно",
+      "accounting1cSyncedAt": "Отправлен: {date}",
       "voided": "отменено",
       "noPaymentsYet": "Платежей пока нет",
       "reversed": "сторнирован",

@@ -11,6 +11,7 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { allocatePaymentFifo } from './payment-allocation';
 import { serializePayment } from '../contracts/serializers';
 import { zodErrorMessage } from '../i18n/zod-error-message';
+import { Accounting1cPushService } from './accounting-1c-push.service';
 
 const createPaymentSchema = z.object({
   amount: z.number().finite().positive(),
@@ -36,6 +37,7 @@ export class BillingController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
+    private readonly accounting1cPush: Accounting1cPushService,
   ) {}
 
   // Ручной платёж (сотрудник вносит) — сразу разносится по неоплаченным начислениям
@@ -123,5 +125,24 @@ export class BillingController {
 
       return serializePayment(updated);
     });
+  }
+
+  // Ручной повтор отправки в 1С Бухгалтерию (флоу 1) — та же логика, что и ночной крон
+  // (accounting-1c-push.scheduler.ts), но на один конкретный платёж, для случая, когда
+  // сотрудник не хочет ждать следующего ночного прогона после ошибки/правки на стороне 1С.
+  @Post('payments/:paymentId/sync-to-1c')
+  async syncPaymentToAccounting1c(@Param('paymentId') paymentIdParam: string) {
+    const paymentId = parseIdParam(paymentIdParam);
+    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId } });
+    if (!payment) {
+      throw new NotFoundException('billing.errors.paymentNotFound');
+    }
+    if (payment.source !== 'WEBSITE') {
+      throw new BadRequestException('billing.errors.paymentNotWebsiteSource');
+    }
+
+    await this.accounting1cPush.pushPayments([paymentId]);
+    const updated = await this.prisma.payment.findUniqueOrThrow({ where: { id: paymentId } });
+    return serializePayment(updated);
   }
 }

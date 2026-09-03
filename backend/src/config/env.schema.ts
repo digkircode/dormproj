@@ -37,6 +37,15 @@ export const envSchema = z.object({
   ATOL_KASSA_COMPANY_EMAIL: z.string().min(1).optional(),
   ATOL_KASSA_COMPANY_SNO: z.string().min(1).optional(),
   ATOL_KASSA_PAYMENT_ADDRESS: z.string().min(1).optional(),
+
+  // 1С Бухгалтерия — отправка платежей эквайринга (см. accounting-1c/), та же логика
+  // опциональности, что у эквайринга/кассы выше. Basic Auth, как и остальные интеграции
+  // с 1С в проекте (см. sync/external-student-api.service.ts).
+  ACCOUNTING_1C_LOGIN: z.string().min(1).optional(),
+  ACCOUNTING_1C_PASSWORD: z.string().min(1).optional(),
+  ACCOUNTING_1C_SEND_PAYMENTS_URL: z.url().optional(),
+  // Флоу 2 — получение платежей, пришедших мимо сайта (касса/перевод/по реквизитам).
+  ACCOUNTING_1C_GET_PAYMENTS_URL: z.url().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

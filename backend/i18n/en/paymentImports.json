@@ -1,0 +1,14 @@
+{
+  "errors": {
+    "invalidId": "Invalid id",
+    "notFound": "Record not found",
+    "alreadyReviewed": "This record has already been reviewed (approved or rejected)",
+    "amountRequired": "Could not determine the payment amount — please enter it manually"
+  },
+  "status": {
+    "IMPORTED": "New",
+    "MATCHED": "Approved",
+    "NEEDS_REVIEW": "Needs review",
+    "REJECTED": "Rejected"
+  }
+}

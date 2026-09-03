@@ -46,7 +46,8 @@ import {
   type PaymentMethod,
   type PaymentRow,
 } from '@/lib/contracts-api'
-import { createPayment, reversePayment } from '@/lib/billing-api'
+import { createPayment, reversePayment, syncPaymentToAccounting1c } from '@/lib/billing-api'
+import Accounting1cStatusPill from '@/components/Accounting1cStatusPill.vue'
 import { fetchDormitoryInfo, type DormitoryInfo } from '@/lib/dormitory-info-api'
 import { blockNonNumericKeys, goBack } from '@/lib/utils'
 import { breadcrumbOverride } from '@/lib/breadcrumb-state'
@@ -160,6 +161,7 @@ const PAYMENT_COLUMNS = computed<{ id: keyof PaymentRow; label: string }[]>(() =
   { id: 'paidAt', label: t('contracts.detail.colDate') },
   { id: 'amount', label: t('contracts.detail.colAmount') },
   { id: 'method', label: t('contracts.detail.colMethod') },
+  { id: 'purpose', label: t('contracts.detail.colPurpose') },
   { id: 'rawComment', label: t('contracts.detail.colComment') },
 ])
 const { sort: paymentSort, sorted: sortedPayments, toggle: togglePaymentSort } = useLocalSort(
@@ -304,6 +306,23 @@ async function confirmReversePayment() {
     reverseError.value = error instanceof Error ? error.message : String(error)
   } finally {
     isReversing.value = false
+  }
+}
+
+// --- Повтор отправки в 1С Бухгалтерию (флоу 1) ---
+const retryingAccounting1cId = ref<number | null>(null)
+async function retrySyncToAccounting1c(payment: PaymentRow) {
+  retryingAccounting1cId.value = payment.id
+  try {
+    await syncPaymentToAccounting1c(payment.id)
+    await load()
+  } catch (error) {
+    // Тихий best-effort, как и вся отправка в 1С — платёж уже проведён независимо от
+    // этого статуса, ошибку показываем прямо в пилюле (accounting1cSyncError с бэка
+    // после load()), отдельный алерт/тост не нужен.
+    console.error(error)
+  } finally {
+    retryingAccounting1cId.value = null
   }
 }
 </script>
@@ -542,6 +561,7 @@ async function confirmReversePayment() {
                         />
                       </button>
                     </TableHead>
+                    <TableHead :class="CELL_BORDER_CLASS">{{ t('contracts.detail.colAccounting1c') }}</TableHead>
                     <TableHead />
                   </TableRow>
                 </TableHeader>
@@ -550,7 +570,21 @@ async function confirmReversePayment() {
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(p.paidAt) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(p.amount) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ t(`payment.method.${p.method}`) }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ p.purpose ?? '—' }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ p.rawComment ?? '—' }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">
+                      <!-- Только для платежей с сайта (эквайринг) — MANUAL/IMPORTED_1C
+                           никогда не отправляются этим потоком, см. billing/accounting-1c-push.service.ts. -->
+                      <Accounting1cStatusPill
+                        v-if="p.source === 'WEBSITE'"
+                        :status="p.accounting1cSyncStatus ?? 'NOT_SYNCED'"
+                        :error="p.accounting1cSyncError"
+                        :synced-at="p.accounting1cSyncedAt"
+                        :retrying="retryingAccounting1cId === p.id"
+                        @retry="retrySyncToAccounting1c(p)"
+                      />
+                      <span v-else class="text-muted-foreground">—</span>
+                    </TableCell>
                     <TableCell class="text-right">
                       <span v-if="p.reversedAt" class="text-xs text-muted-foreground">{{ t('contracts.detail.reversed') }}</span>
                       <Button v-else variant="ghost" size="icon" class="size-7" @click="openReverseConfirm(p)">

@@ -35,6 +35,7 @@ import { PublicInfoModule } from './public-info/public-info.module';
 import { ChatsModule } from './chats/chats.module';
 import { MyPaymentsModule } from './my-payments/my-payments.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
+import { PaymentImportsModule } from './payment-imports/payment-imports.module';
 
 @Module({
   imports: [
@@ -81,6 +82,7 @@ import { AnnouncementsModule } from './announcements/announcements.module';
     ChatsModule,
     MyPaymentsModule,
     AnnouncementsModule,
+    PaymentImportsModule,
   ],
   controllers: [AppController],
   providers: [

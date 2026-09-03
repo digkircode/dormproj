@@ -8,6 +8,7 @@ import { computePenaltyBalance } from '../billing/penalty-balance';
 import { dateOnly } from '../billing/period-utils';
 import { serializeAccrual, serializePayment, serializeTerms } from './serializers';
 import { pickCurrentCharacteristics } from '../rooms/current-characteristics';
+import { buildPaymentPurpose } from '../billing/payment-purpose';
 
 // Те же имена характеристик, что уже используются в rooms.controller.ts/chat-recipients.ts/
 // reports.controller.ts/public-info.controller.ts — единого справочника имён под это в
@@ -80,13 +81,20 @@ export class MyContractController {
       where: contractId ? { id: contractId, residentIndividualUid: individualUid } : { residentIndividualUid: individualUid },
       orderBy: { contractDate: 'desc' },
       include: {
+        resident: { select: { fullName: true } },
         terms: { orderBy: { validFrom: 'desc' } },
         roomAssignments: { orderBy: { fromDate: 'desc' }, include: { room: { select: { id: true, room: true } } } },
         accruals: {
           orderBy: { periodStart: 'asc' },
           include: { allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } } },
         },
-        payments: { orderBy: { paidAt: 'desc' } },
+        payments: {
+          orderBy: { paidAt: 'desc' },
+          include: {
+            paymentIntent: { select: { payerFullName: true } },
+            allocations: { include: { accrual: { select: { periodStart: true } } } },
+          },
+        },
         penaltyLogs: true,
       },
     });
@@ -94,7 +102,7 @@ export class MyContractController {
       return { contract: null };
     }
 
-    const { terms, roomAssignments, accruals, payments, penaltyLogs, ...contractFields } = contract;
+    const { terms, roomAssignments, accruals, payments, penaltyLogs, resident, ...contractFields } = contract;
     const { penaltyAmount, penaltyPaid, penaltyBalance } = computePenaltyBalance({
       asOf: dateOnly(new Date()),
       penaltyLogs,
@@ -150,7 +158,18 @@ export class MyContractController {
           .map((l) => ({ date: l.date, amount: Number(l.amount), overdueBase: Number(l.overdueBase) })),
         terms: terms.map(serializeTerms),
         accruals: accruals.map(serializeAccrual),
-        payments: payments.map(serializePayment),
+        payments: payments.map((payment) =>
+          serializePayment({
+            ...payment,
+            purpose: buildPaymentPurpose({
+              source: payment.source,
+              residentFullName: resident.fullName,
+              payerFullName: payment.paymentIntent?.payerFullName,
+              periodStarts: payment.allocations.map((a) => a.accrual.periodStart),
+              includePenalty: payment.penaltyAmount.greaterThan(0),
+            }),
+          }),
+        ),
       },
     };
   }

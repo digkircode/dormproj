@@ -17,6 +17,7 @@ import Rooms from '@/pages/Rooms.vue'
 import RoomCharacteristics from '@/pages/RoomCharacteristics.vue'
 import Contracts from '@/pages/Contracts.vue'
 import ContractDetail from '@/pages/ContractDetail.vue'
+import PaymentImports from '@/pages/PaymentImports.vue'
 import ReportsOccupancy from '@/pages/ReportsOccupancy.vue'
 import ReportsContingent from '@/pages/ReportsContingent.vue'
 import ReportsContractsRegistry from '@/pages/ReportsContractsRegistry.vue'
@@ -98,6 +99,7 @@ const router = createRouter({
       component: ContractDetail,
       meta: { title: 'nav.contractDetail', parent: 'contracts', section: 'staff' },
     },
+    { path: '/payment-imports', name: 'payment-imports', component: PaymentImports, meta: { title: 'nav.paymentImports', section: 'staff' } },
 
     { path: '/reports', name: 'reports', redirect: '/reports/debt', meta: { title: 'nav.reports', section: 'staff' } },
     {

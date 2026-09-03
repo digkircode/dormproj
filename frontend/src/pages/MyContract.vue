@@ -188,7 +188,7 @@ const unifiedPayments = computed<UnifiedPaymentRow[]>(() => {
   const ledgerRows: UnifiedPaymentRow[] = (contract.value?.payments ?? []).map((p) => ({
     id: `payment-${p.id}`,
     date: p.paidAt,
-    description: p.rawComment || t(`payment.method.${p.method}`) || p.method,
+    description: p.purpose || p.rawComment || t(`payment.method.${p.method}`) || p.method,
     amount: p.amount,
     status: p.reversedAt ? 'REVERSED' : 'PAID',
     // Заглушка чека — только для того, что реально прошло как онлайн-оплата (эквайринг/

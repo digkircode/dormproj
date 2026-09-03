@@ -43,6 +43,14 @@ export function serializePayment(payment: {
   rawComment: string | null;
   reversedAt: Date | null;
   createdAt: Date;
+  accounting1cSyncStatus?: string;
+  accounting1cDocumentUid?: string | null;
+  accounting1cSyncError?: string | null;
+  accounting1cSyncedAt?: Date | null;
+  // "Откуда | Описание | Период" (billing/payment-purpose.ts) — считается на чтении там,
+  // где загружены нужные связи (allocations/paymentIntent), не всегда доступно (например
+  // сразу после создания/сторно платежа в billing.controller.ts — там их не догружают).
+  purpose?: string;
 }) {
   return {
     id: payment.id,
@@ -54,6 +62,11 @@ export function serializePayment(payment: {
     rawComment: payment.rawComment,
     reversedAt: payment.reversedAt,
     createdAt: payment.createdAt,
+    accounting1cSyncStatus: payment.accounting1cSyncStatus,
+    accounting1cDocumentUid: payment.accounting1cDocumentUid,
+    accounting1cSyncError: payment.accounting1cSyncError,
+    accounting1cSyncedAt: payment.accounting1cSyncedAt,
+    purpose: payment.purpose,
   };
 }
 

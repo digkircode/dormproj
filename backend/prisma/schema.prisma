@@ -94,25 +94,31 @@ model Individual {
   // через связи contactInfos/passports. Не путать с Passport/ContactInfo — те две модели
   // "слепок из 1С" с обязательными техническими полями (xml/json/systemDoc и т.п.), не
   // подходящими для ручного ввода.
-  phone                String?   @map("phone")
-  email                String?   @map("email")
-  address              String?   @map("address")
-  passportSeries       String?   @map("passport_series")
-  passportNumber       String?   @map("passport_number")
-  passportIssuedBy     String?   @map("passport_issued_by")
-  passportIssuedCode   String?   @map("passport_issued_code")
-  passportIssuedAt     DateTime? @map("passport_issued_at")
+  phone              String?   @map("phone")
+  email              String?   @map("email")
+  address            String?   @map("address")
+  passportSeries     String?   @map("passport_series")
+  passportNumber     String?   @map("passport_number")
+  passportIssuedBy   String?   @map("passport_issued_by")
+  passportIssuedCode String?   @map("passport_issued_code")
+  passportIssuedAt   DateTime? @map("passport_issued_at")
   // Гражданство ручного ввода — как и остальные поля выше, только для isManual; у
   // синхронизируемых физлиц гражданство приходит через связь citizenships (история по period).
-  citizenship          String?   @map("citizenship")
+  citizenship        String?   @map("citizenship")
 
-  citizenships Citizenship[]
-  passports    Passport[]
-  contactInfos ContactInfo[]
-  users        User[]
-  contracts    Contract[]
-  contractsAsLegalRep Contract[] @relation("ContractLegalRep")
-  chatConversation ChatConversation?
+  // ContractorUID из 1С Бухгалтерии (не путать с fizicheskoyeLitsoUid — тот из другой,
+  // студенческой/HR базы 1С). Заполняется один раз из ответа при первой успешной отправке
+  // платежа по этому человеку (см. accounting1cDocumentUid у Payment) и переиспользуется
+  // на все следующие отправки, чтобы 1С не создавала контрагента-дубль каждый раз.
+  accounting1cContractorUid String? @map("accounting_1c_contractor_uid")
+
+  citizenships        Citizenship[]
+  passports           Passport[]
+  contactInfos        ContactInfo[]
+  users               User[]
+  contracts           Contract[]
+  contractsAsLegalRep Contract[]        @relation("ContractLegalRep")
+  chatConversation    ChatConversation?
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -379,25 +385,25 @@ enum RoomCharacteristicValueType {
 // "Санузел" и всё, что появится дальше — уже полностью ручное). valueType закрепляет, в какую
 // из типизированных колонок RoomCharacteristicValue пишется значение этой характеристики.
 model RoomCharacteristicDefinition {
-  id        Int                          @id @default(autoincrement())
-  name      String                       @unique
-  valueType RoomCharacteristicValueType  @map("value_type")
-  unit      String?
+  id          Int                         @id @default(autoincrement())
+  name        String                      @unique
+  valueType   RoomCharacteristicValueType @map("value_type")
+  unit        String?
   // Стартовые 4 характеристики из 1С-выгрузки (Жилое помещение/Количество мест/Площадь/
   // Стоимость) — их нельзя удалить через UI, в отличие от всего, что заводят сотрудники
   // сами (см. room-characteristic-definitions.controller.ts). Переименовывать/менять
   // единицу измерения по-прежнему можно — блокируется только delete.
-  isProtected Boolean @default(false) @map("is_protected")
+  isProtected Boolean                     @default(false) @map("is_protected")
   // Ручной порядок для drag-and-drop в UI — новые характеристики получают
   // max(sortOrder)+1 (в конец списка), см. room-characteristic-definitions.controller.ts.
-  sortOrder Int @default(0) @map("sort_order")
+  sortOrder   Int                         @default(0) @map("sort_order")
   // Закрытый список допустимых значений — только для valueType TEXT (пусто = обычное
   // свободное текстовое поле, как раньше). Если задан — форма значения на комнате
   // (RoomDetailPanel.vue) рисует Select вместо голого <input>, а бэкенд (rooms.controller.ts)
   // отклоняет значение, которого нет в списке. Добавлено вместе с "Корпус" (Новый/Старый),
   // но не привязано к конкретному имени характеристики — общий механизм для любой будущей
   // TEXT-характеристики с фиксированным набором значений.
-  options String[] @default([]) @map("options")
+  options     String[]                    @default([]) @map("options")
 
   values RoomCharacteristicValue[]
 
@@ -426,7 +432,7 @@ model RoomCharacteristicValue {
   // Исторические значения на 01.09.2026 (стартовая выгрузка 1С) — заблокированы от
   // изменения/удаления через UI навсегда, в отличие от значений, которые добавляют
   // сотрудники позже (см. rooms.controller.ts).
-  isProtected Boolean @default(false) @map("is_protected")
+  isProtected Boolean  @default(false) @map("is_protected")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -451,8 +457,8 @@ model DormitoryInfo {
   // информация" (StudentGeneralInfo.vue): восстановление утерянного пропускного
   // документа (единая цена что для студенческого билета, что для пластиковой карты)
   // и суточная ставка для гостевых комнат (см. характеристика "Гостевая" ниже).
-  passRestorationCost Decimal? @map("pass_restoration_cost") @db.Decimal(12, 2)
-  guestRoomDailyRate  Decimal? @map("guest_room_daily_rate") @db.Decimal(12, 2)
+  passRestorationCost  Decimal? @map("pass_restoration_cost") @db.Decimal(12, 2)
+  guestRoomDailyRate   Decimal? @map("guest_room_daily_rate") @db.Decimal(12, 2)
   updatedAt            DateTime @updatedAt @map("updated_at")
 
   @@map("dormitory_info")
@@ -513,18 +519,18 @@ model Contract {
   // Родитель/законный представитель — у взрослых заполнен только legalRepPhone (просто
   // контакт по тексту договора), у несовершеннолетних весь блок (родитель — сторона
   // договора, паспортные данные обязательны).
-  legalRepName             String?   @map("legal_rep_name")
-  legalRepPhone             String?   @map("legal_rep_phone")
-  legalRepGender            String?   @map("legal_rep_gender")
-  legalRepBirthDate         DateTime? @map("legal_rep_birth_date")
-  legalRepPassportSeries    String?   @map("legal_rep_passport_series")
-  legalRepPassportNumber    String?   @map("legal_rep_passport_number")
-  legalRepPassportIssuedBy  String?   @map("legal_rep_passport_issued_by")
-  legalRepPassportIssuedCode String?  @map("legal_rep_passport_issued_code")
-  legalRepPassportIssuedAt  DateTime? @map("legal_rep_passport_issued_at")
-  legalRepSnils             String?   @map("legal_rep_snils")
-  legalRepInn               String?   @map("legal_rep_inn")
-  legalRepAddress           String?   @map("legal_rep_address")
+  legalRepName               String?   @map("legal_rep_name")
+  legalRepPhone              String?   @map("legal_rep_phone")
+  legalRepGender             String?   @map("legal_rep_gender")
+  legalRepBirthDate          DateTime? @map("legal_rep_birth_date")
+  legalRepPassportSeries     String?   @map("legal_rep_passport_series")
+  legalRepPassportNumber     String?   @map("legal_rep_passport_number")
+  legalRepPassportIssuedBy   String?   @map("legal_rep_passport_issued_by")
+  legalRepPassportIssuedCode String?   @map("legal_rep_passport_issued_code")
+  legalRepPassportIssuedAt   DateTime? @map("legal_rep_passport_issued_at")
+  legalRepSnils              String?   @map("legal_rep_snils")
+  legalRepInn                String?   @map("legal_rep_inn")
+  legalRepAddress            String?   @map("legal_rep_address")
 
   // Оплата материнским капиталом — единовременный платёж за явно заданный период с
   // возможной отсрочкой (ПФР платит не сразу). Если период попадает под неё, крон пени
@@ -544,8 +550,8 @@ model Contract {
   // производная: сумма PenaltyAccrualLog.amount по этому договору за нужный период,
   // см. billing/penalty-balance.ts. penaltyAccruedThrough — до какой даты уже начислено,
   // только для идемпотентности крона, сам баланс из него не считать.
-  penaltyAccruedThrough DateTime? @map("penalty_accrued_through")
-  penaltyLogs            PenaltyAccrualLog[]
+  penaltyAccruedThrough DateTime?           @map("penalty_accrued_through")
+  penaltyLogs           PenaltyAccrualLog[]
 
   // Снимок личных данных проживающего на момент подписания (паспорт/СНИЛС/адрес/телефон/
   // институт-курс — то, что синхрон 1С может незаметно перезаписать позже). Заполняется
@@ -564,17 +570,23 @@ model Contract {
   // влияет, продление всегда новый Contract с новым номером и датами, не мутация старого.
   renewedFromContractId Int?       @map("renewed_from_contract_id")
   renewedFrom           Contract?  @relation("ContractRenewal", fields: [renewedFromContractId], references: [id])
-  renewals               Contract[] @relation("ContractRenewal")
+  renewals              Contract[] @relation("ContractRenewal")
 
   createdByUserId Int?  @map("created_by_user_id")
   createdBy       User? @relation("ContractCreatedBy", fields: [createdByUserId], references: [id])
 
-  terms                ContractTerms[]
-  roomAssignments      RoomAssignment[]
-  accruals             Accrual[]
-  payments             Payment[]
-  paymentImportRecords PaymentImportRecord[]
-  paymentIntents       PaymentIntent[]
+  // ContractUID из 1С Бухгалтерии — тот же принцип, что у Individual.accounting1cContractorUid
+  // выше: заполняется один раз из ответа при первой успешной отправке платежа по этому
+  // договору, дальше переиспользуется, чтобы не плодить в 1С дубли договора.
+  accounting1cUid String? @map("accounting_1c_uid")
+
+  terms                         ContractTerms[]
+  roomAssignments               RoomAssignment[]
+  accruals                      Accrual[]
+  payments                      Payment[]
+  paymentImportRecordsMatched   PaymentImportRecord[] @relation("PaymentImportMatched")
+  paymentImportRecordsSuggested PaymentImportRecord[] @relation("PaymentImportSuggested")
+  paymentIntents                PaymentIntent[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -603,7 +615,7 @@ model ContractTerms {
   // Число месяца, до которого нужно оплатить конкретное месячное начисление (п. 4.4/5.4
   // договора — всегда 5, но не хардкодим). Наниматель платит как ему удобно, не привязан
   // к единой схеме на весь срок — это только срок начисления, не выбор периодичности.
-  paymentDueDay Int @default(5) @map("payment_due_day")
+  paymentDueDay     Int               @default(5) @map("payment_due_day")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -684,13 +696,13 @@ model PenaltyAccrualLog {
 
   // Календарный день, за который начислена ЭТА строка (не дата запуска крона — при
   // довозе пропущенных дней одним запуском на каждый день своя строка, см. крон).
-  date DateTime @map("date")
+  date        DateTime @map("date")
   // Добавлено пени за этот день.
-  amount Decimal @db.Decimal(12, 2)
+  amount      Decimal  @db.Decimal(12, 2)
   // База расчёта (сумма просроченных непогашенных начислений на момент запуска крона),
   // справочно — amount = overdueBase * PENALTY_DAILY_RATE, хранится явно, чтобы не
   // пересчитывать вручную при разборе "откуда цифра", см. запрос пользователя 2026-08-22.
-  overdueBase Decimal @map("overdue_base") @db.Decimal(12, 2)
+  overdueBase Decimal  @map("overdue_base") @db.Decimal(12, 2)
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -713,6 +725,16 @@ enum PaymentSource {
   WEBSITE
 }
 
+// Статус отправки платежа В 1С Бухгалтерию (не путать с source=IMPORTED_1C — это про
+// платежи, пришедшие ИЗ 1С; это поле — про наши WEBSITE-платежи, уходящие ТУДА). Раз в
+// сутки ночной крон (billing/accounting-1c-push.scheduler.ts) отправляет пачкой все
+// NOT_SYNCED/FAILED, плюс ручная кнопка "Отправить повторно" на конкретном платеже.
+enum Accounting1cSyncStatus {
+  NOT_SYNCED
+  SYNCED
+  FAILED
+}
+
 // Платёж — факт поступления денег. contractId обязателен (в отличие от черновой идеи
 // делать его nullable под неопознанные 1С-платежи) — неоднозначные платежи из импорта
 // остаются в PaymentImportRecord и превращаются в Payment только после сопоставления
@@ -722,10 +744,10 @@ model Payment {
   contractId Int      @map("contract_id")
   contract   Contract @relation(fields: [contractId], references: [id])
 
-  amount  Decimal       @db.Decimal(12, 2)
-  paidAt  DateTime      @map("paid_at")
-  method  PaymentMethod
-  source  PaymentSource
+  amount Decimal       @db.Decimal(12, 2)
+  paidAt DateTime      @map("paid_at")
+  method PaymentMethod
+  source PaymentSource
 
   // Сколько из этого платежа реально ушло на пеню (добавлено 2026-08-31) — реальное
   // разнесение, не эвристика "leftover" на чтении (см. billing/penalty-balance.ts):
@@ -740,13 +762,24 @@ model Payment {
   externalRef String? @map("external_ref")
   rawComment  String? @map("raw_comment")
 
+  // Отправка ЭТОГО платежа в 1С Бухгалтерию (актуально только для source=WEBSITE, но
+  // поле есть у всех — для MANUAL/IMPORTED_1C просто остаётся NOT_SYNCED и никогда не
+  // трогается). accounting1cDocumentUid — DocumentUID из ответа 1С при успехе,
+  // accounting1cSyncError — текст ошибки как есть (для отображения сотруднику в UI, не
+  // требует похода в логи), accounting1cSyncedAt — когда последний раз пытались отправить
+  // (и при успехе, и при ошибке — чтобы отличать "ещё не пробовали" от "пробовали и не вышло").
+  accounting1cSyncStatus  Accounting1cSyncStatus @default(NOT_SYNCED) @map("accounting_1c_sync_status")
+  accounting1cDocumentUid String?                @map("accounting_1c_document_uid")
+  accounting1cSyncError   String?                @map("accounting_1c_sync_error")
+  accounting1cSyncedAt    DateTime?              @map("accounting_1c_synced_at")
+
   // Платёж отменён/сторнирован (ошибочно внесён и т.п.) — не удаляем, помечаем.
   reversedAt DateTime? @map("reversed_at")
 
   createdByUserId Int?  @map("created_by_user_id")
   createdBy       User? @relation("PaymentCreatedBy", fields: [createdByUserId], references: [id])
 
-  allocations PaymentAllocation[]
+  allocations   PaymentAllocation[]
   importRecord  PaymentImportRecord?
   paymentIntent PaymentIntent?
 
@@ -807,11 +840,20 @@ model PaymentImportRecord {
   importedAt DateTime            @default(now()) @map("imported_at")
   status     PaymentImportStatus @default(IMPORTED)
 
+  // Предложение системы (по ContractorUID/ContractUID из rawPayload, либо fallback по
+  // ФИО/номеру договора) — НЕ решение. Статус при появлении предложения — NEEDS_REVIEW,
+  // не MATCHED. matchedContractId проставляется только на реальном подтверждении
+  // сотрудником (см. payment-imports.controller.ts#approve) — может отличаться от
+  // suggestedContractId, если сотрудник поправил вручную (см. «человеческий фактор» —
+  // не туда/не тот контрагент/не та сумма).
+  suggestedContractId Int?      @map("suggested_contract_id")
+  suggestedContract   Contract? @relation("PaymentImportSuggested", fields: [suggestedContractId], references: [id])
+
   matchedContractId Int?      @map("matched_contract_id")
-  matchedContract   Contract? @relation(fields: [matchedContractId], references: [id])
+  matchedContract   Contract? @relation("PaymentImportMatched", fields: [matchedContractId], references: [id])
 
   resultingPaymentId Int?     @unique @map("resulting_payment_id")
-  resultingPayment    Payment? @relation(fields: [resultingPaymentId], references: [id])
+  resultingPayment   Payment? @relation(fields: [resultingPaymentId], references: [id])
 
   reviewedByUserId Int?      @map("reviewed_by_user_id")
   reviewedAt       DateTime? @map("reviewed_at")
@@ -898,7 +940,7 @@ model ChatConversation {
   individualUid String     @unique @map("individual_uid")
   individual    Individual @relation(fields: [individualUid], references: [fizicheskoyeLitsoUid])
 
-  lastMessageAt DateTime @default(now()) @map("last_message_at")
+  lastMessageAt      DateTime  @default(now()) @map("last_message_at")
   // Общая на ВСЕХ сотрудников отметка прочтения — нет назначения ответственного, значит
   // нет и персонального прочтения: открыл один сотрудник диалог — непрочитанность
   // снимается для всей команды сразу (по прямой просьбе, см. промпт проекта).
@@ -928,7 +970,7 @@ model ChatMessage {
   // промпте проекта), плюс гибридный аккаунт (сотрудник, который сам проживает) может
   // писать и как сотрудник, и как проживающий — это поле однозначно определяет, с какой
   // стороны экрана рисовать сообщение, независимо от смены ролей задним числом.
-  senderRole ChatSenderRole @map("sender_role")
+  senderRole     ChatSenderRole   @map("sender_role")
 
   // Nullable — сообщение может быть только вложением без текста (как в Telegram),
   // см. attachments ниже. На бэке проверяется "текст ИЛИ хотя бы одно вложение".
@@ -952,16 +994,16 @@ enum ChatAttachmentKind {
 // (storageKey), не сам байты и не оригинальное имя как путь (избегаем path traversal
 // через управляемое пользователем имя файла).
 model ChatAttachment {
-  id        Int                @id @default(autoincrement())
-  messageId Int                @map("message_id")
-  message   ChatMessage        @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  kind      ChatAttachmentKind
-  mimeType  String             @map("mime_type")
+  id         Int                @id @default(autoincrement())
+  messageId  Int                @map("message_id")
+  message    ChatMessage        @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  kind       ChatAttachmentKind
+  mimeType   String             @map("mime_type")
   // Оригинальное имя файла — только для отображения/Content-Disposition, не для пути на диске.
-  fileName  String             @map("file_name")
-  sizeBytes Int                @map("size_bytes")
+  fileName   String             @map("file_name")
+  sizeBytes  Int                @map("size_bytes")
   // Сгенерированное имя файла на диске (randomUUID + расширение) — см. chat-attachments-storage.ts.
-  storageKey String            @unique @map("storage_key")
+  storageKey String             @unique @map("storage_key")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -974,9 +1016,9 @@ model ChatAttachment {
 // см. обсуждение в промпте проекта: рендерится как есть через {{ }}, не через v-html,
 // поэтому не открывает XSS-поверхность (тот же инвариант, что и у остального сайта).
 model Announcement {
-  id       Int    @id @default(autoincrement())
-  title    String
-  body     String
+  id    Int    @id @default(autoincrement())
+  title String
+  body  String
 
   authorUserId Int  @map("author_user_id")
   author       User @relation(fields: [authorUserId], references: [id])
