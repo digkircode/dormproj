@@ -1,6 +1,8 @@
 {
   "paymentImports": {
     "title": "Payments",
+    "tabImport": "From accounting",
+    "tabWebsite": "From the site",
     "description": "Website (acquiring) payments and their 1C sync status, plus payments that arrived outside the website (cash desk, bank transfer, wire) — those require confirmation before they become a real payment.",
     "colDate": "Date",
     "colAmount": "Amount",
@@ -25,6 +27,7 @@
     "selectContract": "Select a contract",
     "changeContract": "Change",
     "bulkApprove": "Approve selected ({count})",
+    "bulkRetry": "Send selected ({count})",
     "bulkApproveDialogTitle": "Bulk approval",
     "bulkSkipped": "{count} payment(s) skipped — no suggested contract or already reviewed, handle them individually",
     "statusWebsite": {

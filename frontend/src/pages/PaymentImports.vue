@@ -2,22 +2,26 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Check, MoreHorizontal, X } from 'lucide-vue-next'
+import { ArrowLeft, Check, ClipboardList, RotateCw, X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import EntityTable from '@/components/EntityTable.vue'
 import SearchSelect from '@/components/SearchSelect.vue'
 import DatePickerField from '@/components/DatePickerField.vue'
+import PaymentImportStatusPillCell from '@/components/PaymentImportStatusPillCell.vue'
+import WebsitePaymentStatusPillCell from '@/components/WebsitePaymentStatusPillCell.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import { createClientFetchPage, createClientFacetValues } from '@/lib/client-list'
 import { goBack } from '@/lib/utils'
 import { dateLocaleTag } from '@/lib/format-locale'
 import {
   fetchPaymentImportsPage,
+  fetchPaymentImportsFacets,
   fetchPaymentImportDetail,
   fetchWebsitePayments,
   approvePaymentImport,
@@ -45,151 +49,52 @@ function formatMoney(value: number | null): string {
   return `${value.toLocaleString(dateLocaleTag(), { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
 }
 
-// --- Единый список: очередь одобрения из 1С (флоу 2) + наши WEBSITE-платежи со статусом
-// отправки в 1С (флоу 1) — по прямой просьбе 2026-09-03, один общий обзор вместо двух
-// разрозненных мест. Полностью грузится в память (объём пока небольшой) и режется на
-// страницы/фильтруется клиентски, тот же приём, что у "объединённого леджера" в
-// MyContract.vue (см. client-list.ts).
-type UnifiedStatus = PaymentImportRow['status'] | WebsitePaymentRow['accounting1cSyncStatus']
+// ===== Таб "Из бухгалтерии" — очередь одобрения (флоу 2), см. промпт проекта =====
 
-interface UnifiedRow {
-  rowId: string
-  kind: 'import' | 'website'
-  paidAt: string | null
-  amount: number | null
-  contractorFio: string | null
-  purpose: string | null
-  contractLabel: string
-  status: UnifiedStatus
-  raw: PaymentImportRow | WebsitePaymentRow
-}
-
-const STATUS_LABELS: Record<UnifiedStatus, string> = {
+const IMPORT_STATUS_LABELS: Record<PaymentImportRow['status'], string> = {
   IMPORTED: t('paymentImports.status.IMPORTED'),
   NEEDS_REVIEW: t('paymentImports.status.NEEDS_REVIEW'),
   MATCHED: t('paymentImports.status.MATCHED'),
   REJECTED: t('paymentImports.status.REJECTED'),
-  NOT_SYNCED: t('paymentImports.statusWebsite.NOT_SYNCED'),
-  SYNCED: t('paymentImports.statusWebsite.SYNCED'),
-  FAILED: t('paymentImports.statusWebsite.FAILED'),
 }
-const ACTIONABLE_IMPORT_STATUSES = new Set(['IMPORTED', 'NEEDS_REVIEW'])
+const ACTIONABLE_IMPORT_STATUSES = new Set<PaymentImportRow['status']>(['IMPORTED', 'NEEDS_REVIEW']);
 
-const importRows = ref<PaymentImportRow[]>([])
-const websiteRows = ref<WebsitePaymentRow[]>([])
-const loadError = ref('')
-
-async function loadAll() {
-  loadError.value = ''
-  try {
-    const [importsPage, website] = await Promise.all([
-      fetchPaymentImportsPage({ page: 1, pageSize: 500, search: '', sortBy: 'importedAt', sortDir: 'desc', filters: {} }),
-      fetchWebsitePayments(),
-    ])
-    importRows.value = importsPage.data
-    websiteRows.value = website
-  } catch (error) {
-    loadError.value = error instanceof Error ? error.message : String(error)
-  }
-}
-loadAll()
-
-const unifiedRows = computed<UnifiedRow[]>(() => {
-  const fromImports: UnifiedRow[] = importRows.value.map((row) => ({
-    rowId: `import-${row.id}`,
-    kind: 'import',
-    paidAt: row.paidAt,
-    amount: row.amount,
-    contractorFio: row.contractorFio,
-    purpose: row.comment,
-    contractLabel: row.matchedContract
-      ? `№${row.matchedContract.number}`
-      : row.suggestedContract
-        ? `№${row.suggestedContract.number} — ${row.suggestedContract.residentFullName}`
-        : t('paymentImports.noSuggestion'),
-    status: row.status,
-    raw: row,
-  }))
-  const fromWebsite: UnifiedRow[] = websiteRows.value.map((row) => ({
-    rowId: `website-${row.id}`,
-    kind: 'website',
-    paidAt: row.paidAt,
-    amount: row.amount,
-    contractorFio: row.contractorFio,
-    purpose: row.purpose,
-    contractLabel: `№${row.contract.number}`,
-    status: row.accounting1cSyncStatus,
-    raw: row,
-  }))
-  return [...fromImports, ...fromWebsite]
-})
-
-const columnLabels = computed<Record<string, string>>(() => ({
+const importColumnLabels = computed<Record<string, string>>(() => ({
   paidAt: t('paymentImports.colDate'),
   amount: t('paymentImports.colAmount'),
   contractorFio: t('paymentImports.colPayer'),
-  purpose: t('paymentImports.colComment'),
-  contractLabel: t('paymentImports.colSuggestedContract'),
+  comment: t('paymentImports.colComment'),
+  suggestedContract: t('paymentImports.colSuggestedContract'),
   status: t('paymentImports.colStatus'),
 }))
-const filterableFields = ['status']
-function cellText(columnId: string, value: unknown): string {
+const importFilterableFields = ['status']
+function importCellText(columnId: string, value: unknown): string {
   if (columnId === 'paidAt' && typeof value === 'string') return formatDate(value)
   if (columnId === 'amount' && typeof value === 'number') return formatMoney(value)
-  if (columnId === 'status') return STATUS_LABELS[value as UnifiedStatus] ?? String(value)
+  if (columnId === 'status') return IMPORT_STATUS_LABELS[value as PaymentImportRow['status']] ?? String(value)
+  if (columnId === 'suggestedContract') {
+    const contract = value as PaymentImportRow['suggestedContract']
+    return contract ? `№${contract.number} — ${contract.residentFullName}` : t('paymentImports.noSuggestion')
+  }
   return String(value ?? '—')
 }
 
-const columnHelper = createAppColumnHelper<UnifiedRow>()
-const columns = computed(() =>
-  columnHelper.columns([
-    columnHelper.accessor('paidAt', { header: columnLabels.value.paidAt, size: 120, minSize: 100 }),
-    columnHelper.accessor('amount', { header: columnLabels.value.amount, size: 110, minSize: 100 }),
-    columnHelper.accessor('contractorFio', { header: columnLabels.value.contractorFio, size: 200, minSize: 160 }),
-    columnHelper.accessor('purpose', { header: columnLabels.value.purpose, enableSorting: false, size: 280, minSize: 180 }),
-    columnHelper.accessor('contractLabel', { header: columnLabels.value.contractLabel, enableSorting: false, size: 220, minSize: 160 }),
-    columnHelper.accessor('status', { header: columnLabels.value.status, size: 170, minSize: 140 }),
+const importColumnHelper = createAppColumnHelper<PaymentImportRow>()
+const importColumns = computed(() =>
+  importColumnHelper.columns([
+    importColumnHelper.accessor('paidAt', { header: importColumnLabels.value.paidAt, size: 120, minSize: 100 }),
+    importColumnHelper.accessor('amount', { header: importColumnLabels.value.amount, enableSorting: false, size: 110, minSize: 100 }),
+    importColumnHelper.accessor('contractorFio', { header: importColumnLabels.value.contractorFio, size: 200, minSize: 160 }),
+    importColumnHelper.accessor('comment', { header: importColumnLabels.value.comment, enableSorting: false, size: 260, minSize: 180 }),
+    importColumnHelper.accessor('suggestedContract', { header: importColumnLabels.value.suggestedContract, enableSorting: false, size: 220, minSize: 160 }),
+    importColumnHelper.accessor('status', { header: importColumnLabels.value.status, size: 170, minSize: 140 }),
   ]),
 )
 
-const fetchPage = createClientFetchPage<UnifiedRow>(() => unifiedRows.value, {
-  searchText: (row) => `${row.contractorFio ?? ''} ${row.purpose ?? ''} ${row.contractLabel}`,
-  sortValue: (row, sortBy) => (row as unknown as Record<string, string | number>)[sortBy] ?? '',
-  filterValue: (row, field) => (field === 'status' ? row.status : ''),
-})
-const fetchFacetValues = createClientFacetValues<UnifiedRow>(
-  () => unifiedRows.value,
-  (row, field) => (field === 'status' ? row.status : ''),
-  (_field, value) => STATUS_LABELS[value as UnifiedStatus] ?? value,
-)
-
-const tableRef = ref<{ refresh: () => void | Promise<void> } | null>(null)
-async function refreshTable() {
-  await loadAll()
-  await tableRef.value?.refresh()
-}
-
-// --- Действие на строке: для 1С-импорта — открыть разбор, для сайтового платежа —
-// сразу повторить отправку (без диалога, как кнопка в ContractDetail.vue). ---
-const retryingWebsiteId = ref<number | null>(null)
-async function handleRowAction(row: UnifiedRow) {
-  if (row.kind === 'website') {
-    const websiteRow = row.raw as WebsitePaymentRow
-    retryingWebsiteId.value = websiteRow.id
-    try {
-      await syncPaymentToAccounting1c(websiteRow.id)
-      await refreshTable()
-    } finally {
-      retryingWebsiteId.value = null
-    }
-    return
-  }
-  await openReview(row.raw as PaymentImportRow)
-}
+const importTableRef = ref<{ refresh: () => void | Promise<void> } | null>(null)
 
 // --- Массовое одобрение (чекбоксы) ---
-const selectedRows = ref<UnifiedRow[]>([])
-const selectedImportRows = computed(() => selectedRows.value.filter((r): r is UnifiedRow & { raw: PaymentImportRow } => r.kind === 'import'))
+const selectedImportRows = ref<PaymentImportRow[]>([])
 const bulkApproveOpen = ref(false)
 const bulkMethod = ref<PaymentMethod>('CASH')
 const bulkError = ref('')
@@ -200,9 +105,8 @@ function openBulkApprove() {
   bulkMethod.value = 'CASH'
   bulkApproveOpen.value = true
 }
-
 const bulkApprovable = computed(() =>
-  selectedImportRows.value.filter((r) => ACTIONABLE_IMPORT_STATUSES.has(r.raw.status) && r.raw.suggestedContract),
+  selectedImportRows.value.filter((r) => ACTIONABLE_IMPORT_STATUSES.has(r.status) && r.suggestedContract),
 )
 const bulkSkipped = computed(() => selectedImportRows.value.length - bulkApprovable.value.length)
 
@@ -211,11 +115,11 @@ async function submitBulkApprove() {
   bulkError.value = ''
   try {
     for (const row of bulkApprovable.value) {
-      await approvePaymentImport(row.raw.id, { contractId: row.raw.suggestedContract!.id, method: bulkMethod.value })
+      await approvePaymentImport(row.id, { contractId: row.suggestedContract!.id, method: bulkMethod.value })
     }
     bulkApproveOpen.value = false
-    selectedRows.value = []
-    await refreshTable()
+    selectedImportRows.value = []
+    await importTableRef.value?.refresh()
   } catch (error) {
     bulkError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -223,7 +127,7 @@ async function submitBulkApprove() {
   }
 }
 
-// --- Разбор одной записи из 1С (approve/reject) ---
+// --- Разбор одной записи (approve/reject) ---
 const reviewOpen = ref(false)
 const reviewDetail = ref<PaymentImportDetail | null>(null)
 const reviewLoading = ref(false)
@@ -318,7 +222,7 @@ async function submitApprove() {
       paidAt: overridePaidAt.value || undefined,
     })
     reviewOpen.value = false
-    await refreshTable()
+    await importTableRef.value?.refresh()
   } catch (error) {
     reviewError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -333,11 +237,125 @@ async function submitReject() {
   try {
     await rejectPaymentImport(reviewDetail.value.id, rejectReason.value)
     reviewOpen.value = false
-    await refreshTable()
+    await importTableRef.value?.refresh()
   } catch (error) {
     reviewError.value = error instanceof Error ? error.message : String(error)
   } finally {
     isRejecting.value = false
+  }
+}
+
+// ===== Таб "С сайта" — WEBSITE-платежи (эквайринг) со статусом отправки в 1С (флоу 1) =====
+
+const WEBSITE_STATUS_LABELS: Record<WebsitePaymentRow['accounting1cSyncStatus'], string> = {
+  NOT_SYNCED: t('paymentImports.statusWebsite.NOT_SYNCED'),
+  SYNCED: t('paymentImports.statusWebsite.SYNCED'),
+  FAILED: t('paymentImports.statusWebsite.FAILED'),
+}
+
+const websitePayments = ref<WebsitePaymentRow[]>([])
+const websiteLoadError = ref('')
+async function loadWebsitePayments() {
+  websiteLoadError.value = ''
+  try {
+    websitePayments.value = await fetchWebsitePayments()
+  } catch (error) {
+    websiteLoadError.value = error instanceof Error ? error.message : String(error)
+  }
+}
+loadWebsitePayments()
+
+const websiteColumnLabels = computed<Record<string, string>>(() => ({
+  paidAt: t('paymentImports.colDate'),
+  amount: t('paymentImports.colAmount'),
+  contractorFio: t('paymentImports.colPayer'),
+  purpose: t('paymentImports.colComment'),
+  contractNumber: t('paymentImports.colSuggestedContract'),
+  status: t('paymentImports.colStatus'),
+}))
+function websiteCellText(columnId: string, value: unknown): string {
+  if (columnId === 'paidAt' && typeof value === 'string') return formatDate(value)
+  if (columnId === 'amount' && typeof value === 'number') return formatMoney(value)
+  if (columnId === 'status') return WEBSITE_STATUS_LABELS[value as WebsitePaymentRow['accounting1cSyncStatus']] ?? String(value)
+  return String(value ?? '—')
+}
+
+interface WebsiteTableRow {
+  id: number
+  paidAt: string
+  amount: number
+  contractorFio: string
+  purpose: string
+  contractNumber: string
+  status: WebsitePaymentRow['accounting1cSyncStatus']
+  raw: WebsitePaymentRow
+}
+const websiteTableRows = computed<WebsiteTableRow[]>(() =>
+  websitePayments.value.map((p) => ({
+    id: p.id,
+    paidAt: p.paidAt,
+    amount: p.amount,
+    contractorFio: p.contractorFio,
+    purpose: p.purpose,
+    contractNumber: `№${p.contract.number}`,
+    status: p.accounting1cSyncStatus,
+    raw: p,
+  })),
+)
+
+const websiteColumnHelper = createAppColumnHelper<WebsiteTableRow>()
+const websiteColumns = computed(() =>
+  websiteColumnHelper.columns([
+    websiteColumnHelper.accessor('paidAt', { header: websiteColumnLabels.value.paidAt, size: 120, minSize: 100 }),
+    websiteColumnHelper.accessor('amount', { header: websiteColumnLabels.value.amount, enableSorting: false, size: 110, minSize: 100 }),
+    websiteColumnHelper.accessor('contractorFio', { header: websiteColumnLabels.value.contractorFio, size: 200, minSize: 160 }),
+    websiteColumnHelper.accessor('purpose', { header: websiteColumnLabels.value.purpose, enableSorting: false, size: 280, minSize: 180 }),
+    websiteColumnHelper.accessor('contractNumber', { header: websiteColumnLabels.value.contractNumber, size: 140, minSize: 110 }),
+    websiteColumnHelper.accessor('status', { header: websiteColumnLabels.value.status, size: 170, minSize: 140 }),
+  ]),
+)
+const websiteFetchPage = createClientFetchPage<WebsiteTableRow>(() => websiteTableRows.value, {
+  searchText: (row) => `${row.contractorFio} ${row.purpose} ${row.contractNumber}`,
+  sortValue: (row, sortBy) => (row as unknown as Record<string, string | number>)[sortBy] ?? '',
+  filterValue: (row, field) => (field === 'status' ? row.status : ''),
+})
+const websiteFetchFacetValues = createClientFacetValues<WebsiteTableRow>(
+  () => websiteTableRows.value,
+  (row, field) => (field === 'status' ? row.status : ''),
+  (_field, value) => WEBSITE_STATUS_LABELS[value as WebsitePaymentRow['accounting1cSyncStatus']] ?? value,
+)
+
+const websiteTableRef = ref<{ refresh: () => void | Promise<void> } | null>(null)
+const retryingWebsiteId = ref<number | null>(null)
+async function retryWebsitePayment(row: WebsiteTableRow) {
+  retryingWebsiteId.value = row.id
+  try {
+    await syncPaymentToAccounting1c(row.id)
+    await loadWebsitePayments()
+    await websiteTableRef.value?.refresh()
+  } finally {
+    retryingWebsiteId.value = null
+  }
+}
+
+// --- Массовый повтор отправки (чекбоксы) — для тех, кто ещё не отправился/упал, по
+// прямой просьбе 2026-09-03. Без диалога — в отличие от одобрения, тут нечего уточнять,
+// просто дёргаем тот же ручной ретрай на каждой отмеченной строке. ---
+const selectedWebsiteRows = ref<WebsiteTableRow[]>([])
+const isBulkRetrying = ref(false)
+const bulkRetryTargets = computed(() => selectedWebsiteRows.value.filter((r) => r.status !== 'SYNCED'))
+
+async function submitBulkRetry() {
+  isBulkRetrying.value = true
+  try {
+    for (const row of bulkRetryTargets.value) {
+      await syncPaymentToAccounting1c(row.id)
+    }
+    selectedWebsiteRows.value = []
+    await loadWebsitePayments()
+    await websiteTableRef.value?.refresh()
+  } finally {
+    isBulkRetrying.value = false
   }
 }
 </script>
@@ -352,30 +370,67 @@ async function submitReject() {
       <h1 class="text-lg font-medium">{{ t('paymentImports.title') }}</h1>
     </div>
     <p class="text-sm text-muted-foreground">{{ t('paymentImports.description') }}</p>
-    <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
 
-    <EntityTable
-      ref="tableRef"
-      v-model:selected="selectedRows"
-      :columns="columns"
-      :column-labels="columnLabels"
-      :filterable-fields="filterableFields"
-      :default-sort="{ id: 'paidAt', desc: true }"
-      :fetch-page="fetchPage"
-      :fetch-facet-values="fetchFacetValues"
-      :get-row-id="(r: UnifiedRow) => r.rowId"
-      :total-label="t('paymentImports.title')"
-      :cell-text="cellText"
-      :row-action="{ icon: MoreHorizontal, label: t('paymentImports.approve'), onClick: handleRowAction }"
-      selectable
-      accent-icons
-    >
-      <template #actions>
-        <Button v-if="selectedImportRows.length > 0" size="sm" @click="openBulkApprove">
-          {{ t('paymentImports.bulkApprove', { count: selectedImportRows.length }) }}
-        </Button>
-      </template>
-    </EntityTable>
+    <Tabs default-value="import" class="flex min-h-0 flex-1 flex-col">
+      <TabsList class="w-fit self-start">
+        <TabsTrigger value="import">{{ t('paymentImports.tabImport') }}</TabsTrigger>
+        <TabsTrigger value="website">{{ t('paymentImports.tabWebsite') }}</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="import" class="flex min-h-0 flex-1 flex-col">
+        <EntityTable
+          ref="importTableRef"
+          v-model:selected="selectedImportRows"
+          :columns="importColumns"
+          :column-labels="importColumnLabels"
+          :filterable-fields="importFilterableFields"
+          :default-sort="{ id: 'paidAt', desc: true }"
+          :default-filters="{ status: ['IMPORTED', 'NEEDS_REVIEW'] }"
+          :fetch-page="fetchPaymentImportsPage"
+          :fetch-facet-values="fetchPaymentImportsFacets"
+          :get-row-id="(r: PaymentImportRow) => String(r.id)"
+          :total-label="t('paymentImports.tabImport')"
+          :cell-text="importCellText"
+          :cell-renderers="{ status: PaymentImportStatusPillCell }"
+          :row-action="{ icon: ClipboardList, label: t('paymentImports.approve'), onClick: openReview }"
+          selectable
+          accent-icons
+        >
+          <template #actions>
+            <Button v-if="selectedImportRows.length > 0" size="sm" @click="openBulkApprove">
+              {{ t('paymentImports.bulkApprove', { count: selectedImportRows.length }) }}
+            </Button>
+          </template>
+        </EntityTable>
+      </TabsContent>
+
+      <TabsContent value="website" class="flex min-h-0 flex-1 flex-col">
+        <p v-if="websiteLoadError" class="text-sm text-red-500">{{ websiteLoadError }}</p>
+        <EntityTable
+          ref="websiteTableRef"
+          v-model:selected="selectedWebsiteRows"
+          :columns="websiteColumns"
+          :column-labels="websiteColumnLabels"
+          :filterable-fields="['status']"
+          :default-sort="{ id: 'paidAt', desc: true }"
+          :fetch-page="websiteFetchPage"
+          :fetch-facet-values="websiteFetchFacetValues"
+          :get-row-id="(r: WebsiteTableRow) => String(r.id)"
+          :total-label="t('paymentImports.tabWebsite')"
+          :cell-text="websiteCellText"
+          :cell-renderers="{ status: WebsitePaymentStatusPillCell }"
+          :row-action="{ icon: RotateCw, label: t('contracts.detail.accounting1cRetry'), onClick: retryWebsitePayment }"
+          selectable
+          accent-icons
+        >
+          <template #actions>
+            <Button v-if="bulkRetryTargets.length > 0" size="sm" :loading="isBulkRetrying" @click="submitBulkRetry">
+              {{ t('paymentImports.bulkRetry', { count: bulkRetryTargets.length }) }}
+            </Button>
+          </template>
+        </EntityTable>
+      </TabsContent>
+    </Tabs>
 
     <!-- Массовое одобрение -->
     <Dialog :open="bulkApproveOpen" @update:open="(open) => (bulkApproveOpen = open)">
@@ -384,8 +439,8 @@ async function submitReject() {
           <DialogTitle>{{ t('paymentImports.bulkApproveDialogTitle') }}</DialogTitle>
         </DialogHeader>
         <ul class="flex max-h-48 flex-col gap-1 overflow-y-auto text-sm">
-          <li v-for="row in bulkApprovable" :key="row.rowId">
-            {{ formatMoney(row.amount) }} — {{ row.contractorFio }} → {{ row.contractLabel }}
+          <li v-for="row in bulkApprovable" :key="row.id">
+            {{ formatMoney(row.amount) }} — {{ row.contractorFio }} → №{{ row.suggestedContract!.number }}
           </li>
         </ul>
         <p v-if="bulkSkipped > 0" class="text-sm text-muted-foreground">
@@ -448,8 +503,8 @@ async function submitReject() {
             <div class="flex flex-col gap-2">
               <Label>{{ t('paymentImports.contract') }}</Label>
               <!-- Выбранный договор показывается фиксированной "чипой", не редактируемым
-                   текстом — по прямой просьбе 2026-09-03: раньше поле выглядело как
-                   обычная строка, хотя реально принимается только клик по пункту списка. -->
+                   текстом — раньше поле выглядело как обычная строка, хотя реально
+                   принимается только клик по пункту списка. -->
               <div v-if="selectedContract && !isPickingContract" class="flex items-center justify-between gap-2 rounded-md border border-input px-3 py-2 text-sm">
                 <span>№{{ selectedContract.number }} — {{ selectedContract.residentFullName }}</span>
                 <Button variant="ghost" size="sm" @click="changeContract">{{ t('paymentImports.changeContract') }}</Button>
@@ -519,8 +574,10 @@ async function submitReject() {
           <p v-if="reviewError" class="text-sm text-red-500">{{ reviewError }}</p>
         </template>
 
+        <!-- Кнопка "Отклонить" тут — обычная, без красного, красный оставлен только на
+             реальном подтверждении отклонения выше (по прямой просьбе 2026-09-03). -->
         <DialogFooter v-if="reviewDetail && isActionable && !showRejectConfirm">
-          <Button variant="outline" class="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700" @click="showRejectConfirm = true">
+          <Button variant="outline" @click="showRejectConfirm = true">
             <X class="size-4" />
             {{ t('paymentImports.reject') }}
           </Button>

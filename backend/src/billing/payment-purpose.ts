@@ -23,12 +23,15 @@ function sourceLabel(source: PaymentPurposeSource): string {
   }
 }
 
-// "от Иванов И.И." — если плательщик и резидент один и тот же человек; "от Иванов И.И. за
-// Цуйков А.В." — если платит представитель/другой человек за резидента.
-function paymentPayerDescription(residentFullName: string, payerFullName: string): string {
+// "от Иванов И.И. оплата общежития" — если плательщик и резидент один и тот же человек;
+// "от Иванов И.И. за Цуйков А.В. оплата общежития" — если платит представитель/другой
+// человек за резидента. "пени" вместо "оплата общежития" — если период (см. вызов ниже)
+// оказался ровно "пеню" (платёж только пени, без единого начисления, см. buildPeriodLabel).
+function paymentPayerDescription(residentFullName: string, payerFullName: string, isPenaltyOnly: boolean): string {
   const residentShort = surnameWithInitials(residentFullName);
-  if (payerFullName === residentFullName) return `от ${residentShort}`;
-  return `от ${surnameWithInitials(payerFullName)} за ${residentShort}`;
+  const subject = isPenaltyOnly ? 'пени' : 'оплата общежития';
+  if (payerFullName === residentFullName) return `от ${residentShort} ${subject}`;
+  return `от ${surnameWithInitials(payerFullName)} за ${residentShort} ${subject}`;
 }
 
 export interface PaymentPurposeInput {
@@ -44,7 +47,7 @@ export interface PaymentPurposeInput {
 
 export function buildPaymentPurpose(input: PaymentPurposeInput): string {
   const from = sourceLabel(input.source);
-  const description = paymentPayerDescription(input.residentFullName, input.payerFullName ?? input.residentFullName);
   const period = buildPeriodLabel(input.periodStarts, input.includePenalty);
+  const description = paymentPayerDescription(input.residentFullName, input.payerFullName ?? input.residentFullName, period === 'пеню');
   return [from, description, period].filter(Boolean).join(' | ');
 }
