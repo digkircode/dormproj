@@ -31,15 +31,16 @@ services:
       ROSNOU_ID_REDIRECT_URI: ${ROSNOU_ID_REDIRECT_URI}
       FRONTEND_URL: ${FRONTEND_URL}
       SESSION_SECRET: ${SESSION_SECRET}
-      # 1С Бухгалтерия (см. accounting-1c/) — до этой правки (2026-09-04) отсутствовали
-      # здесь вообще, значит isConfigured()/isFetchConfigured() всегда были false в
-      # контейнере на проде, независимо от того, что стояло в .env на сервере — флоу 1/2
-      # физически не могли работать, даже когда реквизиты уже были заполнены.
-      ACCOUNTING_1C_LOGIN: ${ACCOUNTING_1C_LOGIN}
-      ACCOUNTING_1C_PASSWORD: ${ACCOUNTING_1C_PASSWORD}
-      ACCOUNTING_1C_SEND_PAYMENTS_URL: ${ACCOUNTING_1C_SEND_PAYMENTS_URL}
-      ACCOUNTING_1C_GET_PAYMENTS_URL: ${ACCOUNTING_1C_GET_PAYMENTS_URL}
-      ACCOUNTING_1C_SERVICE_PROVISION_URL: ${ACCOUNTING_1C_SERVICE_PROVISION_URL}
+      # 1С Бухгалтерия (см. accounting-1c/) — НЕ прописывать сюда, пока в .env на сервере
+      # нет реальных значений. ${VAR} для неустановленной переменной подставляется как
+      # ПУСТАЯ СТРОКА, не как отсутствие ключа — а z.string().min(1).optional() пустую
+      # строку не принимает (optional() пропускает только настоящий undefined). Раньше
+      # (2026-09-04) уже пробовали добавить пятёрку ACCOUNTING_1C_* сюда заранее — сразу
+      # уронило прод в краш-луп ("Некорректные переменные окружения"). GPB_ACQUIRING_*/
+      # ATOL_KASSA_* — тот же класс опциональных интеграций — сознательно НЕ перечислены
+      # здесь вообще, это и есть рабочий способ оставить блок незаполненным. Как появятся
+      # реальные логин/пароль/URL — тогда и добавить сюда с реальными значениями разом,
+      # не раньше.
     volumes:
       # Вложения чата (фото/видео) — именованный volume, а не слой контейнера: без
       # него файлы терялись бы при каждом `docker compose up --build` (пересоздаёт
