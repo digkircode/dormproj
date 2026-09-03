@@ -35,6 +35,8 @@
       "newContract": "Новый договор",
       "printSelected": "Распечатать выбранные договоры",
       "printSelectedCount": "Распечатать выбранные ({count})",
+      "printSelectedPdf": "Печать выбранных (предпросмотр PDF)",
+      "printSelectedPdfCount": "Печать выбранных, предпросмотр PDF ({count})",
       "selectContractsHint": "Выберите договоры чекбоксом"
     },
     "detail": {
@@ -42,6 +44,7 @@
       "titleFallback": "Договор",
       "actions": "Действия",
       "printContract": "Печать договора",
+      "downloadContract": "Скачать договор",
       "addPayment": "Внести платёж",
       "terminateContract": "Расторгнуть договор",
       "deleteContract": "Удалить договор",

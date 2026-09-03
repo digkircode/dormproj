@@ -325,3 +325,28 @@ export async function printContractsBatch(ids: number[]): Promise<void> {
   link.remove()
   URL.revokeObjectURL(url)
 }
+
+// Печать через системный диалог (Ctrl+P) — доп. к скачиванию .docx выше, не замена, см.
+// lib/print-pdf.ts. Бэкенд сам конвертирует уже собранный .docx-бланк в PDF (soffice).
+export async function fetchContractDocumentPdf(id: number): Promise<Blob> {
+  const response = await apiFetch(`/contracts/${id}/document/pdf`)
+  if (!response.ok) {
+    throw new Error(i18n.global.t('contracts.errors.documentFailed', { status: response.status }))
+  }
+  return response.blob()
+}
+
+// То же самое пачкой — один слитый PDF на все выбранные договоры (не ZIP, см.
+// contracts.controller.ts#printBatchPdf), чтобы диалог печати открылся сразу на всю пачку.
+export async function fetchContractsBatchPdf(ids: number[]): Promise<Blob> {
+  const response = await apiFetch('/contracts/print-batch/pdf', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  })
+  if (!response.ok) {
+    const body: { message?: string } = await response.json().catch(() => ({}))
+    throw new Error(body.message ?? i18n.global.t('contracts.errors.batchDocumentFailed', { status: response.status }))
+  }
+  return response.blob()
+}

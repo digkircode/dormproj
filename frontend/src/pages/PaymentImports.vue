@@ -81,8 +81,8 @@ const importColumns = computed(() =>
     importColumnHelper.accessor('paidAt', { header: importColumnLabels.value.paidAt, size: 120, minSize: 100 }),
     importColumnHelper.accessor('amount', { header: importColumnLabels.value.amount, enableSorting: false, size: 110, minSize: 100 }),
     importColumnHelper.accessor('contractorFio', { header: importColumnLabels.value.contractorFio, size: 200, minSize: 160 }),
-    importColumnHelper.accessor('comment', { header: importColumnLabels.value.comment, enableSorting: false, size: 260, minSize: 180 }),
     importColumnHelper.accessor('suggestedContract', { header: importColumnLabels.value.suggestedContract, enableSorting: false, size: 220, minSize: 160 }),
+    importColumnHelper.accessor('comment', { header: importColumnLabels.value.comment, enableSorting: false, size: 260, minSize: 180 }),
     importColumnHelper.accessor('status', { header: importColumnLabels.value.status, size: 170, minSize: 140 }),
   ]),
 )
@@ -309,8 +309,8 @@ const websiteColumns = computed(() =>
     websiteColumnHelper.accessor('paidAt', { header: websiteColumnLabels.value.paidAt, size: 120, minSize: 100 }),
     websiteColumnHelper.accessor('amount', { header: websiteColumnLabels.value.amount, enableSorting: false, size: 110, minSize: 100 }),
     websiteColumnHelper.accessor('contractorFio', { header: websiteColumnLabels.value.contractorFio, size: 200, minSize: 160 }),
+    websiteColumnHelper.accessor('contractNumber', { header: websiteColumnLabels.value.contractNumber, enableSorting: false, size: 140, minSize: 110 }),
     websiteColumnHelper.accessor('purpose', { header: websiteColumnLabels.value.purpose, enableSorting: false, size: 280, minSize: 180 }),
-    websiteColumnHelper.accessor('contractNumber', { header: websiteColumnLabels.value.contractNumber, size: 140, minSize: 110 }),
     websiteColumnHelper.accessor('status', { header: websiteColumnLabels.value.status, size: 170, minSize: 140 }),
   ]),
 )
@@ -372,13 +372,17 @@ async function submitBulkRetry() {
 
     <Tabs default-value="import" class="flex min-h-0 flex-1 flex-col">
       <TabsList class="w-fit self-start">
-        <TabsTrigger value="import" class="gap-1.5">
-          <Landmark class="size-4" />
-          {{ t('paymentImports.tabImport') }}
+        <TabsTrigger value="import">
+          <span class="flex items-center gap-1.5">
+            <Landmark class="size-4" />
+            {{ t('paymentImports.tabImport') }}
+          </span>
         </TabsTrigger>
-        <TabsTrigger value="website" class="gap-1.5">
-          <Globe class="size-4" />
-          {{ t('paymentImports.tabWebsite') }}
+        <TabsTrigger value="website">
+          <span class="flex items-center gap-1.5">
+            <Globe class="size-4" />
+            {{ t('paymentImports.tabWebsite') }}
+          </span>
         </TabsTrigger>
       </TabsList>
 

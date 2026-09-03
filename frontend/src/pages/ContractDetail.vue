@@ -12,6 +12,7 @@ import {
   CalendarRange,
   ChevronRight,
   DoorOpen,
+  Download,
   Droplet,
   History,
   MoreVertical,
@@ -41,6 +42,7 @@ import {
   terminateContract,
   deleteContract,
   downloadContractDocument,
+  fetchContractDocumentPdf,
   type AccrualRow,
   type ContractDetail,
   type PaymentMethod,
@@ -52,6 +54,7 @@ import { fetchDormitoryInfo, type DormitoryInfo } from '@/lib/dormitory-info-api
 import { blockNonNumericKeys, goBack } from '@/lib/utils'
 import { breadcrumbOverride } from '@/lib/breadcrumb-state'
 import { dateLocaleTag } from '@/lib/format-locale'
+import { printPdfBlob } from '@/lib/print-pdf'
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
@@ -243,6 +246,23 @@ async function downloadDocument() {
   }
 }
 
+// Печать через системный диалог (Ctrl+P) — доп. к скачиванию .docx выше, не замена, см.
+// lib/print-pdf.ts.
+const isPrintingPdf = ref(false)
+async function printDocumentPdf() {
+  if (!contract.value) return
+  isPrintingPdf.value = true
+  downloadError.value = ''
+  try {
+    const blob = await fetchContractDocumentPdf(contract.value.id)
+    await printPdfBlob(blob)
+  } catch (error) {
+    downloadError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isPrintingPdf.value = false
+  }
+}
+
 // --- Внесение платежа ---
 const isPaymentOpen = ref(false)
 const paymentAmount = ref<number | undefined>(undefined)
@@ -349,9 +369,13 @@ async function retrySyncToAccounting1c(payment: PaymentRow) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem :disabled="isDownloading" @click="downloadDocument">
+          <DropdownMenuItem :disabled="isPrintingPdf" @click="printDocumentPdf">
             <Printer class="text-primary" />
             {{ t('contracts.detail.printContract') }}
+          </DropdownMenuItem>
+          <DropdownMenuItem :disabled="isDownloading" @click="downloadDocument">
+            <Download class="text-primary" />
+            {{ t('contracts.detail.downloadContract') }}
           </DropdownMenuItem>
           <DropdownMenuItem @click="openPayment">
             <Plus class="text-primary" />

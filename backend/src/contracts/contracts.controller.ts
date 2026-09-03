@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import archiver from 'archiver';
+import { PDFDocument } from 'pdf-lib';
 import { z } from 'zod';
 import { Prisma } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
@@ -32,6 +33,7 @@ import { isMinorAt } from './minor';
 import { buildResidentSnapshot, fillManualFallbacks, type ResidentSnapshot } from './resident-snapshot';
 import { renderContractDocument } from './contract-document';
 import { buildDocumentData } from './contract-document-data';
+import { convertDocxToPdf } from './docx-to-pdf';
 import { CONTRACT_STATUS_LABELS } from './contract-display-status';
 import { ContractStatus } from '../../generated/prisma/client.js';
 import { zodErrorMessage } from '../i18n/zod-error-message';
@@ -725,6 +727,24 @@ export class ContractsController {
     res.send(buffer);
   }
 
+  // То же самое, но PDF вместо .docx, отдаётся как inline (не attachment) — фронт грузит
+  // его в скрытый iframe и сам вызывает window.print() на этом iframe, получая системный
+  // диалог печати с живым предпросмотром, как будто пользователь сам нажал Ctrl+P (см.
+  // lib/print-pdf.ts). Отдельная кнопка ДОПОЛНИТЕЛЬНО к .docx выше, не замена — .docx
+  // остаётся основным способом получить редактируемый файл.
+  @Get(':id/document/pdf')
+  async documentPdf(@Param('id') idParam: string, @Res() res: Response) {
+    const id = parseIdParam(idParam);
+    const { buffer, number } = await this.renderContractDocumentBuffer(id);
+    const pdfBuffer = await convertDocxToPdf(buffer);
+
+    const asciiFallback = `contract-${number}.pdf`.replace(/[^\x20-\x7E]/g, '_');
+    const utf8Name = encodeURIComponent(`Договор № ${number}.pdf`);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${asciiFallback}"; filename*=UTF-8''${utf8Name}`);
+    res.send(pdfBuffer);
+  }
+
   // Массовая печать — выбранные на фронте (только текущая страница списка, см.
   // Contracts.vue) договоры пачкой, каждый как отдельный .docx (тот же бланк, что и при
   // печати по одному) внутри одного ZIP. Осознанно не единый .docx на все договоры —
@@ -764,5 +784,35 @@ export class ContractsController {
     }
 
     await archive.finalize();
+  }
+
+  // То же самое, но один слитый PDF на всю пачку вместо ZIP с отдельными .docx — фронт
+  // открывает единый диалог печати сразу на все выбранные договоры (см. print-pdf.ts).
+  // Лимит ниже (не 200, как у print-batch) — каждый договор тут ещё и конвертируется
+  // через soffice, а конвертации идут строго последовательно, одна за одной (см.
+  // docx-to-pdf.ts) — большая пачка держала бы очередь минутами и блокировала бы печать
+  // одиночных договоров другими сотрудниками в это же время.
+  @Post('print-batch/pdf')
+  async printBatchPdf(@Body() body: unknown, @Res() res: Response) {
+    const { ids } = z.object({ ids: z.array(z.number().int().positive()).min(1).max(50) }).parse(body);
+
+    const existingCount = await this.prisma.contract.count({ where: { id: { in: ids } } });
+    if (existingCount !== ids.length) {
+      throw new NotFoundException('contracts.errors.contractsNotFound');
+    }
+
+    const merged = await PDFDocument.create();
+    for (const id of ids) {
+      const { buffer } = await this.renderContractDocumentBuffer(id);
+      const pdfBuffer = await convertDocxToPdf(buffer);
+      const doc = await PDFDocument.load(pdfBuffer);
+      const pages = await merged.copyPages(doc, doc.getPageIndices());
+      for (const page of pages) merged.addPage(page);
+    }
+    const mergedBytes = await merged.save();
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="contracts.pdf"');
+    res.send(Buffer.from(mergedBytes));
   }
 }

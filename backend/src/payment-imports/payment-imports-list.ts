@@ -99,8 +99,19 @@ function facetLabel(field: FilterableField, value: string): string {
   return I18nContext.current()?.t(`paymentImports.status.${value}`) ?? STATUS_LABELS_RU[value] ?? value;
 }
 
+// Все возможные значения статуса, а не только те, что distinct-запрос находит в текущих
+// данных — иначе, пока в таблице нет ни одной записи в конкретном статусе (например все
+// IMPORTED уже разобраны в NEEDS_REVIEW/MATCHED), этот вариант просто не появлялся бы в
+// списке фильтра — а defaultFilters на фронте (`{ status: ['IMPORTED', 'NEEDS_REVIEW'] }`)
+// всё равно ссылается на него, и чип фильтра падал на сырой enum вместо перевода
+// (facetLabel() в EntityTable.vue ищет по value в этом списке, не находит — берёт как есть).
+const STATUS_FIELD_VALUES: readonly string[] = ['IMPORTED', 'NEEDS_REVIEW', 'MATCHED'];
+
 export async function paymentImportsFacetValues(prisma: PrismaService, field: string) {
   if (!isFilterableField(field)) return [];
+  if (field === 'status') {
+    return STATUS_FIELD_VALUES.map((value) => ({ value, label: facetLabel(field, value) }));
+  }
   const rows = await prisma.paymentImportRecord.findMany({
     select: { [field]: true },
     distinct: [field as unknown as Prisma.PaymentImportRecordScalarFieldEnum],

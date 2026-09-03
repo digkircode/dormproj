@@ -1,8 +1,8 @@
 {
   "paymentImports": {
     "title": "Платежи",
-    "tabImport": "Из бухгалтерии",
-    "tabWebsite": "С сайта",
+    "tabImport": "1С Бухгалтерия",
+    "tabWebsite": "Эквайринг",
     "colDate": "Дата",
     "colAmount": "Сумма",
     "colPayer": "ФИО",

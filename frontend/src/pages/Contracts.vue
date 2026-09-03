@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, ExternalLink, Plus, Printer } from 'lucide-vue-next'
+import { ArrowLeft, ExternalLink, Eye, Plus, Printer } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -12,7 +12,8 @@ import RoomCell from '@/components/RoomCell.vue'
 import CreateContractDialog from '@/components/CreateContractDialog.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import { goBack } from '@/lib/utils'
-import { fetchContractsPage, fetchContractFacets, printContractsBatch, type ContractListItem } from '@/lib/contracts-api'
+import { fetchContractsPage, fetchContractFacets, printContractsBatch, fetchContractsBatchPdf, type ContractListItem } from '@/lib/contracts-api'
+import { printPdfBlob } from '@/lib/print-pdf'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -34,6 +35,24 @@ async function onPrintSelected() {
     printError.value = error instanceof Error ? error.message : String(error)
   } finally {
     isPrinting.value = false
+  }
+}
+
+// Печать через системный диалог (Ctrl+P) — доп. к печати ZIP-пачкой выше, не замена, см.
+// lib/print-pdf.ts. Один слитый PDF на все выбранные договоры (backend#printBatchPdf) —
+// лимит 50 договоров за раз (см. комментарий там же), а не 200, как у ZIP-варианта.
+const isPrintingPdf = ref(false)
+async function onPrintSelectedPdf() {
+  if (!selectedContracts.value.length) return
+  printError.value = ''
+  isPrintingPdf.value = true
+  try {
+    const blob = await fetchContractsBatchPdf(selectedContracts.value.map((c) => c.id))
+    await printPdfBlob(blob)
+  } catch (error) {
+    printError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isPrintingPdf.value = false
   }
 }
 
@@ -137,6 +156,23 @@ const createDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(nu
           </TooltipTrigger>
           <TooltipContent>
             {{ selectedContracts.length ? t('contracts.list.printSelectedCount', { count: selectedContracts.length }) : t('contracts.list.selectContractsHint') }}
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              size="icon"
+              variant="outline"
+              :disabled="!selectedContracts.length"
+              :loading="isPrintingPdf"
+              @click="onPrintSelectedPdf"
+            >
+              <Eye :class="{ 'text-primary': selectedContracts.length }" />
+              <span class="sr-only">{{ t('contracts.list.printSelectedPdf') }}</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {{ selectedContracts.length ? t('contracts.list.printSelectedPdfCount', { count: selectedContracts.length }) : t('contracts.list.selectContractsHint') }}
           </TooltipContent>
         </Tooltip>
         <Separator orientation="vertical" class="h-6" />

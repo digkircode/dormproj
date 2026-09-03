@@ -1,8 +1,8 @@
 {
   "paymentImports": {
     "title": "Payments",
-    "tabImport": "From accounting",
-    "tabWebsite": "From the site",
+    "tabImport": "1C Accounting",
+    "tabWebsite": "Acquiring",
     "colDate": "Date",
     "colAmount": "Amount",
     "colPayer": "Name",

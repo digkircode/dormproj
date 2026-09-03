@@ -35,6 +35,8 @@
       "newContract": "New contract",
       "printSelected": "Print selected contracts",
       "printSelectedCount": "Print selected ({count})",
+      "printSelectedPdf": "Print selected (PDF preview)",
+      "printSelectedPdfCount": "Print selected, PDF preview ({count})",
       "selectContractsHint": "Select contracts with the checkbox"
     },
     "detail": {
@@ -42,6 +44,7 @@
       "titleFallback": "Contract",
       "actions": "Actions",
       "printContract": "Print contract",
+      "downloadContract": "Download contract",
       "addPayment": "Add payment",
       "terminateContract": "Terminate contract",
       "deleteContract": "Delete contract",
