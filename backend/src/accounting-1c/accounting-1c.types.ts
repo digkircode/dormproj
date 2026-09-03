@@ -1,7 +1,7 @@
-// Абстракция над обменом с 1С Бухгалтерией: флоу 1 (отправка платежей эквайринга) и флоу 2
-// (получение платежей, пришедших мимо сайта — касса/перевод/по реквизитам, см. промпт
-// проекта). Единственная реализация — accounting-1c-payments.provider.ts. Флоу 3 (документ
-// "оказание услуг") сюда не входит — отдельный, ещё не реализованный поток.
+// Абстракция над обменом с 1С Бухгалтерией: флоу 1 (отправка платежей эквайринга), флоу 2
+// (получение платежей, пришедших мимо сайта — касса/перевод/по реквизитам) и флоу 3
+// (ежемесячный документ "оказание услуг", см. промпт проекта). Единственная реализация —
+// accounting-1c-payments.provider.ts.
 
 export interface AccountingSummDetail {
   SummDetails: number; // рубли
@@ -30,9 +30,11 @@ export interface AccountingPaymentPush {
 
   ContractorFIO: string;
   ContractName: string; // номер договора (Contract.number)
-  ContractDate: string; // ДД.ММ.ГГГГ
+  // "YYYY-MM-DDT00:00:00" (formatDateOnlyIso), НЕ "ДД.ММ.ГГГГ" — подтверждено реальным
+  // примером запроса, см. комментарий у formatDateOnlyIso в build-accounting-payment-payload.ts.
+  ContractDate: string;
 
-  Date: string; // дата платежа, ДД.ММ.ГГГГ
+  Date: string; // дата платежа, тот же формат, что ContractDate выше
   DocumentSumm: number; // итоговая сумма платежа целиком
   DocumentSummNaim: number; // сумма по найму отдельно (дублирует соответствующую строку DocumentSummDetails)
 
@@ -59,17 +61,66 @@ export class Accounting1cNotConfiguredError extends Error {
   }
 }
 
-// Сырое тело одного элемента ответа эндпоинта 2 — точная форма НЕ подтверждена (нет
-// присланного примера ответа, в отличие от эндпоинта 1, см. payment-imports/
-// payment-import-candidate.ts, где это разбирается максимально защитно, с расчётом на
-// то, что реальные имена полей могут отличаться от предположенных).
+// Сырое тело одного элемента ответа эндпоинта 2 (AllPaymentDoc) — форма подтверждена
+// реальным примером 2026-09-04, разбор всё равно защитный (несколько вариантов имени на
+// поле), см. payment-imports/payment-import-candidate.ts.
 export type AccountingRawImportedPayment = Record<string, unknown>;
+
+// Пара, которой опознаётся договор на стороне 1С — тот же принцип, что и в запросе
+// AllPaymentDoc (реальный пример 2026-09-04): в отличие от эндпоинта 1 (push), это НЕ
+// "дай всё новое", а "дай платежи ИМЕННО по этим парам" — 1С не отдаёт общую ленту.
+// Значит опросить можно только договоры, у которых обе стороны пары УЖЕ известны нам
+// самим (см. payment-imports-ingest.service.ts — откуда берутся пары).
+export interface AccountingContractPair {
+  contractorUid: string;
+  contractUid: string;
+}
+
+// Одна строка сводного документа "оказание услуг" (флоу 3, эндпоинт ServProvisionDoc,
+// реальный пример 2026-09-04) — в отличие от AccountingSummDetail (флоу 1, там строка =
+// тип услуги ВНУТРИ платежа одного человека), тут строка = один договор ВНУТРИ сводного
+// документа на весь дом сразу.
+export interface AccountingServiceProvisionDetail {
+  ContractorUID: string;
+  ContractUID: string;
+  SummDetails: number; // рубли
+}
+
+export interface AccountingServiceProvisionPush {
+  // Наш собственный числовой id — 1С его не резолвит, только эхом возвращает обратно
+  // для сопоставления с ответом (см. AccountingServiceProvisionPushResult). В отличие от
+  // DogovorID/OplataID (флоу 1, реальный PK), тут естественного числового PK нет (одна
+  // строка — не одна сущность в нашей БД, а сводный документ на много договоров сразу) —
+  // берём ServiceProvisionDocument.id (см. service-provision-doc.service.ts).
+  SiteDocumentID: number;
+
+  Date: string; // "YYYY-MM-DDT00:00:00" (formatDateOnlyIso) — 1-е число целевого месяца
+  NomenclatureType: 'Найм' | 'Коммуналка';
+  DocumentSumm: number; // сумма всех DocumentSummDetails
+  Comment: string;
+
+  DocumentSummDetails: AccountingServiceProvisionDetail[];
+
+  // Заполняем при повторной отправке того же документа (см. промпт проекта — "DocumentUID
+  // в запросе обновит документ, а не создаст новый"), чтобы не плодить дубли в 1С при
+  // ручном повторе после сбоя. При первой отправке не передаём вообще.
+  DocumentUID?: string;
+}
+
+export interface AccountingServiceProvisionPushResult {
+  SiteDocumentID: number;
+  FinalStatus: boolean;
+  DocumentUID?: string;
+  ERROR?: string;
+}
 
 export interface Accounting1cProvider {
   isConfigured(): boolean;
   pushPayments(items: AccountingPaymentPush[]): Promise<AccountingPaymentPushResult[]>;
   isFetchConfigured(): boolean;
-  fetchPayments(): Promise<AccountingRawImportedPayment[]>;
+  fetchPayments(pairs: AccountingContractPair[]): Promise<AccountingRawImportedPayment[]>;
+  isServiceProvisionConfigured(): boolean;
+  pushServiceProvisionDocs(items: AccountingServiceProvisionPush[]): Promise<AccountingServiceProvisionPushResult[]>;
 }
 
 export const ACCOUNTING_1C_PROVIDER = Symbol('ACCOUNTING_1C_PROVIDER');

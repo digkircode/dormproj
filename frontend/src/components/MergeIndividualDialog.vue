@@ -111,7 +111,11 @@ function formatDate(iso: string | null): string {
 
 <template>
   <Dialog :open="isOpen" @update:open="(open) => (isOpen = open)">
-    <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
+    <!-- min-h — без кандидатов (частый случай) диалог короткий, и выпадающий список
+         SearchSelect (до 256px, см. SearchSelect.vue) при открытии перекрывал футер с
+         кнопками — снизу просто не было места. Явный минимум держит зазор всегда,
+         независимо от того, сколько подсказок пришло. -->
+    <DialogScrollContent :class="['flex min-h-[420px] flex-col gap-4', DIALOG_ANIMATE_CLASS]">
       <DialogHeader>
         <DialogTitle>{{ t('individuals.merge.title') }}</DialogTitle>
         <DialogDescription>{{ t('individuals.merge.description') }}</DialogDescription>
@@ -139,7 +143,10 @@ function formatDate(iso: string | null): string {
         </button>
       </div>
 
-      <div class="flex flex-col gap-2">
+      <!-- flex-1 — растягивает этот блок на всё оставшееся место внутри min-h контейнера
+           (особенно заметно без кандидатов, см. комментарий у DialogScrollContent выше),
+           отодвигая футер вниз, а не оставляя его впритык под полем поиска. -->
+      <div class="flex flex-1 flex-col gap-2">
         <Label>{{ candidates.length > 0 ? t('individuals.merge.searchOtherLabel') : t('individuals.merge.searchLabel') }}</Label>
         <SearchSelect
           v-model="searchQuery"

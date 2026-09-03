@@ -307,6 +307,23 @@ onUnmounted(() => {
         </button>
       </div>
 
+      <!-- Обратная сторона баннера выше — без неё с карточки цели физически некуда перейти
+           на слитую запись (та скрыта из общего списка/поиска), чтобы отменить слияние. -->
+      <div v-if="detail.mergedFrom.length > 0" class="flex flex-col gap-1.5 rounded-md border px-4 py-3 text-sm">
+        <span class="flex items-center gap-2 font-medium text-muted-foreground">
+          <Combine class="size-4 shrink-0 text-primary" />
+          {{ t('individuals.merge.mergedFromLabel') }}
+        </span>
+        <RouterLink
+          v-for="m in detail.mergedFrom"
+          :key="m.fizicheskoyeLitsoUid"
+          :to="`/individuals/${m.fizicheskoyeLitsoUid}`"
+          class="w-fit text-primary underline underline-offset-2"
+        >
+          {{ m.fullName }}
+        </RouterLink>
+      </div>
+
       <!-- Card по умолчанию не flex-контейнер (см. заметки проекта) — здесь несколько
            дочерних блоков подряд, поэтому flex flex-col обязателен, иначе gap/divide
            между ними ничего не делает. Один Card с внутренним разделителем на 3 части

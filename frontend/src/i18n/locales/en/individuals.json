@@ -93,6 +93,7 @@
       "mergedBanner": "This individual has been merged into another record — the data has been moved, work with it instead:",
       "mergedBannerLink": "Open the current record",
       "undoButton": "Undo merge",
+      "mergedFromLabel": "Merged into this record:",
       "hintBanner": "Found {count} similar synced individual(s) — this might be a duplicate.",
       "hintBannerAction": "Check"
     },

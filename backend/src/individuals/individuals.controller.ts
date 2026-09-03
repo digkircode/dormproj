@@ -495,6 +495,10 @@ export class IndividualsController {
           citizenships: { orderBy: { period: 'desc' }, take: 1 },
           passports: true,
           contactInfos: true,
+          // Обратная сторона слияния (см. merge()/unmerge() ниже) — без этого списка с
+          // карточки цели физически некуда перейти на слитую запись, чтобы отменить
+          // слияние: сама она скрыта из общего списка/поиска.
+          mergedFrom: { select: { fizicheskoyeLitsoUid: true, fullName: true, mergedAt: true } },
         },
       }),
       this.prisma.student.findMany({

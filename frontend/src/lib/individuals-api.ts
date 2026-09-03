@@ -86,11 +86,20 @@ export interface IndividualStudent {
 // все документы, отсортированы так, что первый в списке и есть актуальный. contactInfos —
 // по одной (самой актуальной) записи на каждый встретившийся Type, см. pickLatestContactInfo
 // на бэкенде. students — все зачётные книжки физлица (может быть несколько за разные периоды).
+export interface IndividualMergedFrom {
+  fizicheskoyeLitsoUid: string
+  fullName: string
+  mergedAt: string | null
+}
+
 export interface IndividualDetail extends Individual {
   citizenships: IndividualCitizenship[]
   passports: IndividualPassport[]
   contactInfos: IndividualContactInfo[]
   students: IndividualStudent[]
+  // Обратная сторона слияния — записи, слитые В эту (см. mergedIntoUid выше). Без этого
+  // списка с карточки цели некуда перейти на слитую запись, чтобы отменить слияние.
+  mergedFrom: IndividualMergedFrom[]
 }
 
 export type IndividualsPage = ListPage<Individual>

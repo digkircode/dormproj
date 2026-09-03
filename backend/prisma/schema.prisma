@@ -807,6 +807,46 @@ model Payment {
   @@map("payments")
 }
 
+enum ServiceProvisionType {
+  RENT
+  UTILITIES
+}
+
+// Флоу 3 — "оказание услуг", ежемесячный крон (billing/service-provision-doc.scheduler.ts)
+// в начале месяца собирает ДВА документа за только что закончившийся месяц (Найм +
+// Коммуналка отдельно, см. ServiceProvisionType) по всем договорам, у которых есть
+// неотменённое начисление за этот месяц (не по Contract.status — см. подробный комментарий
+// в service-provision-doc.service.ts#collectContractLines, статус договора для этого
+// намеренно не смотрим), независимо от того, оплачены начисления или нет. Отправляет
+// пачкой в 1С Бухгалтерию (эндпоинт ServProvisionDoc). Одна строка = один документ на
+// один месяц на один тип, не одна строка на договор — детализация по договорам живёт
+// внутри rawPayload (DocumentSummDetails), здесь только сводка + статус отправки для сотрудника.
+// accounting1cDocumentUid запоминается, чтобы при ручном повторе после сбоя ОБНОВИТЬ уже
+// созданный в 1С документ, а не наплодить дублей (см. промпт проекта — "DocumentUID в
+// запросе обновит документ, а не создаст новый").
+model ServiceProvisionDocument {
+  id            Int                  @id @default(autoincrement())
+  periodStart   DateTime             @map("period_start")
+  type          ServiceProvisionType
+  documentSumm  Decimal              @db.Decimal(12, 2) @map("document_summ")
+  contractCount Int                  @map("contract_count")
+
+  accounting1cSyncStatus  Accounting1cSyncStatus @default(NOT_SYNCED) @map("accounting_1c_sync_status")
+  accounting1cDocumentUid String?                @map("accounting_1c_document_uid")
+  accounting1cSyncError   String?                @map("accounting_1c_sync_error")
+  accounting1cSyncedAt    DateTime?              @map("accounting_1c_synced_at")
+
+  // Собранный payload на момент последней попытки отправки (не пересчитывается на
+  // чтении) — что реально ушло в 1С, доступно сотруднику без похода в логи контейнера.
+  rawPayload Json @map("raw_payload")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([periodStart, type])
+  @@map("service_provision_documents")
+}
+
 // Разнесение платежа по начислениям — таблица многие-ко-многим: один платёж может
 // закрыть несколько начислений (квартальная/годовая оплата разом), одно начисление может
 // закрываться несколькими платежами (частичная оплата). Долг — не отдельное поле, а

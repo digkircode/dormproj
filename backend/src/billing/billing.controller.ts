@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, NotFoundException, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { Prisma } from '../../generated/prisma/client.js';
@@ -12,6 +12,7 @@ import { allocatePaymentFifo } from './payment-allocation';
 import { serializePayment } from '../contracts/serializers';
 import { zodErrorMessage } from '../i18n/zod-error-message';
 import { Accounting1cPushService } from './accounting-1c-push.service';
+import { ServiceProvisionDocService } from './service-provision-doc.service';
 
 const createPaymentSchema = z.object({
   amount: z.number().finite().positive(),
@@ -38,6 +39,7 @@ export class BillingController {
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
     private readonly accounting1cPush: Accounting1cPushService,
+    private readonly serviceProvisionDoc: ServiceProvisionDocService,
   ) {}
 
   // Ручной платёж (сотрудник вносит) — сразу разносится по неоплаченным начислениям
@@ -161,5 +163,23 @@ export class BillingController {
     });
 
     return serializePayment(updated);
+  }
+
+  // Флоу 3 — видимость сотруднику: что реально отправилось за какой месяц и с каким
+  // статусом (без похода в БД/логи контейнера). Без пагинации — по два документа на
+  // месяц (Найм/Коммуналка), даже за несколько лет это небольшой список.
+  @Get('service-provision-documents')
+  async listServiceProvisionDocuments() {
+    const rows = await this.prisma.serviceProvisionDocument.findMany({ orderBy: [{ periodStart: 'desc' }, { type: 'asc' }], take: 100 });
+    return rows;
+  }
+
+  // Ручной повтор — тот же месяц (только что закончившийся), что и у ночного крона,
+  // на случай, если тот упал по сети/1С была недоступна и ждать следующего месяца не
+  // вариант. Идемпотентно — уже сохранённый accounting1cDocumentUid уйдёт в запросе,
+  // 1С обновит существующий документ, а не создаст дубль (см. промпт проекта).
+  @Post('service-provision-documents/run')
+  async runServiceProvisionDocuments() {
+    return this.serviceProvisionDoc.run();
   }
 }

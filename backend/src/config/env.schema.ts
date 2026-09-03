@@ -46,6 +46,8 @@ export const envSchema = z.object({
   ACCOUNTING_1C_SEND_PAYMENTS_URL: z.url().optional(),
   // Флоу 2 — получение платежей, пришедших мимо сайта (касса/перевод/по реквизитам).
   ACCOUNTING_1C_GET_PAYMENTS_URL: z.url().optional(),
+  // Флоу 3 — ежемесячный документ "оказание услуг" (Найм/Коммуналка).
+  ACCOUNTING_1C_SERVICE_PROVISION_URL: z.url().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

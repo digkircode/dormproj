@@ -7,7 +7,9 @@ const { Decimal } = Prisma;
 // "YYYY-MM-DDT00:00:00" — по образцу присланному 1С-разработчиком (ContractDate/Date в
 // примере запроса были в ISO, без времени и без "Z" на конце), не "ДД.ММ.ГГГГ", как у
 // АТОЛ/Эвотор (fiscal/atol-fiscal.provider.ts) — разные внешние API, не путать формат.
-function formatDateOnlyIso(date: Date): string {
+// Экспортирован — тот же формат подтверждён и у ServProvisionDoc (флоу 3, реальный пример
+// 2026-09-04, см. service-provision-doc.service.ts), не только у флоу 1.
+export function formatDateOnlyIso(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}T00:00:00`;
 }
