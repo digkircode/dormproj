@@ -92,8 +92,8 @@ export async function listPaymentImports(prisma: PrismaService, query: PaymentIm
 
 const STATUS_LABELS_RU: Record<string, string> = {
   IMPORTED: 'Новый',
-  MATCHED: 'Одобрен',
-  NEEDS_REVIEW: 'На разбор',
+  MATCHED: 'Подтверждён',
+  NEEDS_REVIEW: 'Ожидает подтверждения',
   REJECTED: 'Отклонён',
 };
 function facetLabel(field: FilterableField, value: string): string {

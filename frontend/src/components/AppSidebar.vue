@@ -142,6 +142,11 @@ const navMain = computed(() => [
     icon: DoorOpen,
   },
   {
+    title: t('nav.paymentImports'),
+    url: '/payment-imports',
+    icon: Landmark,
+  },
+  {
     title: t('nav.reports'),
     icon: BarChart3,
     items: [
@@ -151,11 +156,6 @@ const navMain = computed(() => [
       { title: t('nav.reportsDebt'), url: '/reports/debt' },
       { title: t('nav.reportsMoveInOut'), url: '/reports/move-in-out' },
     ],
-  },
-  {
-    title: t('nav.paymentImports'),
-    url: '/payment-imports',
-    icon: Landmark,
   },
 ])
 

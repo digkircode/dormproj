@@ -130,10 +130,14 @@ export class BillingController {
   // Ручной повтор отправки в 1С Бухгалтерию (флоу 1) — та же логика, что и ночной крон
   // (accounting-1c-push.scheduler.ts), но на один конкретный платёж, для случая, когда
   // сотрудник не хочет ждать следующего ночного прогона после ошибки/правки на стороне 1С.
+  // Пишем в историю изменений — это явное действие сотрудника, не фоновый крон.
   @Post('payments/:paymentId/sync-to-1c')
-  async syncPaymentToAccounting1c(@Param('paymentId') paymentIdParam: string) {
+  async syncPaymentToAccounting1c(@Param('paymentId') paymentIdParam: string, @Req() req: Request) {
     const paymentId = parseIdParam(paymentIdParam);
-    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId } });
+    if (!req.user) {
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
+    }
+    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId }, include: { contract: { select: { number: true } } } });
     if (!payment) {
       throw new NotFoundException('billing.errors.paymentNotFound');
     }
@@ -143,6 +147,19 @@ export class BillingController {
 
     await this.accounting1cPush.pushPayments([paymentId]);
     const updated = await this.prisma.payment.findUniqueOrThrow({ where: { id: paymentId } });
+
+    const userId = await ensureUserRecord(this.prisma, req.user);
+    await this.auditLog.log(this.prisma, {
+      userId,
+      action: 'UPDATE',
+      entityType: 'Payment',
+      entityId: updated.id,
+      entityLabel: `Отправка в 1С — платёж по договору №${payment.contract.number}`,
+      before: payment,
+      after: updated,
+      fields: ['accounting1cSyncStatus', 'accounting1cDocumentUid', 'accounting1cSyncError'],
+    });
+
     return serializePayment(updated);
   }
 }

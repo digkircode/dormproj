@@ -7,8 +7,8 @@
   },
   "status": {
     "IMPORTED": "Новый",
-    "MATCHED": "Одобрен",
-    "NEEDS_REVIEW": "На разбор",
+    "MATCHED": "Подтверждён",
+    "NEEDS_REVIEW": "Ожидает подтверждения",
     "REJECTED": "Отклонён"
   }
 }

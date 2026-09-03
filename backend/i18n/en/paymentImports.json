@@ -7,8 +7,8 @@
   },
   "status": {
     "IMPORTED": "New",
-    "MATCHED": "Approved",
-    "NEEDS_REVIEW": "Needs review",
+    "MATCHED": "Confirmed",
+    "NEEDS_REVIEW": "Awaiting confirmation",
     "REJECTED": "Rejected"
   }
 }

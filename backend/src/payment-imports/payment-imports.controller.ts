@@ -13,6 +13,7 @@ import { serializePayment } from '../contracts/serializers';
 import { zodErrorMessage } from '../i18n/zod-error-message';
 import { listPaymentImports, paymentImportsFacetValues } from './payment-imports-list';
 import { parsePaymentImportCandidate } from './payment-import-candidate';
+import { buildPaymentPurpose } from '../billing/payment-purpose';
 
 const approveSchema = z.object({
   contractId: z.number().int().positive(),
@@ -62,6 +63,43 @@ export class PaymentImportsController {
   @Get('facets/:field')
   async facets(@Param('field') field: string) {
     return paymentImportsFacetValues(this.prisma, field);
+  }
+
+  // Флоу 1, для того же обзорного экрана (см. промпт проекта — по прямой просьбе
+  // 2026-09-03 страница показывает не только очередь на одобрение из 1С, но и наши
+  // WEBSITE-платежи с их статусом отправки в 1С, единым списком). Без пагинации —
+  // объём пока небольшой, фронт мёржит клиентски вместе с payment-imports (см.
+  // client-list.ts) и сам режет на страницы.
+  @Get('website-payments')
+  async websitePayments() {
+    const payments = await this.prisma.payment.findMany({
+      where: { source: 'WEBSITE' },
+      orderBy: { paidAt: 'desc' },
+      take: 200,
+      include: {
+        contract: { select: { id: true, number: true, resident: { select: { fullName: true } } } },
+        paymentIntent: { select: { payerFullName: true } },
+        allocations: { include: { accrual: { select: { periodStart: true } } } },
+      },
+    });
+    return payments.map((payment) => ({
+      id: payment.id,
+      paidAt: payment.paidAt,
+      amount: Number(payment.amount),
+      contractorFio: payment.contract.resident.fullName,
+      contract: { id: payment.contract.id, number: payment.contract.number },
+      purpose: buildPaymentPurpose({
+        source: 'WEBSITE',
+        residentFullName: payment.contract.resident.fullName,
+        payerFullName: payment.paymentIntent?.payerFullName,
+        periodStarts: payment.allocations.map((a) => a.accrual.periodStart),
+        includePenalty: payment.penaltyAmount.greaterThan(0),
+      }),
+      accounting1cSyncStatus: payment.accounting1cSyncStatus,
+      accounting1cDocumentUid: payment.accounting1cDocumentUid,
+      accounting1cSyncError: payment.accounting1cSyncError,
+      accounting1cSyncedAt: payment.accounting1cSyncedAt,
+    }));
   }
 
   @Get(':id')

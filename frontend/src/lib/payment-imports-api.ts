@@ -50,6 +50,33 @@ export function fetchPaymentImportsFacets(field: string): Promise<FacetOption[]>
   return fetchListFacets('/payment-imports', field)
 }
 
+export type Accounting1cSyncStatus = 'NOT_SYNCED' | 'SYNCED' | 'FAILED'
+
+// Флоу 1 — наши WEBSITE-платежи (эквайринг) со статусом отправки в 1С. Показываются на
+// том же экране, что и очередь одобрения из 1С (флоу 2) — по прямой просьбе 2026-09-03,
+// один общий обзор вместо двух разрозненных мест. Без пагинации на бэке — см.
+// payment-imports.controller.ts#websitePayments.
+export interface WebsitePaymentRow {
+  id: number
+  paidAt: string
+  amount: number
+  contractorFio: string
+  contract: { id: number; number: string }
+  purpose: string
+  accounting1cSyncStatus: Accounting1cSyncStatus
+  accounting1cDocumentUid: string | null
+  accounting1cSyncError: string | null
+  accounting1cSyncedAt: string | null
+}
+
+export async function fetchWebsitePayments(): Promise<WebsitePaymentRow[]> {
+  const response = await apiFetch('/payment-imports/website-payments')
+  if (!response.ok) {
+    throw new Error(i18n.global.t('paymentImports.errors.fetchListFailed', { status: response.status }))
+  }
+  return response.json()
+}
+
 export async function fetchPaymentImportDetail(id: number): Promise<PaymentImportDetail> {
   const response = await apiFetch(`/payment-imports/${id}`)
   if (!response.ok) {
