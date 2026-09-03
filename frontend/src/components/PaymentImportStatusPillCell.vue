@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, Clock, X } from 'lucide-vue-next'
+import { Check, Clock } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import type { PaymentImportRow } from '@/lib/payment-imports-api'
 
@@ -13,14 +13,12 @@ const STATUS_ICON = {
   IMPORTED: Clock,
   NEEDS_REVIEW: Clock,
   MATCHED: Check,
-  REJECTED: X,
 } as const satisfies Record<PaymentImportRow['status'], unknown>
 
 const STATUS_ICON_CLASS: Record<PaymentImportRow['status'], string> = {
   IMPORTED: 'text-orange-500',
   NEEDS_REVIEW: 'text-orange-500',
   MATCHED: 'text-emerald-500',
-  REJECTED: 'text-muted-foreground',
 }
 </script>
 

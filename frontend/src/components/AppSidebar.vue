@@ -14,7 +14,7 @@ import {
   Info,
   MessageCircle,
   FileSignature,
-  Landmark,
+  Banknote,
 } from 'lucide-vue-next'
 import NavStudent from '@/components/NavStudent.vue'
 import NavMain from '@/components/NavMain.vue'
@@ -144,7 +144,7 @@ const navMain = computed(() => [
   {
     title: t('nav.paymentImports'),
     url: '/payment-imports',
-    icon: Landmark,
+    icon: Banknote,
   },
   {
     title: t('nav.reports'),

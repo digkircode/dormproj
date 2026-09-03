@@ -2,13 +2,12 @@
   "errors": {
     "invalidId": "Invalid id",
     "notFound": "Record not found",
-    "alreadyReviewed": "This record has already been reviewed (approved or rejected)",
-    "amountRequired": "Could not determine the payment amount — please enter it manually"
+    "alreadyReviewed": "This record has already been confirmed",
+    "amountRequired": "Could not determine the payment amount from 1C"
   },
   "status": {
     "IMPORTED": "New",
     "MATCHED": "Confirmed",
-    "NEEDS_REVIEW": "Awaiting confirmation",
-    "REJECTED": "Rejected"
+    "NEEDS_REVIEW": "Awaiting confirmation"
   }
 }

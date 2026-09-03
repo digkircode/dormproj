@@ -304,20 +304,28 @@ function toggleAllRows(checked: boolean) {
   selected.value = checked ? [...rows.value] : []
 }
 
+// Общий кусок "догрузить варианты для поля, если их ещё нет" — раньше жил только
+// внутри openFilterField (см. ниже), из-за чего чип фильтра, применённого через
+// defaultFilters (до первого клика по нему), показывал сырое значение поля
+// ("IMPORTED"/"NEEDS_REVIEW" и т.п.) вместо человекочитаемого лейбла — facetLabel()
+// ниже подставляет значение как есть, если facetOptions[field] ещё не заполнен.
+async function ensureFacetOptions(field: string) {
+  if (facetOptions.value[field]) return
+  try {
+    const options = await props.fetchFacetValues(field)
+    facetOptions.value = { ...facetOptions.value, [field]: options }
+  } catch (error) {
+    errorText.value = error instanceof Error ? error.message : String(error)
+  }
+}
+
 // Клик по полю в "Добавить фильтр" (новое поле) или по уже существующему чипу
 // (донастроить) — в обоих случаях открывает модалку с черновиком выбора,
 // ничего не меняя в применённых фильтрах, пока не подтвердят.
 async function openFilterField(field: string) {
   filterModalField.value = field
   filterModalDraft.value = [...(filterValues.value[field] ?? [])]
-  if (!facetOptions.value[field]) {
-    try {
-      const options = await props.fetchFacetValues(field)
-      facetOptions.value = { ...facetOptions.value, [field]: options }
-    } catch (error) {
-      errorText.value = error instanceof Error ? error.message : String(error)
-    }
-  }
+  await ensureFacetOptions(field)
   filterModalSearch.value = ''
   isFilterModalOpen.value = true
 }
@@ -387,7 +395,10 @@ onBeforeUnmount(() => {
 // которые меняют несколько ref'ов разом (например смена фильтра сбрасывает ещё
 // и pageIndex), бьют дублирующимися запросами вместо одного.
 watch([pagination, sorting, search, filterValues], loadPage, { deep: true })
-onMounted(loadPage)
+onMounted(() => {
+  loadPage()
+  for (const field of activeFilterFields.value) ensureFacetOptions(field)
+})
 
 // Только видимость колонок и сортировка — страница/поиск/фильтры каждый раз с чистого
 // листа, иначе можно неожиданно "приземлиться" на середине списка при следующем визите.

@@ -13,19 +13,16 @@ import { serializePayment } from '../contracts/serializers';
 import { zodErrorMessage } from '../i18n/zod-error-message';
 import { listPaymentImports, paymentImportsFacetValues } from './payment-imports-list';
 import { parsePaymentImportCandidate } from './payment-import-candidate';
+import { findCandidateContracts } from './suggest-contract-match';
 import { buildPaymentPurpose } from '../billing/payment-purpose';
 
+// Сумма и дата платежа — только из 1С, сотрудник их не правит (по прямой просьбе
+// 2026-09-03 — если в 1С заполнено неверно, поправят там, у нас перезапишется при
+// следующем импорте). Выбирается только договор (см. findCandidateContracts — у
+// контрагента может быть несколько) и способ поступления.
 const approveSchema = z.object({
   contractId: z.number().int().positive(),
   method: z.enum(['CASH', 'CARD_ACQUIRING', 'BANK_TRANSFER', 'MAT_CAPITAL', 'WEBSITE']),
-  // Переопределения — на случай, если сотрудник поправил сумму/дату при разборе
-  // (человеческий фактор — 1С могла прислать не ту сумму/дату, см. промпт проекта).
-  amount: z.number().finite().positive().optional(),
-  paidAt: z.coerce.date().optional(),
-});
-
-const rejectSchema = z.object({
-  reason: z.string().trim().min(1).nullish(),
 });
 
 function parseIdParam(idParam: string): number {
@@ -94,6 +91,7 @@ export class PaymentImportsController {
         payerFullName: payment.paymentIntent?.payerFullName,
         periodStarts: payment.allocations.map((a) => a.accrual.periodStart),
         includePenalty: payment.penaltyAmount.greaterThan(0),
+        fallbackPeriodDate: payment.paidAt,
       }),
       accounting1cSyncStatus: payment.accounting1cSyncStatus,
       accounting1cDocumentUid: payment.accounting1cDocumentUid,
@@ -116,6 +114,7 @@ export class PaymentImportsController {
       throw new NotFoundException('paymentImports.errors.notFound');
     }
     const candidate = parsePaymentImportCandidate(record.rawPayload as Record<string, unknown>);
+    const candidateContracts = await findCandidateContracts(this.prisma, candidate);
     return {
       id: record.id,
       status: record.status,
@@ -127,6 +126,9 @@ export class PaymentImportsController {
         ? { id: record.suggestedContract.id, number: record.suggestedContract.number, residentFullName: record.suggestedContract.resident.fullName }
         : null,
       matchedContract: record.matchedContract,
+      // Все договоры опознанного контрагента — если их больше одного, фронт рисует
+      // выпадающий список вместо одной "чипы" (см. suggest-contract-match.ts).
+      candidateContracts,
     };
   }
 
@@ -149,7 +151,7 @@ export class PaymentImportsController {
     if (!record) {
       throw new NotFoundException('paymentImports.errors.notFound');
     }
-    if (record.status === 'MATCHED' || record.status === 'REJECTED') {
+    if (record.status === 'MATCHED') {
       throw new BadRequestException('paymentImports.errors.alreadyReviewed');
     }
 
@@ -159,11 +161,11 @@ export class PaymentImportsController {
     }
 
     const candidate = parsePaymentImportCandidate(record.rawPayload as Record<string, unknown>);
-    const amount = new Prisma.Decimal(parsed.data.amount ?? candidate.amount ?? 0);
+    const amount = new Prisma.Decimal(candidate.amount ?? 0);
     if (amount.lessThanOrEqualTo(0)) {
       throw new BadRequestException('paymentImports.errors.amountRequired');
     }
-    const paidAt = parsed.data.paidAt ?? candidate.paidAt ?? record.importedAt;
+    const paidAt = candidate.paidAt ?? record.importedAt;
 
     const result = await this.prisma.$transaction(async (tx) => {
       const userId = await ensureUserRecord(tx, req.user!);
@@ -207,48 +209,5 @@ export class PaymentImportsController {
     });
 
     return { record: result.updated, payment: serializePayment(result.payment) };
-  }
-
-  @Post(':id/reject')
-  async reject(@Param('id') idParam: string, @Body() body: unknown, @Req() req: Request) {
-    const id = parseIdParam(idParam);
-    const parsed = rejectSchema.safeParse(body);
-    if (!parsed.success) {
-      throw new BadRequestException(zodErrorMessage(parsed.error));
-    }
-    if (!req.user) {
-      throw new BadRequestException('contracts.errors.sessionUserNotFound');
-    }
-
-    const record = await this.prisma.paymentImportRecord.findUnique({ where: { id } });
-    if (!record) {
-      throw new NotFoundException('paymentImports.errors.notFound');
-    }
-    if (record.status === 'MATCHED' || record.status === 'REJECTED') {
-      throw new BadRequestException('paymentImports.errors.alreadyReviewed');
-    }
-
-    return this.prisma.$transaction(async (tx) => {
-      const userId = await ensureUserRecord(tx, req.user!);
-      const updated = await tx.paymentImportRecord.update({
-        where: { id },
-        data: { status: 'REJECTED', reviewedByUserId: userId, reviewedAt: new Date() },
-      });
-
-      // Причина отклонения — в историю изменений, отдельного поля под неё в
-      // PaymentImportRecord нет (не захотели раздувать схему ради свободного текста).
-      await this.auditLog.log(tx, {
-        userId,
-        action: 'UPDATE',
-        entityType: 'PaymentImportRecord',
-        entityId: record.id,
-        entityLabel: `Платёж из 1С №${record.externalId} — отклонён`,
-        before: record,
-        after: { ...updated, reason: parsed.data.reason ?? null },
-        fields: ['status'],
-      });
-
-      return updated;
-    });
   }
 }

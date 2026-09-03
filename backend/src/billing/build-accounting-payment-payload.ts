@@ -68,6 +68,7 @@ export function buildAccountingPaymentPush(payment: PaymentForPush): AccountingP
     payerFullName: payment.paymentIntent?.payerFullName,
     periodStarts: payment.allocations.map((a) => a.accrual.periodStart),
     includePenalty: payment.penaltyAmount.greaterThan(0),
+    fallbackPeriodDate: payment.paidAt,
   });
 
   return {

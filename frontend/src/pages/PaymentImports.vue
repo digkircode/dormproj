@@ -2,22 +2,19 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Check, ClipboardList, RotateCw, X } from 'lucide-vue-next'
+import { ArrowLeft, Check, ClipboardList, Globe, Landmark, RotateCw } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import EntityTable from '@/components/EntityTable.vue'
 import SearchSelect from '@/components/SearchSelect.vue'
-import DatePickerField from '@/components/DatePickerField.vue'
 import PaymentImportStatusPillCell from '@/components/PaymentImportStatusPillCell.vue'
 import WebsitePaymentStatusPillCell from '@/components/WebsitePaymentStatusPillCell.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import { createClientFetchPage, createClientFacetValues } from '@/lib/client-list'
-import { goBack } from '@/lib/utils'
+import { goBack, cn } from '@/lib/utils'
 import { dateLocaleTag } from '@/lib/format-locale'
 import {
   fetchPaymentImportsPage,
@@ -25,9 +22,9 @@ import {
   fetchPaymentImportDetail,
   fetchWebsitePayments,
   approvePaymentImport,
-  rejectPaymentImport,
   type PaymentImportRow,
   type PaymentImportDetail,
+  type PaymentImportCandidateContract,
   type WebsitePaymentRow,
 } from '@/lib/payment-imports-api'
 import { syncPaymentToAccounting1c } from '@/lib/billing-api'
@@ -55,7 +52,6 @@ const IMPORT_STATUS_LABELS: Record<PaymentImportRow['status'], string> = {
   IMPORTED: t('paymentImports.status.IMPORTED'),
   NEEDS_REVIEW: t('paymentImports.status.NEEDS_REVIEW'),
   MATCHED: t('paymentImports.status.MATCHED'),
-  REJECTED: t('paymentImports.status.REJECTED'),
 }
 const ACTIONABLE_IMPORT_STATUSES = new Set<PaymentImportRow['status']>(['IMPORTED', 'NEEDS_REVIEW']);
 
@@ -127,24 +123,32 @@ async function submitBulkApprove() {
   }
 }
 
-// --- Разбор одной записи (approve/reject) ---
+// --- Разбор одной записи (approve) ---
+// "Отклонить" убрано целиком (по прямой просьбе 2026-09-03) — при неверных данных
+// сотрудник правит их в 1С, у нас перезапишется при следующем импорте, отдельного
+// "отказа" в жизненном цикле записи больше нет.
 const reviewOpen = ref(false)
 const reviewDetail = ref<PaymentImportDetail | null>(null)
 const reviewLoading = ref(false)
 const reviewError = ref('')
+// Подсветка конкретного невалидного поля — ошибка показывается у кнопок (внизу
+// диалога), а не вперемешку с содержимым, поле дополнительно обводится красным.
+const contractInvalid = ref(false)
 
+// Больше одного договора у контрагента — выбор через Select (простой список среди
+// ЕГО договоров), иначе — одна "чипа" с уже предложенным (или строка поиска по всей
+// базе, если ни ФИО, ни UID не опознаны вообще).
 const isPickingContract = ref(false)
 const selectedContract = ref<ContractListItem | null>(null)
 const contractQuery = ref('')
 const contractOptions = ref<ContractListItem[]>([])
 const contractSearchLoading = ref(false)
 const paymentMethod = ref<PaymentMethod>('CASH')
-const overrideAmount = ref<number | undefined>(undefined)
-const overridePaidAt = ref('')
 const isApproving = ref(false)
-const isRejecting = ref(false)
-const rejectReason = ref('')
-const showRejectConfirm = ref(false)
+
+function candidateToListItem(c: PaymentImportCandidateContract, residentFullName: string | null): ContractListItem {
+  return { id: c.id, number: c.number, contractDate: c.contractDate, residentFullName: residentFullName ?? '' } as ContractListItem
+}
 
 async function searchContracts(query: string) {
   contractQuery.value = query
@@ -164,31 +168,42 @@ function pickContract(c: ContractListItem) {
   selectedContract.value = c
   contractQuery.value = `№${c.number} — ${c.residentFullName}`
   isPickingContract.value = false
+  contractInvalid.value = false
 }
 function changeContract() {
   isPickingContract.value = true
   contractQuery.value = ''
   contractOptions.value = []
 }
+function selectCandidateContract(contractId: string) {
+  const candidate = reviewDetail.value?.candidateContracts.find((c) => String(c.id) === contractId)
+  if (!candidate) return
+  selectedContract.value = candidateToListItem(candidate, reviewDetail.value?.candidate.contractorFio ?? null)
+  contractInvalid.value = false
+}
 
 async function openReview(row: PaymentImportRow) {
   reviewOpen.value = true
   reviewLoading.value = true
   reviewError.value = ''
+  contractInvalid.value = false
   reviewDetail.value = null
   selectedContract.value = null
   isPickingContract.value = false
   contractQuery.value = ''
   contractOptions.value = []
   paymentMethod.value = 'CASH'
-  overrideAmount.value = undefined
-  overridePaidAt.value = ''
-  rejectReason.value = ''
-  showRejectConfirm.value = false
   try {
     const detail = await fetchPaymentImportDetail(row.id)
     reviewDetail.value = detail
-    if (detail.suggestedContract) {
+    if (detail.candidateContracts.length > 1) {
+      // Несколько договоров у контрагента — по умолчанию ничего не выбираем сами,
+      // сотрудник обязан явно выбрать нужный из своего же списка.
+      if (detail.suggestedContract) {
+        const match = detail.candidateContracts.find((c) => c.id === detail.suggestedContract!.id)
+        if (match) selectedContract.value = candidateToListItem(match, detail.candidate.contractorFio)
+      }
+    } else if (detail.suggestedContract) {
       selectedContract.value = {
         id: detail.suggestedContract.id,
         number: detail.suggestedContract.number,
@@ -209,17 +224,17 @@ const isActionable = computed(() => reviewDetail.value?.status === 'IMPORTED' ||
 async function submitApprove() {
   if (!reviewDetail.value) return
   if (!selectedContract.value) {
+    contractInvalid.value = true
     reviewError.value = t('paymentImports.errors.contractRequired')
     return
   }
+  contractInvalid.value = false
   isApproving.value = true
   reviewError.value = ''
   try {
     await approvePaymentImport(reviewDetail.value.id, {
       contractId: selectedContract.value.id,
       method: paymentMethod.value,
-      amount: overrideAmount.value,
-      paidAt: overridePaidAt.value || undefined,
     })
     reviewOpen.value = false
     await importTableRef.value?.refresh()
@@ -227,21 +242,6 @@ async function submitApprove() {
     reviewError.value = error instanceof Error ? error.message : String(error)
   } finally {
     isApproving.value = false
-  }
-}
-
-async function submitReject() {
-  if (!reviewDetail.value) return
-  isRejecting.value = true
-  reviewError.value = ''
-  try {
-    await rejectPaymentImport(reviewDetail.value.id, rejectReason.value)
-    reviewOpen.value = false
-    await importTableRef.value?.refresh()
-  } catch (error) {
-    reviewError.value = error instanceof Error ? error.message : String(error)
-  } finally {
-    isRejecting.value = false
   }
 }
 
@@ -369,12 +369,17 @@ async function submitBulkRetry() {
       </Button>
       <h1 class="text-lg font-medium">{{ t('paymentImports.title') }}</h1>
     </div>
-    <p class="text-sm text-muted-foreground">{{ t('paymentImports.description') }}</p>
 
     <Tabs default-value="import" class="flex min-h-0 flex-1 flex-col">
       <TabsList class="w-fit self-start">
-        <TabsTrigger value="import">{{ t('paymentImports.tabImport') }}</TabsTrigger>
-        <TabsTrigger value="website">{{ t('paymentImports.tabWebsite') }}</TabsTrigger>
+        <TabsTrigger value="import" class="gap-1.5">
+          <Landmark class="size-4" />
+          {{ t('paymentImports.tabImport') }}
+        </TabsTrigger>
+        <TabsTrigger value="website" class="gap-1.5">
+          <Globe class="size-4" />
+          {{ t('paymentImports.tabWebsite') }}
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="import" class="flex min-h-0 flex-1 flex-col">
@@ -502,10 +507,30 @@ async function submitBulkRetry() {
           <template v-if="isActionable">
             <div class="flex flex-col gap-2">
               <Label>{{ t('paymentImports.contract') }}</Label>
-              <!-- Выбранный договор показывается фиксированной "чипой", не редактируемым
-                   текстом — раньше поле выглядело как обычная строка, хотя реально
-                   принимается только клик по пункту списка. -->
-              <div v-if="selectedContract && !isPickingContract" class="flex items-center justify-between gap-2 rounded-md border border-input px-3 py-2 text-sm">
+
+              <!-- Несколько договоров у контрагента — простой Select среди ЕГО списка,
+                   без свободного поиска по всей базе (по прямой просьбе 2026-09-03). -->
+              <Select
+                v-if="reviewDetail.candidateContracts.length > 1"
+                :model-value="selectedContract ? String(selectedContract.id) : undefined"
+                @update:model-value="(v) => selectCandidateContract(v as string)"
+              >
+                <SelectTrigger :class="cn(contractInvalid && 'border-red-500 focus-visible:ring-red-500/20')">
+                  <SelectValue :placeholder="t('paymentImports.selectContract')" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem v-for="c in reviewDetail.candidateContracts" :key="c.id" :value="String(c.id)">
+                    №{{ c.number }} — {{ formatDate(c.contractDate) }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+
+              <!-- Один известный договор — фиксированная "чипа", не редактируемым
+                   текстом (реально принимается только клик по пункту списка ниже). -->
+              <div
+                v-else-if="selectedContract && !isPickingContract"
+                :class="cn('flex items-center justify-between gap-2 rounded-md border border-input px-3 py-2 text-sm', contractInvalid && 'border-red-500')"
+              >
                 <span>№{{ selectedContract.number }} — {{ selectedContract.residentFullName }}</span>
                 <Button variant="ghost" size="sm" @click="changeContract">{{ t('paymentImports.changeContract') }}</Button>
               </div>
@@ -516,6 +541,7 @@ async function submitBulkRetry() {
                 :item-key="(c: ContractListItem) => c.id"
                 :item-label="(c: ContractListItem) => `№${c.number} — ${c.residentFullName}`"
                 :placeholder="t('paymentImports.selectContract')"
+                :invalid="contractInvalid"
                 :loading="contractSearchLoading"
                 @search="searchContracts"
                 @select="pickContract"
@@ -535,34 +561,6 @@ async function submitBulkRetry() {
                 </SelectContent>
               </Select>
             </div>
-
-            <!-- Переопределения — по умолчанию скрыты за плейсхолдером значения из 1С,
-                 заполняются только если сотрудник считает исходные данные неверными
-                 (человеческий фактор — см. промпт проекта). -->
-            <div class="grid grid-cols-2 gap-3">
-              <div class="flex flex-col gap-2">
-                <Label class="text-xs text-muted-foreground">{{ t('paymentImports.amount') }}</Label>
-                <Input v-model.number="overrideAmount" type="number" :placeholder="String(reviewDetail.candidate.amount ?? '')" />
-              </div>
-              <div class="flex flex-col gap-2">
-                <Label class="text-xs text-muted-foreground">{{ t('paymentImports.date') }}</Label>
-                <DatePickerField v-model="overridePaidAt" />
-              </div>
-            </div>
-
-            <template v-if="showRejectConfirm">
-              <div class="flex flex-col gap-2 rounded-md border border-border p-3">
-                <p class="text-sm">{{ t('paymentImports.rejectDialogDescription') }}</p>
-                <Label class="text-xs text-muted-foreground">{{ t('paymentImports.rejectReason') }}</Label>
-                <Textarea v-model="rejectReason" rows="2" />
-                <div class="flex justify-end gap-2">
-                  <Button variant="outline" size="sm" @click="showRejectConfirm = false">{{ t('paymentImports.cancel') }}</Button>
-                  <Button variant="outline" size="sm" class="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700" :loading="isRejecting" @click="submitReject">
-                    {{ t('paymentImports.reject') }}
-                  </Button>
-                </div>
-              </div>
-            </template>
           </template>
           <template v-else>
             <p class="text-sm text-muted-foreground">
@@ -570,21 +568,19 @@ async function submitBulkRetry() {
               <span v-if="reviewDetail.matchedContract">(№{{ reviewDetail.matchedContract.number }})</span>
             </p>
           </template>
-
-          <p v-if="reviewError" class="text-sm text-red-500">{{ reviewError }}</p>
         </template>
 
-        <!-- Кнопка "Отклонить" тут — обычная, без красного, красный оставлен только на
-             реальном подтверждении отклонения выше (по прямой просьбе 2026-09-03). -->
-        <DialogFooter v-if="reviewDetail && isActionable && !showRejectConfirm">
-          <Button variant="outline" @click="showRejectConfirm = true">
-            <X class="size-4" />
-            {{ t('paymentImports.reject') }}
-          </Button>
-          <Button :loading="isApproving" @click="submitApprove">
-            <Check class="size-4" />
-            {{ t('paymentImports.approve') }}
-          </Button>
+        <!-- Ошибка — на уровне кнопок, не вперемешку с содержимым выше; конкретное
+             невалидное поле (например договор) дополнительно подсвечивается сам собой. -->
+        <DialogFooter v-if="reviewDetail && isActionable" class="flex-col items-stretch gap-2 sm:flex-col">
+          <p v-if="reviewError" class="text-sm text-red-500">{{ reviewError }}</p>
+          <div class="flex justify-end gap-2">
+            <Button variant="outline" @click="reviewOpen = false">{{ t('paymentImports.cancel') }}</Button>
+            <Button :loading="isApproving" @click="submitApprove">
+              <Check class="size-4" />
+              {{ t('paymentImports.approve') }}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>

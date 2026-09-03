@@ -3,12 +3,21 @@ import { fetchListPage, fetchListFacets, type ListOptions, type ListPage, type F
 import type { PaymentMethod, PaymentRow } from './contracts-api'
 import { i18n } from '@/i18n'
 
-export type PaymentImportStatus = 'IMPORTED' | 'MATCHED' | 'NEEDS_REVIEW' | 'REJECTED'
+export type PaymentImportStatus = 'IMPORTED' | 'MATCHED' | 'NEEDS_REVIEW'
 
 export interface PaymentImportSuggestedContract {
   id: number
   number: string
   residentFullName: string
+}
+
+// Все договоры опознанного контрагента (не только предложенный) — если их больше
+// одного, показывается выпадающий список вместо одной "чипы" (см. промпт проекта).
+export interface PaymentImportCandidateContract {
+  id: number
+  number: string
+  contractDate: string
+  status: string
 }
 
 export interface PaymentImportRow {
@@ -37,6 +46,7 @@ export interface PaymentImportDetail extends Omit<PaymentImportRow, 'suggestedCo
     comment: string | null
   }
   suggestedContract: PaymentImportSuggestedContract | null
+  candidateContracts: PaymentImportCandidateContract[]
 }
 
 export type PaymentImportsPage = ListPage<PaymentImportRow>
@@ -85,11 +95,10 @@ export async function fetchPaymentImportDetail(id: number): Promise<PaymentImpor
   return response.json()
 }
 
+// Сумма и дата — только из 1С, сотрудник их не правит (по прямой просьбе 2026-09-03).
 export interface ApprovePaymentImportInput {
   contractId: number
   method: PaymentMethod
-  amount?: number
-  paidAt?: string
 }
 
 export async function approvePaymentImport(id: number, input: ApprovePaymentImportInput): Promise<{ record: PaymentImportRow; payment: PaymentRow }> {
@@ -101,19 +110,6 @@ export async function approvePaymentImport(id: number, input: ApprovePaymentImpo
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
     throw new Error(body.message ?? i18n.global.t('paymentImports.errors.approveFailed', { status: response.status }))
-  }
-  return response.json()
-}
-
-export async function rejectPaymentImport(id: number, reason?: string): Promise<PaymentImportRow> {
-  const response = await apiFetch(`/payment-imports/${id}/reject`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reason: reason?.trim() || null }),
-  })
-  if (!response.ok) {
-    const body: { message?: string } = await response.json().catch(() => ({}))
-    throw new Error(body.message ?? i18n.global.t('paymentImports.errors.rejectFailed', { status: response.status }))
   }
   return response.json()
 }

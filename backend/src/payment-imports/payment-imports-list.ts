@@ -94,7 +94,6 @@ const STATUS_LABELS_RU: Record<string, string> = {
   IMPORTED: 'Новый',
   MATCHED: 'Подтверждён',
   NEEDS_REVIEW: 'Ожидает подтверждения',
-  REJECTED: 'Отклонён',
 };
 function facetLabel(field: FilterableField, value: string): string {
   return I18nContext.current()?.t(`paymentImports.status.${value}`) ?? STATUS_LABELS_RU[value] ?? value;

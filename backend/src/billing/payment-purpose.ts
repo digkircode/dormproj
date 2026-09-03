@@ -43,11 +43,18 @@ export interface PaymentPurposeInput {
   payerFullName?: string;
   periodStarts: Date[];
   includePenalty: boolean;
+  // Дата самого платежа — фолбэк на период, когда у платежа нет ни одной реальной
+  // разноски (allocations пуст: ручной демо-платёж, аванс без начисления и т.п.) —
+  // без этого period получался бы пустым и в "Назначении" после второго "|" не было
+  // бы вообще ничего, только буквально "общежитие" (дефолт buildPeriodLabel не под
+  // эту схему), что выглядит как пропущенный период, а не как отсутствие данных.
+  fallbackPeriodDate?: Date;
 }
 
 export function buildPaymentPurpose(input: PaymentPurposeInput): string {
   const from = sourceLabel(input.source);
-  const period = buildPeriodLabel(input.periodStarts, input.includePenalty);
+  const periodStarts = input.periodStarts.length > 0 || !input.fallbackPeriodDate ? input.periodStarts : [input.fallbackPeriodDate];
+  const period = buildPeriodLabel(periodStarts, input.includePenalty);
   const description = paymentPayerDescription(input.residentFullName, input.payerFullName ?? input.residentFullName, period === 'пеню');
   return [from, description, period].filter(Boolean).join(' | ');
 }
