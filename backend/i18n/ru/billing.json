@@ -2,6 +2,7 @@
   "errors": {
     "paymentNotFound": "Платёж не найден",
     "paymentAlreadyReversed": "Платёж уже сторнирован",
-    "paymentNotWebsiteSource": "В 1С Бухгалтерию отправляются только платежи с сайта (эквайринг)"
+    "paymentNotWebsiteSource": "В 1С Бухгалтерию отправляются только платежи с сайта (эквайринг)",
+    "serviceProvisionDocumentNotFound": "Документ не найден"
   }
 }

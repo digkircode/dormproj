@@ -168,13 +168,60 @@ export class BillingController {
   // Флоу 3 — видимость сотруднику: что реально отправилось за какой месяц и с каким
   // статусом (без похода в БД/логи контейнера). Без пагинации — по два документа на
   // месяц (Найм/Коммуналка), даже за несколько лет это небольшой список.
+  //
+  // computeAndSave() дёргается прямо тут, на каждый GET — по прямой просьбе 2026-09-04:
+  // раньше строка появлялась в БД только после реальной отправки в 1С (либо кнопкой, либо
+  // ночным кроном), а сама интеграция ещё не настроена (см. промпт проекта) — страница
+  // оставалась пустой навсегда. Подсчёт суммы по найму/коммуналке не зависит от 1С вообще
+  // (берётся из наших же начислений), поэтому список показывается сразу; кнопка
+  // "Отправить" (runServiceProvisionDocuments ниже) — только про саму отправку.
   @Get('service-provision-documents')
   async listServiceProvisionDocuments() {
+    await this.serviceProvisionDoc.computeAndSave();
     const rows = await this.prisma.serviceProvisionDocument.findMany({ orderBy: [{ periodStart: 'desc' }, { type: 'asc' }], take: 100 });
     // Decimal -> number на выходе API, тот же приём, что и в остальных сериализаторах
     // (contracts/serializers.ts) — тут отдельного serializePayment-аналога нет, эндпоинт
     // всегда отдаёт только 100 последних строк целиком, без пагинации.
     return rows.map((row) => ({ ...row, documentSumm: Number(row.documentSumm) }));
+  }
+
+  // Детализация одного документа — какие именно договоры и на какую сумму попали в
+  // сводную цифру (по прямой просьбе 2026-09-04, "детально показывать какие договора
+  // попали в этот документ"). rawPayload.DocumentSummDetails хранит только UID'ы
+  // (ContractorUID/ContractUID, как их знает 1С) — резолвим обратно к нашим договорам по
+  // Contract.accounting1cUid, чтобы показать номер договора и ФИО резидента, а не голые
+  // GUID. Если конкретный договор с тех пор удалён/потерял accounting1cUid — строка всё
+  // равно показывается, просто без имени (contractNumber/residentFullName: null).
+  @Get('service-provision-documents/:id')
+  async getServiceProvisionDocument(@Param('id') idParam: string) {
+    const id = parseIdParam(idParam);
+    const doc = await this.prisma.serviceProvisionDocument.findUnique({ where: { id } });
+    if (!doc) {
+      throw new NotFoundException('billing.errors.serviceProvisionDocumentNotFound');
+    }
+
+    const raw = doc.rawPayload as { DocumentSummDetails?: { ContractorUID: string; ContractUID: string; SummDetails: number }[] } | null;
+    const details = raw?.DocumentSummDetails ?? [];
+    const contractUids = details.map((d) => d.ContractUID);
+    const contracts = contractUids.length
+      ? await this.prisma.contract.findMany({
+          where: { accounting1cUid: { in: contractUids } },
+          select: { id: true, number: true, accounting1cUid: true, resident: { select: { fullName: true } } },
+        })
+      : [];
+    const contractByUid = new Map(contracts.map((c) => [c.accounting1cUid, c]));
+
+    const lines = details.map((d) => {
+      const contract = contractByUid.get(d.ContractUID);
+      return {
+        contractId: contract?.id ?? null,
+        contractNumber: contract?.number ?? null,
+        residentFullName: contract?.resident.fullName ?? null,
+        amount: d.SummDetails,
+      };
+    });
+
+    return { ...doc, documentSumm: Number(doc.documentSumm), lines };
   }
 
   // Ручной повтор — тот же месяц (только что закончившийся), что и у ночного крона,

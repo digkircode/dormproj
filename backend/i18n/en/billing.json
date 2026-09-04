@@ -2,6 +2,7 @@
   "errors": {
     "paymentNotFound": "Payment not found",
     "paymentAlreadyReversed": "Payment has already been reversed",
-    "paymentNotWebsiteSource": "Only website (acquiring) payments are sent to 1C Accounting"
+    "paymentNotWebsiteSource": "Only website (acquiring) payments are sent to 1C Accounting",
+    "serviceProvisionDocumentNotFound": "Document not found"
   }
 }

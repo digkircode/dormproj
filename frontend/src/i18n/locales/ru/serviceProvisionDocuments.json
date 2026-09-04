@@ -10,12 +10,17 @@
       "RENT": "Найм",
       "UTILITIES": "Коммуналка"
     },
-    "runButton": "Пересобрать за прошлый месяц",
-    "runResult": "Отправлено документов: {pushed}, успешно: {succeeded}, ошибок: {failed}",
-    "runSkipped": "Нечего отправлять — интеграция не настроена или нет данных за прошлый месяц",
+    "runButton": "Отправить в 1С",
+    "viewDetails": "Список договоров",
+    "detailDialogTitle": "{type} — {period}",
+    "colContractNumber": "Договор",
+    "colResident": "Резидент",
+    "unknownContract": "Договор не опознан",
+    "total": "Итого",
     "errors": {
       "fetchListFailed": "Не удалось получить список документов ({status})",
-      "runFailed": "Не удалось пересобрать документы ({status})"
+      "fetchDetailFailed": "Не удалось получить состав документа ({status})",
+      "runFailed": "Не удалось отправить документы ({status})"
     }
   }
 }

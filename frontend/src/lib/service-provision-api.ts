@@ -25,10 +25,32 @@ export interface ServiceProvisionRunResult {
   skipped: boolean
 }
 
+// Одна строка сводного документа — конкретный договор внутри него (см.
+// billing.controller.ts#getServiceProvisionDocument). contractNumber/residentFullName —
+// null, если договор с тех пор потерял привязку к 1С Бухгалтерии (отвязан/удалён) —
+// сумма всё равно показывается, просто без опознания, кому она принадлежит.
+export interface ServiceProvisionDocumentLine {
+  contractId: number | null
+  contractNumber: string | null
+  residentFullName: string | null
+  amount: number
+}
+export interface ServiceProvisionDocumentDetail extends ServiceProvisionDocumentRow {
+  lines: ServiceProvisionDocumentLine[]
+}
+
 export async function fetchServiceProvisionDocuments(): Promise<ServiceProvisionDocumentRow[]> {
   const response = await apiFetch('/service-provision-documents')
   if (!response.ok) {
     throw new Error(i18n.global.t('serviceProvisionDocuments.errors.fetchListFailed', { status: response.status }))
+  }
+  return response.json()
+}
+
+export async function fetchServiceProvisionDocumentDetail(id: number): Promise<ServiceProvisionDocumentDetail> {
+  const response = await apiFetch(`/service-provision-documents/${id}`)
+  if (!response.ok) {
+    throw new Error(i18n.global.t('serviceProvisionDocuments.errors.fetchDetailFailed', { status: response.status }))
   }
   return response.json()
 }
