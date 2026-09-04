@@ -35,6 +35,7 @@ import { renderContractDocument } from './contract-document';
 import { buildDocumentData } from './contract-document-data';
 import { convertDocxToPdf } from './docx-to-pdf';
 import { CONTRACT_STATUS_LABELS } from './contract-display-status';
+import { buildContractHomeSummary } from './contract-home-summary';
 import { ContractStatus } from '../../generated/prisma/client.js';
 import { zodErrorMessage } from '../i18n/zod-error-message';
 
@@ -253,6 +254,18 @@ export class ContractsController {
       page,
       pageSize,
     };
+  }
+
+  // Временный эндпоинт для показа покупателю "Главной" проживающего с реальными данными,
+  // без переключения ролей на демо-аккаунте сотрудника (см. DemoStudentHome.vue) — та же
+  // сводка, что и my-contract.controller.ts#myContractSummary у самого резидента, только
+  // отбор договора по фиксированному номеру уже существующего демо-договора вместо сессии
+  // (STAFF/ADMIN не привязаны к своему Individual/Contract). Удалить вместе с
+  // DemoStudentHome.vue, когда демонстрация больше не нужна.
+  @Get('demo-home-summary')
+  async demoHomeSummary() {
+    const contract = await buildContractHomeSummary(this.prisma, { number: 'VIP27-27/01' });
+    return { contract };
   }
 
   @Get('facets/:field')

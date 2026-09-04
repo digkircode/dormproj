@@ -84,6 +84,9 @@ export interface ContractDetail {
   residentFullName: string
   residentIndividualUid: string
   currentRoom: { id: number; room: string } | null
+  // Известна ли 1С Бухгалтерии пара ContractorUID/ContractUID по этому договору (флоу 1/2/3,
+  // см. промпт проекта) — не null только после первой успешной отправки платежа в 1С.
+  accounting1cUid: string | null
   legalRepName: string | null
   legalRepPhone: string | null
   legalRepGender: string | null
@@ -157,6 +160,40 @@ export async function fetchMyContract(contractId?: number): Promise<MyContractDe
     throw new Error(i18n.global.t('contracts.errors.fetchContractFailed', { status: response.status }))
   }
   const data: { contract: MyContractDetail | null } = await response.json()
+  return data.contract
+}
+
+// Лёгкая сводка для "Главной" резидента (ResidentHomeDashboard.vue, GET /my-contract/summary) —
+// раньше эта страница дёргала fetchMyContract() целиком (все начисления/платежи/пеня-лог/
+// terms), хотя показывает только комнату+этаж, номер договора/дату создания и долг+ближайший
+// платёж. Отдельный тип/эндпоинт с узкой выборкой полей.
+export interface MyContractHomeSummary {
+  number: string
+  createdAt: string
+  currentRoom: { room: string; floor: number | null } | null
+  totalBalance: number
+  nextAccrual: { dueDate: string; balance: number } | null
+}
+
+export async function fetchMyContractHomeSummary(): Promise<MyContractHomeSummary | null> {
+  const response = await apiFetch('/my-contract/summary')
+  if (!response.ok) {
+    throw new Error(i18n.global.t('contracts.errors.fetchContractFailed', { status: response.status }))
+  }
+  const data: { contract: MyContractHomeSummary | null } = await response.json()
+  return data.contract
+}
+
+// Временно, для DemoStudentHome.vue (показ покупателю "Главной" проживающего с реальными
+// данными без переключения ролей на аккаунте сотрудника, см. промпт проекта) — та же форма
+// ответа, что и fetchMyContractHomeSummary выше, но STAFF/ADMIN-эндпоинт с фиксированным
+// demo-договором вместо сессии резидента. Удалить вместе с DemoStudentHome.vue.
+export async function fetchDemoContractHomeSummary(): Promise<MyContractHomeSummary | null> {
+  const response = await apiFetch('/contracts/demo-home-summary')
+  if (!response.ok) {
+    throw new Error(i18n.global.t('contracts.errors.fetchContractFailed', { status: response.status }))
+  }
+  const data: { contract: MyContractHomeSummary | null } = await response.json()
   return data.contract
 }
 

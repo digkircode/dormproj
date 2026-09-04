@@ -16,6 +16,10 @@
       "open": "Open",
       "stubTitle": "Placeholder — once the till is connected, this will link to the receipt from the OFD"
     },
+    "accounting1c": {
+      "linked": "Linked to 1C Accounting",
+      "notLinked": "Not linked to 1C Accounting"
+    },
     "createDialog": {
       "title": "New payment",
       "contractNumber": "Contract No. {number}",

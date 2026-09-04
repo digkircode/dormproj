@@ -34,6 +34,9 @@ export interface Individual {
   mergedAt: string | null
   createdAt: string
   updatedAt: string
+  // Известен ли 1С Бухгалтерии ContractorUID этого человека (флоу 1/2/3, см. промпт
+  // проекта) — не null только после первой успешной отправки платежа в 1С.
+  accounting1cContractorUid: string | null
 }
 
 export interface IndividualCitizenship {

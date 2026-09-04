@@ -4,6 +4,7 @@
     "forbidden": "Access denied",
     "notFound": "Page not found",
     "studentGeneralInfo": "General information",
+    "demoStudentHome": "Demo: Resident home",
     "studentChat": "Chat with staff",
     "studentContract": "Contract/Payments",
     "studentPayment": "Payment",

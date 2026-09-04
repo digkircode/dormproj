@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import ContractStatusPill from '@/components/ContractStatusPill.vue'
+import Accounting1cLinkedBadge from '@/components/Accounting1cLinkedBadge.vue'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Dialog, DialogScrollContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -308,6 +309,7 @@ async function retrySyncToAccounting1c(payment: PaymentRow) {
         {{ contract ? t('contracts.detail.titleWithNumber', { number: contract.number }) : t('contracts.detail.titleFallback') }}
       </h1>
       <ContractStatusPill v-if="contract" :status="contract.status" />
+      <Accounting1cLinkedBadge v-if="contract" :linked="contract.accounting1cUid !== null" />
       <!-- Меню действий — тут же, на уровне номера договора (было отдельной тонкой строкой
            над карточкой, легко теряющейся), с текстовой подписью — заметнее, чем голая
            иконка (по прямой просьбе 2026-08-26). -->

@@ -9,6 +9,7 @@ import { dateOnly } from '../billing/period-utils';
 import { serializeAccrual, serializePayment, serializeTerms } from './serializers';
 import { pickCurrentCharacteristics } from '../rooms/current-characteristics';
 import { buildPaymentPurpose } from '../billing/payment-purpose';
+import { buildContractHomeSummary } from './contract-home-summary';
 
 // Те же имена характеристик, что уже используются в rooms.controller.ts/chat-recipients.ts/
 // reports.controller.ts/public-info.controller.ts — единого справочника имён под это в
@@ -173,5 +174,20 @@ export class MyContractController {
         ),
       },
     };
+  }
+
+  // Лёгкая сводка для "Главной" резидента (ResidentHomeDashboard.vue) — раньше эта страница
+  // дёргала полный myContract() выше (все начисления/платежи/пеня-лог/terms целиком, нужные
+  // "Договору/Платежам"), хотя на самой Главной показываются только комната+этаж, номер
+  // договора/дата создания и общий долг+ближайший платёж. Отдельный эндпоинт с узкой
+  // выборкой полей вместо тяжёлого include, тот же принцип self-only без :id, что и выше.
+  @Get('summary')
+  async myContractSummary(@Req() req: Request) {
+    if (!req.user) {
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
+    }
+    const individualUid = await this.resolveIndividualUid(req.user.id);
+    const contract = await buildContractHomeSummary(this.prisma, { residentIndividualUid: individualUid });
+    return { contract };
   }
 }

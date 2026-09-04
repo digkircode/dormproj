@@ -12,10 +12,14 @@ import EntityTable from '@/components/EntityTable.vue'
 import SearchSelect from '@/components/SearchSelect.vue'
 import PaymentImportStatusPillCell from '@/components/PaymentImportStatusPillCell.vue'
 import WebsitePaymentStatusPillCell from '@/components/WebsitePaymentStatusPillCell.vue'
+import PaymentReceiptCell from '@/components/PaymentReceiptCell.vue'
+import ContractLinkCell from '@/components/ContractLinkCell.vue'
+import ResidentLinkCell from '@/components/ResidentLinkCell.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import { createClientFetchPage, createClientFacetValues } from '@/lib/client-list'
 import { goBack, cn } from '@/lib/utils'
 import { dateLocaleTag } from '@/lib/format-locale'
+import type { ListOptions } from '@/lib/list-api'
 import {
   fetchPaymentImportsPage,
   fetchPaymentImportsFacets,
@@ -59,7 +63,7 @@ const importColumnLabels = computed<Record<string, string>>(() => ({
   amount: t('paymentImports.colAmount'),
   contractorFio: t('paymentImports.colPayer'),
   comment: t('paymentImports.colComment'),
-  suggestedContract: t('paymentImports.colSuggestedContract'),
+  contractNumberDisplay: t('paymentImports.colSuggestedContract'),
   status: t('paymentImports.colStatus'),
 }))
 const importFilterableFields = ['status']
@@ -67,20 +71,41 @@ function importCellText(columnId: string, value: unknown): string {
   if (columnId === 'paidAt' && typeof value === 'string') return formatDate(value)
   if (columnId === 'amount' && typeof value === 'number') return formatMoney(value)
   if (columnId === 'status') return IMPORT_STATUS_LABELS[value as PaymentImportRow['status']] ?? String(value)
-  if (columnId === 'suggestedContract') {
-    const contract = value as PaymentImportRow['suggestedContract']
-    return contract ? `№${contract.number} — ${contract.residentFullName}` : t('paymentImports.noSuggestion')
-  }
+  if (columnId === 'contractNumberDisplay') return (value as string | null) ?? t('paymentImports.noSuggestion')
   return String(value ?? '—')
 }
 
-const importColumnHelper = createAppColumnHelper<PaymentImportRow>()
+// Договор/ФИО — теперь отдельные кликабельные колонки (ContractLinkCell/ResidentLinkCell,
+// та же иконка+ссылка, что и в других таблицах проекта, см. отчёты), по прямой просьбе
+// 2026-09-04, вместо одной совмещённой "№X — ФИО" текстом. Пока запись не одобрена и
+// известен только suggestedContract (не matchedContract) — ссылка ведёт на ПРЕДЛОЖЕННЫЙ
+// договор, это не решение, сотрудник всё равно подтверждает явно в диалоге разбора.
+interface ImportTableRow extends PaymentImportRow {
+  contractId: number | null
+  contractNumberDisplay: string | null
+  residentIndividualUid: string | null
+}
+function toImportTableRow(row: PaymentImportRow): ImportTableRow {
+  const contract = row.matchedContract ?? row.suggestedContract
+  return {
+    ...row,
+    contractId: contract?.id ?? null,
+    contractNumberDisplay: contract ? `№${contract.number}` : null,
+    residentIndividualUid: contract?.residentIndividualUid ?? null,
+  }
+}
+async function importFetchPage(options: ListOptions, signal?: AbortSignal) {
+  const page = await fetchPaymentImportsPage(options, signal)
+  return { ...page, data: page.data.map(toImportTableRow) }
+}
+
+const importColumnHelper = createAppColumnHelper<ImportTableRow>()
 const importColumns = computed(() =>
   importColumnHelper.columns([
     importColumnHelper.accessor('paidAt', { header: importColumnLabels.value.paidAt, size: 120, minSize: 100 }),
     importColumnHelper.accessor('amount', { header: importColumnLabels.value.amount, enableSorting: false, size: 110, minSize: 100 }),
     importColumnHelper.accessor('contractorFio', { header: importColumnLabels.value.contractorFio, size: 200, minSize: 160 }),
-    importColumnHelper.accessor('suggestedContract', { header: importColumnLabels.value.suggestedContract, enableSorting: false, size: 220, minSize: 160 }),
+    importColumnHelper.accessor('contractNumberDisplay', { header: importColumnLabels.value.contractNumberDisplay, enableSorting: false, size: 160, minSize: 130 }),
     importColumnHelper.accessor('comment', { header: importColumnLabels.value.comment, enableSorting: false, size: 260, minSize: 180 }),
     importColumnHelper.accessor('status', { header: importColumnLabels.value.status, size: 170, minSize: 140 }),
   ]),
@@ -89,7 +114,7 @@ const importColumns = computed(() =>
 const importTableRef = ref<{ refresh: () => void | Promise<void> } | null>(null)
 
 // --- Массовое одобрение (чекбоксы) ---
-const selectedImportRows = ref<PaymentImportRow[]>([])
+const selectedImportRows = ref<ImportTableRow[]>([])
 const bulkApproveOpen = ref(false)
 const bulkMethod = ref<PaymentMethod>('CASH')
 const bulkError = ref('')
@@ -271,6 +296,7 @@ const websiteColumnLabels = computed<Record<string, string>>(() => ({
   purpose: t('paymentImports.colComment'),
   contractNumber: t('paymentImports.colSuggestedContract'),
   status: t('paymentImports.colStatus'),
+  fiscalReceiptUrl: t('paymentImports.colReceipt'),
 }))
 function websiteCellText(columnId: string, value: unknown): string {
   if (columnId === 'paidAt' && typeof value === 'string') return formatDate(value)
@@ -287,6 +313,17 @@ interface WebsiteTableRow {
   purpose: string
   contractNumber: string
   status: WebsitePaymentRow['accounting1cSyncStatus']
+  // Тот же принцип, что и в объединённом леджере резидента (MyContract.vue) — заглушка
+  // чека (касса ещё не подключена, см. промпт проекта «Онлайн-оплата»), не показываем
+  // только у сторнированных платежей.
+  showReceiptButton: boolean
+  fiscalReceiptUrl: string | null
+  // Договор/ФИО — кликабельные (ContractLinkCell/ResidentLinkCell, та же иконка+ссылка,
+  // что и в других таблицах проекта), по прямой просьбе 2026-09-04. Тут всегда есть
+  // реальный договор и резидент (флоу 1 — это уже проведённые платежи с сайта), в отличие
+  // от таба "1С Бухгалтерия", где до одобрения может не быть ни того, ни другого.
+  contractId: number
+  residentIndividualUid: string
   raw: WebsitePaymentRow
 }
 const websiteTableRows = computed<WebsiteTableRow[]>(() =>
@@ -298,6 +335,10 @@ const websiteTableRows = computed<WebsiteTableRow[]>(() =>
     purpose: p.purpose,
     contractNumber: `№${p.contract.number}`,
     status: p.accounting1cSyncStatus,
+    showReceiptButton: !p.reversedAt,
+    fiscalReceiptUrl: null,
+    contractId: p.contract.id,
+    residentIndividualUid: p.contract.residentIndividualUid,
     raw: p,
   })),
 )
@@ -311,6 +352,13 @@ const websiteColumns = computed(() =>
     websiteColumnHelper.accessor('contractNumber', { header: websiteColumnLabels.value.contractNumber, enableSorting: false, size: 140, minSize: 110 }),
     websiteColumnHelper.accessor('purpose', { header: websiteColumnLabels.value.purpose, enableSorting: false, size: 280, minSize: 180 }),
     websiteColumnHelper.accessor('status', { header: websiteColumnLabels.value.status, size: 170, minSize: 140 }),
+    websiteColumnHelper.accessor('fiscalReceiptUrl', {
+      header: websiteColumnLabels.value.fiscalReceiptUrl,
+      enableSorting: false,
+      enableHiding: false,
+      size: 120,
+      minSize: 100,
+    }),
   ]),
 )
 const websiteFetchPage = createClientFetchPage<WebsiteTableRow>(() => websiteTableRows.value, {
@@ -394,12 +442,12 @@ async function submitBulkRetry() {
           :filterable-fields="importFilterableFields"
           :default-sort="{ id: 'paidAt', desc: true }"
           :default-filters="{ status: ['NEEDS_REVIEW'] }"
-          :fetch-page="fetchPaymentImportsPage"
+          :fetch-page="importFetchPage"
           :fetch-facet-values="fetchPaymentImportsFacets"
-          :get-row-id="(r: PaymentImportRow) => String(r.id)"
+          :get-row-id="(r: ImportTableRow) => String(r.id)"
           :total-label="t('paymentImports.tabImport')"
           :cell-text="importCellText"
-          :cell-renderers="{ status: PaymentImportStatusPillCell }"
+          :cell-renderers="{ status: PaymentImportStatusPillCell, contractorFio: ResidentLinkCell, contractNumberDisplay: ContractLinkCell }"
           :row-action="{ icon: ClipboardList, label: t('paymentImports.approve'), onClick: openReview }"
           selectable
           accent-icons
@@ -426,7 +474,12 @@ async function submitBulkRetry() {
           :get-row-id="(r: WebsiteTableRow) => String(r.id)"
           :total-label="t('paymentImports.tabWebsite')"
           :cell-text="websiteCellText"
-          :cell-renderers="{ status: WebsitePaymentStatusPillCell }"
+          :cell-renderers="{
+            status: WebsitePaymentStatusPillCell,
+            fiscalReceiptUrl: PaymentReceiptCell,
+            contractorFio: ResidentLinkCell,
+            contractNumber: ContractLinkCell,
+          }"
           :row-action="{ icon: RotateCw, label: t('contracts.detail.accounting1cRetry'), onClick: retryWebsitePayment }"
           selectable
           accent-icons
@@ -496,6 +549,10 @@ async function submitBulkRetry() {
             <div>
               <Label class="text-xs text-muted-foreground">{{ t('paymentImports.amount') }}</Label>
               <p>{{ formatMoney(reviewDetail.candidate.amount) }}</p>
+            </div>
+            <div class="col-span-2">
+              <Label class="text-xs text-muted-foreground">{{ t('paymentImports.type') }}</Label>
+              <p>{{ reviewDetail.candidate.type ?? '—' }}</p>
             </div>
             <div class="col-span-2">
               <Label class="text-xs text-muted-foreground">{{ t('paymentImports.colPayer') }}</Label>

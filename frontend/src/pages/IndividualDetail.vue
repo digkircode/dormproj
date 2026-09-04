@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import Accounting1cLinkedBadge from '@/components/Accounting1cLinkedBadge.vue'
 import PassportTable from '@/components/PassportTable.vue'
 import StudentFields from '@/components/StudentFields.vue'
 import CreateContractDialog from '@/components/CreateContractDialog.vue'
@@ -341,7 +342,10 @@ onUnmounted(() => {
               <AvatarFallback class="text-xl">{{ initials }}</AvatarFallback>
             </Avatar>
             <div class="flex flex-col gap-1" :class="detail.isManual ? '' : 'pt-1'">
-              <div class="text-xl font-semibold">{{ detail.fullName }}</div>
+              <div class="flex flex-wrap items-center gap-2">
+                <div class="text-xl font-semibold">{{ detail.fullName }}</div>
+                <Accounting1cLinkedBadge :linked="detail.accounting1cContractorUid !== null" />
+              </div>
               <!-- Копирование UID/кода 1С — только у синхронизируемых физлиц, у ручных
                    (isManual) это не настоящий код/guid из 1С, а синтетический
                    технический ключ, копировать его пользователю незачем. -->
@@ -388,7 +392,11 @@ onUnmounted(() => {
                justify-start — иконка+подпись прижаты к левому краю кнопки, не по центру
                (buttonVariants центрирует по умолчанию, тут переопределено). -->
           <div class="grid grid-cols-2 gap-2">
+            <!-- Ручные физлица не привязаны к реальному UID из 1С (fizicheskoyeLitsoUid —
+                 синтетический "manual-<uuid>") — синхронизация для них гарантированно падает
+                 500-кой на бэке (внешний API не находит такой UID), кнопку не показываем. -->
             <Button
+              v-if="!detail.isManual"
               variant="outline"
               size="sm"
               class="w-full justify-start"

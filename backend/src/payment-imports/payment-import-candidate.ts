@@ -14,6 +14,10 @@ export interface PaymentImportCandidate {
   amount: number | null;
   paidAt: Date | null;
   comment: string | null;
+  // Как поступил платёж (Type — подтверждённое реальное поле AllPaymentDoc, реальные
+  // примеры: "Операция по платежной карте"/"Поступление наличных") — по прямой просьбе
+  // 2026-09-04, показывается сотруднику в модалке разбора записи.
+  type: string | null;
 }
 
 function firstString(raw: AccountingRawImportedPayment, keys: string[]): string | null {
@@ -69,5 +73,6 @@ export function parsePaymentImportCandidate(raw: AccountingRawImportedPayment): 
     // Period — подтверждённое реальное поле, Date — из отправки (флоу 1), не из этого эндпоинта.
     paidAt: firstDate(raw, ['Period', 'Date', 'DocumentDate', 'Data']),
     comment: firstString(raw, ['Osnovanie', 'Comment', 'Naznachenie']),
+    type: firstString(raw, ['Type']),
   };
 }

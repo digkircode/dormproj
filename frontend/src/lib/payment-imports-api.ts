@@ -9,6 +9,7 @@ export interface PaymentImportSuggestedContract {
   id: number
   number: string
   residentFullName: string
+  residentIndividualUid: string
 }
 
 // Все договоры опознанного контрагента (не только предложенный) — если их больше
@@ -30,7 +31,7 @@ export interface PaymentImportRow {
   contractorFio: string | null
   comment: string | null
   suggestedContract: PaymentImportSuggestedContract | null
-  matchedContract: { id: number; number: string } | null
+  matchedContract: { id: number; number: string; residentIndividualUid: string } | null
 }
 
 export interface PaymentImportDetail extends Omit<PaymentImportRow, 'suggestedContract'> {
@@ -44,6 +45,10 @@ export interface PaymentImportDetail extends Omit<PaymentImportRow, 'suggestedCo
     amount: number | null
     paidAt: string | null
     comment: string | null
+    // Как поступил платёж (реальное поле AllPaymentDoc — "Операция по платежной карте"/
+    // "Поступление наличных" и т.п., см. payment-import-candidate.ts), по прямой просьбе
+    // 2026-09-04.
+    type: string | null
   }
   suggestedContract: PaymentImportSuggestedContract | null
   candidateContracts: PaymentImportCandidateContract[]
@@ -71,12 +76,13 @@ export interface WebsitePaymentRow {
   paidAt: string
   amount: number
   contractorFio: string
-  contract: { id: number; number: string }
+  contract: { id: number; number: string; residentIndividualUid: string }
   purpose: string
   accounting1cSyncStatus: Accounting1cSyncStatus
   accounting1cDocumentUid: string | null
   accounting1cSyncError: string | null
   accounting1cSyncedAt: string | null
+  reversedAt: string | null
 }
 
 export async function fetchWebsitePayments(): Promise<WebsitePaymentRow[]> {

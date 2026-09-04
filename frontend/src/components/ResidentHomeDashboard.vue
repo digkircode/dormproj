@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import CreatePaymentDialog from '@/components/CreatePaymentDialog.vue'
 import AnnouncementReadDialog from '@/components/AnnouncementReadDialog.vue'
 import AllAnnouncementsDialog from '@/components/AllAnnouncementsDialog.vue'
-import { fetchMyContract, type MyContractDetail } from '@/lib/contracts-api'
+import { fetchMyContractHomeSummary, type MyContractHomeSummary } from '@/lib/contracts-api'
 import { fetchMyAnnouncements, type ResidentAnnouncement } from '@/lib/announcements-api'
 import { residentUnreadCount } from '@/lib/chat-unread-state'
 import { currentUser } from '@/lib/auth-state'
@@ -20,13 +20,26 @@ import mascotSrc from '@/assets/mascot.webp'
 
 const { t } = useI18n()
 
+// demo — только для временной страницы-демки DemoStudentHome.vue (см. промпт проекта,
+// "показать интерфейс проживающего покупателю без переключения ролей на аккаунте
+// сотрудника"): подсовывает уже готовые данные вместо похода в GET /my-contract/summary
+// (у демонстрационного STAFF/ADMIN-аккаунта обычно нет привязанного резидента, реальный
+// запрос просто вернул бы null/403). В обычном режиме (RESIDENT, настоящая "Главная")
+// пропсы не передаются — поведение компонента не меняется вообще.
+const props = defineProps<{
+  demo?: boolean
+  demoContract?: MyContractHomeSummary | null
+  demoAnnouncements?: ResidentAnnouncement[]
+}>()
+
 // Главная для чистого RESIDENT (см. Home.vue) — только реальные данные, без "Обращений"/
 // "Объявлений" из присланного пользователем референса: в приложении нет ни таблиц под них
 // в БД, ни эндпоинтов (только чат с сотрудниками) — по прямой просьбе 2026-08-28 такую
-// функциональность в макете не изображаем как настоящую. Комната/оплата — те же данные,
-// что уже показывает MyContract.vue (GET /my-contract), эта страница просто их же
-// суммирует в двух плашках + ссылки на реальные разделы.
-const contract = ref<MyContractDetail | null>(null)
+// функциональность в макете не изображаем как настоящую. Комната/оплата — сводка через
+// свой собственный лёгкий эндпоинт (GET /my-contract/summary, добавлено 2026-09-04) —
+// раньше эта страница дёргала fetchMyContract() целиком (все начисления/платежи/пеня-лог/
+// terms, нужные "Договору/Платежам", MyContract.vue), хотя показывает только пару чисел.
+const contract = ref<MyContractHomeSummary | null>(null)
 const isLoading = ref(true)
 const paymentDialog = ref<InstanceType<typeof CreatePaymentDialog> | null>(null)
 // Имя (не полное ФИО) — тот же rosnou-id аккаунт, что и у сотрудников, поле name отдельно
@@ -53,8 +66,14 @@ function markAnnouncementAsRead(id: number) {
 }
 
 onMounted(async () => {
+  if (props.demo) {
+    contract.value = props.demoContract ?? null
+    announcements.value = props.demoAnnouncements ?? []
+    isLoading.value = false
+    return
+  }
   const [contractResult, announcementsResult] = await Promise.all([
-    fetchMyContract().catch(() => null),
+    fetchMyContractHomeSummary().catch(() => null),
     fetchMyAnnouncements().catch(() => []),
   ])
   contract.value = contractResult
@@ -62,14 +81,11 @@ onMounted(async () => {
   isLoading.value = false
 })
 
-const totalBalance = computed(() =>
-  contract.value ? contract.value.accruals.reduce((sum, a) => sum + a.balance, 0) + contract.value.penaltyBalance : 0,
-)
-
-// Начисления уже приходят отсортированными по periodStart (см. GET /my-contract) — первое
-// с непогашенным остатком и есть "следующий платёж" (та же логика, что и FIFO-разноска
-// allocatePaymentFifo на бэке — платить можно только по порядку, см. промпт проекта).
-const nextAccrual = computed(() => contract.value?.accruals.find((a) => a.balance > 0) ?? null)
+// totalBalance/nextAccrual уже посчитаны на бэке (GET /my-contract/summary, FIFO-порядок
+// начислений — тот же принцип, что и allocatePaymentFifo, см. промпт проекта) — тут только
+// разворачиваем null-контракт в 0/null для шаблона.
+const totalBalance = computed(() => contract.value?.totalBalance ?? 0)
+const nextAccrual = computed(() => contract.value?.nextAccrual ?? null)
 const isNextPaymentOverdue = computed(() => !!nextAccrual.value && new Date(nextAccrual.value.dueDate).getTime() < Date.now())
 
 function formatMoney(value: number): string {

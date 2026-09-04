@@ -62,8 +62,8 @@ export async function listPaymentImports(prisma: PrismaService, query: PaymentIm
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: {
-        suggestedContract: { select: { id: true, number: true, resident: { select: { fullName: true } } } },
-        matchedContract: { select: { id: true, number: true } },
+        suggestedContract: { select: { id: true, number: true, residentIndividualUid: true, resident: { select: { fullName: true } } } },
+        matchedContract: { select: { id: true, number: true, residentIndividualUid: true } },
       },
     }),
     prisma.paymentImportRecord.count({ where }),
@@ -80,10 +80,18 @@ export async function listPaymentImports(prisma: PrismaService, query: PaymentIm
       paidAt: candidate.paidAt,
       contractorFio: candidate.contractorFio,
       comment: candidate.comment,
+      type: candidate.type,
       suggestedContract: row.suggestedContract
-        ? { id: row.suggestedContract.id, number: row.suggestedContract.number, residentFullName: row.suggestedContract.resident.fullName }
+        ? {
+            id: row.suggestedContract.id,
+            number: row.suggestedContract.number,
+            residentFullName: row.suggestedContract.resident.fullName,
+            residentIndividualUid: row.suggestedContract.residentIndividualUid,
+          }
         : null,
-      matchedContract: row.matchedContract ? { id: row.matchedContract.id, number: row.matchedContract.number } : null,
+      matchedContract: row.matchedContract
+        ? { id: row.matchedContract.id, number: row.matchedContract.number, residentIndividualUid: row.matchedContract.residentIndividualUid }
+        : null,
     };
   });
 

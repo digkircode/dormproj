@@ -36,6 +36,7 @@ import Chats from '@/pages/Chats.vue'
 import MyChat from '@/pages/MyChat.vue'
 import MyContract from '@/pages/MyContract.vue'
 import MyPayment from '@/pages/MyPayment.vue'
+import DemoStudentHome from '@/pages/DemoStudentHome.vue'
 
 // Первый этап ролевой модели (см. промпт проекта) — секция страницы определяет, кому
 // она видна: 'staff' — группа "Сотрудник" в сайдбаре (AppSidebar.vue/NavMain.vue),
@@ -49,6 +50,10 @@ const router = createRouter({
     // Без section — доступна всем залогиненным независимо от роли (в т.ч. без роли
     // вообще), тот же принцип, что у "Главной" — секция "Студент" в сайдбаре видна всем.
     { path: '/student/general-info', name: 'student-general-info', component: StudentGeneralInfo, meta: { title: 'nav.studentGeneralInfo' } },
+    // Временная демо-страница для показа покупателю (см. промпт проекта) — без
+    // meta.section, доступна любому залогиненному по прямой ссылке, в сайдбар не выведена.
+    // Удалить вместе с DemoStudentHome.vue, когда демонстрация больше не нужна.
+    { path: '/demo/student-home', name: 'demo-student-home', component: DemoStudentHome, meta: { title: 'nav.demoStudentHome' } },
     // section: 'resident' — не "доступно всем", как остальной раздел "Проживающий" выше,
     // а только роли RESIDENT (плюс ADMIN по общему для приложения принципу "администратор
     // видит всё") — уточнено с пользователем отдельно при планировании чата.

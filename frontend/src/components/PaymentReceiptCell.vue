@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { ExternalLink } from 'lucide-vue-next'
-import type { UnifiedPaymentRow } from '@/lib/my-payments-api'
 
 const { t } = useI18n()
 
-defineProps<{ value: unknown; row: UnifiedPaymentRow }>()
+// row — структурно достаточно этих двух полей (не завязано на конкретный тип страницы,
+// см. UnifiedPaymentRow в my-payments-api.ts, откуда изначально пришёл компонент) — тот же
+// приём, что и у остальных cellRenderer-компонентов проекта (WebsitePaymentStatusPillCell и
+// т.п.), чтобы переиспользовать на других страницах (PaymentImports.vue) без цикличного
+// импорта чужого типа.
+defineProps<{ value: unknown; row: { fiscalReceiptUrl: string | null; showReceiptButton: boolean } }>()
 </script>
 
 <template>

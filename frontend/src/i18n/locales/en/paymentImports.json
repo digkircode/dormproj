@@ -9,6 +9,7 @@
     "colComment": "Purpose",
     "colSuggestedContract": "Contract",
     "colStatus": "Status",
+    "colReceipt": "Receipt",
     "status": {
       "NEEDS_REVIEW": "Awaiting confirmation",
       "MATCHED": "Confirmed"
@@ -31,6 +32,7 @@
     "method": "Received via",
     "amount": "Amount",
     "date": "Payment date",
+    "type": "Type",
     "rawPayload": "Raw data from 1C",
     "cancel": "Cancel",
     "confirm": "Confirm",

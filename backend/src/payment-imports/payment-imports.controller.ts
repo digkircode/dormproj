@@ -74,7 +74,7 @@ export class PaymentImportsController {
       orderBy: { paidAt: 'desc' },
       take: 200,
       include: {
-        contract: { select: { id: true, number: true, resident: { select: { fullName: true } } } },
+        contract: { select: { id: true, number: true, residentIndividualUid: true, resident: { select: { fullName: true } } } },
         paymentIntent: { select: { payerFullName: true } },
         allocations: { include: { accrual: { select: { periodStart: true } } } },
       },
@@ -84,7 +84,7 @@ export class PaymentImportsController {
       paidAt: payment.paidAt,
       amount: Number(payment.amount),
       contractorFio: payment.contract.resident.fullName,
-      contract: { id: payment.contract.id, number: payment.contract.number },
+      contract: { id: payment.contract.id, number: payment.contract.number, residentIndividualUid: payment.contract.residentIndividualUid },
       purpose: buildPaymentPurpose({
         source: 'WEBSITE',
         residentFullName: payment.contract.resident.fullName,
@@ -97,6 +97,9 @@ export class PaymentImportsController {
       accounting1cDocumentUid: payment.accounting1cDocumentUid,
       accounting1cSyncError: payment.accounting1cSyncError,
       accounting1cSyncedAt: payment.accounting1cSyncedAt,
+      // Для колонки "Чек" на фронте (тот же принцип, что и в объединённом леджере
+      // резидента, MyContract.vue) — сторнированному платежу кнопку чека не показываем.
+      reversedAt: payment.reversedAt,
     }));
   }
 
@@ -106,8 +109,8 @@ export class PaymentImportsController {
     const record = await this.prisma.paymentImportRecord.findUnique({
       where: { id },
       include: {
-        suggestedContract: { select: { id: true, number: true, resident: { select: { fullName: true } } } },
-        matchedContract: { select: { id: true, number: true } },
+        suggestedContract: { select: { id: true, number: true, residentIndividualUid: true, resident: { select: { fullName: true } } } },
+        matchedContract: { select: { id: true, number: true, residentIndividualUid: true } },
       },
     });
     if (!record) {
@@ -123,7 +126,12 @@ export class PaymentImportsController {
       rawPayload: record.rawPayload,
       candidate,
       suggestedContract: record.suggestedContract
-        ? { id: record.suggestedContract.id, number: record.suggestedContract.number, residentFullName: record.suggestedContract.resident.fullName }
+        ? {
+            id: record.suggestedContract.id,
+            number: record.suggestedContract.number,
+            residentFullName: record.suggestedContract.resident.fullName,
+            residentIndividualUid: record.suggestedContract.residentIndividualUid,
+          }
         : null,
       matchedContract: record.matchedContract,
       // Все договоры опознанного контрагента — если их больше одного, фронт рисует

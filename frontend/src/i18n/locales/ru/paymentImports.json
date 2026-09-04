@@ -9,6 +9,7 @@
     "colComment": "Назначение",
     "colSuggestedContract": "Договор",
     "colStatus": "Статус",
+    "colReceipt": "Чек",
     "status": {
       "NEEDS_REVIEW": "Ожидает подтверждения",
       "MATCHED": "Подтверждён"
@@ -31,6 +32,7 @@
     "method": "Способ поступления",
     "amount": "Сумма",
     "date": "Дата платежа",
+    "type": "Тип",
     "rawPayload": "Исходные данные из 1С",
     "cancel": "Отмена",
     "confirm": "Подтвердить",
