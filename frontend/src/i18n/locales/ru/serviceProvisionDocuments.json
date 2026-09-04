@@ -6,6 +6,7 @@
     "colAmount": "Сумма",
     "colContractCount": "Договоров",
     "colStatus": "Статус",
+    "currentPeriod": "Текущий",
     "type": {
       "RENT": "Найм",
       "UTILITIES": "Коммуналка"

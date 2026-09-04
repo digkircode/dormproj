@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import EntityTable from '@/components/EntityTable.vue'
 import WebsitePaymentStatusPillCell from '@/components/WebsitePaymentStatusPillCell.vue'
+import ServiceProvisionPeriodCell from '@/components/ServiceProvisionPeriodCell.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import { createClientFetchPage, createClientFacetValues } from '@/lib/client-list'
 import { goBack } from '@/lib/utils'
@@ -54,14 +55,20 @@ interface TableRow {
   documentSumm: number
   contractCount: number
   status: Accounting1cSyncStatus
+  // Самый свежий periodStart среди загруженных документов — визуально выделяется в
+  // таблице (см. ServiceProvisionPeriodCell.vue), по прямой просьбе 2026-09-04.
+  isCurrent: boolean
 }
 
 const docs = ref<TableRow[]>([])
 const loadError = ref('')
+const tableRef = ref<{ refresh: () => void | Promise<void> } | null>(null)
+
 async function loadDocs() {
   loadError.value = ''
   try {
     const rows = await fetchServiceProvisionDocuments()
+    const latestPeriod = rows.reduce<string | null>((max, r) => (!max || r.periodStart > max ? r.periodStart : max), null)
     docs.value = rows.map((d) => ({
       id: d.id,
       periodStart: d.periodStart,
@@ -69,7 +76,15 @@ async function loadDocs() {
       documentSumm: d.documentSumm,
       contractCount: d.contractCount,
       status: d.accounting1cSyncStatus,
+      isCurrent: d.periodStart === latestPeriod,
     }))
+    // EntityTable сам подгружает данные один раз в onMounted и дальше реагирует только на
+    // смену страницы/сортировки/поиска/фильтра (см. EntityTable.vue) — источник (docs)
+    // ему не известен как зависимость. Без явного refresh() тут первый заход на страницу
+    // показывал бы пустую таблицу до первого клика по сортировке/фильтру (этот же fetch
+    // ещё не мог успеть отработать раньше onMounted самой EntityTable — сетевой запрос
+    // всегда медленнее синхронного монтирования).
+    await tableRef.value?.refresh()
   } catch (error) {
     loadError.value = error instanceof Error ? error.message : String(error)
   }
@@ -112,15 +127,12 @@ const fetchFacetValues = createClientFacetValues<TableRow>(
   (field, value) => (field === 'type' ? (TYPE_LABELS[value as ServiceProvisionType] ?? value) : (STATUS_LABELS[value as Accounting1cSyncStatus] ?? value)),
 )
 
-const tableRef = ref<{ refresh: () => void | Promise<void> } | null>(null)
 const isRunning = ref(false)
 async function runNow() {
   isRunning.value = true
-  loadError.value = ''
   try {
     await runServiceProvisionDocuments()
     await loadDocs()
-    await tableRef.value?.refresh()
   } catch (error) {
     loadError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -179,7 +191,7 @@ const detailTitle = computed(() => {
       :get-row-id="(r: TableRow) => String(r.id)"
       :total-label="t('serviceProvisionDocuments.title')"
       :cell-text="cellText"
-      :cell-renderers="{ status: WebsitePaymentStatusPillCell }"
+      :cell-renderers="{ periodStart: ServiceProvisionPeriodCell, status: WebsitePaymentStatusPillCell }"
       :row-action="{ icon: List, label: t('serviceProvisionDocuments.viewDetails'), onClick: openDetail }"
       accent-icons
     >

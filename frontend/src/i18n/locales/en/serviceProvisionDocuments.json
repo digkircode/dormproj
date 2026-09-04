@@ -6,6 +6,7 @@
     "colAmount": "Amount",
     "colContractCount": "Contracts",
     "colStatus": "Status",
+    "currentPeriod": "Current",
     "type": {
       "RENT": "Rent",
       "UTILITIES": "Utilities"
