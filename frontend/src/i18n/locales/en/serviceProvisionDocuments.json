@@ -1,0 +1,21 @@
+{
+  "serviceProvisionDocuments": {
+    "title": "Service provision documents",
+    "colPeriod": "Period",
+    "colType": "Type",
+    "colAmount": "Amount",
+    "colContractCount": "Contracts",
+    "colStatus": "Status",
+    "type": {
+      "RENT": "Rent",
+      "UTILITIES": "Utilities"
+    },
+    "runButton": "Rebuild for last month",
+    "runResult": "Documents sent: {pushed}, succeeded: {succeeded}, failed: {failed}",
+    "runSkipped": "Nothing to send — integration not configured or no data for last month",
+    "errors": {
+      "fetchListFailed": "Failed to load documents ({status})",
+      "runFailed": "Failed to rebuild documents ({status})"
+    }
+  }
+}

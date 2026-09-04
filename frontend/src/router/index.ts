@@ -17,7 +17,11 @@ import Rooms from '@/pages/Rooms.vue'
 import RoomCharacteristics from '@/pages/RoomCharacteristics.vue'
 import Contracts from '@/pages/Contracts.vue'
 import ContractDetail from '@/pages/ContractDetail.vue'
-import PaymentImports from '@/pages/PaymentImports.vue'
+// Файл называется PaymentImports.vue (не переименован — тот же приём, что у
+// Students.vue/«Контингент студентов», см. промпт проекта), но роут/пункт сайдбара —
+// «Платежи» (флоу 1/2 обмена с 1С Бухгалтерией), подпункт группы «Финансы».
+import Finance from '@/pages/PaymentImports.vue'
+import ServiceProvisionDocuments from '@/pages/ServiceProvisionDocuments.vue'
 import ReportsOccupancy from '@/pages/ReportsOccupancy.vue'
 import ReportsContingent from '@/pages/ReportsContingent.vue'
 import ReportsContractsRegistry from '@/pages/ReportsContractsRegistry.vue'
@@ -99,7 +103,19 @@ const router = createRouter({
       component: ContractDetail,
       meta: { title: 'nav.contractDetail', parent: 'contracts', section: 'staff' },
     },
-    { path: '/payment-imports', name: 'payment-imports', component: PaymentImports, meta: { title: 'nav.paymentImports', section: 'staff' } },
+    { path: '/finance', name: 'finance', redirect: '/finance/payments', meta: { title: 'nav.finance', section: 'staff' } },
+    {
+      path: '/finance/payments',
+      name: 'finance-payments',
+      component: Finance,
+      meta: { title: 'nav.financePayments', parent: 'finance', section: 'staff' },
+    },
+    {
+      path: '/finance/service-docs',
+      name: 'finance-service-docs',
+      component: ServiceProvisionDocuments,
+      meta: { title: 'nav.financeServiceDocs', parent: 'finance', section: 'staff' },
+    },
 
     { path: '/reports', name: 'reports', redirect: '/reports/debt', meta: { title: 'nav.reports', section: 'staff' } },
     {

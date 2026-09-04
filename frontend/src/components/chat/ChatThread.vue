@@ -277,6 +277,24 @@ function previewUrlFor(file: File): string {
   }
   return url
 }
+// Ключ для v-for ниже — `file.name + file.size` коллизирует, если один и тот же файл
+// вставлен из буфера дважды подряд (Ctrl+V даёт одинаковое generic-имя вроде "image.png"
+// И одинаковый размер для одного и того же скопированного изображения — в отличие от
+// выбора через системный диалог, тут это совсем не редкий случай). Дубликат ключа ломает
+// диффинг Vue: кнопка "убрать" у одного превью может начать удалять другой файл. Ключ
+// присваивается по ссылке на File (как и objectUrls выше), стабилен, пока сам файл лежит
+// в pendingFiles.
+let nextFileKey = 0
+const fileKeys = new WeakMap<File, number>()
+function keyFor(file: File): number {
+  let key = fileKeys.get(file)
+  if (key === undefined) {
+    key = nextFileKey++
+    fileKeys.set(file, key)
+  }
+  return key
+}
+
 function revokePreviewUrl(file: File) {
   const url = objectUrls.get(file)
   if (url) {
@@ -293,11 +311,11 @@ function openFilePicker() {
   fileInputRef.value?.click()
 }
 
-function onFilesSelected(event: Event) {
-  const input = event.target as HTMLInputElement
-  const selected = Array.from(input.files ?? [])
-  input.value = ''
+// Общая точка входа для файлов, откуда бы они ни пришли (выбор через диалог, вставка
+// из буфера обмена) — та же валидация количества/типа/размера в обоих случаях.
+function addFiles(selected: File[]) {
   attachError.value = ''
+  if (selected.length === 0) return
 
   if (pendingFiles.value.length + selected.length > MAX_ATTACHMENTS_PER_MESSAGE) {
     attachError.value = t('chat.thread.attachTooMany', { max: MAX_ATTACHMENTS_PER_MESSAGE })
@@ -317,6 +335,31 @@ function onFilesSelected(event: Event) {
     }
   }
   pendingFiles.value = [...pendingFiles.value, ...selected]
+}
+
+function onFilesSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const selected = Array.from(input.files ?? [])
+  input.value = ''
+  addFiles(selected)
+}
+
+// Ctrl+V в поле ввода — скриншот/фото/видео из буфера обмена превращается в такое же
+// вложение, как выбранное через "скрепку". Обычная вставка текста (сама текстовая часть
+// clipboardData, если она есть параллельно с файлом) не трогается — preventDefault только
+// когда в буфере реально нашёлся файл, иначе событие идёт своим чередом как обычно.
+function onPaste(event: ClipboardEvent) {
+  const items = event.clipboardData?.items
+  if (!items) return
+  const files: File[] = []
+  for (const item of items) {
+    if (item.kind !== 'file') continue
+    const file = item.getAsFile()
+    if (file) files.push(file)
+  }
+  if (files.length === 0) return
+  event.preventDefault()
+  addFiles(files)
 }
 
 function removePendingFile(file: File) {
@@ -560,7 +603,7 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
     </div>
 
     <div v-if="pendingFiles.length" class="flex flex-wrap gap-2 border-t px-3 pt-3">
-      <div v-for="file in pendingFiles" :key="file.name + file.size" class="relative" :title="`${file.name} (${formatSize(file.size)})`">
+      <div v-for="file in pendingFiles" :key="keyFor(file)" class="relative" :title="`${file.name} (${formatSize(file.size)})`">
         <img v-if="file.type.startsWith('image/')" :src="previewUrlFor(file)" class="size-16 rounded-md border object-cover" />
         <div v-else class="flex size-16 flex-col items-center justify-center gap-1 rounded-md border bg-muted text-muted-foreground">
           <FileVideo class="size-5" />
@@ -602,6 +645,7 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
           rows="1"
           class="max-h-40 min-h-10 w-full resize-none bg-transparent py-2.5 pr-11 pl-11 text-sm placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           @keydown="onKeydown"
+          @paste="onPaste"
         />
         <Button
           :disabled="!canSend"

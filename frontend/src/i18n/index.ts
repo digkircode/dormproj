@@ -23,6 +23,8 @@ import ruAnnouncements from './locales/ru/announcements.json'
 import enAnnouncements from './locales/en/announcements.json'
 import ruPaymentImports from './locales/ru/paymentImports.json'
 import enPaymentImports from './locales/en/paymentImports.json'
+import ruServiceProvisionDocuments from './locales/ru/serviceProvisionDocuments.json'
+import enServiceProvisionDocuments from './locales/en/serviceProvisionDocuments.json'
 
 export type AppLocale = 'ru' | 'en'
 export const LOCALE_STORAGE_KEY = 'dormproj-locale'
@@ -43,7 +45,7 @@ export const i18n = createI18n({
   locale: getStoredLocale(),
   fallbackLocale: 'ru',
   messages: {
-    ru: { ...ruCommon, ...ruContracts, ...ruPayment, ...ruRooms, ...ruIndividuals, ...ruUsers, ...ruReports, ...ruSync, ...ruChat, ...ruStudent, ...ruAnnouncements, ...ruPaymentImports },
-    en: { ...enCommon, ...enContracts, ...enPayment, ...enRooms, ...enIndividuals, ...enUsers, ...enReports, ...enSync, ...enChat, ...enStudent, ...enAnnouncements, ...enPaymentImports },
+    ru: { ...ruCommon, ...ruContracts, ...ruPayment, ...ruRooms, ...ruIndividuals, ...ruUsers, ...ruReports, ...ruSync, ...ruChat, ...ruStudent, ...ruAnnouncements, ...ruPaymentImports, ...ruServiceProvisionDocuments },
+    en: { ...enCommon, ...enContracts, ...enPayment, ...enRooms, ...enIndividuals, ...enUsers, ...enReports, ...enSync, ...enChat, ...enStudent, ...enAnnouncements, ...enPaymentImports, ...enServiceProvisionDocuments },
   },
 })

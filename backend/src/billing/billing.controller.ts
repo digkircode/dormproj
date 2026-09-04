@@ -171,7 +171,10 @@ export class BillingController {
   @Get('service-provision-documents')
   async listServiceProvisionDocuments() {
     const rows = await this.prisma.serviceProvisionDocument.findMany({ orderBy: [{ periodStart: 'desc' }, { type: 'asc' }], take: 100 });
-    return rows;
+    // Decimal -> number на выходе API, тот же приём, что и в остальных сериализаторах
+    // (contracts/serializers.ts) — тут отдельного serializePayment-аналога нет, эндпоинт
+    // всегда отдаёт только 100 последних строк целиком, без пагинации.
+    return rows.map((row) => ({ ...row, documentSumm: Number(row.documentSumm) }));
   }
 
   // Ручной повтор — тот же месяц (только что закончившийся), что и у ночного крона,

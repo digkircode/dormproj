@@ -362,7 +362,7 @@ async function submitBulkRetry() {
 <template>
   <div class="flex min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
     <div class="flex items-center gap-2">
-      <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/contracts')">
+      <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
         <span class="sr-only">{{ t('paymentImports.title') }}</span>
       </Button>
