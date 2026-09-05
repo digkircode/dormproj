@@ -168,9 +168,18 @@ export class ServiceProvisionDocService {
       // выше), а не только один раз при первой отправке: если состав/суммы начислений
       // изменились (например поправили adjustmentAmount) до реальной отправки в 1С —
       // сотрудник видит актуальные цифры, а не то, что было посчитано месяц назад.
-      // accounting1cDocumentUid/accounting1cSyncStatus в update НЕ трогаем — их меняет
-      // только реальный результат отправки (run() ниже), пересчёт суммы сам по себе не
-      // должен тихо откатывать уже подтверждённый статус SYNCED на прежний.
+      // accounting1cDocumentUid в update НЕ трогаем — его меняет только реальный результат
+      // отправки (run() ниже). accounting1cSyncStatus — трогаем, но только в одну сторону:
+      // если сумма изменилась ПОСЛЕ того, как документ уже был SYNCED, статус сбрасывается
+      // обратно в NOT_SYNCED (код-ревью 2026-09-04 — раньше сотрудник видел "Отправлено" рядом
+      // с новой суммой, хотя в 1С по факту ушла старая). Если статус ещё не SYNCED (или
+      // сумма не изменилась) — не трогаем, чтобы не откатывать FAILED в NOT_SYNCED без причины.
+      const existing = await this.prisma.serviceProvisionDocument.findUnique({
+        where: { periodStart_type: { periodStart: monthStart, type: spec.type } },
+        select: { documentSumm: true, accounting1cSyncStatus: true },
+      });
+      const becameStaleAfterSync = existing?.accounting1cSyncStatus === 'SYNCED' && !existing.documentSumm.equals(spec.total);
+
       const row = await this.prisma.serviceProvisionDocument.upsert({
         where: { periodStart_type: { periodStart: monthStart, type: spec.type } },
         create: {
@@ -184,6 +193,7 @@ export class ServiceProvisionDocService {
           documentSumm: spec.total,
           contractCount: spec.details.length,
           rawPayload: rawPayloadBase as unknown as Prisma.InputJsonValue,
+          ...(becameStaleAfterSync ? { accounting1cSyncStatus: 'NOT_SYNCED' as const, accounting1cSyncError: null } : {}),
         },
       });
 
