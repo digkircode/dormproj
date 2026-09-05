@@ -42,6 +42,12 @@ export interface AccountingPaymentPush {
   Osnovanie: string; // "Назначение платежа"
 
   DocumentSummDetails: AccountingSummDetail[];
+
+  // Заполняем, если платёж уже был успешно отправлен раньше (Payment.accounting1cDocumentUid)
+  // — тот же принцип идемпотентности, что и у AccountingServiceProvisionPush.DocumentUID
+  // (флоу 3): повторная отправка (ручной ретрай на уже-SYNCED строке, см. промпт проекта)
+  // обновит существующий документ в 1С, а не создаст дубль. При первой отправке не передаём.
+  DocumentUID?: string;
 }
 
 export interface AccountingPaymentPushResult {

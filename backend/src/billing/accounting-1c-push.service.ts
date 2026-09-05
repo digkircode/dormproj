@@ -71,7 +71,10 @@ export class Accounting1cPushService {
           where: { id: payment.id },
           data: {
             accounting1cSyncStatus: 'SYNCED',
-            accounting1cDocumentUid: result.DocumentUID ?? null,
+            // Фолбэк на уже сохранённый uid — 1С не обязана эхом возвращать DocumentUID на
+            // КАЖДЫЙ успешный ответ (см. тот же приём во флоу 3, service-provision-doc.service.ts),
+            // без него повторная успешная отправка тихо обнуляла бы уже известный uid.
+            accounting1cDocumentUid: result.DocumentUID ?? payment.accounting1cDocumentUid ?? null,
             accounting1cSyncError: null,
             accounting1cSyncedAt: new Date(),
           },

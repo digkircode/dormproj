@@ -20,6 +20,7 @@ type PaymentForPush = {
   amount: Prisma.Decimal;
   paidAt: Date;
   penaltyAmount: Prisma.Decimal;
+  accounting1cDocumentUid: string | null;
   contract: {
     id: number;
     number: string;
@@ -87,5 +88,6 @@ export function buildAccountingPaymentPush(payment: PaymentForPush): AccountingP
     OplataContractor: payment.paymentIntent?.payerFullName ?? payment.contract.resident.fullName,
     Osnovanie: osnovanie,
     DocumentSummDetails: details,
+    DocumentUID: payment.accounting1cDocumentUid ?? undefined,
   };
 }
