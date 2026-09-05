@@ -13,6 +13,17 @@ const { Decimal } = Prisma;
 // аванс. Раньше пеня вообще не участвовала в этой функции (отдельный penaltyOnly-режим
 // в my-payments.controller.ts, обходивший её целиком) — с уборкой "своей суммы"/отдельного
 // режима пени в модалке оплаты пеня теперь всегда часть одного и того же платежа.
+//
+// Остаток, который не влез никуда (все начисления по договору — включая будущие —
+// уже закрыты, пени нет/погашена) — не теряется, а копится в Contract.creditBalance
+// (см. промпт проекта, код-ревью 2026-09-04). Уже накопленный остаток с ПРОШЛЫХ платежей
+// подмешивается сюда же в начале — если на договоре с прошлого раза появился новый долг
+// (наступил срок будущего начисления, снова начислена пеня после полного погашения — см.
+// penalty.scheduler.ts), эти деньги в первую очередь гасят именно его, ещё до денег самого
+// нового платежа. Раз это может закрыть больше, чем сумма конкретного payment.amount —
+// сумма созданных PaymentAllocation на этот paymentId может превысить payment.amount,
+// это ожидаемо (см. фикс DocumentSumm в build-accounting-payment-payload.ts — там сумма
+// документа для 1С считается по факту разнесённого, не по сырому payment.amount).
 export async function allocatePaymentFifo(
   tx: Prisma.TransactionClient,
   contractId: number,
@@ -22,13 +33,16 @@ export async function allocatePaymentFifo(
 ): Promise<Prisma.Decimal> {
   const asOf = dateOnly(paidAt);
 
-  const accruals = await tx.accrual.findMany({
-    where: { contractId, voidedAt: null },
-    orderBy: { periodStart: 'asc' },
-    include: { allocations: true },
-  });
+  const [contract, accruals] = await Promise.all([
+    tx.contract.findUniqueOrThrow({ where: { id: contractId }, select: { creditBalance: true } }),
+    tx.accrual.findMany({
+      where: { contractId, voidedAt: null },
+      orderBy: { periodStart: 'asc' },
+      include: { allocations: true },
+    }),
+  ]);
 
-  let remaining = amount;
+  let remaining = amount.plus(contract.creditBalance);
   const toCreate: { paymentId: number; accrualId: number; amount: Prisma.Decimal; isPartial: boolean }[] = [];
 
   function allocateToAccruals(list: typeof accruals): void {
@@ -73,6 +87,9 @@ export async function allocatePaymentFifo(
   }
   if (penaltyAllocated.greaterThan(0)) {
     await tx.payment.update({ where: { id: paymentId }, data: { penaltyAmount: penaltyAllocated } });
+  }
+  if (!remaining.equals(contract.creditBalance)) {
+    await tx.contract.update({ where: { id: contractId }, data: { creditBalance: remaining } });
   }
   return remaining;
 }

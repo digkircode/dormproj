@@ -41,7 +41,7 @@ type PaymentForPush = {
 // разбиваются на Найм/Коммуналка по факту начисления, частичные (isPartial=true) идут
 // одной строкой "Найм" целиком, без деления — делить пропорционально не просили.
 // Пеня — отдельно, из Payment.penaltyAmount (реальное разнесение, не начисление).
-function buildSummDetails(payment: PaymentForPush): { details: AccountingSummDetail[]; naimTotal: Prisma.Decimal } {
+function buildSummDetails(payment: PaymentForPush): { details: AccountingSummDetail[]; naimTotal: Prisma.Decimal; grandTotal: Prisma.Decimal } {
   let naim = new Decimal(0);
   let utilities = new Decimal(0);
 
@@ -60,11 +60,11 @@ function buildSummDetails(payment: PaymentForPush): { details: AccountingSummDet
   if (payment.penaltyAmount.greaterThan(0)) {
     details.push({ SummDetails: Number(payment.penaltyAmount), TypeDetails: 'Пени' });
   }
-  return { details, naimTotal: naim };
+  return { details, naimTotal: naim, grandTotal: naim.plus(utilities).plus(payment.penaltyAmount) };
 }
 
 export function buildAccountingPaymentPush(payment: PaymentForPush): AccountingPaymentPush {
-  const { details, naimTotal } = buildSummDetails(payment);
+  const { details, naimTotal, grandTotal } = buildSummDetails(payment);
   const osnovanie = buildPaymentPurpose({
     source: 'WEBSITE',
     residentFullName: payment.contract.resident.fullName,
@@ -83,7 +83,12 @@ export function buildAccountingPaymentPush(payment: PaymentForPush): AccountingP
     ContractName: payment.contract.number,
     ContractDate: formatDateOnlyIso(payment.contract.contractDate),
     Date: formatDateOnlyIso(payment.paidAt),
-    DocumentSumm: Number(payment.amount),
+    // Сумма разнесённого (найм+коммуналка+пеня), НЕ сырой payment.amount — они могут
+    // разойтись в обе стороны: платёж мог закрыть больше своей номинальной суммы за счёт
+    // Contract.creditBalance (см. payment-allocation.ts), или, наоборот, часть суммы могла
+    // осесть в creditBalance, если начислять было уже нечего. DocumentSummDetails должны
+    // всегда суммироваться ровно в DocumentSumm — иначе документ в 1С не сойдётся построчно.
+    DocumentSumm: Number(grandTotal),
     DocumentSummNaim: Number(naimTotal),
     OplataContractor: payment.paymentIntent?.payerFullName ?? payment.contract.resident.fullName,
     Osnovanie: osnovanie,
