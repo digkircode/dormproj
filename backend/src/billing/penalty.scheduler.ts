@@ -99,7 +99,18 @@ export class PenaltyScheduler {
         if (!earliestStartsAt || startsAt < earliestStartsAt) earliestStartsAt = startsAt;
       }
 
-      if (overdueSum.lessThanOrEqualTo(0) || !earliestStartsAt) continue;
+      if (overdueSum.lessThanOrEqualTo(0) || !earliestStartsAt) {
+        // Долг сейчас погашен (или ещё не наступил) — если раньше уже копили пеню
+        // (penaltyAccruedThrough задан), фиксируем "по эту дату долга не было", а не
+        // оставляем дату замороженной на моменте последнего долга. Иначе при повторном
+        // появлении долга на этом же договоре (новая просрочка ИЛИ сторно старого платежа,
+        // см. промпт проекта, код-ревью 2026-09-04) daysElapsed ниже досчитал бы пеню
+        // задним числом за весь "тихий" промежуток, как будто долг был всё это время.
+        if (contract.penaltyAccruedThrough && contract.penaltyAccruedThrough < today) {
+          updatedContractIds.push(contract.id);
+        }
+        continue;
+      }
 
       const sinceDate = contract.penaltyAccruedThrough ?? addDays(earliestStartsAt, -1);
       if (sinceDate >= today) continue;
@@ -123,6 +134,10 @@ export class PenaltyScheduler {
 
     if (logRows.length > 0) {
       await this.prisma.penaltyAccrualLog.createMany({ data: logRows, skipDuplicates: true });
+    }
+    // Не завязано на logRows.length>0 — контракт мог попасть сюда только чтобы закрыть
+    // "тихий" бездолговый промежуток (см. выше), без единой новой строки журнала пени.
+    if (updatedContractIds.length > 0) {
       await this.prisma.contract.updateMany({ where: { id: { in: updatedContractIds } }, data: { penaltyAccruedThrough: today } });
     }
 
