@@ -548,12 +548,15 @@ async function submitCreate() {
             </div>
             <div v-else class="flex flex-col gap-2">
               <Label>{{ t('contracts.createDialog.fieldCost') }}</Label>
-              <Input
-                v-model.number="rentAmount"
-                type="number"
-                :class="[NO_SPINNER_CLASS, rentAmountInvalid ? 'border-red-500' : '']"
-                @keydown="blockNonNumericKeys"
-              />
+              <div class="relative">
+                <Input
+                  v-model.number="rentAmount"
+                  type="number"
+                  :class="[NO_SPINNER_CLASS, 'pr-8', rentAmountInvalid ? 'border-red-500' : '']"
+                  @keydown="blockNonNumericKeys"
+                />
+                <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">₽</span>
+              </div>
             </div>
 
             <!-- Только для не-своего вуза — печатается в п.1.2 бланка вместо "обучением

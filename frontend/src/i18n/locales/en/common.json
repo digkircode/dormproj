@@ -84,6 +84,7 @@
     "kpiRoomsValue": "{occupied} / {total} occupied",
     "kpiExpiring": "Expiring contracts",
     "kpiDebtors": "Debtors",
+    "kpiOverdue": "Overdue contracts",
     "kpiUnread": "Unread messages",
     "quickNewIndividual": "New individual",
     "quickNewContract": "New contract",

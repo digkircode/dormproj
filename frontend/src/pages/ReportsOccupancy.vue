@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, ChevronRight, DoorClosed, DoorOpen, FileText, Home, Layers, ListFilter, Percent, SlidersHorizontal } from 'lucide-vue-next'
+import { ArrowLeft, ChevronRight, DoorClosed, DoorOpen, FileText, Home, Layers, ListFilter, Percent, SlidersHorizontal, Users } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -252,6 +252,28 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
           <DialogTitle>{{ t('roomInfo.dialogTitle', { room: selectedRoom?.room }) }}</DialogTitle>
         </DialogHeader>
         <div v-if="selectedRoom" class="flex flex-col gap-4 text-sm">
+          <!-- Проживающие — над характеристиками (по прямой просьбе 2026-09-05), тот же
+               приём блока (иконка+подпись, потом содержимое), что и у характеристик ниже. -->
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+              <Users class="size-4 text-primary" />
+              {{ t('reports.occupancy.occupants') }}
+            </div>
+            <ul v-if="selectedRoom.occupants.length" class="flex flex-col gap-2">
+              <li v-for="o in selectedRoom.occupants" :key="o.contractId" class="flex items-center justify-between rounded-md border px-3 py-2">
+                <span>{{ o.residentFullName }}</span>
+                <RouterLink
+                  :to="{ name: 'contract-detail', params: { id: o.contractId } }"
+                  class="flex items-center gap-1 text-xs text-primary"
+                >
+                  <FileText class="size-3.5 shrink-0" />
+                  {{ t('contracts.detail.titleWithNumber', { number: o.contractNumber }) }}
+                </RouterLink>
+              </li>
+            </ul>
+            <p v-else class="text-muted-foreground">{{ t('reports.occupancy.roomFree') }}</p>
+          </div>
+
           <div class="flex flex-col gap-2">
             <div class="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
               <SlidersHorizontal class="size-4 text-primary" />
@@ -284,19 +306,6 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
               />
             </div>
           </div>
-          <ul v-if="selectedRoom.occupants.length" class="flex flex-col gap-2">
-            <li v-for="o in selectedRoom.occupants" :key="o.contractId" class="flex items-center justify-between rounded-md border px-3 py-2">
-              <span>{{ o.residentFullName }}</span>
-              <RouterLink
-                :to="{ name: 'contract-detail', params: { id: o.contractId } }"
-                class="flex items-center gap-1 text-xs text-primary"
-              >
-                <FileText class="size-3.5 shrink-0" />
-                {{ t('contracts.detail.titleWithNumber', { number: o.contractNumber }) }}
-              </RouterLink>
-            </li>
-          </ul>
-          <p v-else class="text-muted-foreground">{{ t('reports.occupancy.roomFree') }}</p>
         </div>
       </DialogScrollContent>
     </Dialog>

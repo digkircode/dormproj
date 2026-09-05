@@ -458,6 +458,14 @@ export class ReportsController {
   // Кто проживает на дату asOf, с привязкой к Контингенту (факультет/курс) — если у
   // физлица несколько зачёток (Student.fizicheskoyeLitsoUid не уникален), берём любую
   // первую попавшуюся, отдельного правила выбора "главной" зачётки в проекте нет.
+  //
+  // Один резидент — одна строка (по прямой просьбе 2026-09-05), даже если на asOf у него
+  // одновременно больше одного договора/заселения (поддерживается в проекте, см. промпт —
+  // "несколько одновременных договоров") — раньше каждое совпадающее по дате RoomAssignment
+  // давало отдельную строку с одним и тем же ФИО. Дедуп ниже, после сортировки по fromDate
+  // (уже стоит orderBy), оставляет ту запись, где резидент реально жил (или жил ещё) на
+  // asOf, что заселился туда позже всех остальных — той же логике, что и Occupancy
+  // (комната на дату), просто применённой на уровне резидента, а не комнаты.
   private async buildContingentRows(asOf: Date): Promise<ContingentRow[]> {
     const assignments = await this.prisma.roomAssignment.findMany({
       where: { fromDate: { lte: asOf }, OR: [{ toDate: null }, { toDate: { gte: asOf } }] },
@@ -508,7 +516,16 @@ export class ReportsController {
       if (!existing || c.startDate < existing) firstContractStartByUid.set(c.residentIndividualUid, c.startDate);
     }
 
-    return assignments.map((a) => {
+    // assignments уже отсортирован по fromDate desc (см. orderBy выше) — первое вхождение
+    // на резидента и есть самое недавнее заселение, покрывающее asOf.
+    const seenResidentUids = new Set<string>();
+    const uniqueAssignments = assignments.filter((a) => {
+      if (seenResidentUids.has(a.contract.residentIndividualUid)) return false;
+      seenResidentUids.add(a.contract.residentIndividualUid);
+      return true;
+    });
+
+    return uniqueAssignments.map((a) => {
       const student = studentByUid.get(a.contract.residentIndividualUid);
       const citizenship = a.contract.resident.citizenships[0]?.country ?? null;
       return {
@@ -658,7 +675,11 @@ export class ReportsController {
     return {
       active: rows.filter((r) => r.bucket === 'ACTIVE').length,
       expiring30: rows.filter((r) => r.bucket === 'EXPIRING').length,
-      ended: rows.filter((r) => r.bucket === 'OVERDUE' || r.bucket === 'COMPLETED' || r.bucket === 'TERMINATED').length,
+      // OVERDUE вынесен из "ended" в свой тайл (по прямой просьбе 2026-09-05) — просрочен,
+      // но ещё не завершён: резидент может погасить долг и вернуться в ACTIVE, в отличие
+      // от COMPLETED/TERMINATED, откуда возврата не бывает.
+      overdue: rows.filter((r) => r.bucket === 'OVERDUE').length,
+      ended: rows.filter((r) => r.bucket === 'COMPLETED' || r.bucket === 'TERMINATED').length,
     };
   }
 

@@ -84,6 +84,7 @@
     "kpiRoomsValue": "{occupied} / {total} занято",
     "kpiExpiring": "Истекающие договоры",
     "kpiDebtors": "Должники",
+    "kpiOverdue": "Просроченные договоры",
     "kpiUnread": "Непрочитанные сообщения",
     "quickNewIndividual": "Новое физлицо",
     "quickNewContract": "Новый договор",

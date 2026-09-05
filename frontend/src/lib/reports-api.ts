@@ -130,6 +130,7 @@ export interface ContractRegistryRow {
 export interface ContractsRegistrySummary {
   active: number
   expiring30: number
+  overdue: number
   ended: number
 }
 

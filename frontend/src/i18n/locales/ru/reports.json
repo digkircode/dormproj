@@ -71,6 +71,7 @@
       "noFloor": "Без этажа",
       "floorLabel": "Этаж {floor}",
       "characteristics": "Характеристики",
+      "occupants": "Проживающие",
       "roomFree": "Комната свободна"
     },
     "contingent": {
@@ -97,6 +98,7 @@
       "colStatus": "Статус",
       "kpiActive": "Активные",
       "kpiExpiring30": "Истекают в течение 30 дней",
+      "kpiOverdue": "Просрочено",
       "kpiEnded": "Уже закончены",
       "expiringLabel": "Истекает ({days} дн.)",
       "overdueLabel": "Просрочен на {days} дн."

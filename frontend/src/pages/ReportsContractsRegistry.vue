@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
-import { ArrowLeft, CircleCheck, CircleX, Clock, Download } from 'lucide-vue-next'
+import { useRoute, useRouter } from 'vue-router'
+import { AlertTriangle, ArrowLeft, CircleCheck, CircleX, Clock, Download } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -23,7 +23,18 @@ import {
 import { goBack } from '@/lib/utils'
 
 const router = useRouter()
+const route = useRoute()
 const { t } = useI18n()
+
+// Переход с "Главной" (StaffHomeDashboard.vue) — тайлы "Просроченные"/"Истекающие" ведут
+// сюда с ?bucket=OVERDUE/EXPIRING, чтобы таблица сразу открывалась с применённым фильтром
+// (по прямой просьбе 2026-09-05), а не просто на список без выборки.
+const initialFilters = computed<Record<string, string[]>>(() => {
+  const bucket = route.query.bucket
+  const filters: Record<string, string[]> = {}
+  if (typeof bucket === 'string' && bucket) filters.bucket = [bucket]
+  return filters
+})
 
 const columnLabels = computed<Record<string, string>>(() => ({
   contractNumber: t('reports.registry.colContractNumber'),
@@ -92,7 +103,7 @@ async function onExport() {
       <h1 class="text-lg font-medium">{{ t('reports.registry.title') }}</h1>
     </div>
 
-    <Card v-if="summary" class="grid grid-cols-3 gap-4 p-4">
+    <Card v-if="summary" class="grid grid-cols-2 gap-4 p-4 sm:grid-cols-4">
       <ReportKpiTile
         :icon="CircleCheck"
         bg-class="bg-emerald-100 dark:bg-emerald-500/15"
@@ -108,9 +119,16 @@ async function onExport() {
         :value="String(summary.expiring30)"
       />
       <ReportKpiTile
-        :icon="CircleX"
+        :icon="AlertTriangle"
         bg-class="bg-red-100 dark:bg-red-500/15"
         icon-class="text-red-600 dark:text-red-400"
+        :label="t('reports.registry.kpiOverdue')"
+        :value="String(summary.overdue)"
+      />
+      <ReportKpiTile
+        :icon="CircleX"
+        bg-class="bg-muted"
+        icon-class="text-muted-foreground"
         :label="t('reports.registry.kpiEnded')"
         :value="String(summary.ended)"
       />
@@ -127,6 +145,7 @@ async function onExport() {
       :total-label="t('reports.common.totalContracts')"
       :cell-text="cellText"
       :cell-renderers="cellRenderers"
+      :default-filters="initialFilters"
       storage-key="reports-contracts-registry"
       accent-icons
     >

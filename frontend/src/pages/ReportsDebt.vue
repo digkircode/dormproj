@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, provide, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { AlertTriangle, ArrowLeft, Banknote, Download, Info, Percent, Users, Wallet } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -40,7 +40,18 @@ const DIALOG_ANIMATE_CLASS =
 const CELL_BORDER_CLASS = 'border-r border-border last:border-r-0'
 
 const router = useRouter()
+const route = useRoute()
 const { t } = useI18n()
+
+// Переход с тайла "Должники" на "Главной" (StaffHomeDashboard.vue) — ?hasDebt=YES, чтобы
+// таблица сразу открывалась уже отфильтрованной, а не просто на весь список договоров
+// (по прямой просьбе 2026-09-05).
+const initialFilters = computed<Record<string, string[]>>(() => {
+  const hasDebt = route.query.hasDebt
+  const filters: Record<string, string[]> = {}
+  if (typeof hasDebt === 'string' && hasDebt) filters.hasDebt = [hasDebt]
+  return filters
+})
 
 // computed, не const — header-текст берётся из t() (i18n), таблица (useTable в
 // EntityTable.vue) watch'ит props.columns реактивно и пересобирает заголовки при смене
@@ -257,6 +268,7 @@ async function onExport() {
       :total-label="t('reports.common.totalContracts')"
       :cell-text="cellText"
       :cell-renderers="cellRenderers"
+      :default-filters="initialFilters"
       storage-key="reports-debt"
       accent-icons
       :row-action="{ icon: Info, label: t('reports.debt.breakdownAction'), onClick: (d: DebtorRow) => openBreakdown(d.contractId) }"

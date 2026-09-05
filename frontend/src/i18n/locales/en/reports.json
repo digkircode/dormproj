@@ -71,6 +71,7 @@
       "noFloor": "No floor",
       "floorLabel": "Floor {floor}",
       "characteristics": "Characteristics",
+      "occupants": "Residents",
       "roomFree": "Room is free"
     },
     "contingent": {
@@ -97,6 +98,7 @@
       "colStatus": "Status",
       "kpiActive": "Active",
       "kpiExpiring30": "Expiring within 30 days",
+      "kpiOverdue": "Overdue",
       "kpiEnded": "Already ended",
       "expiringLabel": "Expiring ({days} d.)",
       "overdueLabel": "Overdue by {days} d."

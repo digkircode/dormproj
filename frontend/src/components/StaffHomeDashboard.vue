@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { AlertTriangle, Clock, DoorOpen, FileSignature, Megaphone, MessageCircle, MoreVertical, Newspaper, Pencil, Trash2, UserPlus } from 'lucide-vue-next'
+import { AlertTriangle, CalendarX, Clock, DoorOpen, FileSignature, Megaphone, MessageCircle, MoreVertical, Newspaper, Pencil, Trash2, UserPlus } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -41,6 +41,7 @@ const debtorsSummary = ref<DebtorsSummary | null>(null)
 const topDebtors = ref<DebtorRow[]>([])
 const contractsSummary = ref<ContractsRegistrySummary | null>(null)
 const topExpiring = ref<ContractRegistryRow[]>([])
+const topOverdue = ref<ContractRegistryRow[]>([])
 const unreadChatsCount = ref(0)
 const isLoading = ref(true)
 const announcements = ref<StaffAnnouncement[]>([])
@@ -59,12 +60,13 @@ onMounted(async () => {
   // и "Объявления" встали бок о бок (см. template) карточка стала уже, 4 строки уже не
   // помещались так же комфортно, как раньше в полную ширину.
   const baseListOptions = { page: 1, pageSize: 3, search: '' }
-  const [occ, debtSummary, debtRows, regSummary, expiringRows, conversations] = await Promise.all([
+  const [occ, debtSummary, debtRows, regSummary, expiringRows, overdueRows, conversations] = await Promise.all([
     fetchOccupancy().catch(() => null),
     fetchDebtorsSummary(asOf).catch(() => null),
     fetchDebtorsPage({ ...baseListOptions, sortBy: 'totalBalance', sortDir: 'desc', filters: {} }, asOf).catch(() => null),
     fetchContractsRegistrySummary().catch(() => null),
     fetchContractsRegistryPage({ ...baseListOptions, sortBy: 'endDate', sortDir: 'asc', filters: { bucket: ['EXPIRING'] } }).catch(() => null),
+    fetchContractsRegistryPage({ ...baseListOptions, sortBy: 'endDate', sortDir: 'asc', filters: { bucket: ['OVERDUE'] } }).catch(() => null),
     fetchConversations().catch(() => []),
   ])
   occupancy.value = occ
@@ -72,6 +74,7 @@ onMounted(async () => {
   topDebtors.value = (debtRows?.data ?? []).filter((r) => r.totalBalance > 0)
   contractsSummary.value = regSummary
   topExpiring.value = expiringRows?.data ?? []
+  topOverdue.value = overdueRows?.data ?? []
   unreadChatsCount.value = conversations.filter((c) => c.unread).length
   isLoading.value = false
 })
@@ -114,23 +117,35 @@ interface AttentionRow {
   to: string
 }
 
+// Порядок — тот же приоритет, что и у плашек выше (Должники → Просроченные →
+// Истекающие), по прямой просьбе 2026-09-05.
 const attentionRows = computed<AttentionRow[]>(() => {
-  const rows: AttentionRow[] = topExpiring.value.map((c) => ({
-    key: `expiring-${c.contractId}`,
-    icon: Clock,
-    iconClass: 'text-orange-500',
-    title: t('home.attentionContractLine', { number: c.contractNumber, name: c.residentFullName }),
-    subtitle: t('reports.registry.expiringLabel', { days: c.daysUntilEnd }),
-    to: `/contracts/${c.contractId}`,
+  const rows: AttentionRow[] = topDebtors.value.map((d) => ({
+    key: `debtor-${d.contractId}`,
+    icon: AlertTriangle,
+    iconClass: 'text-red-500',
+    title: t('home.attentionDebtorLine', { name: d.residentFullName, room: d.room ?? '—' }),
+    subtitle: formatMoney(d.totalBalance),
+    to: `/contracts/${d.contractId}`,
   }))
   rows.push(
-    ...topDebtors.value.map((d) => ({
-      key: `debtor-${d.contractId}`,
-      icon: AlertTriangle,
-      iconClass: 'text-red-500',
-      title: t('home.attentionDebtorLine', { name: d.residentFullName, room: d.room ?? '—' }),
-      subtitle: formatMoney(d.totalBalance),
-      to: `/contracts/${d.contractId}`,
+    ...topOverdue.value.map((c) => ({
+      key: `overdue-${c.contractId}`,
+      icon: CalendarX,
+      iconClass: 'text-rose-500',
+      title: t('home.attentionContractLine', { number: c.contractNumber, name: c.residentFullName }),
+      subtitle: t('reports.registry.overdueLabel', { days: Math.abs(c.daysUntilEnd) }),
+      to: `/contracts/${c.contractId}`,
+    })),
+  )
+  rows.push(
+    ...topExpiring.value.map((c) => ({
+      key: `expiring-${c.contractId}`,
+      icon: Clock,
+      iconClass: 'text-orange-500',
+      title: t('home.attentionContractLine', { number: c.contractNumber, name: c.residentFullName }),
+      subtitle: t('reports.registry.expiringLabel', { days: c.daysUntilEnd }),
+      to: `/contracts/${c.contractId}`,
     })),
   )
   if (unreadChatsCount.value > 0) {
@@ -152,7 +167,12 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
 
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <!-- Порядок — Комнаты, Должники, Просроченные, Истекающие, Непрочитанные (по прямой
+         просьбе 2026-09-05, было Комнаты/Истекающие/Должники/Непрочитанные). Должники/
+         Просроченные/Истекающие ведут на соответствующий отчёт уже с применённым фильтром
+         (?hasDebt=YES / ?bucket=OVERDUE / ?bucket=EXPIRING, см. ReportsDebt.vue/
+         ReportsContractsRegistry.vue), а не просто на пустой список. -->
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
       <RouterLink
         to="/reports/occupancy"
         class="rounded-lg bg-blue-50 p-4 transition-colors hover:bg-blue-100 dark:bg-blue-500/10 dark:hover:bg-blue-500/15"
@@ -167,18 +187,7 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
       </RouterLink>
 
       <RouterLink
-        to="/reports/contracts"
-        class="rounded-lg bg-orange-50 p-4 transition-colors hover:bg-orange-100 dark:bg-orange-500/10 dark:hover:bg-orange-500/15"
-      >
-        <div class="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <Clock class="size-4 shrink-0 text-orange-600 dark:text-orange-400" />
-          {{ t('home.kpiExpiring') }}
-        </div>
-        <p class="mt-1 text-2xl font-semibold tabular-nums">{{ isLoading ? '—' : (contractsSummary?.expiring30 ?? 0) }}</p>
-      </RouterLink>
-
-      <RouterLink
-        to="/reports/debt"
+        to="/reports/debt?hasDebt=YES"
         class="rounded-lg bg-red-50 p-4 transition-colors hover:bg-red-100 dark:bg-red-500/10 dark:hover:bg-red-500/15"
       >
         <div class="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -187,6 +196,28 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
         </div>
         <p class="mt-1 text-2xl font-semibold tabular-nums">{{ isLoading ? '—' : (debtorsSummary?.debtorsCount ?? 0) }}</p>
         <p v-if="!isLoading && debtorsSummary" class="text-xs text-muted-foreground">{{ formatMoney(debtorsSummary.totalDebt) }}</p>
+      </RouterLink>
+
+      <RouterLink
+        to="/reports/contracts?bucket=OVERDUE"
+        class="rounded-lg bg-rose-50 p-4 transition-colors hover:bg-rose-100 dark:bg-rose-500/10 dark:hover:bg-rose-500/15"
+      >
+        <div class="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <CalendarX class="size-4 shrink-0 text-rose-600 dark:text-rose-400" />
+          {{ t('home.kpiOverdue') }}
+        </div>
+        <p class="mt-1 text-2xl font-semibold tabular-nums">{{ isLoading ? '—' : (contractsSummary?.overdue ?? 0) }}</p>
+      </RouterLink>
+
+      <RouterLink
+        to="/reports/contracts?bucket=EXPIRING"
+        class="rounded-lg bg-orange-50 p-4 transition-colors hover:bg-orange-100 dark:bg-orange-500/10 dark:hover:bg-orange-500/15"
+      >
+        <div class="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Clock class="size-4 shrink-0 text-orange-600 dark:text-orange-400" />
+          {{ t('home.kpiExpiring') }}
+        </div>
+        <p class="mt-1 text-2xl font-semibold tabular-nums">{{ isLoading ? '—' : (contractsSummary?.expiring30 ?? 0) }}</p>
       </RouterLink>
 
       <RouterLink
