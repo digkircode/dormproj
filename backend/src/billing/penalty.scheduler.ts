@@ -18,11 +18,19 @@ const { Decimal } = Prisma;
 // числом): и аудит "откуда взялась сумма" (по прямой просьбе 2026-08-22), и единственный
 // способ восстановить пеню на прошлую дату для финансового отчёта (сумма строк журнала по
 // эту дату, см. billing/penalty-balance.ts). Идемпотентно: penaltyAccruedThrough на
-// Contract не даёт начислить дважды за один день (плюс @@unique([contractId, date]) в
-// БД — защита на случай гонки/повторного запуска), а при пропуске запуска (сервер был
-// недоступен) досчитывает за все пропущенные дни разом — по одной строке на каждый день,
-// все с ТЕКУЩЕЙ базой (та же упрощающая посылка, что была и раньше в этом кроне — база за
-// пропущенные дни назад не восстанавливается).
+// Contract не даёт начислить дважды за один день (плюс @@unique([contractId, date]) в БД —
+// защита на случай гонки/повторного запуска).
+//
+// Если крон пропустил несколько дней подряд (сервер лежал, ИЛИ — по прямой просьбе
+// 2026-09-05 — договор занесён задним числом спустя месяцы после заселения), база пени
+// пересчитывается ОТДЕЛЬНО НА КАЖДЫЙ пропущенный день, а не берётся один раз "на сегодня"
+// и не размножается на весь период (так было раньше — самый частый практический эффект:
+// первые дни просрочки получали пеню от долга, который на самом деле накопился только
+// позже). "Оплачено ли начисление" на каждый день считается по факту — какие платежи с
+// какой датой paidAt реально были СДЕЛАНЫ К ЭТОМУ дню, а не оплачено ли начисление вообще
+// на текущий момент — иначе платёж, поступивший уже ПОСЛЕ занесения договора (например,
+// подтягивается вместе с ним, задним числом), задним же числом убрал бы пеню и за более
+// ранние дни, когда долг по факту ещё висел.
 @Injectable()
 export class PenaltyScheduler {
   private readonly logger = new Logger(PenaltyScheduler.name);
@@ -41,45 +49,46 @@ export class PenaltyScheduler {
     // не критично.
     const contracts = await this.prisma.contract.findMany({
       where: { accruals: { some: { voidedAt: null, periodStart: { lte: addDays(today, -10) } } } },
-      include: { accruals: { where: { voidedAt: null }, include: { allocations: true } } },
+      include: {
+        accruals: {
+          where: { voidedAt: null },
+          include: {
+            // paidAt/reversedAt — чтобы на каждый день катч-апа знать, какие именно платежи
+            // УЖЕ БЫЛИ на тот день (не текущее состояние оплаты, см. комментарий выше).
+            allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } },
+          },
+        },
+      },
     });
+
+    // Статичная (не зависящая от конкретного дня D) часть расчёта по начислению — считается
+    // один раз на начисление, не на каждый день катч-апа.
+    interface AccrualCalc {
+      startsAt: Date;
+      principal: Prisma.Decimal;
+      isDailyRateAccrual: boolean;
+      matCapitalExempt: boolean; // periodStart попадает в период, закрытый маткапиталом
+      payments: { amount: Prisma.Decimal; paidAt: Date }[]; // только неотсторнированные
+    }
 
     const logRows: { contractId: number; date: Date; amount: Prisma.Decimal; overdueBase: Prisma.Decimal }[] = [];
     const updatedContractIds: number[] = [];
     let totalAdded = new Decimal(0);
 
     for (const contract of contracts) {
-      let overdueSum = new Decimal(0);
-      let earliestStartsAt: Date | null = null;
+      const calcs: AccrualCalc[] = [];
 
       for (const accrual of contract.accruals) {
-        const startsAt = penaltyStartsAt(accrual.periodStart);
-        if (today < startsAt) continue;
-
-        const withinMatCapitalPeriod =
-          contract.matCapitalCoveredFrom &&
-          contract.matCapitalCoveredTo &&
-          accrual.periodStart >= contract.matCapitalCoveredFrom &&
-          accrual.periodStart <= contract.matCapitalCoveredTo;
-        if (withinMatCapitalPeriod && contract.matCapitalDeferredUntil && today <= contract.matCapitalDeferredUntil) {
-          continue;
-        }
-
         const principal = accrual.rentAmount.plus(accrual.utilitiesAmount).plus(accrual.adjustmentAmount);
-        const paid = accrual.allocations.reduce((sum, a) => sum.plus(a.amount), new Decimal(0));
-        const outstanding = principal.minus(paid);
-        if (outstanding.lessThanOrEqualTo(0)) continue;
 
         // База пени — по прямой просьбе (2026-08-31, найдено пользователем при сверке с
         // реальными данными): для ОБЫЧНОГО (не посуточного) начисления это фиксированная
         // стоимость комнаты за месяц (principal, найм+коммуналка+корректировка) — частичная
-        // оплата НЕ уменьшает базу, пока начисление не закрыто полностью (см. `continue`
-        // выше на outstanding<=0). Уменьшается от факта оплаты база только у посуточных
-        // начислений (неполный крайний месяц ИЛИ комната без месячной "Стоимости", 112-2/
-        // 410-2 — там rentAmount/utilitiesAmount не два раздельных обязательства, а один и
-        // тот же посуточный платёж, искусственно разбитый пополам для отчётности, см.
-        // accrual-generation.ts#computeAccrualAmounts, поэтому для них берём фактическую
-        // (уже уменьшенную оплатой) сумму, как и раньше).
+        // оплата НЕ уменьшает базу, пока начисление не закрыто полностью. Уменьшается от
+        // факта оплаты база только у посуточных начислений (неполный крайний месяц ИЛИ
+        // комната без месячной "Стоимости", 112-2/410-2 — там rentAmount/utilitiesAmount не
+        // два раздельных обязательства, а один и тот же посуточный платёж, искусственно
+        // разбитый пополам для отчётности, см. accrual-generation.ts#computeAccrualAmounts).
         const terms = await this.prisma.contractTerms.findFirst({
           where: {
             contractId: contract.id,
@@ -93,50 +102,83 @@ export class PenaltyScheduler {
         // ненулевую месячную "Стоимость".
         const isDailyOnlyRoom = !!terms && terms.rentAmount.isZero() && terms.utilitiesAmount.isZero();
         const isDailyRateAccrual = isDailyOnlyRoom || !isFullMonthAccrualPeriod(accrual.periodStart, accrual.periodEnd);
-        const penaltyBase = isDailyRateAccrual ? outstanding : principal;
 
-        overdueSum = overdueSum.plus(penaltyBase);
-        if (!earliestStartsAt || startsAt < earliestStartsAt) earliestStartsAt = startsAt;
+        const matCapitalExempt = Boolean(
+          contract.matCapitalCoveredFrom &&
+            contract.matCapitalCoveredTo &&
+            accrual.periodStart >= contract.matCapitalCoveredFrom &&
+            accrual.periodStart <= contract.matCapitalCoveredTo,
+        );
+
+        const payments = accrual.allocations
+          .filter((a) => a.payment.reversedAt === null)
+          .map((a) => ({ amount: a.amount, paidAt: a.payment.paidAt }));
+
+        calcs.push({
+          startsAt: penaltyStartsAt(accrual.periodStart),
+          principal,
+          isDailyRateAccrual,
+          matCapitalExempt,
+          payments,
+        });
       }
 
-      if (overdueSum.lessThanOrEqualTo(0) || !earliestStartsAt) {
-        // Долг сейчас погашен (или ещё не наступил) — если раньше уже копили пеню
-        // (penaltyAccruedThrough задан), фиксируем "по эту дату долга не было", а не
-        // оставляем дату замороженной на моменте последнего долга. Иначе при повторном
-        // появлении долга на этом же договоре (новая просрочка ИЛИ сторно старого платежа,
-        // см. промпт проекта, код-ревью 2026-09-04) daysElapsed ниже досчитал бы пеню
-        // задним числом за весь "тихий" промежуток, как будто долг был всё это время.
-        if (contract.penaltyAccruedThrough && contract.penaltyAccruedThrough < today) {
-          updatedContractIds.push(contract.id);
-        }
-        continue;
-      }
+      if (calcs.length === 0) continue;
+      const earliestStartsAt = calcs.reduce((min, c) => (!min || c.startsAt < min ? c.startsAt : min), null as Date | null);
+      if (!earliestStartsAt) continue;
 
       const sinceDate = contract.penaltyAccruedThrough ?? addDays(earliestStartsAt, -1);
       if (sinceDate >= today) continue;
       const daysElapsed = daysBetweenInclusive(addDays(sinceDate, 1), today);
       if (daysElapsed <= 0) continue;
 
-      const dailyAmount = overdueSum.times(PENALTY_DAILY_RATE);
+      let contractTotal = new Decimal(0);
+      let rowsForContract = 0;
+
       for (let i = 1; i <= daysElapsed; i++) {
-        logRows.push({ contractId: contract.id, date: addDays(sinceDate, i), amount: dailyAmount, overdueBase: overdueSum });
+        const day = addDays(sinceDate, i);
+        let overdueSum = new Decimal(0);
+
+        for (const calc of calcs) {
+          if (day < calc.startsAt) continue;
+          if (calc.matCapitalExempt && contract.matCapitalDeferredUntil && day <= contract.matCapitalDeferredUntil) continue;
+
+          const paidAsOfDay = calc.payments
+            .filter((p) => p.paidAt <= day)
+            .reduce((sum, p) => sum.plus(p.amount), new Decimal(0));
+          const outstanding = calc.principal.minus(paidAsOfDay);
+          if (outstanding.lessThanOrEqualTo(0)) continue;
+
+          overdueSum = overdueSum.plus(calc.isDailyRateAccrual ? outstanding : calc.principal);
+        }
+
+        if (overdueSum.greaterThan(0)) {
+          const dailyAmount = overdueSum.times(PENALTY_DAILY_RATE);
+          logRows.push({ contractId: contract.id, date: day, amount: dailyAmount, overdueBase: overdueSum });
+          contractTotal = contractTotal.plus(dailyAmount);
+          rowsForContract++;
+        }
       }
+
+      // Помечаем договор обработанным по сегодня в любом случае (даже если ни одного дня
+      // с реальным долгом не нашлось) — иначе следующий прогон отсчитает этот же
+      // "тихий" промежуток заново, как будто долг всё это время был (см. промпт проекта,
+      // код-ревью 2026-09-04).
       updatedContractIds.push(contract.id);
-      const contractTotal = dailyAmount.times(daysElapsed);
       totalAdded = totalAdded.plus(contractTotal);
 
-      this.logger.log(
-        `Договор №${contract.number} (id=${contract.id}): база просрочки ${overdueSum.toFixed(2)}, ` +
-          `дней к начислению ${daysElapsed} (с ${sinceDate.toISOString().slice(0, 10)} по ${today.toISOString().slice(0, 10)}), ` +
-          `пеня/день ${dailyAmount.toFixed(2)}, добавлено всего ${contractTotal.toFixed(2)}`,
-      );
+      if (rowsForContract > 0) {
+        this.logger.log(
+          `Договор №${contract.number} (id=${contract.id}): обработано дней ${daysElapsed} ` +
+            `(с ${addDays(sinceDate, 1).toISOString().slice(0, 10)} по ${today.toISOString().slice(0, 10)}), ` +
+            `из них с пеней ${rowsForContract}, добавлено всего ${contractTotal.toFixed(2)}`,
+        );
+      }
     }
 
     if (logRows.length > 0) {
       await this.prisma.penaltyAccrualLog.createMany({ data: logRows, skipDuplicates: true });
     }
-    // Не завязано на logRows.length>0 — контракт мог попасть сюда только чтобы закрыть
-    // "тихий" бездолговый промежуток (см. выше), без единой новой строки журнала пени.
     if (updatedContractIds.length > 0) {
       await this.prisma.contract.updateMany({ where: { id: { in: updatedContractIds } }, data: { penaltyAccruedThrough: today } });
     }
