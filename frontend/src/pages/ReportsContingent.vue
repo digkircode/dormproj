@@ -12,6 +12,7 @@ import DatePickerField from '@/components/DatePickerField.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import { fetchContingentPage, fetchContingentFacets, exportContingentExcel, type ContingentRow, type ListOptions } from '@/lib/reports-api'
 import { goBack } from '@/lib/utils'
+import { todayIso } from '@/lib/format-locale'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -61,10 +62,7 @@ const columns = computed(() =>
 // Отчёт "на дату" (по умолчанию сегодня) — тот же приём, что период в ReportsMovements.vue/
 // дата в ReportsDebt.vue: EntityTable сама не знает про внешний asOf, перезапрашиваем
 // страницу вручную через её exposed refresh() при смене даты.
-function isoToday(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-const asOf = ref(isoToday())
+const asOf = ref(todayIso())
 
 function fetchPage(options: ListOptions, signal?: AbortSignal) {
   return fetchContingentPage(options, asOf.value, signal)

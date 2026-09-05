@@ -23,7 +23,7 @@ import {
 } from '@/lib/reports-api'
 import { fetchConversations } from '@/lib/chat-api'
 import { fetchAnnouncements, deleteAnnouncement, type StaffAnnouncement } from '@/lib/announcements-api'
-import { dateLocaleTag } from '@/lib/format-locale'
+import { dateLocaleTag, todayIso } from '@/lib/format-locale'
 import { iconBadgeColorClasses } from '@/lib/avatar-color'
 import { parseApiError } from '@/lib/utils'
 
@@ -46,9 +46,6 @@ const isLoading = ref(true)
 const announcements = ref<StaffAnnouncement[]>([])
 const isAnnouncementsLoading = ref(true)
 
-function isoToday(): string {
-  return new Date().toISOString().slice(0, 10)
-}
 function formatMoney(value: number): string {
   return `${value.toLocaleString(dateLocaleTag(), { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
 }
@@ -57,7 +54,7 @@ function formatDate(value: string): string {
 }
 
 onMounted(async () => {
-  const asOf = isoToday()
+  const asOf = todayIso()
   // pageSize 3 (было 4) — по прямой просьбе 2026-08-30, после того как "Требует внимания"
   // и "Объявления" встали бок о бок (см. template) карточка стала уже, 4 строки уже не
   // помещались так же комфортно, как раньше в полную ширину.

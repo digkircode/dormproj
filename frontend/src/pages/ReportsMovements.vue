@@ -23,6 +23,7 @@ import {
   type ListOptions,
 } from '@/lib/reports-api'
 import { goBack } from '@/lib/utils'
+import { todayIso } from '@/lib/format-locale'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -61,14 +62,10 @@ const columns = computed(() =>
   ]),
 )
 
-function isoToday(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
 // Дата начала периода пустая по умолчанию — тогда отчёт показывает всё "на дату
 // окончания" (без нижней границы, см. reports.controller.ts), не последний месяц.
 const from = ref('')
-const to = ref(isoToday())
+const to = ref(todayIso())
 
 function fetchPage(options: ListOptions, signal?: AbortSignal) {
   return fetchMovementsPage(options, from.value, to.value, signal)

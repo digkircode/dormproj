@@ -31,7 +31,7 @@ import {
   type ListOptions,
 } from '@/lib/reports-api'
 import { goBack } from '@/lib/utils'
-import { dateLocaleTag } from '@/lib/format-locale'
+import { dateLocaleTag, todayIso } from '@/lib/format-locale'
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
@@ -108,10 +108,7 @@ const columns = computed(() =>
 // Отчёт "на дату" (по умолчанию сегодня) — тот же приём, что период в ReportsMovements.vue:
 // EntityTable сама не знает про внешний asOf, перезапрашиваем страницу и сводку вручную
 // через её exposed refresh() при смене даты.
-function isoToday(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-const asOf = ref(isoToday())
+const asOf = ref(todayIso())
 
 function fetchPage(options: ListOptions, signal?: AbortSignal) {
   return fetchDebtorsPage(options, asOf.value, signal)
