@@ -63,6 +63,19 @@ function revokePreviewUrl(file: File) {
     objectUrls.delete(file)
   }
 }
+// Ключ для v-for ниже — тот же приём и по той же причине, что в ChatThread.vue: Ctrl+V
+// одного и того же файла дважды подряд даёт два File с одинаковыми name+size, коллизия
+// ключа ломает диффинг Vue (кнопка "убрать" у одного превью может удалить другой файл).
+let nextFileKey = 0
+const fileKeys = new WeakMap<File, number>()
+function keyFor(file: File): number {
+  let key = fileKeys.get(file)
+  if (key === undefined) {
+    key = nextFileKey++
+    fileKeys.set(file, key)
+  }
+  return key
+}
 onBeforeUnmount(() => {
   for (const url of objectUrls.values()) URL.revokeObjectURL(url)
   objectUrls.clear()
@@ -339,7 +352,7 @@ async function submit() {
             <span class="text-xs text-muted-foreground">{{ t('chat.broadcast.attachHint') }}</span>
           </div>
           <div v-if="pendingFiles.length" class="flex flex-wrap gap-2">
-            <div v-for="file in pendingFiles" :key="file.name + file.size" class="relative" :title="`${file.name} (${formatSize(file.size)})`">
+            <div v-for="file in pendingFiles" :key="keyFor(file)" class="relative" :title="`${file.name} (${formatSize(file.size)})`">
               <img v-if="file.type.startsWith('image/')" :src="previewUrlFor(file)" class="size-16 rounded-md border object-cover" />
               <div v-else class="flex size-16 flex-col items-center justify-center gap-1 rounded-md border bg-muted text-muted-foreground">
                 <FileVideo class="size-5" />
