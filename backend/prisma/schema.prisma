@@ -393,14 +393,15 @@ enum SyncStatus {
 model Room {
   id   Int     @id @default(autoincrement())
   guid String? @unique
-  room String
+  // @unique — иначе обработка P2002 в rooms.controller.ts (create/update) была мёртвым
+  // кодом: ничего в схеме реально не мешало завести две комнаты с одинаковым номером
+  // (код-ревью 2026-09-04). Перед деплоем миграции на прод проверить, что там уже нет
+  // дублей room — иначе `prisma migrate deploy` упадёт на добавлении constraint'а.
+  room String @unique
 
   characteristicValues RoomCharacteristicValue[]
   roomAssignments      RoomAssignment[]
 
-  // Под сортировку/поиск списка комнат (rooms.controller.ts) — см. известную проблему в
-  // промпте проекта, добавлено 2026-08-28.
-  @@index([room])
   @@map("rooms")
 }
 
