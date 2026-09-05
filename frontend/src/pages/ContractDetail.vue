@@ -19,6 +19,7 @@ import {
   Percent,
   Printer,
   Receipt,
+  RotateCw,
   Trash2,
   User,
   Users,
@@ -45,7 +46,7 @@ import {
   type ContractDetail,
   type PaymentRow,
 } from '@/lib/contracts-api'
-import { reversePayment, syncPaymentToAccounting1c } from '@/lib/billing-api'
+import { reversePayment, syncPaymentToAccounting1c, recalculatePenalty } from '@/lib/billing-api'
 import Accounting1cStatusPill from '@/components/Accounting1cStatusPill.vue'
 import { fetchDormitoryInfo, type DormitoryInfo } from '@/lib/dormitory-info-api'
 import { goBack } from '@/lib/utils'
@@ -100,6 +101,28 @@ onMounted(async () => {
 const totalBalance = computed(() =>
   contract.value ? contract.value.accruals.reduce((sum, a) => sum + a.balance, 0) + contract.value.penaltyBalance : 0,
 )
+
+// История начисления пени по дням — раскрывается кликом по тайлу "Пени" (тот же приём,
+// что и у резидента, см. MyContract.vue), плюс кнопка "Пересчитать" для сотрудника
+// (2026-09-05, billing.controller.ts#recalculatePenalty) — полная пересборка журнала пени
+// договора с нуля тем же дневным расчётом, что и ночной крон (нужно для договоров, чью
+// историю пени крон мог посчитать неверно ДО фикса дневного расчёта, см. промпт проекта).
+const isPenaltyDialogOpen = ref(false)
+const PENALTY_DAILY_RATE_PERCENT = '0,14%'
+const isRecalculatingPenalty = ref(false)
+const recalculatePenaltyError = ref('')
+async function submitRecalculatePenalty() {
+  isRecalculatingPenalty.value = true
+  recalculatePenaltyError.value = ''
+  try {
+    await recalculatePenalty(contractId.value)
+    await load()
+  } catch (error) {
+    recalculatePenaltyError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isRecalculatingPenalty.value = false
+  }
+}
 // Коммунальные услуги в БД уже включены в стоимость комнаты (Room → характеристика
 // "Стоимость (из/не из вуза)"), которая и попадает в rentAmount при создании договора —
 // отдельно прибавлять utilitiesAmount не нужно, это задвоило бы сумму.
@@ -412,15 +435,22 @@ async function retrySyncToAccounting1c(payment: PaymentRow) {
                 <p class="text-lg font-medium">{{ formatMoney(contract.terms[0]?.dailyRateAmount ?? 0) }}</p>
               </div>
             </div>
+            <!-- Кликабельна только сама сумма (открывает историю начисления по дням),
+                 не весь тайл — тот же приём, что у резидента (MyContract.vue). -->
             <div class="flex items-center gap-3">
               <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-500/15">
                 <Percent class="size-5 text-orange-600 dark:text-orange-400" />
               </div>
               <div>
                 <p class="text-xs text-muted-foreground">{{ t('contracts.detail.penalty') }}</p>
-                <p class="text-lg font-medium" :class="contract.penaltyBalance > 0 ? 'text-red-500' : ''">
+                <button
+                  type="button"
+                  class="rounded-sm text-lg font-medium underline decoration-dotted underline-offset-2"
+                  :class="contract.penaltyBalance > 0 ? 'text-red-500 hover:text-red-600' : 'hover:text-foreground/80'"
+                  @click="isPenaltyDialogOpen = true"
+                >
                   {{ formatMoney(contract.penaltyBalance) }}
-                </p>
+                </button>
               </div>
             </div>
           </div>
@@ -638,6 +668,43 @@ async function retrySyncToAccounting1c(payment: PaymentRow) {
             {{ t('contracts.detail.confirmReverse') }}
           </Button>
         </DialogFooter>
+      </DialogScrollContent>
+    </Dialog>
+
+    <Dialog :open="isPenaltyDialogOpen" @update:open="(open) => (isPenaltyDialogOpen = open)">
+      <DialogScrollContent class="flex max-h-[85vh] flex-col sm:max-w-md">
+        <DialogHeader>
+          <div class="flex items-center justify-between gap-2 pr-6">
+            <DialogTitle class="flex items-center gap-1.5">
+              <Percent class="size-4 text-orange-500" />
+              {{ t('contracts.myContract.penaltyHistoryTitle') }}
+            </DialogTitle>
+            <Button variant="outline" size="sm" :loading="isRecalculatingPenalty" @click="submitRecalculatePenalty">
+              <RotateCw class="size-3.5" />
+              {{ t('contracts.detail.recalculatePenalty') }}
+            </Button>
+          </div>
+          <DialogDescription>
+            {{ t('contracts.myContract.penaltyHistoryDescription') }}
+          </DialogDescription>
+        </DialogHeader>
+        <p v-if="recalculatePenaltyError" class="text-sm text-red-500">{{ recalculatePenaltyError }}</p>
+        <div v-if="contract?.penaltyLog.length" class="-mx-1 flex-1 space-y-1 overflow-y-auto px-1" style="max-height: 50vh">
+          <div
+            v-for="row in contract.penaltyLog"
+            :key="row.date"
+            class="flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-sm"
+          >
+            <div>
+              <p class="font-medium">{{ formatDate(row.date) }}</p>
+              <p class="text-xs text-muted-foreground">
+                {{ t('contracts.myContract.penaltyLine', { rate: PENALTY_DAILY_RATE_PERCENT, amount: formatMoney(row.overdueBase) }) }}
+              </p>
+            </div>
+            <span class="font-medium text-orange-600 dark:text-orange-400">+{{ formatMoney(row.amount) }}</span>
+          </div>
+        </div>
+        <p v-else class="text-sm text-muted-foreground">{{ t('contracts.myContract.penaltyNeverAccrued') }}</p>
       </DialogScrollContent>
     </Dialog>
   </div>

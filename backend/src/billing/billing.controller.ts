@@ -13,6 +13,7 @@ import { serializePayment } from '../contracts/serializers';
 import { zodErrorMessage } from '../i18n/zod-error-message';
 import { Accounting1cPushService } from './accounting-1c-push.service';
 import { ServiceProvisionDocService } from './service-provision-doc.service';
+import { PenaltyRecalculateService } from './penalty-recalculate.service';
 
 const createPaymentSchema = z.object({
   amount: z.number().finite().positive(),
@@ -40,6 +41,7 @@ export class BillingController {
     private readonly auditLog: AuditLogService,
     private readonly accounting1cPush: Accounting1cPushService,
     private readonly serviceProvisionDoc: ServiceProvisionDocService,
+    private readonly penaltyRecalculate: PenaltyRecalculateService,
   ) {}
 
   // Ручной платёж (сотрудник вносит) — сразу разносится по неоплаченным начислениям
@@ -163,6 +165,42 @@ export class BillingController {
     });
 
     return serializePayment(updated);
+  }
+
+  // Ручной пересчёт пени по кнопке сотрудника (2026-09-05) — полная пересборка журнала
+  // пени договора с нуля тем же дневным расчётом, что и ночной крон (penalty-calc.ts),
+  // см. penalty-recalculate.service.ts. Нужен, чтобы поправить историю пени у договоров,
+  // которую крон уже успел неверно посчитать (например, до фикса в тот же день — задним
+  // числом занесённый договор получал пеню от максимального долга сразу за весь
+  // пропущенный период) — сам крон такую историю задним числом не переиграет, он только
+  // идёт вперёд от Contract.penaltyAccruedThrough.
+  @Post('contracts/:contractId/recalculate-penalty')
+  async recalculatePenalty(@Param('contractId') contractIdParam: string, @Req() req: Request) {
+    const contractId = parseIdParam(contractIdParam);
+    if (!req.user) {
+      throw new BadRequestException('contracts.errors.sessionUserNotFound');
+    }
+    const contract = await this.prisma.contract.findUnique({ where: { id: contractId } });
+    if (!contract) {
+      throw new NotFoundException('contracts.errors.contractNotFound');
+    }
+
+    const { rowsCreated, totalAdded } = await this.penaltyRecalculate.recalculate(contractId);
+    const updated = await this.prisma.contract.findUniqueOrThrow({ where: { id: contractId } });
+
+    const userId = await ensureUserRecord(this.prisma, req.user);
+    await this.auditLog.log(this.prisma, {
+      userId,
+      action: 'UPDATE',
+      entityType: 'Contract',
+      entityId: contract.id,
+      entityLabel: `Пересчёт пени — договор №${contract.number}`,
+      before: contract,
+      after: updated,
+      fields: ['penaltyAccruedThrough'],
+    });
+
+    return { rowsCreated, totalAdded: Number(totalAdded) };
   }
 
   // Флоу 3 — видимость сотруднику: что реально отправилось за какой месяц и с каким

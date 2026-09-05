@@ -352,6 +352,13 @@ export class ContractsController {
       penaltyAmount: Number(penaltyAmount),
       penaltyPaid: Number(penaltyPaid),
       penaltyBalance: Number(penaltyBalance),
+      // Журнал начисления пени по дням — для клика по тайлу "Пени" на карточке (тот же
+      // приём, что и у резидента, см. my-contract.controller.ts), плюс кнопка "Пересчитать"
+      // рядом (billing.controller.ts#recalculatePenalty).
+      penaltyLog: penaltyLogs
+        .slice()
+        .sort((a, b) => a.date.getTime() - b.date.getTime())
+        .map((l) => ({ date: l.date, amount: Number(l.amount), overdueBase: Number(l.overdueBase) })),
       residentFullName: resident.fullName,
       residentIndividualUid: resident.fizicheskoyeLitsoUid,
       currentRoom: roomAssignments.find((a) => a.toDate === null)?.room ?? null,

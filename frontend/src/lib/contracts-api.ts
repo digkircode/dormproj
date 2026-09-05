@@ -108,6 +108,9 @@ export interface ContractDetail {
   penaltyAmount: number
   penaltyPaid: number
   penaltyBalance: number
+  // История начисления пени по дням — та же форма, что и у резидента (MyContractDetail
+  // ниже), для клика по тайлу "Пени" на карточке (ContractDetail.vue), добавлено 2026-09-05.
+  penaltyLog: PenaltyLogRow[]
   terms: ContractTerms[]
   accruals: AccrualRow[]
   payments: PaymentRow[]

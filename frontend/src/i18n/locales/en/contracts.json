@@ -11,7 +11,8 @@
       "batchDocumentFailed": "Failed to generate the contract documents ({status})",
       "addPaymentFailed": "Failed to add the payment ({status})",
       "reversePaymentFailed": "Failed to reverse the payment ({status})",
-      "syncPaymentToAccounting1cFailed": "Failed to send the payment to 1C ({status})"
+      "syncPaymentToAccounting1cFailed": "Failed to send the payment to 1C ({status})",
+      "recalculatePenaltyFailed": "Failed to recalculate the penalty ({status})"
     },
     "status": {
       "ACTIVE": "Active",
@@ -54,6 +55,7 @@
       "utilities": "Utilities",
       "dailyRate": "Daily rate",
       "penalty": "Penalty",
+      "recalculatePenalty": "Recalculate",
       "createdOn": "Created {date}",
       "parentInfo": "Parent information",
       "fullName": "Full name:",

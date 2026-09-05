@@ -11,7 +11,8 @@
       "batchDocumentFailed": "Не удалось сформировать договоры ({status})",
       "addPaymentFailed": "Не удалось внести платёж ({status})",
       "reversePaymentFailed": "Не удалось сторнировать платёж ({status})",
-      "syncPaymentToAccounting1cFailed": "Не удалось отправить платёж в 1С ({status})"
+      "syncPaymentToAccounting1cFailed": "Не удалось отправить платёж в 1С ({status})",
+      "recalculatePenaltyFailed": "Не удалось пересчитать пеню ({status})"
     },
     "status": {
       "ACTIVE": "Действует",
@@ -54,6 +55,7 @@
       "utilities": "Коммунальные услуги",
       "dailyRate": "Суточная ставка",
       "penalty": "Пени",
+      "recalculatePenalty": "Пересчитать",
       "createdOn": "Создан {date}",
       "parentInfo": "Информация о родителе",
       "fullName": "ФИО:",

@@ -2,18 +2,17 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service';
-import { PENALTY_DAILY_RATE, isFullMonthAccrualPeriod, penaltyStartsAt } from './accrual-generation';
+import { PENALTY_DAILY_RATE } from './accrual-generation';
 import { addDays, dateOnly, daysBetweenInclusive } from './period-utils';
+import { buildAccrualPenaltyCalcs, earliestPenaltyStartsAt, overdueSumOnDay } from './penalty-calc';
 
 const { Decimal } = Prisma;
 
 // Ночной крон — 0,14%/день (п. 4.8/5.9 договора) от суммы всех ПРОСРОЧЕННЫХ и непогашенных
 // начислений договора ЦЕЛИКОМ (не по каждому начислению отдельно) — начисление считается
-// просроченным с 10 числа месяца, следующего за его periodStart (см. penaltyStartsAt).
-// База по каждому начислению — стоимость комнаты за месяц целиком (principal), а не остаток
-// после частичной оплаты, кроме посуточных начислений (неполный месяц/комнаты 112-2/410-2),
-// где своей "стоимости" нет и берётся фактически начисленная сумма — см. правку 2026-08-31
-// ниже.
+// просроченным с 10 числа месяца, следующего за его periodStart (см. penaltyStartsAt в
+// accrual-generation.ts). Сам расчёт базы на конкретный день — в penalty-calc.ts, общий с
+// ручным пересчётом по кнопке сотрудника (penalty-recalculate.service.ts).
 // Каждый начисленный день — отдельная строка PenaltyAccrualLog (не общий инкремент одним
 // числом): и аудит "откуда взялась сумма" (по прямой просьбе 2026-08-22), и единственный
 // способ восстановить пеню на прошлую дату для финансового отчёта (сумма строк журнала по
@@ -61,70 +60,14 @@ export class PenaltyScheduler {
       },
     });
 
-    // Статичная (не зависящая от конкретного дня D) часть расчёта по начислению — считается
-    // один раз на начисление, не на каждый день катч-апа.
-    interface AccrualCalc {
-      startsAt: Date;
-      principal: Prisma.Decimal;
-      isDailyRateAccrual: boolean;
-      matCapitalExempt: boolean; // periodStart попадает в период, закрытый маткапиталом
-      payments: { amount: Prisma.Decimal; paidAt: Date }[]; // только неотсторнированные
-    }
-
     const logRows: { contractId: number; date: Date; amount: Prisma.Decimal; overdueBase: Prisma.Decimal }[] = [];
     const updatedContractIds: number[] = [];
     let totalAdded = new Decimal(0);
 
     for (const contract of contracts) {
-      const calcs: AccrualCalc[] = [];
-
-      for (const accrual of contract.accruals) {
-        const principal = accrual.rentAmount.plus(accrual.utilitiesAmount).plus(accrual.adjustmentAmount);
-
-        // База пени — по прямой просьбе (2026-08-31, найдено пользователем при сверке с
-        // реальными данными): для ОБЫЧНОГО (не посуточного) начисления это фиксированная
-        // стоимость комнаты за месяц (principal, найм+коммуналка+корректировка) — частичная
-        // оплата НЕ уменьшает базу, пока начисление не закрыто полностью. Уменьшается от
-        // факта оплаты база только у посуточных начислений (неполный крайний месяц ИЛИ
-        // комната без месячной "Стоимости", 112-2/410-2 — там rentAmount/utilitiesAmount не
-        // два раздельных обязательства, а один и тот же посуточный платёж, искусственно
-        // разбитый пополам для отчётности, см. accrual-generation.ts#computeAccrualAmounts).
-        const terms = await this.prisma.contractTerms.findFirst({
-          where: {
-            contractId: contract.id,
-            validFrom: { lte: accrual.periodStart },
-            OR: [{ validTo: null }, { validTo: { gt: accrual.periodStart } }],
-          },
-          orderBy: { validFrom: 'desc' },
-        });
-        // rentAmount=0 и utilitiesAmount=0 одновременно на ContractTerms — признак полностью
-        // посуточной комнаты (см. termination.ts#isDailyOnly), обычная комната всегда имеет
-        // ненулевую месячную "Стоимость".
-        const isDailyOnlyRoom = !!terms && terms.rentAmount.isZero() && terms.utilitiesAmount.isZero();
-        const isDailyRateAccrual = isDailyOnlyRoom || !isFullMonthAccrualPeriod(accrual.periodStart, accrual.periodEnd);
-
-        const matCapitalExempt = Boolean(
-          contract.matCapitalCoveredFrom &&
-            contract.matCapitalCoveredTo &&
-            accrual.periodStart >= contract.matCapitalCoveredFrom &&
-            accrual.periodStart <= contract.matCapitalCoveredTo,
-        );
-
-        const payments = accrual.allocations
-          .filter((a) => a.payment.reversedAt === null)
-          .map((a) => ({ amount: a.amount, paidAt: a.payment.paidAt }));
-
-        calcs.push({
-          startsAt: penaltyStartsAt(accrual.periodStart),
-          principal,
-          isDailyRateAccrual,
-          matCapitalExempt,
-          payments,
-        });
-      }
-
+      const calcs = await buildAccrualPenaltyCalcs(this.prisma, contract, contract.accruals);
       if (calcs.length === 0) continue;
-      const earliestStartsAt = calcs.reduce((min, c) => (!min || c.startsAt < min ? c.startsAt : min), null as Date | null);
+      const earliestStartsAt = earliestPenaltyStartsAt(calcs);
       if (!earliestStartsAt) continue;
 
       const sinceDate = contract.penaltyAccruedThrough ?? addDays(earliestStartsAt, -1);
@@ -137,20 +80,7 @@ export class PenaltyScheduler {
 
       for (let i = 1; i <= daysElapsed; i++) {
         const day = addDays(sinceDate, i);
-        let overdueSum = new Decimal(0);
-
-        for (const calc of calcs) {
-          if (day < calc.startsAt) continue;
-          if (calc.matCapitalExempt && contract.matCapitalDeferredUntil && day <= contract.matCapitalDeferredUntil) continue;
-
-          const paidAsOfDay = calc.payments
-            .filter((p) => p.paidAt <= day)
-            .reduce((sum, p) => sum.plus(p.amount), new Decimal(0));
-          const outstanding = calc.principal.minus(paidAsOfDay);
-          if (outstanding.lessThanOrEqualTo(0)) continue;
-
-          overdueSum = overdueSum.plus(calc.isDailyRateAccrual ? outstanding : calc.principal);
-        }
+        const overdueSum = overdueSumOnDay(calcs, day, contract.matCapitalDeferredUntil);
 
         if (overdueSum.greaterThan(0)) {
           const dailyAmount = overdueSum.times(PENALTY_DAILY_RATE);
