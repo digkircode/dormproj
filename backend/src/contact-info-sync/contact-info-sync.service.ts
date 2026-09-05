@@ -66,9 +66,13 @@ export class ContactInfoSyncService {
 
         const { added: batchAdded, removed: batchRemoved } = await this.prisma.$transaction(
           async (tx) => {
-            const existingCount = await tx.contactInfo.count({ where: { fizicheskoyeLitsoUid: { in: batch } } });
+            // preservedFromMerge=false — не трогаем строки, перенесённые слиянием ручного
+            // физлица на кого-то из этой пачки (individuals.controller.ts#merge) — 1С о них
+            // не знает и никогда не пришлёт их обратно (код-ревью 2026-09-04).
+            const scope = { fizicheskoyeLitsoUid: { in: batch }, preservedFromMerge: false } as const;
+            const existingCount = await tx.contactInfo.count({ where: scope });
 
-            await tx.contactInfo.deleteMany({ where: { fizicheskoyeLitsoUid: { in: batch } } });
+            await tx.contactInfo.deleteMany({ where: scope });
 
             if (records.length > 0) {
               await tx.contactInfo.createMany({
@@ -136,8 +140,11 @@ export class ContactInfoSyncService {
 
     return this.prisma.$transaction(
       async (tx) => {
-        const existingCount = await tx.contactInfo.count({ where: { fizicheskoyeLitsoUid: uid } });
-        await tx.contactInfo.deleteMany({ where: { fizicheskoyeLitsoUid: uid } });
+        // preservedFromMerge=false — та же защита перенесённых слиянием строк, что и в
+        // runSync() выше, здесь актуальна для точечной синхронизации самой цели слияния.
+        const scope = { fizicheskoyeLitsoUid: uid, preservedFromMerge: false } as const;
+        const existingCount = await tx.contactInfo.count({ where: scope });
+        await tx.contactInfo.deleteMany({ where: scope });
 
         if (records.length > 0) {
           await tx.contactInfo.createMany({ data: records.map((record) => toContactInfoData(record)) });

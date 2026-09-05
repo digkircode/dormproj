@@ -51,11 +51,17 @@ export class PassportSyncService {
       // Слепок, а не апсерт по ключу — у истории паспортных данных нет стабильного UID
       // (несколько документов на одно физлицо), поэтому каждый запуск полностью
       // очищает и заново заполняет таблицу (как citizenships/students).
+      // Область очистки — ТОЛЬКО строки уже опрошенных (isManual=false) физлиц, а не вся
+      // таблица целиком (было deleteMany({}) без where — код-ревью 2026-09-04): иначе
+      // стирались бы и строки под preservedFromMerge=true (перенесённые слиянием ручного
+      // физлица на эту же цель, см. individuals.controller.ts#merge) — 1С о них не знает и
+      // никогда не пришлёт их обратно.
       const { added, removed } = await this.prisma.$transaction(
         async (tx) => {
-          const existingCount = await tx.passport.count();
+          const scope = { fizicheskoyeLitsoUid: { in: uids }, preservedFromMerge: false } as const;
+          const existingCount = await tx.passport.count({ where: scope });
 
-          await tx.passport.deleteMany({});
+          await tx.passport.deleteMany({ where: scope });
 
           if (records.length > 0) {
             await tx.passport.createMany({
@@ -118,8 +124,11 @@ export class PassportSyncService {
 
     return this.prisma.$transaction(
       async (tx) => {
-        const existingCount = await tx.passport.count({ where: { fizicheskoyeLitsoUid: uid } });
-        await tx.passport.deleteMany({ where: { fizicheskoyeLitsoUid: uid } });
+        // preservedFromMerge=false — та же защита перенесённых слиянием строк, что и в
+        // runSync() выше, здесь актуальна для точечной синхронизации самой цели слияния.
+        const scope = { fizicheskoyeLitsoUid: uid, preservedFromMerge: false } as const;
+        const existingCount = await tx.passport.count({ where: scope });
+        await tx.passport.deleteMany({ where: scope });
 
         if (records.length > 0) {
           await tx.passport.createMany({ data: records.map((record) => toPassportData(record)) });

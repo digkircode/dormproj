@@ -641,14 +641,17 @@ export class IndividualsController {
         legalRepContracts.length
           ? tx.contract.updateMany({ where: { id: { in: legalRepContracts.map((c) => c.id) } }, data: { legalRepIndividualUid: targetUid } })
           : Promise.resolve(),
+        // preservedFromMerge: true — иначе ближайший ночной ресинк цели (она синхронная,
+        // isManual=false) сотрёт эти перенесённые строки как "не пришедшие из 1С в этот
+        // раз" (код-ревью 2026-09-04, см. citizenship-sync/passport-sync/contact-info-sync).
         citizenships.length
-          ? tx.citizenship.updateMany({ where: { id: { in: citizenships.map((c) => c.id) } }, data: { fizicheskoyeLitsoUid: targetUid } })
+          ? tx.citizenship.updateMany({ where: { id: { in: citizenships.map((c) => c.id) } }, data: { fizicheskoyeLitsoUid: targetUid, preservedFromMerge: true } })
           : Promise.resolve(),
         passports.length
-          ? tx.passport.updateMany({ where: { id: { in: passports.map((c) => c.id) } }, data: { fizicheskoyeLitsoUid: targetUid } })
+          ? tx.passport.updateMany({ where: { id: { in: passports.map((c) => c.id) } }, data: { fizicheskoyeLitsoUid: targetUid, preservedFromMerge: true } })
           : Promise.resolve(),
         contactInfos.length
-          ? tx.contactInfo.updateMany({ where: { id: { in: contactInfos.map((c) => c.id) } }, data: { fizicheskoyeLitsoUid: targetUid } })
+          ? tx.contactInfo.updateMany({ where: { id: { in: contactInfos.map((c) => c.id) } }, data: { fizicheskoyeLitsoUid: targetUid, preservedFromMerge: true } })
           : Promise.resolve(),
         sourceUser ? tx.user.update({ where: { id: sourceUser.id }, data: { univerId: targetUid } }) : Promise.resolve(),
         sourceChat ? tx.chatConversation.update({ where: { id: sourceChat.id }, data: { individualUid: targetUid } }) : Promise.resolve(),
@@ -719,14 +722,17 @@ export class IndividualsController {
         snapshot.contractLegalRepIds.length
           ? tx.contract.updateMany({ where: { id: { in: snapshot.contractLegalRepIds } }, data: { legalRepIndividualUid: uid } })
           : Promise.resolve(),
+        // preservedFromMerge сбрасываем обратно — строка возвращается на исходное ручное
+        // физлицо, которое ресинк вообще не трогает (не входит в его выборку isManual:false),
+        // флаг там больше не нужен и не должен пережить возможное будущее слияние с другим target.
         snapshot.citizenshipIds.length
-          ? tx.citizenship.updateMany({ where: { id: { in: snapshot.citizenshipIds } }, data: { fizicheskoyeLitsoUid: uid } })
+          ? tx.citizenship.updateMany({ where: { id: { in: snapshot.citizenshipIds } }, data: { fizicheskoyeLitsoUid: uid, preservedFromMerge: false } })
           : Promise.resolve(),
         snapshot.passportIds.length
-          ? tx.passport.updateMany({ where: { id: { in: snapshot.passportIds } }, data: { fizicheskoyeLitsoUid: uid } })
+          ? tx.passport.updateMany({ where: { id: { in: snapshot.passportIds } }, data: { fizicheskoyeLitsoUid: uid, preservedFromMerge: false } })
           : Promise.resolve(),
         snapshot.contactInfoIds.length
-          ? tx.contactInfo.updateMany({ where: { id: { in: snapshot.contactInfoIds } }, data: { fizicheskoyeLitsoUid: uid } })
+          ? tx.contactInfo.updateMany({ where: { id: { in: snapshot.contactInfoIds } }, data: { fizicheskoyeLitsoUid: uid, preservedFromMerge: false } })
           : Promise.resolve(),
         snapshot.userId ? tx.user.update({ where: { id: snapshot.userId }, data: { univerId: uid } }) : Promise.resolve(),
         snapshot.chatConversationId

@@ -171,6 +171,14 @@ model Citizenship {
   country     String
   countryCode String   @map("country_code")
 
+  // true — строка перенесена сюда при слиянии ручного физлица с этой (синхронной) записью
+  // (individuals.controller.ts#merge), не пришла из 1С Университет. Ночной полный
+  // ресинк (citizenship-sync.service.ts) исключает такие строки из своего "слепка" —
+  // иначе он их тут же стирал бы как "не пришедшие в этот раз из 1С" (код-ревью
+  // 2026-09-04 — тихая потеря данных, перенесённых слиянием). Сбрасывается в false при
+  // unmerge(), когда строка возвращается на исходное ручное физлицо.
+  preservedFromMerge Boolean @default(false) @map("preserved_from_merge")
+
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([fizicheskoyeLitsoUid])
@@ -195,6 +203,9 @@ model Passport {
   unit          String
   codeUnit      String   @map("code_unit")
   systemDoc     String   @map("system_doc")
+
+  // См. Citizenship.preservedFromMerge — тот же принцип, для passport-sync.service.ts.
+  preservedFromMerge Boolean @default(false) @map("preserved_from_merge")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -225,6 +236,9 @@ model ContactInfo {
   // такое значение показываем как "—" (см. ContactInfo.vue).
   dateStart         DateTime @map("date_start")
   dateStartText     String   @default(dbgenerated()) @map("date_start_text")
+
+  // См. Citizenship.preservedFromMerge — тот же принцип, для contact-info-sync.service.ts.
+  preservedFromMerge Boolean @default(false) @map("preserved_from_merge")
 
   createdAt DateTime @default(now()) @map("created_at")
 
