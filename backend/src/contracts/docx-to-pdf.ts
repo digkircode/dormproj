@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -12,9 +12,36 @@ let queue: Promise<unknown> = Promise.resolve();
 
 const CONVERT_TIMEOUT_MS = 60_000;
 
+// Один и тот же профиль soffice на ВСЕ конвертации (не создаётся заново на каждый вызов,
+// как раньше) — по прямой просьбе 2026-09-05, разбор "почему PDF ждать секунды 4". Часть
+// холодного старта soffice — не сама конвертация, а первичная инициализация ПРОФИЛЯ
+// (создание registrymodifications.xcu и служебных папок с нуля); переиспользование профиля
+// это убирает. Безопасно ИМЕННО потому, что все конвертации и так строго последовательны
+// (см. queue ниже) — один и тот же профиль никогда не используется двумя процессами
+// одновременно, живой гонки за него нет. Единственный риск — лишний lock-файл, оставшийся
+// от упавшей предыдущей конвертации (та же причина, по которой раньше профиль каждый раз
+// пересоздавался с нуля) — снимается явным удалением лока перед каждым запуском ниже,
+// вместо того чтобы платить полную цену пересоздания профиля на каждый вызов. Сам процесс
+// soffice по-прежнему стартует и завершается на каждую конвертацию — постоянно висящего в
+// памяти демона это не заводит, пиковое потребление RAM то же, что и раньше.
+const PROFILE_DIR = join(tmpdir(), 'dormproj-lo-profile');
+let profileDirReady: Promise<void> | null = null;
+function ensureProfileDir(): Promise<void> {
+  if (!profileDirReady) profileDirReady = mkdir(PROFILE_DIR, { recursive: true }).then(() => undefined);
+  return profileDirReady;
+}
+
 function runSoffice(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn('soffice', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn('soffice', args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        // Явно фиксирует headless-бэкенд рендеринга вместо автоопределения GUI-тулкита —
+        // известный приём для более быстрого холодного старта soffice в контейнере без X.
+        SAL_USE_VCLPLUGIN: 'svp',
+      },
+    });
     let stderr = '';
     child.stderr.on('data', (chunk: Buffer) => {
       stderr += chunk.toString();
@@ -28,8 +55,13 @@ function runSoffice(args: string[]): Promise<void> {
 }
 
 async function convertOnce(buffer: Buffer): Promise<Buffer> {
+  await ensureProfileDir();
+  // Лок остаётся в корне UserInstallation (".lock") — если предыдущий вызов упал/завис,
+  // не дав soffice снять его штатно, следующий запуск иначе решил бы, что профиль уже
+  // занят другим процессом, и не запустился бы вовсе.
+  await unlink(join(PROFILE_DIR, '.lock')).catch(() => {});
+
   const workDir = await mkdtemp(join(tmpdir(), 'dormproj-docx2pdf-'));
-  const profileDir = join(workDir, 'lo-profile');
   const inputPath = join(workDir, 'input.docx');
   const outputPath = join(workDir, 'input.pdf');
   try {
@@ -40,12 +72,9 @@ async function convertOnce(buffer: Buffer): Promise<Buffer> {
         '--norestore',
         '--nologo',
         '--nofirststartwizard',
-        // Свой профиль на каждый вызов — soffice падает/зависает, если несколько
-        // процессов делят один UserInstallation (даже при последовательном вызове мог
-        // остаться lock-файл от упавшей предыдущей конвертации).
-        `-env:UserInstallation=file://${profileDir}`,
+        `-env:UserInstallation=file://${PROFILE_DIR}`,
         '--convert-to',
-        'pdf',
+        'pdf:writer_pdf_Export',
         '--outdir',
         workDir,
         inputPath,
