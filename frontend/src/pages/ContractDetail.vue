@@ -47,6 +47,7 @@ import {
   type PaymentRow,
 } from '@/lib/contracts-api'
 import { reversePayment, recalculatePenalty } from '@/lib/billing-api'
+import Accounting1cStatusPill from '@/components/Accounting1cStatusPill.vue'
 import { fetchDormitoryInfo, type DormitoryInfo } from '@/lib/dormitory-info-api'
 import { goBack } from '@/lib/utils'
 import { breadcrumbOverride } from '@/lib/breadcrumb-state'
@@ -546,6 +547,7 @@ async function confirmReversePayment() {
                         />
                       </button>
                     </TableHead>
+                    <TableHead :class="CELL_BORDER_CLASS">{{ t('contracts.detail.colAccounting1c') }}</TableHead>
                     <TableHead />
                   </TableRow>
                 </TableHeader>
@@ -556,13 +558,18 @@ async function confirmReversePayment() {
                     <TableCell :class="CELL_BORDER_CLASS">{{ t(`payment.method.${p.method}`) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ p.purpose ?? '—' }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ p.rawComment ?? '—' }}</TableCell>
-                    <TableCell class="text-right">
-                      <span v-if="p.reversedAt" class="text-xs text-muted-foreground">{{ t('contracts.detail.reversed') }}</span>
-                      <Button v-else variant="ghost" size="icon" class="size-7" @click="openReverseConfirm(p)">
-                        <Ban class="text-red-500" />
-                        <span class="sr-only">{{ t('contracts.detail.reverse') }}</span>
-                      </Button>
+                    <TableCell :class="CELL_BORDER_CLASS">
+                      <!-- Только для платежей с сайта (эквайринг) — MANUAL/IMPORTED_1C
+                           никогда не отправляются этим потоком, см. billing/accounting-1c-push.service.ts. -->
+                      <Accounting1cStatusPill
+                        v-if="p.source === 'WEBSITE'"
+                        :status="p.accounting1cSyncStatus ?? 'NOT_SYNCED'"
+                        :error="p.accounting1cSyncError"
+                        :synced-at="p.accounting1cSyncedAt"
+                      />
+                      <span v-else class="text-muted-foreground">—</span>
                     </TableCell>
+                    <TableCell class="text-right" />
                   </TableRow>
                 </TableBody>
               </Table>
