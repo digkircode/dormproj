@@ -544,7 +544,6 @@ async function confirmReversePayment() {
                       </button>
                     </TableHead>
                     <TableHead :class="CELL_BORDER_CLASS">{{ t('contracts.detail.colAccounting1c') }}</TableHead>
-                    <TableHead />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -565,7 +564,6 @@ async function confirmReversePayment() {
                       />
                       <span v-else class="text-muted-foreground">—</span>
                     </TableCell>
-                    <TableCell class="text-right" />
                   </TableRow>
                 </TableBody>
               </Table>

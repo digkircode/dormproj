@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Check, ClipboardList, Globe, Landmark } from 'lucide-vue-next'
+import { ArrowLeft, Ban, Check, ClipboardList, Globe, Landmark, RotateCw } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -31,7 +31,7 @@ import {
   type PaymentImportCandidateContract,
   type WebsitePaymentRow,
 } from '@/lib/payment-imports-api'
-import { syncPaymentToAccounting1c } from '@/lib/billing-api'
+import { reversePayment, syncPaymentToAccounting1c } from '@/lib/billing-api'
 import { fetchContractsPage, type ContractListItem } from '@/lib/contracts-api'
 import type { PaymentMethod } from '@/lib/contracts-api'
 
@@ -112,6 +112,16 @@ const importColumns = computed(() =>
 )
 
 const importTableRef = ref<{ refresh: () => void | Promise<void> } | null>(null)
+async function reverseImportedPayment(row: ImportTableRow) {
+  if (!row.resultingPaymentId || !window.confirm(t('contracts.detail.reverseDialogTitle'))) return
+  await reversePayment(row.resultingPaymentId)
+  await importTableRef.value?.refresh()
+}
+async function reverseImportedPayment(row: ImportTableRow) {
+  if (!row.resultingPaymentId || !window.confirm(t('contracts.detail.reverseDialogTitle'))) return
+  await reversePayment(row.resultingPaymentId)
+  await importTableRef.value?.refresh()
+}
 
 // --- Массовое одобрение (чекбоксы) ---
 const selectedImportRows = ref<ImportTableRow[]>([])
@@ -373,6 +383,11 @@ const websiteFetchFacetValues = createClientFacetValues<WebsiteTableRow>(
 )
 
 const websiteTableRef = ref<{ refresh: () => void | Promise<void> } | null>(null)
+async function retryWebsitePayment(row: WebsiteTableRow) {
+  await syncPaymentToAccounting1c(row.id)
+  await loadWebsitePayments()
+  await websiteTableRef.value?.refresh()
+}
 
 // --- Массовый повтор отправки (чекбоксы) — для тех, кто ещё не отправился/упал, по
 // прямой просьбе 2026-09-03. Без диалога — в отличие от одобрения, тут нечего уточнять,
@@ -437,7 +452,13 @@ async function submitBulkRetry() {
           :total-label="t('paymentImports.tabImport')"
           :cell-text="importCellText"
           :cell-renderers="{ status: PaymentImportStatusPillCell, contractorFio: ResidentLinkCell, contractNumberDisplay: ContractLinkCell }"
-          :row-action="{ icon: ClipboardList, label: t('paymentImports.approve'), onClick: openReview }"
+          :row-action="{
+            icon: ClipboardList,
+            label: t('paymentImports.approve'),
+            getIcon: (row: ImportTableRow) => row.status === 'MATCHED' ? Ban : ClipboardList,
+            getLabel: (row: ImportTableRow) => row.status === 'MATCHED' ? t('contracts.detail.reverse') : t('paymentImports.approve'),
+            onClick: (row: ImportTableRow) => row.status === 'MATCHED' ? reverseImportedPayment(row) : openReview(row),
+          }"
           selectable
           accent-icons
         >
@@ -469,7 +490,7 @@ async function submitBulkRetry() {
             contractorFio: ResidentLinkCell,
             contractNumber: ContractLinkCell,
           }"
-          :row-action="undefined"
+          :row-action="{ icon: RotateCw, label: t('contracts.detail.accounting1cRetry'), onClick: retryWebsitePayment }"
           selectable
           accent-icons
         >

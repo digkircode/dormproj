@@ -76,7 +76,7 @@ const props = withDefaults(
     // RouterLink (обычный клик — переход внутри SPA без перезагрузки, колёсико/Ctrl+клик —
     // родное поведение браузера, новая вкладка), onClick — произвольное действие
     // (открыть модалку и т.п.); передаётся ровно один.
-    rowAction?: { icon: Component; label: string; getHref?: (row: TData) => string; onClick?: (row: TData) => void }
+    rowAction?: { icon: Component; label: string; getIcon?: (row: TData) => Component; getLabel?: (row: TData) => string; getHref?: (row: TData) => string; onClick?: (row: TData) => void }
     // Чекбоксы выбора строк (массовая печать договоров и т.п.) — по умолчанию выключены,
     // остальные таблицы не меняются. Выбор — только в рамках текущей отрисованной страницы
     // (см. defineModel selected ниже), не копится между страницами/фильтрами/поиском —
@@ -647,12 +647,12 @@ defineExpose({ refresh: loadPage })
                         <Button v-if="rowAction.getHref" variant="ghost" size="icon" class="size-7" as-child>
                           <RouterLink :to="rowAction.getHref(row.original)">
                             <component :is="rowAction.icon" :class="{ 'text-primary': accentIcons }" />
-                            <span class="sr-only">{{ rowAction.label }}</span>
+                            <span class="sr-only">{{ rowAction.getLabel?.(row.original) ?? rowAction.label }}</span>
                           </RouterLink>
                         </Button>
                         <Button v-else variant="ghost" size="icon" class="size-7" @click="rowAction!.onClick!(row.original)">
-                          <component :is="rowAction.icon" :class="{ 'text-primary': accentIcons }" />
-                          <span class="sr-only">{{ rowAction.label }}</span>
+                          <component :is="rowAction.getIcon?.(row.original) ?? rowAction.icon" :class="{ 'text-primary': accentIcons }" />
+                          <span class="sr-only">{{ rowAction.getLabel?.(row.original) ?? rowAction.label }}</span>
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>{{ rowAction.label }}</TooltipContent>
