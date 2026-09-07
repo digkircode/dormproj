@@ -117,11 +117,6 @@ async function reverseImportedPayment(row: ImportTableRow) {
   await reversePayment(row.resultingPaymentId)
   await importTableRef.value?.refresh()
 }
-async function reverseImportedPayment(row: ImportTableRow) {
-  if (!row.resultingPaymentId || !window.confirm(t('contracts.detail.reverseDialogTitle'))) return
-  await reversePayment(row.resultingPaymentId)
-  await importTableRef.value?.refresh()
-}
 
 // --- Массовое одобрение (чекбоксы) ---
 const selectedImportRows = ref<ImportTableRow[]>([])
