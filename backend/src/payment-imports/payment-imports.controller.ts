@@ -120,6 +120,7 @@ export class PaymentImportsController {
     const candidateContracts = await findCandidateContracts(this.prisma, candidate);
     return {
       id: record.id,
+      resultingPaymentId: record.resultingPaymentId,
       status: record.status,
       externalId: record.externalId,
       importedAt: record.importedAt,

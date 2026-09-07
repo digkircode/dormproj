@@ -23,6 +23,7 @@ export interface PaymentImportCandidateContract {
 
 export interface PaymentImportRow {
   id: number
+  resultingPaymentId: number | null
   status: PaymentImportStatus
   externalId: string
   importedAt: string

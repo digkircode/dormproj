@@ -73,6 +73,7 @@ export async function listPaymentImports(prisma: PrismaService, query: PaymentIm
     const candidate = parsePaymentImportCandidate(row.rawPayload as Record<string, unknown>);
     return {
       id: row.id,
+      resultingPaymentId: row.resultingPaymentId,
       status: row.status,
       externalId: row.externalId,
       importedAt: row.importedAt,
