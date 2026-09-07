@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Check, ClipboardList, Globe, Landmark, RotateCw } from 'lucide-vue-next'
+import { ArrowLeft, Check, ClipboardList, Globe, Landmark, Ban } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -31,7 +31,7 @@ import {
   type PaymentImportCandidateContract,
   type WebsitePaymentRow,
 } from '@/lib/payment-imports-api'
-import { syncPaymentToAccounting1c } from '@/lib/billing-api'
+import { reversePayment } from '@/lib/billing-api'
 import { fetchContractsPage, type ContractListItem } from '@/lib/contracts-api'
 import type { PaymentMethod } from '@/lib/contracts-api'
 
@@ -373,36 +373,15 @@ const websiteFetchFacetValues = createClientFacetValues<WebsiteTableRow>(
 )
 
 const websiteTableRef = ref<{ refresh: () => void | Promise<void> } | null>(null)
-const retryingWebsiteId = ref<number | null>(null)
-async function retryWebsitePayment(row: WebsiteTableRow) {
-  retryingWebsiteId.value = row.id
+async function reverseWebsitePayment(row: WebsiteTableRow) {
+  if (row.raw.reversedAt) return
+  if (!window.confirm(t('contracts.detail.reverseDialogTitle'))) return
   try {
-    await syncPaymentToAccounting1c(row.id)
+    await reversePayment(row.id)
     await loadWebsitePayments()
     await websiteTableRef.value?.refresh()
-  } finally {
-    retryingWebsiteId.value = null
-  }
-}
-
-// --- Массовый повтор отправки (чекбоксы) — для тех, кто ещё не отправился/упал, по
-// прямой просьбе 2026-09-03. Без диалога — в отличие от одобрения, тут нечего уточнять,
-// просто дёргаем тот же ручной ретрай на каждой отмеченной строке. ---
-const selectedWebsiteRows = ref<WebsiteTableRow[]>([])
-const isBulkRetrying = ref(false)
-const bulkRetryTargets = computed(() => selectedWebsiteRows.value.filter((r) => r.status !== 'SYNCED'))
-
-async function submitBulkRetry() {
-  isBulkRetrying.value = true
-  try {
-    for (const row of bulkRetryTargets.value) {
-      await syncPaymentToAccounting1c(row.id)
-    }
-    selectedWebsiteRows.value = []
-    await loadWebsitePayments()
-    await websiteTableRef.value?.refresh()
-  } finally {
-    isBulkRetrying.value = false
+  } catch (error) {
+    websiteLoadError.value = error instanceof Error ? error.message : String(error)
   }
 }
 </script>
@@ -464,7 +443,6 @@ async function submitBulkRetry() {
         <p v-if="websiteLoadError" class="text-sm text-red-500">{{ websiteLoadError }}</p>
         <EntityTable
           ref="websiteTableRef"
-          v-model:selected="selectedWebsiteRows"
           :columns="websiteColumns"
           :column-labels="websiteColumnLabels"
           :filterable-fields="['status']"
@@ -480,15 +458,9 @@ async function submitBulkRetry() {
             contractorFio: ResidentLinkCell,
             contractNumber: ContractLinkCell,
           }"
-          :row-action="{ icon: RotateCw, label: t('contracts.detail.accounting1cRetry'), onClick: retryWebsitePayment }"
-          selectable
+          :row-action="{ icon: Ban, label: t('contracts.detail.reverse'), onClick: reverseWebsitePayment }"
           accent-icons
         >
-          <template #actions>
-            <Button v-if="bulkRetryTargets.length > 0" size="sm" :loading="isBulkRetrying" @click="submitBulkRetry">
-              {{ t('paymentImports.bulkRetry', { count: bulkRetryTargets.length }) }}
-            </Button>
-          </template>
         </EntityTable>
       </TabsContent>
     </Tabs>
