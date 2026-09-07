@@ -482,7 +482,6 @@ async function submitBulkRetry() {
           }"
           :row-action="undefined"
           selectable
-          selectable
           accent-icons
         >
           <template #actions>
