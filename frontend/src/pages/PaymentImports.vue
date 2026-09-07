@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Check, ClipboardList, Globe, Landmark, RotateCw } from 'lucide-vue-next'
+import { ArrowLeft, Check, ClipboardList, Globe, Landmark } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -373,17 +373,6 @@ const websiteFetchFacetValues = createClientFacetValues<WebsiteTableRow>(
 )
 
 const websiteTableRef = ref<{ refresh: () => void | Promise<void> } | null>(null)
-const retryingWebsiteId = ref<number | null>(null)
-async function retryWebsitePayment(row: WebsiteTableRow) {
-  retryingWebsiteId.value = row.id
-  try {
-    await syncPaymentToAccounting1c(row.id)
-    await loadWebsitePayments()
-    await websiteTableRef.value?.refresh()
-  } finally {
-    retryingWebsiteId.value = null
-  }
-}
 
 // --- Массовый повтор отправки (чекбоксы) — для тех, кто ещё не отправился/упал, по
 // прямой просьбе 2026-09-03. Без диалога — в отличие от одобрения, тут нечего уточнять,

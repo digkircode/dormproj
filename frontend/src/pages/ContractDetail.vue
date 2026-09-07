@@ -284,10 +284,6 @@ const reversingPayment = ref<PaymentRow | null>(null)
 const isReversing = ref(false)
 const reverseError = ref('')
 
-function openReverseConfirm(payment: PaymentRow) {
-  reversingPayment.value = payment
-  reverseError.value = ''
-}
 async function confirmReversePayment() {
   if (!reversingPayment.value) return
   isReversing.value = true
