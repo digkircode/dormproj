@@ -1,0 +1,37 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script_stop: true
+          script: |
+            set -eu
+            DEPLOY_PATH='${{ secrets.DEPLOY_PATH || '/home/claude/dormproj' }}'
+            if [ ! -d "$DEPLOY_PATH/.git" ]; then
+              mkdir -p "$(dirname "$DEPLOY_PATH")"
+              git clone --branch master https://github.com/digkircode/dormproj.git "$DEPLOY_PATH"
+            else
+              git -C "$DEPLOY_PATH" fetch origin master
+              git -C "$DEPLOY_PATH" reset --hard origin/master
+            fi
+            cd "$DEPLOY_PATH"
+            test -f .env
+            docker compose up -d --build
+            docker compose ps
