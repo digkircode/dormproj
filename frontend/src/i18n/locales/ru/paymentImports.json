@@ -12,7 +12,8 @@
     "colReceipt": "Чек",
     "status": {
       "NEEDS_REVIEW": "Ожидает подтверждения",
-      "MATCHED": "Подтверждён"
+      "MATCHED": "Подтверждён",
+      "REVERSED": "Сторнирован"
     },
     "noSuggestion": "Не найдено",
     "approve": "Одобрить",
@@ -23,6 +24,8 @@
     "bulkApprove": "Одобрить выбранные ({count})",
     "bulkRetry": "Отправить выбранные ({count})",
     "bulkApproveDialogTitle": "Массовое одобрение",
+    "bulkReverse": "Сторнировать выбранные ({count})",
+    "bulkReverseDialogTitle": "Массовое сторнирование",
     "bulkSkipped": "{count} платежей пропущено — нет предложенного договора или уже обработаны, разберите их по отдельности",
     "statusWebsite": {
       "NOT_SYNCED": "Не отправлен в 1С",

@@ -2,7 +2,6 @@
 import { Check, RotateCw, X } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@/components/ui/button'
 import { dateLocaleTag } from '@/lib/format-locale'
 import type { Accounting1cSyncStatus } from '@/lib/contracts-api'
 
@@ -13,7 +12,6 @@ const props = defineProps<{
   syncedAt?: string | null
   retrying?: boolean
 }>()
-const emit = defineEmits<{ retry: [] }>()
 
 const { t } = useI18n()
 
@@ -45,17 +43,5 @@ const titleText = computed(() => {
       <component :is="ICON[status]" class="size-3.5 shrink-0" :class="ICON_CLASS[status]" />
       <span class="min-w-0 truncate">{{ label }}</span>
     </span>
-    <Button
-      v-if="status !== 'SYNCED'"
-      variant="ghost"
-      size="icon"
-      class="size-6 shrink-0"
-      :loading="retrying"
-      :title="t('contracts.detail.accounting1cRetry')"
-      @click="emit('retry')"
-    >
-      <RotateCw class="size-3.5" />
-      <span class="sr-only">{{ t('contracts.detail.accounting1cRetry') }}</span>
-    </Button>
   </span>
 </template>

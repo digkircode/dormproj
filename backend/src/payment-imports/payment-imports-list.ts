@@ -64,6 +64,7 @@ export async function listPaymentImports(prisma: PrismaService, query: PaymentIm
       include: {
         suggestedContract: { select: { id: true, number: true, residentIndividualUid: true, resident: { select: { fullName: true } } } },
         matchedContract: { select: { id: true, number: true, residentIndividualUid: true } },
+        resultingPayment: { select: { reversedAt: true } },
       },
     }),
     prisma.paymentImportRecord.count({ where }),
@@ -74,9 +75,10 @@ export async function listPaymentImports(prisma: PrismaService, query: PaymentIm
     return {
       id: row.id,
       resultingPaymentId: row.resultingPaymentId,
-      status: row.status,
+      status: row.resultingPayment?.reversedAt ? 'REVERSED' : row.status,
       externalId: row.externalId,
       importedAt: row.importedAt,
+      reversedAt: row.resultingPayment?.reversedAt ?? null,
       amount: candidate.amount,
       paidAt: candidate.paidAt,
       contractorFio: candidate.contractorFio,

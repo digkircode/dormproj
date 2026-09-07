@@ -655,7 +655,7 @@ defineExpose({ refresh: loadPage })
                           <span class="sr-only">{{ rowAction.getLabel?.(row.original) ?? rowAction.label }}</span>
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>{{ rowAction.label }}</TooltipContent>
+                      <TooltipContent>{{ rowAction.getLabel?.(row.original) ?? rowAction.label }}</TooltipContent>
                     </Tooltip>
                   </TableCell>
                 </TableRow>

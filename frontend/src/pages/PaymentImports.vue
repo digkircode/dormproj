@@ -6,7 +6,7 @@ import { ArrowLeft, Ban, Check, ClipboardList, Globe, Landmark, RotateCw } from 
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import EntityTable from '@/components/EntityTable.vue'
 import SearchSelect from '@/components/SearchSelect.vue'
@@ -55,6 +55,7 @@ function formatMoney(value: number | null): string {
 const IMPORT_STATUS_LABELS: Record<PaymentImportRow['status'], string> = {
   NEEDS_REVIEW: t('paymentImports.status.NEEDS_REVIEW'),
   MATCHED: t('paymentImports.status.MATCHED'),
+  REVERSED: t('paymentImports.status.REVERSED'),
 }
 const ACTIONABLE_IMPORT_STATUSES = new Set<PaymentImportRow['status']>(['NEEDS_REVIEW']);
 
@@ -112,10 +113,38 @@ const importColumns = computed(() =>
 )
 
 const importTableRef = ref<{ refresh: () => void | Promise<void> } | null>(null)
+const reversingImport = ref<ImportTableRow | null>(null)
+const bulkReverseOpen = ref(false)
+const isReversingImport = ref(false)
+const reverseImportError = ref('')
 async function reverseImportedPayment(row: ImportTableRow) {
-  if (!row.resultingPaymentId || !window.confirm(t('contracts.detail.reverseDialogTitle'))) return
-  await reversePayment(row.resultingPaymentId)
-  await importTableRef.value?.refresh()
+  if (!row.resultingPaymentId || row.status === 'REVERSED') return
+  reverseImportError.value = ''
+  reversingImport.value = row
+}
+const bulkReverseTargets = computed(() => selectedImportRows.value.filter((r) => r.status === 'MATCHED' && r.resultingPaymentId))
+async function submitBulkReverse() {
+  isReversingImport.value = true
+  reverseImportError.value = ''
+  try {
+    for (const row of bulkReverseTargets.value) await reversePayment(row.resultingPaymentId!)
+    bulkReverseOpen.value = false
+    selectedImportRows.value = []
+    await importTableRef.value?.refresh()
+  } catch (error) {
+    reverseImportError.value = error instanceof Error ? error.message : String(error)
+  } finally { isReversingImport.value = false }
+}
+async function submitReverseImport() {
+  if (!reversingImport.value?.resultingPaymentId) return
+  isReversingImport.value = true
+  reverseImportError.value = ''
+  try {
+    await reversePayment(reversingImport.value.resultingPaymentId)
+    reversingImport.value = null
+    await importTableRef.value?.refresh()
+  } catch (error) { reverseImportError.value = error instanceof Error ? error.message : String(error) }
+  finally { isReversingImport.value = false }
 }
 
 // --- Массовое одобрение (чекбоксы) ---
@@ -451,8 +480,8 @@ async function submitBulkRetry() {
             icon: ClipboardList,
             label: t('paymentImports.approve'),
             getIcon: (row: ImportTableRow) => row.status === 'MATCHED' ? Ban : ClipboardList,
-            getLabel: (row: ImportTableRow) => row.status === 'MATCHED' ? t('contracts.detail.reverse') : t('paymentImports.approve'),
-            onClick: (row: ImportTableRow) => row.status === 'MATCHED' ? reverseImportedPayment(row) : openReview(row),
+            getLabel: (row: ImportTableRow) => row.status === 'REVERSED' ? t('paymentImports.status.REVERSED') : row.status === 'MATCHED' ? t('contracts.detail.reverse') : t('paymentImports.approve'),
+            onClick: (row: ImportTableRow) => row.status === 'MATCHED' ? reverseImportedPayment(row) : row.status === 'NEEDS_REVIEW' ? openReview(row) : undefined,
           }"
           selectable
           accent-icons
@@ -460,6 +489,9 @@ async function submitBulkRetry() {
           <template #actions>
             <Button v-if="selectedImportRows.length > 0" size="sm" @click="openBulkApprove">
               {{ t('paymentImports.bulkApprove', { count: selectedImportRows.length }) }}
+            </Button>
+            <Button v-if="bulkReverseTargets.length > 0" size="sm" variant="outline" @click="bulkReverseOpen = true">
+              {{ t('paymentImports.bulkReverse', { count: bulkReverseTargets.length }) }}
             </Button>
           </template>
         </EntityTable>
@@ -531,6 +563,34 @@ async function submitBulkRetry() {
           <Button :loading="isBulkApproving" :disabled="bulkApprovable.length === 0" @click="submitBulkApprove">
             {{ t('paymentImports.approve') }}
           </Button>
+        </DialogFooter>
+      </DialogScrollContent>
+    </Dialog>
+
+    <Dialog :open="bulkReverseOpen" @update:open="(open) => (bulkReverseOpen = open)">
+      <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
+        <DialogHeader><DialogTitle>{{ t('paymentImports.bulkReverseDialogTitle') }}</DialogTitle></DialogHeader>
+        <ul class="flex max-h-48 flex-col gap-1 overflow-y-auto text-sm">
+          <li v-for="row in bulkReverseTargets" :key="row.id">{{ formatMoney(row.amount) }} — {{ row.contractorFio }}</li>
+        </ul>
+        <p v-if="reverseImportError" class="text-sm text-red-500">{{ reverseImportError }}</p>
+        <DialogFooter>
+          <Button variant="outline" @click="bulkReverseOpen = false">{{ t('paymentImports.cancel') }}</Button>
+          <Button variant="outline" class="border-red-500 text-red-500 hover:text-red-500" :loading="isReversingImport" @click="submitBulkReverse">{{ t('contracts.detail.confirmReverse') }}</Button>
+        </DialogFooter>
+      </DialogScrollContent>
+    </Dialog>
+
+    <Dialog :open="reversingImport !== null" @update:open="(open) => { if (!open) reversingImport = null }">
+      <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
+        <DialogHeader>
+          <DialogTitle>{{ t('contracts.detail.reverseDialogTitle') }}</DialogTitle>
+          <DialogDescription>{{ t('contracts.detail.reverseDialogDescription', { amount: reversingImport ? formatMoney(reversingImport.amount) : '', date: reversingImport ? formatDate(reversingImport.paidAt) : '' }) }}</DialogDescription>
+        </DialogHeader>
+        <p v-if="reverseImportError" class="text-sm text-red-500">{{ reverseImportError }}</p>
+        <DialogFooter>
+          <Button variant="outline" @click="reversingImport = null">{{ t('paymentImports.cancel') }}</Button>
+          <Button variant="outline" class="border-red-500 text-red-500 hover:text-red-500" :loading="isReversingImport" @click="submitReverseImport">{{ t('contracts.detail.confirmReverse') }}</Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>

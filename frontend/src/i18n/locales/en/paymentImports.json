@@ -12,7 +12,8 @@
     "colReceipt": "Receipt",
     "status": {
       "NEEDS_REVIEW": "Awaiting confirmation",
-      "MATCHED": "Confirmed"
+      "MATCHED": "Confirmed",
+      "REVERSED": "Reversed"
     },
     "noSuggestion": "Not found",
     "approve": "Approve",
@@ -23,6 +24,8 @@
     "bulkApprove": "Approve selected ({count})",
     "bulkRetry": "Send selected ({count})",
     "bulkApproveDialogTitle": "Bulk approval",
+    "bulkReverse": "Reverse selected ({count})",
+    "bulkReverseDialogTitle": "Bulk reversal",
     "bulkSkipped": "{count} payment(s) skipped — no suggested contract or already reviewed, handle them individually",
     "statusWebsite": {
       "NOT_SYNCED": "Not sent to 1C",

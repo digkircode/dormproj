@@ -111,6 +111,7 @@ export class PaymentImportsController {
       include: {
         suggestedContract: { select: { id: true, number: true, residentIndividualUid: true, resident: { select: { fullName: true } } } },
         matchedContract: { select: { id: true, number: true, residentIndividualUid: true } },
+        resultingPayment: { select: { reversedAt: true } },
       },
     });
     if (!record) {
@@ -121,9 +122,10 @@ export class PaymentImportsController {
     return {
       id: record.id,
       resultingPaymentId: record.resultingPaymentId,
-      status: record.status,
+      status: record.resultingPayment?.reversedAt ? 'REVERSED' : record.status,
       externalId: record.externalId,
       importedAt: record.importedAt,
+      reversedAt: record.resultingPayment?.reversedAt ?? null,
       rawPayload: record.rawPayload,
       candidate,
       suggestedContract: record.suggestedContract
