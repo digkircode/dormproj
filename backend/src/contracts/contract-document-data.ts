@@ -171,24 +171,19 @@ export function buildDocumentData(
       ? `«${contract.residenceReason}»`
       : '';
 
-  // ContractTerms.utilitiesAmount в БД всегда 0 (коммуналка уже включена в rentAmount —
-  // см. Contracts.vue/ContractDetail.vue, "стоимость комнаты" из характеристики уже
-  // покрывает всё), поэтому печатать его напрямую в п.4.1/5.1 нельзя — бланк дословно
-  // говорит "плата за коммунальные услуги составляет 0 руб.", что неверно (коммуналка не
-  // бесплатна, она просто не выделена отдельной строкой в начислении). Для печати делим
-  // ЕДИНУЮ rentAmount на "наём"/"коммуналка" тем же способом, что уже показывает
-  // ContractDetail.vue как справочную величину (DormitoryInfo.communalServicesCost) — сумма
-  // двух строк остаётся равна rentAmount (totalMonthly не меняется, просто перестаёт
-  // выглядеть как двойной счёт), с бухгалтерией/начислениями это никак не связано (там как
-  // была одна rentAmount, так и осталась).
-  const rawUtilities = communalServicesCost ?? new Prisma.Decimal(0);
-  const utilitiesForDoc = terms && rawUtilities.lessThan(terms.rentAmount) ? rawUtilities : (terms?.rentAmount ?? new Prisma.Decimal(0));
-  const rentForDoc = terms ? terms.rentAmount.minus(utilitiesForDoc) : new Prisma.Decimal(0);
-
   const emptyBreakdown = { digits: '', words: '', currency: '', kopecksText: '' };
+  // Старые договоры сохраняли всю стоимость комнаты в rentAmount и ноль в
+  // utilitiesAmount. Для них сохраняем прежний безопасный fallback печати; новые
+  // договоры используют уже разделённые суммы из ContractTerms напрямую.
+  const isLegacyCombinedAmount = !!terms && terms.utilitiesAmount.isZero() && terms.rentAmount.greaterThan(0);
+  const legacyUtilities = isLegacyCombinedAmount && communalServicesCost
+    ? (communalServicesCost.lessThan(terms.rentAmount) ? communalServicesCost : terms.rentAmount)
+    : new Prisma.Decimal(0);
+  const rentForDoc = terms ? (isLegacyCombinedAmount ? terms.rentAmount.minus(legacyUtilities) : terms.rentAmount) : new Prisma.Decimal(0);
+  const utilitiesForDoc = terms ? (isLegacyCombinedAmount ? legacyUtilities : terms.utilitiesAmount) : new Prisma.Decimal(0);
   const rent = terms ? moneyBreakdown(rentForDoc) : emptyBreakdown;
   const utilities = terms ? moneyBreakdown(utilitiesForDoc) : emptyBreakdown;
-  const total = terms ? moneyBreakdown(terms.rentAmount) : emptyBreakdown;
+  const total = terms ? moneyBreakdown(terms.rentAmount.plus(terms.utilitiesAmount)) : emptyBreakdown;
 
   const residentName = splitSurnameRest(resident.fullName);
   const legalRepNameSplit = splitSurnameRest(contract.legalRepName ?? '');

@@ -862,8 +862,9 @@ model ServiceProvisionDocument {
   accounting1cSyncError   String?                @map("accounting_1c_sync_error")
   accounting1cSyncedAt    DateTime?              @map("accounting_1c_synced_at")
 
-  // Собранный payload на момент последней попытки отправки (не пересчитывается на
-  // чтении) — что реально ушло в 1С, доступно сотруднику без похода в логи контейнера.
+  // Актуальный состав документа по данным сайта. Для каждой строки сохраняются наш id
+  // договора, отображаемые реквизиты и состояние сопоставления с 1С. При отправке
+  // служебные поля отбрасываются; документ с несопоставленными строками не отправляется.
   rawPayload Json @map("raw_payload")
 
   createdAt DateTime @default(now()) @map("created_at")

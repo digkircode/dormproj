@@ -72,8 +72,11 @@ const contractDate = ref('')
 const startDate = ref('')
 const endDate = ref('')
 const roomId = ref<number | null>(null)
+// Полная месячная стоимость из карточки комнаты. В ContractTerms она не сохраняется
+// отдельным числом: ниже раскладывается на rentAmount + utilitiesAmount.
+const roomCost = ref<number | undefined>(undefined)
 const rentAmount = ref<number | undefined>(undefined)
-// Характеристики выбранной комнаты — храним, чтобы пересчитать rentAmount при смене
+// Характеристики выбранной комнаты — храним, чтобы пересчитать суммы при смене
 // dailyRateCategory без повторного похода на бэк (см. applyRoomPrice/watch ниже).
 const roomCharacteristics = ref<{ name: string; value: unknown }[]>([])
 // Комната без ОБЕИХ характеристик "Стоимость (из/не из вуза)" — целиком посуточная
@@ -81,11 +84,9 @@ const roomCharacteristics = ref<{ name: string; value: unknown }[]>([])
 // и backend/src/billing/accrual-generation.ts). Месячная "Стоимость" для таких комнат не
 // показывается вообще — весь срок начисляется по суточной ставке (dailyRateAmount).
 const isDailyOnlyRoom = ref(false)
-// Коммуналка больше не показывается в форме — коммунальные услуги в БД уже включены в
-// "Стоимость" комнаты (см. rentAmount ниже), отдельно их не начисляем, поэтому
-// utilitiesAmount всегда 0 (поле в леджере остаётся под будущий раздельный учёт,
-// см. billing/accrual-generation.ts, но сейчас не используется).
-const utilitiesAmount = ref<number | undefined>(0)
+// Коммунальная часть берётся из карточки общежития, а найм — остаток полной стоимости
+// комнаты после её вычитания. Сервер повторяет этот расчёт по данным БД.
+const utilitiesAmount = ref<number | undefined>(undefined)
 // Категория определяет суточную ставку (см. watch ниже) — теперь не выбирается вручную,
 // а определяется автоматически по тому, есть ли физлицо в Контингенте (см. pickIndividual).
 const dailyRateCategory = ref<DailyRateCategory>('OTHER_UNIVERSITY')
@@ -155,7 +156,7 @@ const startDateInvalid = computed(() => submitAttempted.value && !startDate.valu
 const endDateInvalid = computed(() => submitAttempted.value && !endDate.value)
 const individualInvalid = computed(() => submitAttempted.value && !selectedIndividual.value)
 const rentAmountInvalid = computed(
-  () => submitAttempted.value && (rentAmount.value === undefined || serverFieldErrors.value.has('rentAmount')),
+  () => submitAttempted.value && (rentAmount.value === undefined || rentAmount.value < 0 || serverFieldErrors.value.has('rentAmount')),
 )
 const residenceReasonInvalid = computed(
   () => submitAttempted.value && dailyRateCategory.value === 'OTHER_UNIVERSITY' && !residenceReason.value.trim(),
@@ -304,6 +305,7 @@ async function open(prefillIndividual?: Individual) {
   roomId.value = null
   roomQuery.value = ''
   roomResults.value = []
+  roomCost.value = undefined
   rentAmount.value = undefined
   roomCharacteristics.value = []
   isDailyOnlyRoom.value = false
@@ -335,7 +337,7 @@ async function open(prefillIndividual?: Individual) {
   }
   const info = await fetchDormitoryInfo()
   dormInfo.value = info
-  utilitiesAmount.value = 0
+  utilitiesAmount.value = info.communalServicesCost ?? undefined
   updateDailyRateAmount()
 
   if (prefillIndividual) {
@@ -355,10 +357,8 @@ function updateDailyRateAmount() {
 }
 watch(dailyRateCategory, updateDailyRateAmount)
 
-// Подстановка "Стоимости" комнаты как найма по умолчанию — своя характеристика на
-// dailyRateCategory ("Стоимость (из вуза)"/"Стоимость (не из вуза)"), уже с учётом
-// коммунальных услуг, редактируемо сотрудником, при сохранении обратно в комнату не пишется.
-// Комната без обеих характеристик — целиком посуточная (см. isDailyOnlyRoom выше).
+// Стоимость комнаты — полная сумма найма и коммунальных услуг. Для обычной комнаты
+// показываем её справочно, а в запрос отправляем две рассчитанные части.
 function applyRoomPrice() {
   if (roomCharacteristics.value.length === 0) {
     isDailyOnlyRoom.value = false
@@ -368,15 +368,24 @@ function applyRoomPrice() {
   const costCharacteristic = roomCharacteristics.value.find((c) => c.name === definitionName)
   if (costCharacteristic && typeof costCharacteristic.value === 'number') {
     isDailyOnlyRoom.value = false
-    rentAmount.value = costCharacteristic.value
+    roomCost.value = costCharacteristic.value
+    utilitiesAmount.value = dormInfo.value.communalServicesCost ?? undefined
+    rentAmount.value = utilitiesAmount.value === undefined ? undefined : costCharacteristic.value - utilitiesAmount.value
     return
   }
   const hasAnyPrice = roomCharacteristics.value.some(
     (c) => c.name === 'Стоимость (из вуза)' || c.name === 'Стоимость (не из вуза)',
   )
+  if (hasAnyPrice) {
+    roomCost.value = undefined
+    rentAmount.value = undefined
+    utilitiesAmount.value = dormInfo.value.communalServicesCost ?? undefined
+  }
   if (!hasAnyPrice) {
     isDailyOnlyRoom.value = true
+    roomCost.value = 0
     rentAmount.value = 0
+    utilitiesAmount.value = 0
   }
 }
 
@@ -388,7 +397,9 @@ watch(roomId, async (id) => {
   if (id === null) {
     // Комнату убрали (очистили поле поиска) — подставленная по ней цена больше не
     // относится к делу, оставлять её как есть было бы обманчиво.
+    roomCost.value = undefined
     rentAmount.value = undefined
+    utilitiesAmount.value = dormInfo.value.communalServicesCost ?? undefined
     roomCharacteristics.value = []
     isDailyOnlyRoom.value = false
     return
@@ -413,6 +424,7 @@ async function submitCreate() {
     !number.value.trim() ||
     !contractDate.value ||
     rentAmount.value === undefined ||
+    rentAmount.value < 0 ||
     utilitiesAmount.value === undefined ||
     dailyRateAmount.value === undefined ||
     !legalRepName.value.trim() ||
@@ -550,13 +562,17 @@ async function submitCreate() {
               <Label>{{ t('contracts.createDialog.fieldCost') }}</Label>
               <div class="relative">
                 <Input
-                  v-model.number="rentAmount"
+                  v-model.number="roomCost"
                   type="number"
+                  readonly
                   :class="[NO_SPINNER_CLASS, 'pr-8', rentAmountInvalid ? 'border-red-500' : '']"
                   @keydown="blockNonNumericKeys"
                 />
                 <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">₽</span>
               </div>
+              <p v-if="rentAmount !== undefined && utilitiesAmount !== undefined" class="text-xs text-muted-foreground">
+                {{ t('contracts.createDialog.costBreakdown', { rent: rentAmount, utilities: utilitiesAmount }) }}
+              </p>
             </div>
 
             <!-- Только для не-своего вуза — печатается в п.1.2 бланка вместо "обучением

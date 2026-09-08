@@ -404,15 +404,25 @@ export class ContractsController {
       throw new NotFoundException('contracts.errors.roomNotFound');
     }
 
-    // Комната без обеих месячных характеристик "Стоимость (из/не из вуза)" — целиком
-    // посуточная (112-2/410-2 на момент введения, см. миграцию room_price_by_university_category
-    // и billing/accrual-generation.ts). Признак специально не хардкодится по id/номеру комнаты —
-    // источник истины остаётся в EAV-характеристиках, как и остальная модель комнат.
-    const roomPriceCharacteristic = await this.prisma.roomCharacteristicValue.findFirst({
-      where: { roomId: data.roomId, definition: { name: { in: ['Стоимость (из вуза)', 'Стоимость (не из вуза)'] } } },
-      select: { id: true },
-    });
-    const isDailyOnlyRoom = !roomPriceCharacteristic;
+    // Стоимость комнаты в характеристике — это полный месячный платёж: найм +
+    // коммунальные услуги. Берём актуальное значение нужной категории прямо из БД,
+    // чтобы прямой POST не мог сохранить другой финансовый расклад, чем указан на
+    // странице комнаты. Комната без обеих месячных характеристик остаётся посуточной.
+    const roomPriceDefinitionName =
+      data.dailyRateCategory === 'OWN_UNIVERSITY' ? 'Стоимость (из вуза)' : 'Стоимость (не из вуза)';
+    const [roomPriceCharacteristic, anyRoomPriceCharacteristic, dormitoryInfo] = await Promise.all([
+      this.prisma.roomCharacteristicValue.findFirst({
+        where: { roomId: data.roomId, definition: { name: roomPriceDefinitionName } },
+        orderBy: [{ period: 'desc' }, { id: 'desc' }],
+        select: { valueNumber: true },
+      }),
+      this.prisma.roomCharacteristicValue.findFirst({
+        where: { roomId: data.roomId, definition: { name: { in: ['Стоимость (из вуза)', 'Стоимость (не из вуза)'] } } },
+        select: { id: true },
+      }),
+      this.prisma.dormitoryInfo.findUnique({ where: { id: 1 }, select: { communalServicesCost: true } }),
+    ]);
+    const isDailyOnlyRoom = !anyRoomPriceCharacteristic;
 
     // Несовершеннолетие — на дату ДОГОВОРА (contractDate), как и во фронтовом computed
     // isMinor (Contracts.vue). Раньше здесь не было никакой серверной проверки блока
@@ -431,11 +441,22 @@ export class ContractsController {
       throw new BadRequestException('contracts.errors.residenceReasonRequired');
     }
 
-    // Посуточная комната — месячной ставки нет вообще, игнорируем rentAmount/utilitiesAmount
-    // из запроса (форма их для такой комнаты и не показывает), чтобы в ContractTerms/печати/
-    // отчётах не осел случайный "остаточный" месячный номер.
-    const rentAmount = isDailyOnlyRoom ? new Prisma.Decimal(0) : new Prisma.Decimal(data.rentAmount);
-    const utilitiesAmount = isDailyOnlyRoom ? new Prisma.Decimal(0) : new Prisma.Decimal(data.utilitiesAmount);
+    // Для обычной комнаты сохраняем раздельные суммы. Значения rentAmount и
+    // utilitiesAmount из тела оставлены в контракте API для совместимости старого
+    // клиента, но источниками истины служат карточка комнаты и карточка общежития.
+    // У посуточной комнаты обе месячные части равны нулю.
+    if (!isDailyOnlyRoom && (roomPriceCharacteristic === null || roomPriceCharacteristic.valueNumber === null)) {
+      throw new BadRequestException('contracts.errors.roomPriceNotConfigured');
+    }
+    if (!isDailyOnlyRoom && (dormitoryInfo === null || dormitoryInfo.communalServicesCost === null)) {
+      throw new BadRequestException('contracts.errors.communalServicesCostNotConfigured');
+    }
+    const roomCost = roomPriceCharacteristic?.valueNumber ?? new Prisma.Decimal(0);
+    const utilitiesAmount = isDailyOnlyRoom ? new Prisma.Decimal(0) : dormitoryInfo!.communalServicesCost!;
+    if (utilitiesAmount.greaterThan(roomCost)) {
+      throw new BadRequestException('contracts.errors.communalServicesCostExceedsRoomCost');
+    }
+    const rentAmount = isDailyOnlyRoom ? new Prisma.Decimal(0) : roomCost.minus(utilitiesAmount);
     const dailyRateAmount = new Prisma.Decimal(data.dailyRateAmount);
 
     try {
@@ -723,7 +744,6 @@ export class ContractsController {
     const room = contract.roomAssignments[0]?.room ?? null;
     const isMinorContract = contract.legalRepIndividualUid !== null;
     const dormitoryInfo = await this.prisma.dormitoryInfo.findUnique({ where: { id: 1 } });
-
     const buffer = renderContractDocument(
       isMinorContract ? 'minor' : 'standard',
       buildDocumentData(contract, resident, terms, room, dormitoryInfo?.communalServicesCost ?? null),

@@ -5,6 +5,7 @@
     "colType": "Тип",
     "colAmount": "Сумма",
     "colContractCount": "Договоров",
+    "colAccounting1cMatch": "Сопоставление с 1С",
     "colStatus": "Статус",
     "currentPeriod": "Текущий",
     "type": {
@@ -18,6 +19,13 @@
     "colResident": "Резидент",
     "unknownContract": "Договор не опознан",
     "total": "Итого",
+    "allMatched": "Все сопоставлены",
+    "unmatchedCount": "Не сопоставлено: {count}",
+    "matched": "Сопоставлен",
+    "missingContractor": "Нет контрагента в 1С",
+    "missingContract": "Нет договора в 1С",
+    "missingBoth": "Нет контрагента и договора в 1С",
+    "unmatchedWarning": "Не сопоставлено строк с 1С: {count}. Документы с такими строками не будут отправлены частично.",
     "errors": {
       "fetchListFailed": "Не удалось получить список документов ({status})",
       "fetchDetailFailed": "Не удалось получить состав документа ({status})",

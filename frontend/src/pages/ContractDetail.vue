@@ -48,7 +48,6 @@ import {
 } from '@/lib/contracts-api'
 import { reversePayment, recalculatePenalty } from '@/lib/billing-api'
 import Accounting1cStatusPill from '@/components/Accounting1cStatusPill.vue'
-import { fetchDormitoryInfo, type DormitoryInfo } from '@/lib/dormitory-info-api'
 import { goBack } from '@/lib/utils'
 import { breadcrumbOverride } from '@/lib/breadcrumb-state'
 import { dateLocaleTag } from '@/lib/format-locale'
@@ -88,14 +87,6 @@ onUnmounted(() => {
   breadcrumbOverride.value = null
 })
 
-// Коммунальные услуги — не сумма по договору (в rentAmount уже включены, отдельно от
-// начислений не хранятся, см. rentAmount ниже), а справочная общежитская величина —
-// просто показать текущую стоимость, ничего никуда не прибавляя.
-const dormInfo = ref<DormitoryInfo | null>(null)
-onMounted(async () => {
-  dormInfo.value = await fetchDormitoryInfo()
-})
-
 // Пеня — единая сумма на договор (не входит в accrual.balance, см. penalty-balance.ts на
 // бэке) — добавляем её отдельно, иначе общий баланс не совпадал бы с реальным долгом.
 const totalBalance = computed(() =>
@@ -123,10 +114,9 @@ async function submitRecalculatePenalty() {
     isRecalculatingPenalty.value = false
   }
 }
-// Коммунальные услуги в БД уже включены в стоимость комнаты (Room → характеристика
-// "Стоимость (из/не из вуза)"), которая и попадает в rentAmount при создании договора —
-// отдельно прибавлять utilitiesAmount не нужно, это задвоило бы сумму.
 const rentAmount = computed(() => contract.value?.terms[0]?.rentAmount ?? 0)
+const utilitiesAmount = computed(() => contract.value?.terms[0]?.utilitiesAmount ?? 0)
+const roomCost = computed(() => rentAmount.value + utilitiesAmount.value)
 // rentAmount=0 и utilitiesAmount=0 одновременно — только у полностью посуточных комнат
 // (112-2/410-2 на момент введения, см. backend/src/contracts/contracts.controller.ts
 // #isDailyOnlyRoom), обычная комната всегда имеет ненулевую месячную "Стоимость".
@@ -167,6 +157,7 @@ const ACCRUAL_COLUMNS = computed<{ id: keyof AccrualRow; label: string }[]>(() =
   { id: 'periodStart', label: t('contracts.detail.colPeriod') },
   { id: 'dueDate', label: t('contracts.detail.colDueDate') },
   { id: 'rentAmount', label: t('contracts.detail.colRent') },
+  { id: 'utilitiesAmount', label: t('contracts.detail.colUtilities') },
   { id: 'adjustmentAmount', label: t('contracts.detail.colAdjustment') },
   { id: 'paid', label: t('contracts.detail.colPaid') },
   { id: 'balance', label: t('contracts.detail.colBalance') },
@@ -392,7 +383,7 @@ async function confirmReversePayment() {
               </div>
               <div>
                 <p class="text-xs text-muted-foreground">{{ t('contracts.detail.roomCost') }}</p>
-                <p class="text-lg font-medium">{{ isDailyOnlyContract ? t('contracts.detail.dailyRateOnly') : formatMoney(rentAmount) }}</p>
+                <p class="text-lg font-medium">{{ isDailyOnlyContract ? t('contracts.detail.dailyRateOnly') : formatMoney(roomCost) }}</p>
               </div>
             </div>
             <div class="flex items-center gap-3">
@@ -402,7 +393,7 @@ async function confirmReversePayment() {
               <div>
                 <p class="text-xs text-muted-foreground">{{ t('contracts.detail.utilities') }}</p>
                 <p class="text-lg font-medium">
-                  {{ dormInfo?.communalServicesCost != null ? formatMoney(dormInfo.communalServicesCost) : '—' }}
+                  {{ isDailyOnlyContract ? '—' : formatMoney(utilitiesAmount) }}
                 </p>
               </div>
             </div>
@@ -510,6 +501,7 @@ async function confirmReversePayment() {
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.periodStart) }} — {{ formatDate(a.periodEnd) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.dueDate) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.rentAmount) }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.utilitiesAmount) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ a.adjustmentAmount ? formatMoney(a.adjustmentAmount) : '—' }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.paid) }}</TableCell>
                     <TableCell :class="a.balance > 0 ? 'text-red-500' : ''">

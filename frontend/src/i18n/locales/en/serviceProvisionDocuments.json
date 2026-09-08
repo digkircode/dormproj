@@ -5,6 +5,7 @@
     "colType": "Type",
     "colAmount": "Amount",
     "colContractCount": "Contracts",
+    "colAccounting1cMatch": "1C mapping",
     "colStatus": "Status",
     "currentPeriod": "Current",
     "type": {
@@ -18,6 +19,13 @@
     "colResident": "Resident",
     "unknownContract": "Contract not identified",
     "total": "Total",
+    "allMatched": "All matched",
+    "unmatchedCount": "Unmatched: {count}",
+    "matched": "Matched",
+    "missingContractor": "No 1C contractor",
+    "missingContract": "No 1C contract",
+    "missingBoth": "No 1C contractor or contract",
+    "unmatchedWarning": "Rows not mapped to 1C: {count}. Documents containing them will not be sent partially.",
     "errors": {
       "fetchListFailed": "Failed to load documents ({status})",
       "fetchDetailFailed": "Failed to load the document's contents ({status})",

@@ -24,6 +24,22 @@ const createPaymentSchema = z.object({
 
 const AUDITED_PAYMENT_FIELDS = ['amount', 'paidAt', 'method', 'source', 'rawComment', 'reversedAt'];
 
+interface RawServiceProvisionDetail {
+  SiteContractID?: number;
+  ContractNumber?: string;
+  ResidentFullName?: string;
+  ContractorUID?: string | null;
+  ContractUID?: string | null;
+  SummDetails: number;
+  Accounting1cMatched?: boolean;
+  MissingMappings?: ('CONTRACTOR' | 'CONTRACT')[];
+}
+
+function serviceProvisionDetails(rawPayload: Prisma.JsonValue): RawServiceProvisionDetail[] {
+  const raw = rawPayload as { DocumentSummDetails?: RawServiceProvisionDetail[] } | null;
+  return Array.isArray(raw?.DocumentSummDetails) ? raw.DocumentSummDetails : [];
+}
+
 function parseIdParam(idParam: string): number {
   const id = Number.parseInt(idParam, 10);
   if (!Number.isInteger(id)) {
@@ -220,16 +236,23 @@ export class BillingController {
     // Decimal -> number на выходе API, тот же приём, что и в остальных сериализаторах
     // (contracts/serializers.ts) — тут отдельного serializePayment-аналога нет, эндпоинт
     // всегда отдаёт только 100 последних строк целиком, без пагинации.
-    return rows.map((row) => ({ ...row, documentSumm: Number(row.documentSumm) }));
+    return rows.map((row) => {
+      const details = serviceProvisionDetails(row.rawPayload);
+      return {
+        ...row,
+        documentSumm: Number(row.documentSumm),
+        unmatchedContractCount: details.filter((detail) =>
+          detail.Accounting1cMatched === false || !detail.ContractorUID || !detail.ContractUID,
+        ).length,
+      };
+    });
   }
 
   // Детализация одного документа — какие именно договоры и на какую сумму попали в
   // сводную цифру (по прямой просьбе 2026-09-04, "детально показывать какие договора
-  // попали в этот документ"). rawPayload.DocumentSummDetails хранит только UID'ы
-  // (ContractorUID/ContractUID, как их знает 1С) — резолвим обратно к нашим договорам по
-  // Contract.accounting1cUid, чтобы показать номер договора и ФИО резидента, а не голые
-  // GUID. Если конкретный договор с тех пор удалён/потерял accounting1cUid — строка всё
-  // равно показывается, просто без имени (contractNumber/residentFullName: null).
+  // попали в этот документ"). Новые строки содержат наш contractId, номер, ФИО и признак
+  // сопоставления с 1С. Для старых сохранённых документов поддерживаем прежний формат и
+  // по возможности резолвим договор обратно по ContractUID.
   @Get('service-provision-documents/:id')
   async getServiceProvisionDocument(@Param('id') idParam: string) {
     const id = parseIdParam(idParam);
@@ -238,28 +261,46 @@ export class BillingController {
       throw new NotFoundException('billing.errors.serviceProvisionDocumentNotFound');
     }
 
-    const raw = doc.rawPayload as { DocumentSummDetails?: { ContractorUID: string; ContractUID: string; SummDetails: number }[] } | null;
-    const details = raw?.DocumentSummDetails ?? [];
-    const contractUids = details.map((d) => d.ContractUID);
-    const contracts = contractUids.length
+    const details = serviceProvisionDetails(doc.rawPayload);
+    const contractIds = details.map((detail) => detail.SiteContractID).filter((value): value is number => Number.isInteger(value));
+    const contractUids = details.map((detail) => detail.ContractUID).filter((value): value is string => typeof value === 'string');
+    const contracts = contractIds.length || contractUids.length
       ? await this.prisma.contract.findMany({
-          where: { accounting1cUid: { in: contractUids } },
+          where: {
+            OR: [
+              ...(contractIds.length ? [{ id: { in: contractIds } }] : []),
+              ...(contractUids.length ? [{ accounting1cUid: { in: contractUids } }] : []),
+            ],
+          },
           select: { id: true, number: true, accounting1cUid: true, resident: { select: { fullName: true } } },
         })
       : [];
+    const contractById = new Map(contracts.map((contract) => [contract.id, contract]));
     const contractByUid = new Map(contracts.map((c) => [c.accounting1cUid, c]));
 
     const lines = details.map((d) => {
-      const contract = contractByUid.get(d.ContractUID);
+      const contract = (d.SiteContractID ? contractById.get(d.SiteContractID) : undefined) ??
+        (d.ContractUID ? contractByUid.get(d.ContractUID) : undefined);
+      const missingMappings = d.MissingMappings ?? [
+        ...(!d.ContractorUID ? ['CONTRACTOR' as const] : []),
+        ...(!d.ContractUID ? ['CONTRACT' as const] : []),
+      ];
       return {
-        contractId: contract?.id ?? null,
-        contractNumber: contract?.number ?? null,
-        residentFullName: contract?.resident.fullName ?? null,
+        contractId: d.SiteContractID ?? contract?.id ?? null,
+        contractNumber: d.ContractNumber ?? contract?.number ?? null,
+        residentFullName: d.ResidentFullName ?? contract?.resident.fullName ?? null,
         amount: d.SummDetails,
+        accounting1cMatched: d.Accounting1cMatched ?? missingMappings.length === 0,
+        missingMappings,
       };
     });
 
-    return { ...doc, documentSumm: Number(doc.documentSumm), lines };
+    return {
+      ...doc,
+      documentSumm: Number(doc.documentSumm),
+      unmatchedContractCount: lines.filter((line) => !line.accounting1cMatched).length,
+      lines,
+    };
   }
 
   // Ручной повтор — тот же месяц (только что закончившийся), что и у ночного крона,

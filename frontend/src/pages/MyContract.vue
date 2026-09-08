@@ -118,6 +118,8 @@ const totalBalance = computed(() =>
   contract.value ? contract.value.accruals.reduce((sum, a) => sum + a.balance, 0) + contract.value.penaltyBalance : 0,
 )
 const rentAmount = computed(() => contract.value?.terms[0]?.rentAmount ?? 0)
+const utilitiesAmount = computed(() => contract.value?.terms[0]?.utilitiesAmount ?? 0)
+const roomCost = computed(() => rentAmount.value + utilitiesAmount.value)
 const isDailyOnlyContract = computed(
   () => (contract.value?.terms[0]?.rentAmount ?? 0) === 0 && (contract.value?.terms[0]?.utilitiesAmount ?? 0) === 0,
 )
@@ -142,6 +144,7 @@ const accrualColumnLabels = computed<Record<string, string>>(() => ({
   periodStart: t('contracts.detail.colPeriod'),
   dueDate: t('contracts.detail.colDueDate'),
   rentAmount: t('contracts.detail.colRent'),
+  utilitiesAmount: t('contracts.detail.colUtilities'),
   paid: t('contracts.detail.colPaid'),
   balance: t('contracts.detail.colBalance'),
 }))
@@ -150,12 +153,13 @@ const accrualColumns = computed(() =>
     accrualColumnHelper.accessor('periodStart', { header: accrualColumnLabels.value.periodStart, size: 160, minSize: 130 }),
     accrualColumnHelper.accessor('dueDate', { header: accrualColumnLabels.value.dueDate, enableSorting: false, size: 140, minSize: 110 }),
     accrualColumnHelper.accessor('rentAmount', { header: accrualColumnLabels.value.rentAmount, enableSorting: false, size: 120, minSize: 100 }),
+    accrualColumnHelper.accessor('utilitiesAmount', { header: accrualColumnLabels.value.utilitiesAmount, enableSorting: false, size: 140, minSize: 110 }),
     accrualColumnHelper.accessor('paid', { header: accrualColumnLabels.value.paid, enableSorting: false, size: 120, minSize: 100 }),
     accrualColumnHelper.accessor('balance', { header: accrualColumnLabels.value.balance, size: 120, minSize: 100 }),
   ]),
 )
-// Срок оплаты и стоимость найма — скрыты по умолчанию на телефоне (по прямой просьбе
-// 2026-08-28, после реального использования с узкого экрана): 5 колонок на 320-375px
+// Срок оплаты, найм и коммуналка скрыты по умолчанию на телефоне (по прямой просьбе
+// 2026-08-28, после реального использования с узкого экрана): все колонки на 320-375px
 // давали заголовки в 2-3 буквы, нечитаемо. Период/Оплачено/Остаток — минимум, без
 // которого таблица теряет смысл, остальное можно вернуть вручную через "Настройка
 // колонок" (EntityTable.vue сам это умеет, hiddenByDefault только задаёт стартовое
@@ -163,12 +167,12 @@ const accrualColumns = computed(() =>
 // (SidebarProvider.vue) — вычисляется один раз на маунт, не переигрывает при повороте
 // экрана (не нужно для этого случая).
 const isMobile = useMediaQuery('(max-width: 768px)')
-const accrualHiddenByDefault = computed(() => (isMobile.value ? ['dueDate', 'rentAmount'] : []))
+const accrualHiddenByDefault = computed(() => (isMobile.value ? ['dueDate', 'rentAmount', 'utilitiesAmount'] : []))
 
 function accrualCellText(columnId: string, value: unknown): string {
   if (columnId === 'periodStart' && typeof value === 'string') return monthLabel(value)
   if (columnId === 'dueDate' && typeof value === 'string') return formatDate(value)
-  if ((columnId === 'rentAmount' || columnId === 'paid') && typeof value === 'number') return formatMoney(value)
+  if ((columnId === 'rentAmount' || columnId === 'utilitiesAmount' || columnId === 'paid') && typeof value === 'number') return formatMoney(value)
   return String(value ?? '')
 }
 const accrualCellRenderers = { balance: AccrualBalanceCell }
@@ -372,7 +376,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
             </div>
             <div>
               <p class="text-xs text-muted-foreground">{{ t('contracts.detail.roomCost') }}</p>
-              <p class="text-lg font-medium">{{ isDailyOnlyContract ? t('contracts.detail.dailyRateOnly') : formatMoney(rentAmount) }}</p>
+              <p class="text-lg font-medium">{{ isDailyOnlyContract ? t('contracts.detail.dailyRateOnly') : formatMoney(roomCost) }}</p>
             </div>
           </div>
           <div class="flex items-center gap-3">

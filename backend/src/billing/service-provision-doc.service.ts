@@ -21,10 +21,24 @@ const MONTHS_NOMINATIVE = [
 ];
 
 interface ContractLine {
-  contractorUid: string;
-  contractUid: string;
+  contractId: number;
+  contractNumber: string;
+  residentFullName: string;
+  contractorUid: string | null;
+  contractUid: string | null;
   rent: Prisma.Decimal;
   utilities: Prisma.Decimal;
+}
+
+interface StoredServiceProvisionDetail {
+  SiteContractID: number;
+  ContractNumber: string;
+  ResidentFullName: string;
+  ContractorUID: string | null;
+  ContractUID: string | null;
+  SummDetails: number;
+  Accounting1cMatched: boolean;
+  MissingMappings: ('CONTRACTOR' | 'CONTRACT')[];
 }
 
 // Флоу 3 (см. промпт проекта) — раз в месяц, в начале следующего месяца (см.
@@ -34,13 +48,10 @@ interface ContractLine {
 // намеренно не смотрим, см. комментарий там), независимо от того, оплачены начисления
 // или нет. Отправляет пачкой в 1С (ServProvisionDoc).
 //
-// ВАЖНОЕ ОГРАНИЧЕНИЕ: строка документа требует ContractorUID+ContractUID — 1С не подтвердила
-// (в отличие от флоу 1), что при их отсутствии эндпоинт сам создаст контрагента/договор И
-// вернёт нам новый UID (сама форма ответа — только {SiteDocumentID, DocumentUID,
-// FinalStatus} НА ВЕСЬ документ, никакого per-строчного эха UID, в отличие от ответа
-// флоу 1). Поэтому договор без уже известной пары UID (см. payment-imports-ingest.service.ts —
-// та же практическая проблема у флоу 2) в документ просто не попадает — иначе рисковали бы
-// либо получить ошибку от 1С, либо тихо расплодить неопознаваемых дублей контрагентов.
+// Документ на сайте строится по нашим начислениям и включает договоры независимо от
+// наличия связки с 1С. Отсутствующие ContractorUID/ContractUID сохраняются в детализации
+// как явная несопоставленная строка. Отправлять такой документ частично нельзя: итоговая
+// сумма разошлась бы с детализацией, поэтому он ждёт сопоставления всех строк.
 @Injectable()
 export class ServiceProvisionDocService {
   private readonly logger = new Logger(ServiceProvisionDocService.name);
@@ -66,13 +77,14 @@ export class ServiceProvisionDocService {
   private async collectContractLines(monthStart: Date, monthEnd: Date): Promise<ContractLine[]> {
     const contracts = await this.prisma.contract.findMany({
       where: {
-        accounting1cUid: { not: null },
-        resident: { accounting1cContractorUid: { not: null } },
         accruals: { some: { periodStart: { gte: monthStart, lte: monthEnd }, voidedAt: null } },
       },
+      orderBy: { id: 'asc' },
       select: {
+        id: true,
+        number: true,
         accounting1cUid: true,
-        resident: { select: { accounting1cContractorUid: true } },
+        resident: { select: { fullName: true, accounting1cContractorUid: true } },
         accruals: {
           where: { periodStart: { gte: monthStart, lte: monthEnd }, voidedAt: null },
           select: { rentAmount: true, utilitiesAmount: true, adjustmentAmount: true },
@@ -95,8 +107,11 @@ export class ServiceProvisionDocService {
         utilities = utilities.plus(accrual.utilitiesAmount);
       }
       lines.push({
-        contractorUid: contract.resident.accounting1cContractorUid!,
-        contractUid: contract.accounting1cUid!,
+        contractId: contract.id,
+        contractNumber: contract.number,
+        residentFullName: contract.resident.fullName,
+        contractorUid: contract.resident.accounting1cContractorUid,
+        contractUid: contract.accounting1cUid,
         rent,
         utilities,
       });
@@ -105,15 +120,27 @@ export class ServiceProvisionDocService {
   }
 
   private buildDetails(lines: ContractLine[], pick: (line: ContractLine) => Prisma.Decimal): {
-    details: AccountingServiceProvisionDetail[];
+    details: StoredServiceProvisionDetail[];
     total: Prisma.Decimal;
   } {
-    const details: AccountingServiceProvisionDetail[] = [];
+    const details: StoredServiceProvisionDetail[] = [];
     let total = new Decimal(0);
     for (const line of lines) {
       const amount = pick(line);
       if (amount.lessThanOrEqualTo(0)) continue;
-      details.push({ ContractorUID: line.contractorUid, ContractUID: line.contractUid, SummDetails: Number(amount) });
+      const missingMappings: StoredServiceProvisionDetail['MissingMappings'] = [];
+      if (!line.contractorUid) missingMappings.push('CONTRACTOR');
+      if (!line.contractUid) missingMappings.push('CONTRACT');
+      details.push({
+        SiteContractID: line.contractId,
+        ContractNumber: line.contractNumber,
+        ResidentFullName: line.residentFullName,
+        ContractorUID: line.contractorUid,
+        ContractUID: line.contractUid,
+        SummDetails: Number(amount),
+        Accounting1cMatched: missingMappings.length === 0,
+        MissingMappings: missingMappings,
+      });
       total = total.plus(amount);
     }
     return { details, total };
@@ -132,25 +159,26 @@ export class ServiceProvisionDocService {
   // на каждый GET /service-provision-documents (см. billing.controller.ts), поэтому список
   // виден сразу, ещё до первой реальной отправки. Отправка в 1С — только run() ниже, по
   // кнопке "Отправить".
-  async computeAndSave(targetMonth: Date = addMonths(new Date(), -1)): Promise<{ items: AccountingServiceProvisionPush[] }> {
+  async computeAndSave(targetMonth: Date = addMonths(new Date(), -1)): Promise<{ items: AccountingServiceProvisionPush[]; blocked: number }> {
     const monthStart = startOfMonth(targetMonth);
     const monthEnd = endOfMonth(targetMonth);
     const lines = await this.collectContractLines(monthStart, monthEnd);
     if (lines.length === 0) {
-      this.logger.log(`Оказание услуг за ${monthStart.toISOString().slice(0, 7)}: нет ни одного договора с начислением за этот месяц и уже известной парой ContractorUID/ContractUID — считать нечего`);
-      return { items: [] };
+      this.logger.log(`Оказание услуг за ${monthStart.toISOString().slice(0, 7)}: нет ни одного договора с начислением за этот месяц — считать нечего`);
+      return { items: [], blocked: 0 };
     }
 
     const monthLabel = `${MONTHS_NOMINATIVE[monthStart.getUTCMonth()]} ${monthStart.getUTCFullYear()}`;
     const rent = this.buildDetails(lines, (l) => l.rent);
     const utilities = this.buildDetails(lines, (l) => l.utilities);
 
-    const specs: { type: ServiceProvisionType; nomenclature: 'Найм' | 'Коммуналка'; commentLabel: string; details: AccountingServiceProvisionDetail[]; total: Prisma.Decimal }[] = [
+    const specs: { type: ServiceProvisionType; nomenclature: 'Найм' | 'Коммуналка'; commentLabel: string; details: StoredServiceProvisionDetail[]; total: Prisma.Decimal }[] = [
       { type: 'RENT', nomenclature: 'Найм', commentLabel: 'Найм услуги', details: rent.details, total: rent.total },
       { type: 'UTILITIES', nomenclature: 'Коммуналка', commentLabel: 'Коммунальные услуги', details: utilities.details, total: utilities.total },
     ];
 
     const items: AccountingServiceProvisionPush[] = [];
+    let blocked = 0;
     for (const spec of specs) {
       if (spec.details.length === 0) continue;
 
@@ -170,15 +198,16 @@ export class ServiceProvisionDocService {
       // сотрудник видит актуальные цифры, а не то, что было посчитано месяц назад.
       // accounting1cDocumentUid в update НЕ трогаем — его меняет только реальный результат
       // отправки (run() ниже). accounting1cSyncStatus — трогаем, но только в одну сторону:
-      // если сумма изменилась ПОСЛЕ того, как документ уже был SYNCED, статус сбрасывается
+      // если состав или сумма изменились ПОСЛЕ того, как документ уже был SYNCED, статус сбрасывается
       // обратно в NOT_SYNCED (код-ревью 2026-09-04 — раньше сотрудник видел "Отправлено" рядом
       // с новой суммой, хотя в 1С по факту ушла старая). Если статус ещё не SYNCED (или
       // сумма не изменилась) — не трогаем, чтобы не откатывать FAILED в NOT_SYNCED без причины.
       const existing = await this.prisma.serviceProvisionDocument.findUnique({
         where: { periodStart_type: { periodStart: monthStart, type: spec.type } },
-        select: { documentSumm: true, accounting1cSyncStatus: true },
+        select: { accounting1cSyncStatus: true, rawPayload: true },
       });
-      const becameStaleAfterSync = existing?.accounting1cSyncStatus === 'SYNCED' && !existing.documentSumm.equals(spec.total);
+      const payloadChanged = existing !== null && JSON.stringify(existing.rawPayload) !== JSON.stringify(rawPayloadBase);
+      const becameStaleAfterSync = existing?.accounting1cSyncStatus === 'SYNCED' && payloadChanged;
 
       const row = await this.prisma.serviceProvisionDocument.upsert({
         where: { periodStart_type: { periodStart: monthStart, type: spec.type } },
@@ -197,38 +226,52 @@ export class ServiceProvisionDocService {
         },
       });
 
+      const allLinesMatched = spec.details.every((detail) => detail.Accounting1cMatched);
+      if (!allLinesMatched) {
+        blocked++;
+        continue;
+      }
+      const accountingDetails: AccountingServiceProvisionDetail[] = spec.details.map((detail) => ({
+        ContractorUID: detail.ContractorUID!,
+        ContractUID: detail.ContractUID!,
+        SummDetails: detail.SummDetails,
+      }));
       items.push({
         SiteDocumentID: row.id,
-        ...rawPayloadBase,
+        Date: rawPayloadBase.Date,
+        NomenclatureType: rawPayloadBase.NomenclatureType,
+        DocumentSumm: rawPayloadBase.DocumentSumm,
+        Comment: rawPayloadBase.Comment,
+        DocumentSummDetails: accountingDetails,
         DocumentUID: row.accounting1cDocumentUid ?? undefined,
       });
     }
 
-    return { items };
+    return { items, blocked };
   }
 
   // Отправка в 1С — уже посчитанных (см. computeAndSave выше) документов за целевой месяц.
   // Дёргается ночным кроном и кнопкой "Отправить" на странице.
-  async run(targetMonth: Date = addMonths(new Date(), -1)): Promise<{ pushed: number; succeeded: number; failed: number; skipped: boolean }> {
-    const { items } = await this.computeAndSave(targetMonth);
+  async run(targetMonth: Date = addMonths(new Date(), -1)): Promise<{ pushed: number; succeeded: number; failed: number; blocked: number; skipped: boolean }> {
+    const { items, blocked } = await this.computeAndSave(targetMonth);
     if (items.length === 0) {
-      return { pushed: 0, succeeded: 0, failed: 0, skipped: true };
+      return { pushed: 0, succeeded: 0, failed: 0, blocked, skipped: true };
     }
     if (!this.provider.isServiceProvisionConfigured()) {
       this.logger.warn('1С Бухгалтерия (оказание услуг) не настроена — пропуск отправки');
-      return { pushed: 0, succeeded: 0, failed: 0, skipped: true };
+      return { pushed: 0, succeeded: 0, failed: 0, blocked, skipped: true };
     }
 
     let results: Awaited<ReturnType<Accounting1cProvider['pushServiceProvisionDocs']>>;
     try {
       results = await this.provider.pushServiceProvisionDocs(items);
     } catch (error) {
-      if (error instanceof Accounting1cNotConfiguredError) return { pushed: 0, succeeded: 0, failed: 0, skipped: true };
+      if (error instanceof Accounting1cNotConfiguredError) return { pushed: 0, succeeded: 0, failed: 0, blocked, skipped: true };
       // Сеть/сервис недоступны целиком — статусы строк не трогаем (остаются в прежнем
       // состоянии — NOT_SYNCED при первой попытке, или прежний статус при повторе),
       // следующий месячный прогон (или будущий ручной повтор) попробует заново.
       this.logger.error(`Не удалось отправить документы "оказание услуг" в 1С: ${getErrorMessage(error)}`);
-      return { pushed: items.length, succeeded: 0, failed: 0, skipped: false };
+      return { pushed: items.length, succeeded: 0, failed: 0, blocked, skipped: false };
     }
 
     let succeeded = 0;
@@ -261,6 +304,6 @@ export class ServiceProvisionDocService {
     }
 
     this.logger.log(`Оказание услуг за ${targetMonth.toISOString().slice(0, 7)}: отправлено документов ${items.length}, успешно ${succeeded}, ошибок ${failed}`);
-    return { pushed: items.length, succeeded, failed, skipped: false };
+    return { pushed: items.length, succeeded, failed, blocked, skipped: false };
   }
 }

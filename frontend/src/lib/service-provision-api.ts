@@ -12,6 +12,7 @@ export interface ServiceProvisionDocumentRow {
   type: ServiceProvisionType
   documentSumm: number
   contractCount: number
+  unmatchedContractCount: number
   accounting1cSyncStatus: Accounting1cSyncStatus
   accounting1cDocumentUid: string | null
   accounting1cSyncError: string | null
@@ -22,6 +23,7 @@ export interface ServiceProvisionRunResult {
   pushed: number
   succeeded: number
   failed: number
+  blocked: number
   skipped: boolean
 }
 
@@ -34,6 +36,8 @@ export interface ServiceProvisionDocumentLine {
   contractNumber: string | null
   residentFullName: string | null
   amount: number
+  accounting1cMatched: boolean
+  missingMappings: ('CONTRACTOR' | 'CONTRACT')[]
 }
 export interface ServiceProvisionDocumentDetail extends ServiceProvisionDocumentRow {
   lines: ServiceProvisionDocumentLine[]

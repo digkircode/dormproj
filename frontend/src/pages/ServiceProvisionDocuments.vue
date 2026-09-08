@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, List, RotateCw } from 'lucide-vue-next'
+import { ArrowLeft, Check, List, RotateCw, TriangleAlert } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import EntityTable from '@/components/EntityTable.vue'
@@ -54,6 +54,7 @@ interface TableRow {
   type: ServiceProvisionType
   documentSumm: number
   contractCount: number
+  unmatchedContractCount: number
   status: Accounting1cSyncStatus
   // Самый свежий periodStart среди загруженных документов — визуально выделяется в
   // таблице (см. ServiceProvisionPeriodCell.vue), по прямой просьбе 2026-09-04.
@@ -63,6 +64,9 @@ interface TableRow {
 const docs = ref<TableRow[]>([])
 const loadError = ref('')
 const tableRef = ref<{ refresh: () => void | Promise<void> } | null>(null)
+const currentUnmatchedCount = computed(() =>
+  docs.value.filter((row) => row.isCurrent).reduce((total, row) => total + row.unmatchedContractCount, 0),
+)
 
 async function loadDocs() {
   loadError.value = ''
@@ -75,6 +79,7 @@ async function loadDocs() {
       type: d.type,
       documentSumm: d.documentSumm,
       contractCount: d.contractCount,
+      unmatchedContractCount: d.unmatchedContractCount,
       status: d.accounting1cSyncStatus,
       isCurrent: d.periodStart === latestPeriod,
     }))
@@ -96,12 +101,16 @@ const columnLabels = computed<Record<string, string>>(() => ({
   type: t('serviceProvisionDocuments.colType'),
   documentSumm: t('serviceProvisionDocuments.colAmount'),
   contractCount: t('serviceProvisionDocuments.colContractCount'),
+  unmatchedContractCount: t('serviceProvisionDocuments.colAccounting1cMatch'),
   status: t('serviceProvisionDocuments.colStatus'),
 }))
 function cellText(columnId: string, value: unknown): string {
   if (columnId === 'periodStart' && typeof value === 'string') return formatPeriod(value)
   if (columnId === 'type') return TYPE_LABELS[value as ServiceProvisionType] ?? String(value)
   if (columnId === 'documentSumm' && typeof value === 'number') return formatMoney(value)
+  if (columnId === 'unmatchedContractCount' && typeof value === 'number') {
+    return value === 0 ? t('serviceProvisionDocuments.allMatched') : t('serviceProvisionDocuments.unmatchedCount', { count: value })
+  }
   if (columnId === 'status') return STATUS_LABELS[value as Accounting1cSyncStatus] ?? String(value)
   return String(value ?? '—')
 }
@@ -113,6 +122,7 @@ const columns = computed(() =>
     columnHelper.accessor('type', { header: columnLabels.value.type, enableSorting: false, size: 140, minSize: 110 }),
     columnHelper.accessor('documentSumm', { header: columnLabels.value.documentSumm, size: 140, minSize: 110 }),
     columnHelper.accessor('contractCount', { header: columnLabels.value.contractCount, enableSorting: false, size: 120, minSize: 100 }),
+    columnHelper.accessor('unmatchedContractCount', { header: columnLabels.value.unmatchedContractCount, size: 170, minSize: 140 }),
     columnHelper.accessor('status', { header: columnLabels.value.status, size: 170, minSize: 140 }),
   ]),
 )
@@ -166,6 +176,14 @@ const detailTitle = computed(() => {
     period: formatPeriod(detailDoc.value.periodStart),
   })
 })
+
+function matchLabel(missingMappings: ('CONTRACTOR' | 'CONTRACT')[]): string {
+  if (missingMappings.length === 0) return t('serviceProvisionDocuments.matched')
+  if (missingMappings.length === 2) return t('serviceProvisionDocuments.missingBoth')
+  return missingMappings[0] === 'CONTRACTOR'
+    ? t('serviceProvisionDocuments.missingContractor')
+    : t('serviceProvisionDocuments.missingContract')
+}
 </script>
 
 <template>
@@ -179,6 +197,9 @@ const detailTitle = computed(() => {
     </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
+    <p v-else-if="currentUnmatchedCount > 0" class="text-sm text-amber-600">
+      {{ t('serviceProvisionDocuments.unmatchedWarning', { count: currentUnmatchedCount }) }}
+    </p>
 
     <EntityTable
       ref="tableRef"
@@ -218,6 +239,7 @@ const detailTitle = computed(() => {
                 <tr>
                   <th class="px-3 py-2 text-left font-medium">{{ t('serviceProvisionDocuments.colContractNumber') }}</th>
                   <th class="px-3 py-2 text-left font-medium">{{ t('serviceProvisionDocuments.colResident') }}</th>
+                  <th class="px-3 py-2 text-left font-medium">{{ t('serviceProvisionDocuments.colAccounting1cMatch') }}</th>
                   <th class="px-3 py-2 text-right font-medium">{{ t('serviceProvisionDocuments.colAmount') }}</th>
                 </tr>
               </thead>
@@ -225,6 +247,16 @@ const detailTitle = computed(() => {
                 <tr v-for="(line, i) in detailDoc.lines" :key="i" class="border-t">
                   <td class="px-3 py-2">{{ line.contractNumber ? `№${line.contractNumber}` : t('serviceProvisionDocuments.unknownContract') }}</td>
                   <td class="px-3 py-2">{{ line.residentFullName ?? '—' }}</td>
+                  <td class="px-3 py-2">
+                    <span
+                      class="inline-flex items-center gap-1 text-xs"
+                      :class="line.accounting1cMatched ? 'text-emerald-600' : 'text-amber-600'"
+                    >
+                      <Check v-if="line.accounting1cMatched" class="size-3.5" />
+                      <TriangleAlert v-else class="size-3.5" />
+                      {{ matchLabel(line.missingMappings) }}
+                    </span>
+                  </td>
                   <td class="px-3 py-2 text-right">{{ formatMoney(line.amount) }}</td>
                 </tr>
               </tbody>
