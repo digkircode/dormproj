@@ -1,4 +1,11 @@
 import type { AccountingRawImportedPayment } from '../accounting-1c/accounting-1c.types';
+import type { PaymentMethod } from '../../generated/prisma/client.js';
+
+export function paymentMethodFromType(type: string | null): PaymentMethod | null {
+  if (type === 'Операция по платежной карте') return 'CARD_ACQUIRING';
+  if (type === 'Поступление наличных') return 'CASH';
+  return null;
+}
 
 // Нормализованные поля одного платежа из 1С (флоу 2, эндпоинт AllPaymentDoc) — разобраны
 // из сырого rawPayload. Реальный пример ответа получен 2026-09-04 (см. промпт проекта) —

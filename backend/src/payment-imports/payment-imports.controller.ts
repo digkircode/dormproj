@@ -1,6 +1,5 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, NotFoundException, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
-import { z } from 'zod';
 import { Prisma } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -10,20 +9,10 @@ import { ensureUserRecord } from '../users/ensure-user';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { allocatePaymentFifo } from '../billing/payment-allocation';
 import { serializePayment } from '../contracts/serializers';
-import { zodErrorMessage } from '../i18n/zod-error-message';
 import { listPaymentImports, paymentImportsFacetValues } from './payment-imports-list';
-import { parsePaymentImportCandidate } from './payment-import-candidate';
-import { findCandidateContracts } from './suggest-contract-match';
+import { parsePaymentImportCandidate, paymentMethodFromType } from './payment-import-candidate';
+import { suggestContractMatch } from './suggest-contract-match';
 import { buildPaymentPurpose } from '../billing/payment-purpose';
-
-// Сумма и дата платежа — только из 1С, сотрудник их не правит (по прямой просьбе
-// 2026-09-03 — если в 1С заполнено неверно, поправят там, у нас перезапишется при
-// следующем импорте). Выбирается только договор (см. findCandidateContracts — у
-// контрагента может быть несколько) и способ поступления.
-const approveSchema = z.object({
-  contractId: z.number().int().positive(),
-  method: z.enum(['CASH', 'CARD_ACQUIRING', 'BANK_TRANSFER', 'MAT_CAPITAL', 'WEBSITE']),
-});
 
 function parseIdParam(idParam: string): number {
   const id = Number.parseInt(idParam, 10);
@@ -118,7 +107,6 @@ export class PaymentImportsController {
       throw new NotFoundException('paymentImports.errors.notFound');
     }
     const candidate = parsePaymentImportCandidate(record.rawPayload as Record<string, unknown>);
-    const candidateContracts = await findCandidateContracts(this.prisma, candidate);
     return {
       id: record.id,
       resultingPaymentId: record.resultingPaymentId,
@@ -139,21 +127,15 @@ export class PaymentImportsController {
       matchedContract: record.matchedContract,
       // Все договоры опознанного контрагента — если их больше одного, фронт рисует
       // выпадающий список вместо одной "чипы" (см. suggest-contract-match.ts).
-      candidateContracts,
+      candidateContracts: [],
     };
   }
 
   // Единственный путь, которым платёж из 1С превращается в настоящий Payment леджера —
-  // всегда явным подтверждением, contractId/method обязательны от сотрудника (даже если
-  // suggestedContract совпадает — фронт может подставить его как дефолт в форме, но
-  // сервер этого не предполагает молча).
+  // всегда явным подтверждением; договор и способ поступления определяются из 1С.
   @Post(':id/approve')
-  async approve(@Param('id') idParam: string, @Body() body: unknown, @Req() req: Request) {
+  async approve(@Param('id') idParam: string, @Req() req: Request) {
     const id = parseIdParam(idParam);
-    const parsed = approveSchema.safeParse(body);
-    if (!parsed.success) {
-      throw new BadRequestException(zodErrorMessage(parsed.error));
-    }
     if (!req.user) {
       throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
@@ -166,12 +148,16 @@ export class PaymentImportsController {
       throw new BadRequestException('paymentImports.errors.alreadyReviewed');
     }
 
-    const contract = await this.prisma.contract.findUnique({ where: { id: parsed.data.contractId }, select: { id: true, number: true } });
+    const candidate = parsePaymentImportCandidate(record.rawPayload as Record<string, unknown>);
+    const contractId = await suggestContractMatch(this.prisma, candidate);
+    if (!contractId) throw new BadRequestException('paymentImports.errors.contractPairNotFound');
+    const method = paymentMethodFromType(candidate.type);
+    if (!method) throw new BadRequestException('paymentImports.errors.unknownType');
+    const contract = await this.prisma.contract.findUnique({ where: { id: contractId }, select: { id: true, number: true } });
     if (!contract) {
       throw new NotFoundException('contracts.errors.contractNotFound');
     }
 
-    const candidate = parsePaymentImportCandidate(record.rawPayload as Record<string, unknown>);
     const amount = new Prisma.Decimal(candidate.amount ?? 0);
     if (amount.lessThanOrEqualTo(0)) {
       throw new BadRequestException('paymentImports.errors.amountRequired');
@@ -185,7 +171,7 @@ export class PaymentImportsController {
           contractId: contract.id,
           amount,
           paidAt,
-          method: parsed.data.method,
+          method,
           source: 'IMPORTED_1C',
           externalRef: record.externalId,
           rawComment: candidate.comment,

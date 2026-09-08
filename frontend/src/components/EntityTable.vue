@@ -76,7 +76,7 @@ const props = withDefaults(
     // RouterLink (обычный клик — переход внутри SPA без перезагрузки, колёсико/Ctrl+клик —
     // родное поведение браузера, новая вкладка), onClick — произвольное действие
     // (открыть модалку и т.п.); передаётся ровно один.
-    rowAction?: { icon: Component; label: string; getIcon?: (row: TData) => Component; getLabel?: (row: TData) => string; getHref?: (row: TData) => string; onClick?: (row: TData) => void }
+    rowAction?: { icon: Component; label: string; isVisible?: (row: TData) => boolean; getClass?: (row: TData) => string; getIcon?: (row: TData) => Component; getLabel?: (row: TData) => string; getHref?: (row: TData) => string; onClick?: (row: TData) => void }
     // Чекбоксы выбора строк (массовая печать договоров и т.п.) — по умолчанию выключены,
     // остальные таблицы не меняются. Выбор — только в рамках текущей отрисованной страницы
     // (см. defineModel selected ниже), не копится между страницами/фильтрами/поиском —
@@ -642,7 +642,7 @@ defineExpose({ refresh: loadPage })
                     <TruncatedCell v-else :text="cellText(cell.column.id, cell.getValue())" />
                   </TableCell>
                   <TableCell v-if="rowAction" class="p-2 text-center" :style="{ width: 'var(--col-row-action-size)' }">
-                    <Tooltip>
+                    <Tooltip v-if="rowAction.isVisible?.(row.original) !== false">
                       <TooltipTrigger as-child>
                         <Button v-if="rowAction.getHref" variant="ghost" size="icon" class="size-7" as-child>
                           <RouterLink :to="rowAction.getHref(row.original)">
@@ -650,8 +650,8 @@ defineExpose({ refresh: loadPage })
                             <span class="sr-only">{{ rowAction.getLabel?.(row.original) ?? rowAction.label }}</span>
                           </RouterLink>
                         </Button>
-                        <Button v-else variant="ghost" size="icon" class="size-7" @click="rowAction!.onClick!(row.original)">
-                          <component :is="rowAction.getIcon?.(row.original) ?? rowAction.icon" :class="{ 'text-primary': accentIcons }" />
+                        <Button v-else-if="rowAction.isVisible?.(row.original) !== false" variant="ghost" size="icon" class="size-7" :class="rowAction.getClass?.(row.original)" @click="rowAction!.onClick!(row.original)">
+                          <component :is="rowAction.getIcon?.(row.original) ?? rowAction.icon" :class="{ 'text-primary': accentIcons && !rowAction.getClass }" />
                           <span class="sr-only">{{ rowAction.getLabel?.(row.original) ?? rowAction.label }}</span>
                         </Button>
                       </TooltipTrigger>

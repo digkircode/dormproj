@@ -3,10 +3,13 @@
     "invalidId": "Invalid id",
     "notFound": "Record not found",
     "alreadyReviewed": "This record has already been confirmed",
-    "amountRequired": "Could not determine the payment amount from 1C"
+    "amountRequired": "Could not determine the payment amount from 1C",
+    "contractPairNotFound": "The 1C UID pair does not match a unique contract",
+    "unknownType": "Unknown 1C payment type"
   },
   "status": {
     "MATCHED": "Confirmed",
-    "NEEDS_REVIEW": "Awaiting confirmation"
+    "NEEDS_REVIEW": "Awaiting confirmation",
+    "REVERSED": "Reversed"
   }
 }

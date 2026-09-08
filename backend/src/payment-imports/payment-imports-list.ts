@@ -14,7 +14,7 @@ const SORTABLE_FIELDS: Record<string, string> = {
   importedAt: 'importedAt',
   status: 'status',
 };
-const FILTERABLE_FIELDS = ['status'] as const;
+const FILTERABLE_FIELDS = ['status', 'type'] as const;
 type FilterableField = (typeof FILTERABLE_FIELDS)[number];
 function isFilterableField(field: string): field is FilterableField {
   return (FILTERABLE_FIELDS as readonly string[]).includes(field);
@@ -43,10 +43,15 @@ export async function listPaymentImports(prisma: PrismaService, query: PaymentIm
           if (!isFilterableField(field) || !Array.isArray(values) || values.length === 0) continue;
           const stringValues = values.filter((v): v is string => typeof v === 'string');
           if (stringValues.length === 0) continue;
-          // Единственное на сейчас filterable-поле ('status') — Prisma-тип для него
-          // строгий enum-фильтр, не голый string[]; значения уже провалидированы через
-          // isFilterableField выше, приведение типов тут безопасно.
-          filterClauses.push({ [field]: { in: stringValues } } as unknown as Prisma.PaymentImportRecordWhereInput);
+          if (field === 'type') {
+            filterClauses.push({ OR: stringValues.map((value) => ({ rawPayload: { path: ['Type'], equals: value } })) });
+          } else {
+            const statuses: Prisma.PaymentImportRecordWhereInput[] = [];
+            if (stringValues.includes('NEEDS_REVIEW')) statuses.push({ status: 'NEEDS_REVIEW' });
+            if (stringValues.includes('MATCHED')) statuses.push({ status: 'MATCHED', OR: [{ resultingPayment: null }, { resultingPayment: { reversedAt: null } }] });
+            if (stringValues.includes('REVERSED')) statuses.push({ resultingPayment: { reversedAt: { not: null } } });
+            if (statuses.length) filterClauses.push({ OR: statuses });
+          }
         }
       }
     } catch {
@@ -103,6 +108,7 @@ export async function listPaymentImports(prisma: PrismaService, query: PaymentIm
 
 const STATUS_LABELS_RU: Record<string, string> = {
   MATCHED: 'Подтверждён',
+  REVERSED: 'Сторнирован',
   NEEDS_REVIEW: 'Ожидает подтверждения',
 };
 function facetLabel(field: FilterableField, value: string): string {
@@ -116,21 +122,14 @@ function facetLabel(field: FilterableField, value: string): string {
 // списке, не находит — берёт как есть). Раньше сюда же входил IMPORTED — убран вместе со
 // всем enum-значением целиком (см. 20260903020000_remove_payment_import_imported_status),
 // он никогда фактически не проставлялся ни одним путём создания записи.
-const STATUS_FIELD_VALUES: readonly string[] = ['NEEDS_REVIEW', 'MATCHED'];
+const STATUS_FIELD_VALUES: readonly string[] = ['NEEDS_REVIEW', 'MATCHED', 'REVERSED'];
 
 export async function paymentImportsFacetValues(prisma: PrismaService, field: string) {
   if (!isFilterableField(field)) return [];
   if (field === 'status') {
     return STATUS_FIELD_VALUES.map((value) => ({ value, label: facetLabel(field, value) }));
   }
-  const rows = await prisma.paymentImportRecord.findMany({
-    select: { [field]: true },
-    distinct: [field as unknown as Prisma.PaymentImportRecordScalarFieldEnum],
-    orderBy: { [field]: 'asc' },
-    take: 500,
-  });
-  return rows.map((row) => {
-    const value = (row as unknown as Record<string, string>)[field];
-    return { value, label: facetLabel(field, value) };
-  });
+  const rows = await prisma.paymentImportRecord.findMany({ select: { rawPayload: true } });
+  const types = new Set(rows.map((row) => parsePaymentImportCandidate(row.rawPayload as Record<string, unknown>).type).filter((type): type is string => Boolean(type)));
+  return [...types].sort().map((value) => ({ value, label: value }));
 }

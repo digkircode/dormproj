@@ -88,6 +88,10 @@ export class PaymentImportsIngestService {
       }
 
       const suggestedContractId = await suggestContractMatch(this.prisma, candidate);
+      if (!suggestedContractId) {
+        this.logger.warn('Пропущен документ 1С: пара UID не соответствует единственному договору');
+        continue;
+      }
       await this.prisma.paymentImportRecord.create({
         data: {
           source: '1C',

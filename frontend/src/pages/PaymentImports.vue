@@ -5,11 +5,9 @@ import { useRouter } from 'vue-router'
 import { ArrowLeft, Ban, Check, ClipboardList, Globe, Landmark, RotateCw } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import EntityTable from '@/components/EntityTable.vue'
-import SearchSelect from '@/components/SearchSelect.vue'
 import PaymentImportStatusPillCell from '@/components/PaymentImportStatusPillCell.vue'
 import WebsitePaymentStatusPillCell from '@/components/WebsitePaymentStatusPillCell.vue'
 import PaymentReceiptCell from '@/components/PaymentReceiptCell.vue'
@@ -17,7 +15,7 @@ import ContractLinkCell from '@/components/ContractLinkCell.vue'
 import ResidentLinkCell from '@/components/ResidentLinkCell.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import { createClientFetchPage, createClientFacetValues } from '@/lib/client-list'
-import { goBack, cn } from '@/lib/utils'
+import { goBack } from '@/lib/utils'
 import { dateLocaleTag } from '@/lib/format-locale'
 import type { ListOptions } from '@/lib/list-api'
 import {
@@ -28,12 +26,9 @@ import {
   approvePaymentImport,
   type PaymentImportRow,
   type PaymentImportDetail,
-  type PaymentImportCandidateContract,
   type WebsitePaymentRow,
 } from '@/lib/payment-imports-api'
 import { reversePayment, syncPaymentToAccounting1c } from '@/lib/billing-api'
-import { fetchContractsPage, type ContractListItem } from '@/lib/contracts-api'
-import type { PaymentMethod } from '@/lib/contracts-api'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -66,8 +61,9 @@ const importColumnLabels = computed<Record<string, string>>(() => ({
   comment: t('paymentImports.colComment'),
   contractNumberDisplay: t('paymentImports.colSuggestedContract'),
   status: t('paymentImports.colStatus'),
+  type: t('paymentImports.type'),
 }))
-const importFilterableFields = ['status']
+const importFilterableFields = ['status', 'type']
 function importCellText(columnId: string, value: unknown): string {
   if (columnId === 'paidAt' && typeof value === 'string') return formatDate(value)
   if (columnId === 'amount' && typeof value === 'number') return formatMoney(value)
@@ -108,6 +104,7 @@ const importColumns = computed(() =>
     importColumnHelper.accessor('contractorFio', { header: importColumnLabels.value.contractorFio, size: 200, minSize: 160 }),
     importColumnHelper.accessor('contractNumberDisplay', { header: importColumnLabels.value.contractNumberDisplay, enableSorting: false, size: 160, minSize: 130 }),
     importColumnHelper.accessor('comment', { header: importColumnLabels.value.comment, enableSorting: false, size: 260, minSize: 180 }),
+    importColumnHelper.accessor('type', { header: importColumnLabels.value.type, enableSorting: false, size: 220, minSize: 160 }),
     importColumnHelper.accessor('status', { header: importColumnLabels.value.status, size: 170, minSize: 140 }),
   ]),
 )
@@ -150,13 +147,11 @@ async function submitReverseImport() {
 // --- Массовое одобрение (чекбоксы) ---
 const selectedImportRows = ref<ImportTableRow[]>([])
 const bulkApproveOpen = ref(false)
-const bulkMethod = ref<PaymentMethod>('CASH')
 const bulkError = ref('')
 const isBulkApproving = ref(false)
 
 function openBulkApprove() {
   bulkError.value = ''
-  bulkMethod.value = 'CASH'
   bulkApproveOpen.value = true
 }
 const bulkApprovable = computed(() =>
@@ -169,7 +164,7 @@ async function submitBulkApprove() {
   bulkError.value = ''
   try {
     for (const row of bulkApprovable.value) {
-      await approvePaymentImport(row.id, { contractId: row.suggestedContract!.id, method: bulkMethod.value })
+      await approvePaymentImport(row.id)
     }
     bulkApproveOpen.value = false
     selectedImportRows.value = []
@@ -189,87 +184,15 @@ const reviewOpen = ref(false)
 const reviewDetail = ref<PaymentImportDetail | null>(null)
 const reviewLoading = ref(false)
 const reviewError = ref('')
-// Подсветка конкретного невалидного поля — ошибка показывается у кнопок (внизу
-// диалога), а не вперемешку с содержимым, поле дополнительно обводится красным.
-const contractInvalid = ref(false)
-
-// Больше одного договора у контрагента — выбор через Select (простой список среди
-// ЕГО договоров), иначе — одна "чипа" с уже предложенным (или строка поиска по всей
-// базе, если ни ФИО, ни UID не опознаны вообще).
-const isPickingContract = ref(false)
-const selectedContract = ref<ContractListItem | null>(null)
-const contractQuery = ref('')
-const contractOptions = ref<ContractListItem[]>([])
-const contractSearchLoading = ref(false)
-const paymentMethod = ref<PaymentMethod>('CASH')
 const isApproving = ref(false)
-
-function candidateToListItem(c: PaymentImportCandidateContract, residentFullName: string | null): ContractListItem {
-  return { id: c.id, number: c.number, contractDate: c.contractDate, residentFullName: residentFullName ?? '' } as ContractListItem
-}
-
-async function searchContracts(query: string) {
-  contractQuery.value = query
-  if (!query.trim()) {
-    contractOptions.value = []
-    return
-  }
-  contractSearchLoading.value = true
-  try {
-    const page = await fetchContractsPage({ page: 1, pageSize: 10, search: query, sortBy: 'contractDate', sortDir: 'desc', filters: {} })
-    contractOptions.value = page.data
-  } finally {
-    contractSearchLoading.value = false
-  }
-}
-function pickContract(c: ContractListItem) {
-  selectedContract.value = c
-  contractQuery.value = `№${c.number} — ${c.residentFullName}`
-  isPickingContract.value = false
-  contractInvalid.value = false
-}
-function changeContract() {
-  isPickingContract.value = true
-  contractQuery.value = ''
-  contractOptions.value = []
-}
-function selectCandidateContract(contractId: string) {
-  const candidate = reviewDetail.value?.candidateContracts.find((c) => String(c.id) === contractId)
-  if (!candidate) return
-  selectedContract.value = candidateToListItem(candidate, reviewDetail.value?.candidate.contractorFio ?? null)
-  contractInvalid.value = false
-}
 
 async function openReview(row: PaymentImportRow) {
   reviewOpen.value = true
   reviewLoading.value = true
   reviewError.value = ''
-  contractInvalid.value = false
   reviewDetail.value = null
-  selectedContract.value = null
-  isPickingContract.value = false
-  contractQuery.value = ''
-  contractOptions.value = []
-  paymentMethod.value = 'CASH'
   try {
-    const detail = await fetchPaymentImportDetail(row.id)
-    reviewDetail.value = detail
-    if (detail.candidateContracts.length > 1) {
-      // Несколько договоров у контрагента — по умолчанию ничего не выбираем сами,
-      // сотрудник обязан явно выбрать нужный из своего же списка.
-      if (detail.suggestedContract) {
-        const match = detail.candidateContracts.find((c) => c.id === detail.suggestedContract!.id)
-        if (match) selectedContract.value = candidateToListItem(match, detail.candidate.contractorFio)
-      }
-    } else if (detail.suggestedContract) {
-      selectedContract.value = {
-        id: detail.suggestedContract.id,
-        number: detail.suggestedContract.number,
-        residentFullName: detail.suggestedContract.residentFullName,
-      } as ContractListItem
-    } else {
-      isPickingContract.value = true
-    }
+    reviewDetail.value = await fetchPaymentImportDetail(row.id)
   } catch (error) {
     reviewError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -281,19 +204,10 @@ const isActionable = computed(() => reviewDetail.value?.status === 'NEEDS_REVIEW
 
 async function submitApprove() {
   if (!reviewDetail.value) return
-  if (!selectedContract.value) {
-    contractInvalid.value = true
-    reviewError.value = t('paymentImports.errors.contractRequired')
-    return
-  }
-  contractInvalid.value = false
   isApproving.value = true
   reviewError.value = ''
   try {
-    await approvePaymentImport(reviewDetail.value.id, {
-      contractId: selectedContract.value.id,
-      method: paymentMethod.value,
-    })
+    await approvePaymentImport(reviewDetail.value.id)
     reviewOpen.value = false
     await importTableRef.value?.refresh()
   } catch (error) {
@@ -478,6 +392,8 @@ async function submitBulkRetry() {
           :cell-renderers="{ status: PaymentImportStatusPillCell, contractorFio: ResidentLinkCell, contractNumberDisplay: ContractLinkCell }"
           :row-action="{
             icon: ClipboardList,
+            isVisible: (row: ImportTableRow) => row.status !== 'REVERSED',
+            getClass: (row: ImportTableRow) => row.status === 'MATCHED' ? 'text-red-500 hover:text-red-500' : 'text-primary',
             label: t('paymentImports.approve'),
             getIcon: (row: ImportTableRow) => row.status === 'MATCHED' ? Ban : ClipboardList,
             getLabel: (row: ImportTableRow) => row.status === 'REVERSED' ? t('paymentImports.status.REVERSED') : row.status === 'MATCHED' ? t('contracts.detail.reverse') : t('paymentImports.approve'),
@@ -487,10 +403,10 @@ async function submitBulkRetry() {
           accent-icons
         >
           <template #actions>
-            <Button v-if="selectedImportRows.length > 0" size="sm" @click="openBulkApprove">
-              {{ t('paymentImports.bulkApprove', { count: selectedImportRows.length }) }}
+            <Button v-if="bulkApprovable.length > 0" size="sm" @click="openBulkApprove">
+              {{ t('paymentImports.bulkApprove', { count: bulkApprovable.length }) }}
             </Button>
-            <Button v-if="bulkReverseTargets.length > 0" size="sm" variant="outline" @click="bulkReverseOpen = true">
+            <Button v-if="bulkReverseTargets.length > 0" size="sm" variant="outline" class="border-red-500 text-red-500 hover:text-red-500" @click="reverseImportError = ''; bulkReverseOpen = true">
               {{ t('paymentImports.bulkReverse', { count: bulkReverseTargets.length }) }}
             </Button>
           </template>
@@ -544,19 +460,6 @@ async function submitBulkRetry() {
         <p v-if="bulkSkipped > 0" class="text-sm text-muted-foreground">
           {{ t('paymentImports.bulkSkipped', { count: bulkSkipped }) }}
         </p>
-        <div class="flex flex-col gap-2">
-          <Label>{{ t('paymentImports.method') }}</Label>
-          <Select :model-value="bulkMethod" @update:model-value="(v) => (bulkMethod = v as PaymentMethod)">
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="CASH">{{ t('payment.method.CASH') }}</SelectItem>
-              <SelectItem value="BANK_TRANSFER">{{ t('payment.method.BANK_TRANSFER') }}</SelectItem>
-              <SelectItem value="MAT_CAPITAL">{{ t('payment.method.MAT_CAPITAL') }}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
         <p v-if="bulkError" class="text-sm text-red-500">{{ bulkError }}</p>
         <DialogFooter>
           <Button variant="outline" @click="bulkApproveOpen = false">{{ t('paymentImports.cancel') }}</Button>
@@ -629,65 +532,11 @@ async function submitBulkRetry() {
             </div>
           </div>
 
-          <template v-if="isActionable">
-            <div class="flex flex-col gap-2">
-              <Label>{{ t('paymentImports.contract') }}</Label>
-
-              <!-- Несколько договоров у контрагента — простой Select среди ЕГО списка,
-                   без свободного поиска по всей базе (по прямой просьбе 2026-09-03). -->
-              <Select
-                v-if="reviewDetail.candidateContracts.length > 1"
-                :model-value="selectedContract ? String(selectedContract.id) : undefined"
-                @update:model-value="(v) => selectCandidateContract(v as string)"
-              >
-                <SelectTrigger :class="cn(contractInvalid && 'border-red-500 focus-visible:ring-red-500/20')">
-                  <SelectValue :placeholder="t('paymentImports.selectContract')" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem v-for="c in reviewDetail.candidateContracts" :key="c.id" :value="String(c.id)">
-                    №{{ c.number }} — {{ formatDate(c.contractDate) }}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-
-              <!-- Один известный договор — фиксированная "чипа", не редактируемым
-                   текстом (реально принимается только клик по пункту списка ниже). -->
-              <div
-                v-else-if="selectedContract && !isPickingContract"
-                :class="cn('flex items-center justify-between gap-2 rounded-md border border-input px-3 py-2 text-sm', contractInvalid && 'border-red-500')"
-              >
-                <span>№{{ selectedContract.number }} — {{ selectedContract.residentFullName }}</span>
-                <Button variant="ghost" size="sm" @click="changeContract">{{ t('paymentImports.changeContract') }}</Button>
-              </div>
-              <SearchSelect
-                v-else
-                v-model="contractQuery"
-                :items="contractOptions"
-                :item-key="(c: ContractListItem) => c.id"
-                :item-label="(c: ContractListItem) => `№${c.number} — ${c.residentFullName}`"
-                :placeholder="t('paymentImports.selectContract')"
-                :invalid="contractInvalid"
-                :loading="contractSearchLoading"
-                @search="searchContracts"
-                @select="pickContract"
-              />
-            </div>
-
-            <div class="flex flex-col gap-2">
-              <Label>{{ t('paymentImports.method') }}</Label>
-              <Select :model-value="paymentMethod" @update:model-value="(v) => (paymentMethod = v as PaymentMethod)">
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="CASH">{{ t('payment.method.CASH') }}</SelectItem>
-                  <SelectItem value="BANK_TRANSFER">{{ t('payment.method.BANK_TRANSFER') }}</SelectItem>
-                  <SelectItem value="MAT_CAPITAL">{{ t('payment.method.MAT_CAPITAL') }}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </template>
-          <template v-else>
+          <div class="flex flex-col gap-2">
+            <Label>{{ t('paymentImports.contract') }}</Label>
+            <p>{{ reviewDetail.suggestedContract ? '№' + reviewDetail.suggestedContract.number : '—' }}</p>
+          </div>
+          <template v-if="!isActionable">
             <p class="text-sm text-muted-foreground">
               {{ t('paymentImports.alreadyReviewedHint') }} — {{ t(`paymentImports.status.${reviewDetail.status}`) }}
               <span v-if="reviewDetail.matchedContract">(№{{ reviewDetail.matchedContract.number }})</span>

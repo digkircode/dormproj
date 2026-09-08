@@ -1,6 +1,6 @@
 import { apiFetch } from './api-base'
 import { fetchListPage, fetchListFacets, type ListOptions, type ListPage, type FacetOption } from './list-api'
-import type { PaymentMethod, PaymentRow } from './contracts-api'
+import type { PaymentRow } from './contracts-api'
 import { i18n } from '@/i18n'
 
 export type PaymentImportStatus = 'MATCHED' | 'NEEDS_REVIEW' | 'REVERSED'
@@ -24,6 +24,7 @@ export interface PaymentImportCandidateContract {
 export interface PaymentImportRow {
   id: number
   resultingPaymentId: number | null
+  type: string | null
   reversedAt: string | null
   status: PaymentImportStatus
   externalId: string
@@ -104,16 +105,12 @@ export async function fetchPaymentImportDetail(id: number): Promise<PaymentImpor
 }
 
 // Сумма и дата — только из 1С, сотрудник их не правит (по прямой просьбе 2026-09-03).
-export interface ApprovePaymentImportInput {
-  contractId: number
-  method: PaymentMethod
-}
 
-export async function approvePaymentImport(id: number, input: ApprovePaymentImportInput): Promise<{ record: PaymentImportRow; payment: PaymentRow }> {
+export async function approvePaymentImport(id: number): Promise<{ record: PaymentImportRow; payment: PaymentRow }> {
   const response = await apiFetch(`/payment-imports/${id}/approve`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
+    body: JSON.stringify({}),
   })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
