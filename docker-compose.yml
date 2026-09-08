@@ -18,6 +18,7 @@ services:
       start_period: 10s
 
   backend:
+    image: ${BACKEND_IMAGE:-dormproj-backend}
     build: ./backend
     restart: unless-stopped
     depends_on:
@@ -64,6 +65,7 @@ services:
       start_period: 30s
 
   frontend:
+    image: ${FRONTEND_IMAGE:-dormproj-frontend}
     build: ./frontend
     restart: unless-stopped
     depends_on:
