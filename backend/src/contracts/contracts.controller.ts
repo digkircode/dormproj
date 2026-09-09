@@ -91,6 +91,7 @@ const createContractSchema = z
     roomId: z.number().int(),
     startDate: z.coerce.date(),
     endDate: z.coerce.date(),
+    roomCost: z.number().finite().nonnegative().optional(),
     rentAmount: z.number().finite().nonnegative(),
     utilitiesAmount: z.number().finite().nonnegative(),
     dailyRateCategory: z.enum(['OWN_UNIVERSITY', 'OTHER_UNIVERSITY']),
@@ -451,7 +452,9 @@ export class ContractsController {
     if (!isDailyOnlyRoom && (dormitoryInfo === null || dormitoryInfo.communalServicesCost === null)) {
       throw new BadRequestException('contracts.errors.communalServicesCostNotConfigured');
     }
-    const roomCost = roomPriceCharacteristic?.valueNumber ?? new Prisma.Decimal(0);
+    const roomCost = data.roomCost !== undefined
+      ? new Prisma.Decimal(data.roomCost)
+      : roomPriceCharacteristic?.valueNumber ?? new Prisma.Decimal(0);
     const utilitiesAmount = isDailyOnlyRoom ? new Prisma.Decimal(0) : dormitoryInfo!.communalServicesCost!;
     if (utilitiesAmount.greaterThan(roomCost)) {
       throw new BadRequestException('contracts.errors.communalServicesCostExceedsRoomCost');

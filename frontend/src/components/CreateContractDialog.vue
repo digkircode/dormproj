@@ -72,8 +72,8 @@ const contractDate = ref('')
 const startDate = ref('')
 const endDate = ref('')
 const roomId = ref<number | null>(null)
-// Полная месячная стоимость из карточки комнаты. В ContractTerms она не сохраняется
-// отдельным числом: ниже раскладывается на rentAmount + utilitiesAmount.
+// Полная месячная стоимость договора. По умолчанию берётся из карточки комнаты, но
+// сотрудник может изменить её перед сохранением; в ContractTerms сохраняются части.
 const roomCost = ref<number | undefined>(undefined)
 const rentAmount = ref<number | undefined>(undefined)
 // Характеристики выбранной комнаты — храним, чтобы пересчитать суммы при смене
@@ -87,6 +87,14 @@ const isDailyOnlyRoom = ref(false)
 // Коммунальная часть берётся из карточки общежития, а найм — остаток полной стоимости
 // комнаты после её вычитания. Сервер повторяет этот расчёт по данным БД.
 const utilitiesAmount = ref<number | undefined>(undefined)
+
+function onRoomCostInput() {
+  if (roomCost.value === undefined || utilitiesAmount.value === undefined) {
+    rentAmount.value = undefined
+    return
+  }
+  rentAmount.value = roomCost.value - utilitiesAmount.value
+}
 // Категория определяет суточную ставку (см. watch ниже) — теперь не выбирается вручную,
 // а определяется автоматически по тому, есть ли физлицо в Контингенте (см. pickIndividual).
 const dailyRateCategory = ref<DailyRateCategory>('OTHER_UNIVERSITY')
@@ -357,8 +365,8 @@ function updateDailyRateAmount() {
 }
 watch(dailyRateCategory, updateDailyRateAmount)
 
-// Стоимость комнаты — полная сумма найма и коммунальных услуг. Для обычной комнаты
-// показываем её справочно, а в запрос отправляем две рассчитанные части.
+// Стоимость комнаты — полная сумма найма и коммунальных услуг. По умолчанию подставляем
+// характеристику комнаты, но оставляем поле редактируемым для цены конкретного договора.
 function applyRoomPrice() {
   if (roomCharacteristics.value.length === 0) {
     isDailyOnlyRoom.value = false
@@ -450,6 +458,7 @@ async function submitCreate() {
       roomId: roomId.value,
       startDate: startDate.value,
       endDate: endDate.value,
+      roomCost: roomCost.value!,
       rentAmount: rentAmount.value,
       utilitiesAmount: utilitiesAmount.value,
       dailyRateCategory: dailyRateCategory.value,
@@ -564,9 +573,9 @@ async function submitCreate() {
                 <Input
                   v-model.number="roomCost"
                   type="number"
-                  readonly
                   :class="[NO_SPINNER_CLASS, 'pr-8', rentAmountInvalid ? 'border-red-500' : '']"
                   @keydown="blockNonNumericKeys"
+                  @input="onRoomCostInput"
                 />
                 <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">₽</span>
               </div>

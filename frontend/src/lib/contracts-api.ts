@@ -241,6 +241,7 @@ export interface CreateContractInput {
   roomId: number
   startDate: string
   endDate: string
+  roomCost: number
   rentAmount: number
   utilitiesAmount: number
   dailyRateCategory: DailyRateCategory
