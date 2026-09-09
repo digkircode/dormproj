@@ -43,20 +43,24 @@ export class ServiceProvisionDocScheduler implements OnApplicationBootstrap {
   constructor(private readonly service: ServiceProvisionDocService) {}
 
   async onApplicationBootstrap(): Promise<void> {
-    const now = new Date();
-    const currentMonth = moscowCalendarDate(now);
-    await this.service.computeAndSave(currentMonth);
+    try {
+      const now = new Date();
+      const currentMonth = moscowCalendarDate(now);
+      await this.service.computeAndSave(currentMonth);
 
-    // Если приложение перезапустилось уже после конца предыдущего месяца, закрываем
-    // пропущенную отправку. Отправляются только документы, которые ещё не SYNCED.
-    const previousMonth = new Date(Date.UTC(currentMonth.getUTCFullYear(), currentMonth.getUTCMonth() - 1, 1));
-    await this.service.computeAndSave(previousMonth);
-    await this.service.retryUnsyncedMonth(previousMonth);
+      // Если приложение перезапустилось уже после конца предыдущего месяца, закрываем
+      // пропущенную отправку. Отправляются только документы, которые ещё не SYNCED.
+      const previousMonth = new Date(Date.UTC(currentMonth.getUTCFullYear(), currentMonth.getUTCMonth() - 1, 1));
+      await this.service.computeAndSave(previousMonth);
+      await this.service.retryUnsyncedMonth(previousMonth);
 
-    // Если сервер поднялся после 23:55 в последний день, cron уже прошёл — выполняем
-    // тот же финальный прогон сразу при старте.
-    if (isLastCalendarDay(currentMonth) && isAfterFinalSendTime(now)) {
-      await this.service.run(currentMonth);
+      // Если сервер поднялся после 23:55 в последний день, cron уже прошёл — выполняем
+      // тот же финальный прогон сразу при старте.
+      if (isLastCalendarDay(currentMonth) && isAfterFinalSendTime(now)) {
+        await this.service.run(currentMonth);
+      }
+    } catch (error) {
+      this.logger.error(`Не удалось выполнить восстановление документов при старте: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
