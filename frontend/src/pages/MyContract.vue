@@ -143,8 +143,7 @@ const accrualColumnHelper = createAppColumnHelper<AccrualRow>()
 const accrualColumnLabels = computed<Record<string, string>>(() => ({
   periodStart: t('contracts.detail.colPeriod'),
   dueDate: t('contracts.detail.colDueDate'),
-  rentAmount: t('contracts.detail.colRent'),
-  utilitiesAmount: t('contracts.detail.colUtilities'),
+  total: t('contracts.detail.colCost'),
   paid: t('contracts.detail.colPaid'),
   balance: t('contracts.detail.colBalance'),
 }))
@@ -152,8 +151,7 @@ const accrualColumns = computed(() =>
   accrualColumnHelper.columns([
     accrualColumnHelper.accessor('periodStart', { header: accrualColumnLabels.value.periodStart, size: 160, minSize: 130 }),
     accrualColumnHelper.accessor('dueDate', { header: accrualColumnLabels.value.dueDate, enableSorting: false, size: 140, minSize: 110 }),
-    accrualColumnHelper.accessor('rentAmount', { header: accrualColumnLabels.value.rentAmount, enableSorting: false, size: 120, minSize: 100 }),
-    accrualColumnHelper.accessor('utilitiesAmount', { header: accrualColumnLabels.value.utilitiesAmount, enableSorting: false, size: 140, minSize: 110 }),
+    accrualColumnHelper.accessor('total', { header: accrualColumnLabels.value.total, enableSorting: false, size: 140, minSize: 110 }),
     accrualColumnHelper.accessor('paid', { header: accrualColumnLabels.value.paid, enableSorting: false, size: 120, minSize: 100 }),
     accrualColumnHelper.accessor('balance', { header: accrualColumnLabels.value.balance, size: 120, minSize: 100 }),
   ]),
@@ -167,12 +165,12 @@ const accrualColumns = computed(() =>
 // (SidebarProvider.vue) — вычисляется один раз на маунт, не переигрывает при повороте
 // экрана (не нужно для этого случая).
 const isMobile = useMediaQuery('(max-width: 768px)')
-const accrualHiddenByDefault = computed(() => (isMobile.value ? ['dueDate', 'rentAmount', 'utilitiesAmount'] : []))
+const accrualHiddenByDefault = computed(() => (isMobile.value ? ['dueDate', 'total'] : []))
 
 function accrualCellText(columnId: string, value: unknown): string {
   if (columnId === 'periodStart' && typeof value === 'string') return monthLabel(value)
   if (columnId === 'dueDate' && typeof value === 'string') return formatDate(value)
-  if ((columnId === 'rentAmount' || columnId === 'utilitiesAmount' || columnId === 'paid') && typeof value === 'number') return formatMoney(value)
+  if ((columnId === 'total' || columnId === 'paid') && typeof value === 'number') return formatMoney(value)
   return String(value ?? '')
 }
 const accrualCellRenderers = { balance: AccrualBalanceCell }

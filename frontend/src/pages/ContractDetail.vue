@@ -156,8 +156,7 @@ function sortIcon(sort: { id: string; desc: boolean }, id: string) {
 const ACCRUAL_COLUMNS = computed<{ id: keyof AccrualRow; label: string }[]>(() => [
   { id: 'periodStart', label: t('contracts.detail.colPeriod') },
   { id: 'dueDate', label: t('contracts.detail.colDueDate') },
-  { id: 'rentAmount', label: t('contracts.detail.colRent') },
-  { id: 'utilitiesAmount', label: t('contracts.detail.colUtilities') },
+  { id: 'total', label: t('contracts.detail.colCost') },
   { id: 'adjustmentAmount', label: t('contracts.detail.colAdjustment') },
   { id: 'paid', label: t('contracts.detail.colPaid') },
   { id: 'balance', label: t('contracts.detail.colBalance') },
@@ -500,8 +499,7 @@ async function confirmReversePayment() {
                   <TableRow v-for="a in sortedAccruals" :key="a.id" :class="a.voidedAt ? 'opacity-40' : ''">
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.periodStart) }} — {{ formatDate(a.periodEnd) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.dueDate) }}</TableCell>
-                    <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.rentAmount) }}</TableCell>
-                    <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.utilitiesAmount) }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.total) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ a.adjustmentAmount ? formatMoney(a.adjustmentAmount) : '—' }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.paid) }}</TableCell>
                     <TableCell :class="a.balance > 0 ? 'text-red-500' : ''">

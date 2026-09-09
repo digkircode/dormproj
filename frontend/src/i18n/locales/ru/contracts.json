@@ -66,6 +66,7 @@
       "colDueDate": "Срок оплаты",
       "colRent": "Найм",
       "colUtilities": "Коммунальные услуги",
+      "colCost": "Стоимость",
       "colAdjustment": "Корректировка",
       "colPaid": "Оплачено",
       "colBalance": "Остаток",
