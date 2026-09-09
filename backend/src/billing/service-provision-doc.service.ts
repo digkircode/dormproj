@@ -15,6 +15,8 @@ import { ServiceProvisionType } from '../../generated/prisma/client.js';
 
 const { Decimal } = Prisma;
 
+export const SERVICE_PROVISION_SYNC_TYPE = 'service-provision-documents';
+
 const MONTHS_NOMINATIVE = [
   'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
   'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',

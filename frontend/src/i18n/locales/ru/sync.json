@@ -12,6 +12,7 @@
     "durationMinutes": "{minutes}м {seconds}с",
     "durationSeconds": "{seconds}с",
     "individualEntityName": "Обновление данных физического лица",
+    "serviceProvisionDocumentsEntityName": "Документы оказания услуг",
     "status": {
       "RUNNING": "В процессе",
       "SUCCESS": "Успешно",

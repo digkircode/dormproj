@@ -28,6 +28,7 @@ const ENTITY_TYPE_LABELS: Record<string, string> = {
   Role: 'Роль',
   UserRole: 'Роль пользователя',
   User: 'Пользователь',
+  ServiceProvisionDocument: 'Документ оказания услуг',
 };
 
 const SEARCHABLE_FIELDS = ['entityLabel', 'action', 'entityType'] as const;

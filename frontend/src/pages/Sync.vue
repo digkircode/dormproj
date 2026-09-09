@@ -50,6 +50,7 @@ const citizenshipSync = useSyncRow('nav.citizenship', '/sync/citizenship')
 const passportSync = useSyncRow('nav.passportData', '/sync/passport')
 const contactInfoSync = useSyncRow('nav.contactInfo', '/sync/contact-info')
 const individualManualSync = useSyncRow('sync.individualEntityName', '/sync/individual')
+const serviceProvisionSync = useSyncRow('sync.serviceProvisionDocumentsEntityName', '/sync/service-provision-documents')
 
 const rows = computed<SyncOverviewRow[]>(() => [
   { ...studentSync.row.value, isRunning: studentSync.isRunning.value, run: wrapRun(studentSync.run), slug: 'students' },
@@ -64,6 +65,13 @@ const rows = computed<SyncOverviewRow[]>(() => [
     isRunning: false,
     run: wrapRun(individualManualSync.run),
     slug: 'individual',
+    isReal: false as const,
+  },
+  {
+    ...serviceProvisionSync.row.value,
+    isRunning: serviceProvisionSync.isRunning.value,
+    run: wrapRun(serviceProvisionSync.run),
+    slug: 'service-provision-documents',
     isReal: false as const,
   },
 ])

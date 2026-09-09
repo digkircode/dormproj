@@ -25,6 +25,7 @@ const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
 const entity = computed(() => SYNC_ENTITIES.find((e) => e.slug === route.params.slug))
+const isServiceProvision = computed(() => entity.value?.slug === 'service-provision-documents')
 const storageKey = computed(() => `sync-logs:${entity.value?.slug ?? 'unknown'}`)
 
 const selectedLog = ref<SyncLogEntry | null>(null)
@@ -66,7 +67,7 @@ function cellText(columnId: string, value: unknown): string {
 
 const columnHelper = createAppColumnHelper<SyncLogEntry>()
 
-// id (сквозной по всей таблице SyncLog, партиционированной по всем 6 типам синхронов)
+// id (сквозной по всей таблице SyncLog, партиционированной по всем типам синхронов)
 // сюда не выводим — в списке нужен порядковый номер именно для этого синхрона,
 // сам id остаётся доступен в модалке "Подробнее" (см. openLogDetails). У точечной
 // синхронизации физлица вместо "Тип" (Trigger всегда MANUAL, бесполезная колонка) —
@@ -188,7 +189,7 @@ onUnmounted(() => clearTimeout(pollTimeout))
         <!-- Разбивка по шагам — только у точечной синхронизации физлица (details
              заполняется лишь там, см. IndividualSyncService), раскрыта сразу при
              открытии модалки (default-open), в отличие от errorStack выше. -->
-        <Collapsible v-if="selectedLog.details" default-open v-slot="{ open }">
+        <Collapsible v-if="selectedLog.details && !isServiceProvision" default-open v-slot="{ open }">
           <CollapsibleTrigger class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ChevronRight class="size-4 shrink-0 text-primary transition-transform" :class="{ 'rotate-90': open }" />
             {{ t('sync.logs.moreByTables') }}
@@ -213,6 +214,15 @@ onUnmounted(() => clearTimeout(pollTimeout))
                 >{{ JSON.stringify(stats.records, null, 2) }}</pre>
               </div>
             </div>
+          </CollapsibleContent>
+        </Collapsible>
+        <Collapsible v-else-if="selectedLog.details" default-open v-slot="{ open }">
+          <CollapsibleTrigger class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+            <ChevronRight class="size-4 shrink-0 text-primary transition-transform" :class="{ 'rotate-90': open }" />
+            {{ t('sync.logs.moreByTables') }}
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <pre class="mt-2 max-h-80 overflow-auto rounded-md bg-muted p-3 text-xs whitespace-pre-wrap break-words">{{ JSON.stringify(selectedLog.details, null, 2) }}</pre>
           </CollapsibleContent>
         </Collapsible>
       </DialogScrollContent>

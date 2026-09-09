@@ -12,6 +12,7 @@
     "durationMinutes": "{minutes}m {seconds}s",
     "durationSeconds": "{seconds}s",
     "individualEntityName": "Individual data update",
+    "serviceProvisionDocumentsEntityName": "Service provision documents",
     "status": {
       "RUNNING": "Running",
       "SUCCESS": "Success",

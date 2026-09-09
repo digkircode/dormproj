@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { Prisma } from '../../generated/prisma/client.js';
@@ -14,6 +14,8 @@ import { zodErrorMessage } from '../i18n/zod-error-message';
 import { Accounting1cPushService } from './accounting-1c-push.service';
 import { ServiceProvisionDocService } from './service-provision-doc.service';
 import { PenaltyRecalculateService } from './penalty-recalculate.service';
+import { listSyncLogs, syncLogFacetValues, type SyncLogsListQuery } from '../sync/sync-logs-list';
+import { SERVICE_PROVISION_SYNC_TYPE } from './service-provision-doc.service';
 
 const createPaymentSchema = z.object({
   amount: z.number().finite().positive(),
@@ -314,18 +316,61 @@ export class BillingController {
   }
 
   @Post('service-provision-documents/recalculate')
-  async recalculateServiceProvisionDocuments(@Body() body: unknown) {
+  async recalculateServiceProvisionDocuments(@Body() body: unknown, @Req() req: Request) {
     const parsed = serviceProvisionDocumentIdsSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(zodErrorMessage(parsed.error));
-    return this.serviceProvisionDoc.recalculateDocuments(parsed.data.ids);
+    const before = await this.prisma.serviceProvisionDocument.findMany({ where: { id: { in: parsed.data.ids } } });
+    const result = await this.serviceProvisionDoc.recalculateDocuments(parsed.data.ids);
+    const after = await this.prisma.serviceProvisionDocument.findMany({ where: { id: { in: parsed.data.ids } } });
+    await this.auditServiceProvisionDocuments(req, before, after, 'MANUAL_RECALCULATION', result);
+    return result;
   }
 
   // Ручная отправка ровно выбранных сохранённых документов. Пересчёт остаётся отдельным
   // явным действием, чтобы пользователь видел и подтверждал конкретные период и сумму.
   @Post('service-provision-documents/run')
-  async runServiceProvisionDocuments(@Body() body: unknown) {
+  async runServiceProvisionDocuments(@Body() body: unknown, @Req() req: Request) {
     const parsed = serviceProvisionDocumentIdsSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(zodErrorMessage(parsed.error));
-    return this.serviceProvisionDoc.sendDocuments(parsed.data.ids);
+    const before = await this.prisma.serviceProvisionDocument.findMany({ where: { id: { in: parsed.data.ids } } });
+    const result = await this.serviceProvisionDoc.sendDocuments(parsed.data.ids);
+    const after = await this.prisma.serviceProvisionDocument.findMany({ where: { id: { in: parsed.data.ids } } });
+    await this.auditServiceProvisionDocuments(req, before, after, 'MANUAL_SEND', result);
+    return result;
+  }
+
+  private async auditServiceProvisionDocuments(
+    req: Request,
+    before: Array<{ id: number; periodStart: Date; type: string; documentSumm: Prisma.Decimal; contractCount: number; accounting1cSyncStatus: string; accounting1cDocumentUid: string | null; accounting1cSyncError: string | null }>,
+    after: Array<{ id: number; periodStart: Date; type: string; documentSumm: Prisma.Decimal; contractCount: number; accounting1cSyncStatus: string; accounting1cDocumentUid: string | null; accounting1cSyncError: string | null }>,
+    operation: string,
+    result: Record<string, unknown>,
+  ): Promise<void> {
+    if (!req.user) return;
+    const userId = await ensureUserRecord(this.prisma, req.user);
+    const beforeById = new Map(before.map((row) => [row.id, row]));
+    for (const row of after) {
+      const previous = beforeById.get(row.id);
+      await this.auditLog.log(this.prisma, {
+        userId,
+        action: 'UPDATE',
+        entityType: 'ServiceProvisionDocument',
+        entityId: row.id,
+        entityLabel: `Оказание услуг — ${row.type} — ${row.periodStart.toISOString().slice(0, 7)}`,
+        before: previous ? { ...previous, _operation: null } : null,
+        after: { ...row, _operation: { name: operation, result } },
+        fields: ['documentSumm', 'contractCount', 'accounting1cSyncStatus', 'accounting1cDocumentUid', 'accounting1cSyncError', '_operation'],
+      });
+    }
+  }
+
+  @Get('sync/service-provision-documents/logs')
+  async serviceProvisionSyncLogs(@Query() query: SyncLogsListQuery) {
+    return listSyncLogs(this.prisma, SERVICE_PROVISION_SYNC_TYPE, query);
+  }
+
+  @Get('sync/service-provision-documents/logs/facets/:field')
+  async serviceProvisionSyncLogFacets(@Param('field') field: string) {
+    return syncLogFacetValues(this.prisma, SERVICE_PROVISION_SYNC_TYPE, field);
   }
 }
