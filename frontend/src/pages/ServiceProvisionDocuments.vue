@@ -2,9 +2,10 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Check, List, RotateCw, TriangleAlert } from 'lucide-vue-next'
+import { ArrowLeft, Check, List, RotateCw, Search, Send, TriangleAlert } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogDescription, DialogFooter, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import EntityTable from '@/components/EntityTable.vue'
 import WebsitePaymentStatusPillCell from '@/components/WebsitePaymentStatusPillCell.vue'
 import ServiceProvisionPeriodCell from '@/components/ServiceProvisionPeriodCell.vue'
@@ -16,7 +17,8 @@ import type { Accounting1cSyncStatus } from '@/lib/payment-imports-api'
 import {
   fetchServiceProvisionDocuments,
   fetchServiceProvisionDocumentDetail,
-  runServiceProvisionDocuments,
+  recalculateServiceProvisionDocuments,
+  sendServiceProvisionDocuments,
   type ServiceProvisionDocumentDetail,
   type ServiceProvisionType,
 } from '@/lib/service-provision-api'
@@ -24,12 +26,8 @@ import {
 const router = useRouter()
 const { t } = useI18n()
 
-// Флоу 3 (см. промпт проекта) — своего одобрения/правки нет: оба документа ("Найм"/
-// "Коммуналка") за уже закончившийся месяц считаются автоматически из начислений (тот же
-// подсчёт, что и у ночного крона), список виден сразу при заходе на страницу — GET
-// /service-provision-documents сам пересчитывает и сохраняет актуальные строки, ждать
-// нажатия кнопки для этого не нужно. Кнопка "Отправить в 1С" — только про саму отправку
-// уже посчитанных сумм, статус отправки виден в столбце "Статус" у каждой строки.
+// Список читает уже сохранённые документы. Планировщик обновляет текущий месяц ежедневно,
+// а сотрудник может отдельно пересчитать или отправить любые выбранные строки.
 
 function formatMoney(value: number): string {
   return `${value.toLocaleString(dateLocaleTag(), { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
@@ -62,7 +60,9 @@ interface TableRow {
 }
 
 const docs = ref<TableRow[]>([])
+const selectedDocs = ref<TableRow[]>([])
 const loadError = ref('')
+const actionMessage = ref('')
 const tableRef = ref<{ refresh: () => void | Promise<void> } | null>(null)
 const currentUnmatchedCount = computed(() =>
   docs.value.filter((row) => row.isCurrent).reduce((total, row) => total + row.unmatchedContractCount, 0),
@@ -127,7 +127,7 @@ const columns = computed(() =>
   ]),
 )
 const fetchPage = createClientFetchPage<TableRow>(() => docs.value, {
-  searchText: (row) => TYPE_LABELS[row.type],
+  searchText: (row) => `${TYPE_LABELS[row.type]} ${formatPeriod(row.periodStart)}`,
   sortValue: (row, sortBy) => (row as unknown as Record<string, string | number>)[sortBy] ?? '',
   filterValue: (row, field) => (field === 'status' ? row.status : field === 'type' ? row.type : ''),
 })
@@ -137,16 +137,52 @@ const fetchFacetValues = createClientFacetValues<TableRow>(
   (field, value) => (field === 'type' ? (TYPE_LABELS[value as ServiceProvisionType] ?? value) : (STATUS_LABELS[value as Accounting1cSyncStatus] ?? value)),
 )
 
-const isRunning = ref(false)
-async function runNow() {
-  isRunning.value = true
+const isRecalculating = ref(false)
+const isSending = ref(false)
+const sendConfirmationOpen = ref(false)
+const pendingSendDocs = ref<TableRow[]>([])
+
+async function recalculateSelected() {
+  if (selectedDocs.value.length === 0) return
+  isRecalculating.value = true
+  actionMessage.value = ''
+  loadError.value = ''
   try {
-    await runServiceProvisionDocuments()
+    const result = await recalculateServiceProvisionDocuments(selectedDocs.value.map((row) => row.id))
+    actionMessage.value = t('serviceProvisionDocuments.recalculateResult', { count: result.recalculated })
     await loadDocs()
   } catch (error) {
     loadError.value = error instanceof Error ? error.message : String(error)
   } finally {
-    isRunning.value = false
+    isRecalculating.value = false
+  }
+}
+
+function openSendConfirmation() {
+  if (selectedDocs.value.length === 0) return
+  pendingSendDocs.value = [...selectedDocs.value]
+  sendConfirmationOpen.value = true
+}
+
+async function confirmSend() {
+  if (pendingSendDocs.value.length === 0) return
+  isSending.value = true
+  actionMessage.value = ''
+  loadError.value = ''
+  try {
+    const result = await sendServiceProvisionDocuments(pendingSendDocs.value.map((row) => row.id))
+    actionMessage.value = t('serviceProvisionDocuments.sendResult', {
+      succeeded: result.succeeded,
+      failed: result.failed,
+      blocked: result.blocked,
+    })
+    sendConfirmationOpen.value = false
+    pendingSendDocs.value = []
+    await loadDocs()
+  } catch (error) {
+    loadError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isSending.value = false
   }
 }
 
@@ -155,12 +191,14 @@ const detailOpen = ref(false)
 const detailLoading = ref(false)
 const detailError = ref('')
 const detailDoc = ref<ServiceProvisionDocumentDetail | null>(null)
+const detailSearch = ref('')
 
 async function openDetail(row: TableRow) {
   detailOpen.value = true
   detailLoading.value = true
   detailError.value = ''
   detailDoc.value = null
+  detailSearch.value = ''
   try {
     detailDoc.value = await fetchServiceProvisionDocumentDetail(row.id)
   } catch (error) {
@@ -175,6 +213,14 @@ const detailTitle = computed(() => {
     type: TYPE_LABELS[detailDoc.value.type],
     period: formatPeriod(detailDoc.value.periodStart),
   })
+})
+const filteredDetailLines = computed(() => {
+  const query = detailSearch.value.trim().toLocaleLowerCase()
+  if (!detailDoc.value) return []
+  if (!query) return detailDoc.value.lines
+  return detailDoc.value.lines.filter((line) =>
+    `${line.contractNumber ?? ''} ${line.residentFullName ?? ''}`.toLocaleLowerCase().includes(query),
+  )
 })
 
 function matchLabel(missingMappings: ('CONTRACTOR' | 'CONTRACT')[]): string {
@@ -197,12 +243,15 @@ function matchLabel(missingMappings: ('CONTRACTOR' | 'CONTRACT')[]): string {
     </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
+    <p v-else-if="actionMessage" class="text-sm text-emerald-600">{{ actionMessage }}</p>
     <p v-else-if="currentUnmatchedCount > 0" class="text-sm text-amber-600">
       {{ t('serviceProvisionDocuments.unmatchedWarning', { count: currentUnmatchedCount }) }}
     </p>
 
     <EntityTable
       ref="tableRef"
+      v-model:selected="selectedDocs"
+      selectable
       :columns="columns"
       :column-labels="columnLabels"
       :filterable-fields="['type', 'status']"
@@ -217,15 +266,29 @@ function matchLabel(missingMappings: ('CONTRACTOR' | 'CONTRACT')[]): string {
       accent-icons
     >
       <template #actions>
-        <Button size="sm" :loading="isRunning" @click="runNow">
+        <Button
+          size="sm"
+          variant="outline"
+          :disabled="selectedDocs.length === 0 || isSending"
+          :loading="isRecalculating"
+          @click="recalculateSelected"
+        >
           <RotateCw class="size-4" />
-          {{ t('serviceProvisionDocuments.runButton') }}
+          {{ t('serviceProvisionDocuments.recalculateButton', { count: selectedDocs.length }) }}
+        </Button>
+        <Button
+          size="sm"
+          :disabled="selectedDocs.length === 0 || isRecalculating"
+          @click="openSendConfirmation"
+        >
+          <Send class="size-4" />
+          {{ t('serviceProvisionDocuments.sendButton', { count: selectedDocs.length }) }}
         </Button>
       </template>
     </EntityTable>
 
     <Dialog :open="detailOpen" @update:open="(open) => (detailOpen = open)">
-      <DialogScrollContent class="flex flex-col gap-4">
+      <DialogScrollContent class="flex max-h-[90vh] w-[calc(100vw-2rem)] max-w-6xl flex-col gap-4">
         <DialogHeader>
           <DialogTitle>{{ detailTitle }}</DialogTitle>
         </DialogHeader>
@@ -233,7 +296,15 @@ function matchLabel(missingMappings: ('CONTRACTOR' | 'CONTRACT')[]): string {
         <p v-if="detailLoading" class="text-sm text-muted-foreground">…</p>
         <p v-else-if="detailError" class="text-sm text-red-500">{{ detailError }}</p>
         <div v-else-if="detailDoc" class="flex flex-col gap-2">
-          <div class="max-h-96 overflow-y-auto rounded-md border">
+          <div class="relative">
+            <Search class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              v-model="detailSearch"
+              class="pl-9"
+              :placeholder="t('serviceProvisionDocuments.detailSearchPlaceholder')"
+            />
+          </div>
+          <div class="max-h-[55vh] overflow-y-auto rounded-md border">
             <table class="w-full text-sm">
               <thead class="sticky top-0 bg-muted/50 text-xs text-muted-foreground">
                 <tr>
@@ -244,9 +315,27 @@ function matchLabel(missingMappings: ('CONTRACTOR' | 'CONTRACT')[]): string {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(line, i) in detailDoc.lines" :key="i" class="border-t">
-                  <td class="px-3 py-2">{{ line.contractNumber ? `№${line.contractNumber}` : t('serviceProvisionDocuments.unknownContract') }}</td>
-                  <td class="px-3 py-2">{{ line.residentFullName ?? '—' }}</td>
+                <tr v-for="(line, i) in filteredDetailLines" :key="`${line.contractId ?? 'old'}-${i}`" class="border-t">
+                  <td class="px-3 py-2">
+                    <RouterLink
+                      v-if="line.contractId && line.contractNumber"
+                      :to="{ name: 'contract-detail', params: { id: line.contractId } }"
+                      class="font-medium text-primary hover:underline"
+                    >
+                      №{{ line.contractNumber }}
+                    </RouterLink>
+                    <span v-else>{{ line.contractNumber ? `№${line.contractNumber}` : t('serviceProvisionDocuments.unknownContract') }}</span>
+                  </td>
+                  <td class="px-3 py-2">
+                    <RouterLink
+                      v-if="line.residentIndividualUid && line.residentFullName"
+                      :to="{ name: 'individual-detail', params: { uid: line.residentIndividualUid } }"
+                      class="font-medium text-primary hover:underline"
+                    >
+                      {{ line.residentFullName }}
+                    </RouterLink>
+                    <span v-else>{{ line.residentFullName ?? '—' }}</span>
+                  </td>
                   <td class="px-3 py-2">
                     <span
                       class="inline-flex items-center gap-1 text-xs"
@@ -259,6 +348,11 @@ function matchLabel(missingMappings: ('CONTRACTOR' | 'CONTRACT')[]): string {
                   </td>
                   <td class="px-3 py-2 text-right">{{ formatMoney(line.amount) }}</td>
                 </tr>
+                <tr v-if="filteredDetailLines.length === 0">
+                  <td colspan="4" class="px-3 py-8 text-center text-muted-foreground">
+                    {{ t('serviceProvisionDocuments.noSearchResults') }}
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -267,6 +361,42 @@ function matchLabel(missingMappings: ('CONTRACTOR' | 'CONTRACT')[]): string {
             <span>{{ formatMoney(detailDoc.documentSumm) }}</span>
           </div>
         </div>
+      </DialogScrollContent>
+    </Dialog>
+
+    <Dialog :open="sendConfirmationOpen" @update:open="(open) => !isSending && (sendConfirmationOpen = open)">
+      <DialogScrollContent class="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{{ t('serviceProvisionDocuments.sendConfirmTitle') }}</DialogTitle>
+          <DialogDescription>{{ t('serviceProvisionDocuments.sendConfirmDescription') }}</DialogDescription>
+        </DialogHeader>
+        <div class="max-h-80 overflow-y-auto rounded-md border">
+          <table class="w-full text-sm">
+            <thead class="sticky top-0 bg-muted/50 text-xs text-muted-foreground">
+              <tr>
+                <th class="px-3 py-2 text-left font-medium">{{ t('serviceProvisionDocuments.colPeriod') }}</th>
+                <th class="px-3 py-2 text-left font-medium">{{ t('serviceProvisionDocuments.colType') }}</th>
+                <th class="px-3 py-2 text-right font-medium">{{ t('serviceProvisionDocuments.colAmount') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in pendingSendDocs" :key="row.id" class="border-t">
+                <td class="px-3 py-2">{{ formatPeriod(row.periodStart) }}</td>
+                <td class="px-3 py-2">{{ TYPE_LABELS[row.type] }}</td>
+                <td class="px-3 py-2 text-right font-medium">{{ formatMoney(row.documentSumm) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" :disabled="isSending" @click="sendConfirmationOpen = false">
+            {{ t('serviceProvisionDocuments.cancel') }}
+          </Button>
+          <Button :loading="isSending" @click="confirmSend">
+            <Send class="size-4" />
+            {{ t('serviceProvisionDocuments.confirmSend') }}
+          </Button>
+        </DialogFooter>
       </DialogScrollContent>
     </Dialog>
   </div>

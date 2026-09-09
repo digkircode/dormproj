@@ -27,6 +27,11 @@ export interface ServiceProvisionRunResult {
   skipped: boolean
 }
 
+export interface ServiceProvisionRecalculateResult {
+  requested: number
+  recalculated: number
+}
+
 // Одна строка сводного документа — конкретный договор внутри него (см.
 // billing.controller.ts#getServiceProvisionDocument). contractNumber/residentFullName —
 // null, если договор с тех пор потерял привязку к 1С Бухгалтерии (отвязан/удалён) —
@@ -34,6 +39,7 @@ export interface ServiceProvisionRunResult {
 export interface ServiceProvisionDocumentLine {
   contractId: number | null
   contractNumber: string | null
+  residentIndividualUid: string | null
   residentFullName: string | null
   amount: number
   accounting1cMatched: boolean
@@ -59,11 +65,25 @@ export async function fetchServiceProvisionDocumentDetail(id: number): Promise<S
   return response.json()
 }
 
-// Пересобирает документы "Найм"/"Коммуналка" за уже закончившийся месяц (тот же месяц,
-// что и у ночного крона, см. service-provision-doc.service.ts#run) — идемпотентно,
-// повторный вызов обновит уже созданные документы, а не расплодит дубли.
-export async function runServiceProvisionDocuments(): Promise<ServiceProvisionRunResult> {
-  const response = await apiFetch('/service-provision-documents/run', { method: 'POST' })
+export async function recalculateServiceProvisionDocuments(ids: number[]): Promise<ServiceProvisionRecalculateResult> {
+  const response = await apiFetch('/service-provision-documents/recalculate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  })
+  if (!response.ok) {
+    const body: { message?: string } = await response.json().catch(() => ({}))
+    throw new Error(body.message ?? i18n.global.t('serviceProvisionDocuments.errors.recalculateFailed', { status: response.status }))
+  }
+  return response.json()
+}
+
+export async function sendServiceProvisionDocuments(ids: number[]): Promise<ServiceProvisionRunResult> {
+  const response = await apiFetch('/service-provision-documents/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
     throw new Error(body.message ?? i18n.global.t('serviceProvisionDocuments.errors.runFailed', { status: response.status }))

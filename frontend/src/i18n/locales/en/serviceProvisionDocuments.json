@@ -12,11 +12,20 @@
       "RENT": "Rent",
       "UTILITIES": "Utilities"
     },
-    "runButton": "Send to 1C",
+    "recalculateButton": "Recalculate ({count})",
+    "sendButton": "Send to 1C ({count})",
+    "recalculateResult": "Documents recalculated: {count}",
+    "sendResult": "Sent successfully: {succeeded}; failed: {failed}; blocked: {blocked}",
+    "sendConfirmTitle": "Send the selected documents to 1C?",
+    "sendConfirmDescription": "Check the period, type, and amount of each document. Only the rows in this list will be sent.",
+    "cancel": "Cancel",
+    "confirmSend": "Confirm sending",
     "viewDetails": "Contract list",
     "detailDialogTitle": "{type} — {period}",
     "colContractNumber": "Contract",
     "colResident": "Resident",
+    "detailSearchPlaceholder": "Search by contract number or resident name",
+    "noSearchResults": "No results match your search",
     "unknownContract": "Contract not identified",
     "total": "Total",
     "allMatched": "All matched",
@@ -29,6 +38,7 @@
     "errors": {
       "fetchListFailed": "Failed to load documents ({status})",
       "fetchDetailFailed": "Failed to load the document's contents ({status})",
+      "recalculateFailed": "Failed to recalculate documents ({status})",
       "runFailed": "Failed to send documents ({status})"
     }
   }

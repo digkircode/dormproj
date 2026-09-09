@@ -12,11 +12,20 @@
       "RENT": "Найм",
       "UTILITIES": "Коммуналка"
     },
-    "runButton": "Отправить в 1С",
+    "recalculateButton": "Пересчитать ({count})",
+    "sendButton": "Отправить в 1С ({count})",
+    "recalculateResult": "Пересчитано документов: {count}",
+    "sendResult": "Отправлено успешно: {succeeded}; ошибок: {failed}; заблокировано: {blocked}",
+    "sendConfirmTitle": "Отправить выбранные документы в 1С?",
+    "sendConfirmDescription": "Проверьте период, тип и сумму каждого документа. Отправлены будут только строки из этого списка.",
+    "cancel": "Отмена",
+    "confirmSend": "Подтвердить отправку",
     "viewDetails": "Список договоров",
     "detailDialogTitle": "{type} — {period}",
     "colContractNumber": "Договор",
     "colResident": "Резидент",
+    "detailSearchPlaceholder": "Поиск по номеру договора или ФИО",
+    "noSearchResults": "По вашему запросу ничего не найдено",
     "unknownContract": "Договор не опознан",
     "total": "Итого",
     "allMatched": "Все сопоставлены",
@@ -29,6 +38,7 @@
     "errors": {
       "fetchListFailed": "Не удалось получить список документов ({status})",
       "fetchDetailFailed": "Не удалось получить состав документа ({status})",
+      "recalculateFailed": "Не удалось пересчитать документы ({status})",
       "runFailed": "Не удалось отправить документы ({status})"
     }
   }

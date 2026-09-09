@@ -22,11 +22,16 @@ const createPaymentSchema = z.object({
   rawComment: z.string().trim().min(1).nullish(),
 });
 
+const serviceProvisionDocumentIdsSchema = z.object({
+  ids: z.array(z.number().int().positive()).min(1).max(100),
+});
+
 const AUDITED_PAYMENT_FIELDS = ['amount', 'paidAt', 'method', 'source', 'rawComment', 'reversedAt'];
 
 interface RawServiceProvisionDetail {
   SiteContractID?: number;
   ContractNumber?: string;
+  ResidentIndividualUID?: string;
   ResidentFullName?: string;
   ContractorUID?: string | null;
   ContractUID?: string | null;
@@ -223,27 +228,31 @@ export class BillingController {
   // статусом (без похода в БД/логи контейнера). Без пагинации — по два документа на
   // месяц (Найм/Коммуналка), даже за несколько лет это небольшой список.
   //
-  // computeAndSave() дёргается прямо тут, на каждый GET — по прямой просьбе 2026-09-04:
-  // раньше строка появлялась в БД только после реальной отправки в 1С (либо кнопкой, либо
-  // ночным кроном), а сама интеграция ещё не настроена (см. промпт проекта) — страница
-  // оставалась пустой навсегда. Подсчёт суммы по найму/коммуналке не зависит от 1С вообще
-  // (берётся из наших же начислений), поэтому список показывается сразу; кнопка
-  // "Отправить" (runServiceProvisionDocuments ниже) — только про саму отправку.
+  // GET только читает сохранённые документы. Создание и обновление выполняют планировщик
+  // и отдельная ручка пересчёта, поэтому открытие страницы не запускает тяжёлый расчёт.
   @Get('service-provision-documents')
   async listServiceProvisionDocuments() {
-    await this.serviceProvisionDoc.computeAndSave();
     const rows = await this.prisma.serviceProvisionDocument.findMany({ orderBy: [{ periodStart: 'desc' }, { type: 'asc' }], take: 100 });
-    // Decimal -> number на выходе API, тот же приём, что и в остальных сериализаторах
-    // (contracts/serializers.ts) — тут отдельного serializePayment-аналога нет, эндпоинт
-    // всегда отдаёт только 100 последних строк целиком, без пагинации.
+    // rawPayload нужен здесь только для счётчика несопоставленных строк и намеренно не
+    // уходит клиенту. Поэтому вход на страницу не загружает состав всех документов;
+    // строки конкретного документа запрашиваются только при открытии его карточки.
     return rows.map((row) => {
       const details = serviceProvisionDetails(row.rawPayload);
       return {
-        ...row,
+        id: row.id,
+        periodStart: row.periodStart,
+        type: row.type,
         documentSumm: Number(row.documentSumm),
+        contractCount: row.contractCount,
         unmatchedContractCount: details.filter((detail) =>
           detail.Accounting1cMatched === false || !detail.ContractorUID || !detail.ContractUID,
         ).length,
+        accounting1cSyncStatus: row.accounting1cSyncStatus,
+        accounting1cDocumentUid: row.accounting1cDocumentUid,
+        accounting1cSyncError: row.accounting1cSyncError,
+        accounting1cSyncedAt: row.accounting1cSyncedAt,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
       };
     });
   }
@@ -272,7 +281,7 @@ export class BillingController {
               ...(contractUids.length ? [{ accounting1cUid: { in: contractUids } }] : []),
             ],
           },
-          select: { id: true, number: true, accounting1cUid: true, resident: { select: { fullName: true } } },
+          select: { id: true, number: true, residentIndividualUid: true, accounting1cUid: true, resident: { select: { fullName: true } } },
         })
       : [];
     const contractById = new Map(contracts.map((contract) => [contract.id, contract]));
@@ -288,6 +297,7 @@ export class BillingController {
       return {
         contractId: d.SiteContractID ?? contract?.id ?? null,
         contractNumber: d.ContractNumber ?? contract?.number ?? null,
+        residentIndividualUid: d.ResidentIndividualUID ?? contract?.residentIndividualUid ?? null,
         residentFullName: d.ResidentFullName ?? contract?.resident.fullName ?? null,
         amount: d.SummDetails,
         accounting1cMatched: d.Accounting1cMatched ?? missingMappings.length === 0,
@@ -303,12 +313,19 @@ export class BillingController {
     };
   }
 
-  // Ручной повтор — тот же месяц (только что закончившийся), что и у ночного крона,
-  // на случай, если тот упал по сети/1С была недоступна и ждать следующего месяца не
-  // вариант. Идемпотентно — уже сохранённый accounting1cDocumentUid уйдёт в запросе,
-  // 1С обновит существующий документ, а не создаст дубль (см. промпт проекта).
+  @Post('service-provision-documents/recalculate')
+  async recalculateServiceProvisionDocuments(@Body() body: unknown) {
+    const parsed = serviceProvisionDocumentIdsSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(zodErrorMessage(parsed.error));
+    return this.serviceProvisionDoc.recalculateDocuments(parsed.data.ids);
+  }
+
+  // Ручная отправка ровно выбранных сохранённых документов. Пересчёт остаётся отдельным
+  // явным действием, чтобы пользователь видел и подтверждал конкретные период и сумму.
   @Post('service-provision-documents/run')
-  async runServiceProvisionDocuments() {
-    return this.serviceProvisionDoc.run();
+  async runServiceProvisionDocuments(@Body() body: unknown) {
+    const parsed = serviceProvisionDocumentIdsSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(zodErrorMessage(parsed.error));
+    return this.serviceProvisionDoc.sendDocuments(parsed.data.ids);
   }
 }
