@@ -19,4 +19,5 @@ export const SYNC_ENTITIES: SyncEntity[] = [
   { slug: 'contact-info', nameKey: 'nav.contactInfo', basePath: '/sync/contact-info' },
   { slug: 'individual', nameKey: 'sync.individualEntityName', basePath: '/sync/individual', showTargetUid: true },
   { slug: 'service-provision-documents', nameKey: 'sync.serviceProvisionDocumentsEntityName', basePath: '/sync/service-provision-documents' },
+  { slug: 'penalties', nameKey: 'sync.penaltiesEntityName', basePath: '/sync/penalties' },
 ]

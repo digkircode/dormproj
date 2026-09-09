@@ -6,6 +6,8 @@ import { PENALTY_DAILY_RATE } from './accrual-generation';
 import { addDays, dateOnly, daysBetweenInclusive } from './period-utils';
 import { buildAccrualPenaltyCalcs, earliestPenaltyStartsAt, overdueSumOnDay } from './penalty-calc';
 
+export const PENALTY_SYNC_TYPE = 'penalties';
+
 const { Decimal } = Prisma;
 
 // Ночной крон — 0,14%/день (п. 4.8/5.9 договора) от суммы всех ПРОСРОЧЕННЫХ и непогашенных
@@ -38,7 +40,38 @@ export class PenaltyScheduler {
 
   // Позже ночного синка 1С (01:00) — чтобы не спорить за БД с ним.
   @Cron('0 2 * * *', { timeZone: 'Europe/Moscow' })
+  private async runLogged(task: () => Promise<Record<string, unknown>>): Promise<void> {
+    let log: { id: number };
+    try {
+      log = await this.prisma.syncLog.create({
+        data: { type: PENALTY_SYNC_TYPE, trigger: 'CRON', status: 'RUNNING', details: { operation: 'DAILY_ACCRUAL' } },
+        select: { id: true },
+      });
+    } catch (error) {
+      this.logger.error(`Не удалось создать лог автоматического начисления пени: ${error instanceof Error ? error.message : String(error)}`);
+      return;
+    }
+    try {
+      const details = await task();
+      await this.prisma.syncLog.update({
+        where: { id: log.id },
+        data: { status: 'SUCCESS', finishedAt: new Date(), details: { operation: 'DAILY_ACCRUAL', ...details } },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await this.prisma.syncLog.update({
+        where: { id: log.id },
+        data: { status: 'FAILED', finishedAt: new Date(), errorMessage: message, details: { operation: 'DAILY_ACCRUAL' } },
+      }).catch(() => undefined);
+      this.logger.error(`Ошибка автоматического начисления пени: ${message}`);
+    }
+  }
+
   async accruePenalties(): Promise<void> {
+    await this.runLogged(async () => this.accruePenaltiesInternal());
+  }
+
+  private async accruePenaltiesInternal(): Promise<Record<string, unknown>> {
     const today = dateOnly(new Date());
     // Грубый префильтр — пеня стартует не раньше 10 числа месяца, следующего за
     // periodStart, то есть минимум через ~10 дней после periodStart (periodStart в конце
@@ -116,5 +149,10 @@ export class PenaltyScheduler {
     this.logger.log(
       `Начисление пени: обновлено договоров — ${updatedContractIds.length}, строк журнала — ${logRows.length}, всего добавлено — ${totalAdded.toFixed(2)}`,
     );
+    return {
+      processedContracts: updatedContractIds.length,
+      penaltyRowsCreated: logRows.length,
+      totalAdded: Number(totalAdded),
+    };
   }
 }

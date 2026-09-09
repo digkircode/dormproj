@@ -14,6 +14,7 @@ import { zodErrorMessage } from '../i18n/zod-error-message';
 import { Accounting1cPushService } from './accounting-1c-push.service';
 import { ServiceProvisionDocService } from './service-provision-doc.service';
 import { PenaltyRecalculateService } from './penalty-recalculate.service';
+import { PENALTY_SYNC_TYPE } from './penalty.scheduler';
 import { listSyncLogs, syncLogFacetValues, type SyncLogsListQuery } from '../sync/sync-logs-list';
 import { SERVICE_PROVISION_SYNC_TYPE } from './service-provision-doc.service';
 
@@ -372,5 +373,15 @@ export class BillingController {
   @Get('sync/service-provision-documents/logs/facets/:field')
   async serviceProvisionSyncLogFacets(@Param('field') field: string) {
     return syncLogFacetValues(this.prisma, SERVICE_PROVISION_SYNC_TYPE, field);
+  }
+
+  @Get('sync/penalties/logs')
+  async penaltySyncLogs(@Query() query: SyncLogsListQuery) {
+    return listSyncLogs(this.prisma, PENALTY_SYNC_TYPE, query);
+  }
+
+  @Get('sync/penalties/logs/facets/:field')
+  async penaltySyncLogFacets(@Param('field') field: string) {
+    return syncLogFacetValues(this.prisma, PENALTY_SYNC_TYPE, field);
   }
 }

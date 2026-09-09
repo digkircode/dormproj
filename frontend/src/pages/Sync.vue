@@ -51,6 +51,7 @@ const passportSync = useSyncRow('nav.passportData', '/sync/passport')
 const contactInfoSync = useSyncRow('nav.contactInfo', '/sync/contact-info')
 const individualManualSync = useSyncRow('sync.individualEntityName', '/sync/individual')
 const serviceProvisionSync = useSyncRow('sync.serviceProvisionDocumentsEntityName', '/sync/service-provision-documents')
+const penaltiesSync = useSyncRow('sync.penaltiesEntityName', '/sync/penalties')
 
 const rows = computed<SyncOverviewRow[]>(() => [
   { ...studentSync.row.value, isRunning: studentSync.isRunning.value, run: wrapRun(studentSync.run), slug: 'students' },
@@ -72,6 +73,13 @@ const rows = computed<SyncOverviewRow[]>(() => [
     isRunning: serviceProvisionSync.isRunning.value,
     run: wrapRun(serviceProvisionSync.run),
     slug: 'service-provision-documents',
+    isReal: false as const,
+  },
+  {
+    ...penaltiesSync.row.value,
+    isRunning: false,
+    run: wrapRun(penaltiesSync.run),
+    slug: 'penalties',
     isReal: false as const,
   },
 ])
@@ -179,6 +187,8 @@ onMounted(async () => {
     passportSync.refresh(),
     contactInfoSync.refresh(),
     individualManualSync.refresh(),
+    serviceProvisionSync.refresh(),
+    penaltiesSync.refresh(),
   ])
   await tableRef.value?.refresh()
 })

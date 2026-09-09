@@ -13,6 +13,7 @@
     "durationSeconds": "{seconds}с",
     "individualEntityName": "Обновление данных физического лица",
     "serviceProvisionDocumentsEntityName": "Документы оказания услуг",
+    "penaltiesEntityName": "Начисление пеней",
     "status": {
       "RUNNING": "В процессе",
       "SUCCESS": "Успешно",

@@ -13,6 +13,7 @@
     "durationSeconds": "{seconds}s",
     "individualEntityName": "Individual data update",
     "serviceProvisionDocumentsEntityName": "Service provision documents",
+    "penaltiesEntityName": "Penalty accrual",
     "status": {
       "RUNNING": "Running",
       "SUCCESS": "Success",
