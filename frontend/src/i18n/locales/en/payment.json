@@ -17,8 +17,14 @@
       "stubTitle": "Placeholder — once the till is connected, this will link to the receipt from the OFD"
     },
     "accounting1c": {
-      "linked": "Linked to 1C Accounting",
-      "notLinked": "Not linked to 1C Accounting"
+      "linked": "Matched",
+      "notLinked": "Not matched",
+      "mappingTitle": "1C mapping",
+      "contractUid": "Contract UID",
+      "contractorUid": "Contractor UID",
+      "emptyUid": "Not set",
+      "cancel": "Cancel",
+      "save": "Save"
     },
     "createDialog": {
       "title": "New payment",

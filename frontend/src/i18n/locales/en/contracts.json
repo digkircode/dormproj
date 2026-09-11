@@ -12,7 +12,8 @@
       "addPaymentFailed": "Failed to add the payment ({status})",
       "reversePaymentFailed": "Failed to reverse the payment ({status})",
       "syncPaymentToAccounting1cFailed": "Failed to send the payment to 1C ({status})",
-      "recalculatePenaltyFailed": "Failed to recalculate the penalty ({status})"
+      "recalculatePenaltyFailed": "Failed to recalculate the penalty ({status})",
+      "mappingSaveFailed": "Failed to save mapping ({status})"
     },
     "status": {
       "ACTIVE": "Active",
@@ -31,6 +32,7 @@
       "colStart": "Start",
       "colEnd": "End",
       "colStatus": "Status",
+      "colMapping": "Mapping",
       "totalLabel": "contracts",
       "openContract": "Open contract",
       "newContract": "New contract",

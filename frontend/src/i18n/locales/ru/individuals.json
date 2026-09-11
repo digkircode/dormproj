@@ -4,6 +4,7 @@
       "back": "Назад",
       "colFullName": "ФИО",
       "colUid": "UID физлица",
+      "colMapping": "Сопоставление",
       "students": {
         "title": "Контингент студентов",
         "totalLabel": "студентов",
@@ -126,7 +127,8 @@
       "fieldPassportNumber": "Паспорт: номер",
       "fieldPassportIssuedBy": "Кем выдан",
       "fieldPassportIssuedCode": "Код подразделения",
-      "fieldPassportIssuedAt": "Дата выдачи"
+      "fieldPassportIssuedAt": "Дата выдачи",
+      "fieldAccounting1cContractorUid": "UID контрагента"
     },
     "studentFields": {
       "facultet": "Факультет",

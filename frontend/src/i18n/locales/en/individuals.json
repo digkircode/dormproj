@@ -4,6 +4,7 @@
       "back": "Back",
       "colFullName": "Full name",
       "colUid": "Individual UID",
+      "colMapping": "Mapping",
       "students": {
         "title": "Student roster",
         "totalLabel": "students",
@@ -126,7 +127,8 @@
       "fieldPassportNumber": "Passport: number",
       "fieldPassportIssuedBy": "Issued by",
       "fieldPassportIssuedCode": "Issuing department code",
-      "fieldPassportIssuedAt": "Date issued"
+      "fieldPassportIssuedAt": "Date issued",
+      "fieldAccounting1cContractorUid": "Contractor UID"
     },
     "studentFields": {
       "facultet": "Faculty",

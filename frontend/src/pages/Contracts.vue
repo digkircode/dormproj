@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import EntityTable from '@/components/EntityTable.vue'
 import ContractStatusCell from '@/components/ContractStatusCell.vue'
 import RoomCell from '@/components/RoomCell.vue'
+import Accounting1cMatchCell from '@/components/Accounting1cMatchCell.vue'
 import CreateContractDialog from '@/components/CreateContractDialog.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import { goBack } from '@/lib/utils'
@@ -71,9 +72,11 @@ const columnLabels = computed<Record<string, string>>(() => ({
   startDate: t('contracts.list.colStart'),
   endDate: t('contracts.list.colEnd'),
   status: t('contracts.list.colStatus'),
+  accounting1cMatched: t('contracts.list.colMapping'),
 }))
 const filterableFields = ['status']
-const cellRenderers = { status: ContractStatusCell, room: RoomCell }
+const hiddenByDefault = ['accounting1cMatched']
+const cellRenderers = { status: ContractStatusCell, room: RoomCell, accounting1cMatched: Accounting1cMatchCell }
 
 function cellText(columnId: string, value: unknown): string {
   if ((columnId === 'contractDate' || columnId === 'startDate' || columnId === 'endDate') && typeof value === 'string') {
@@ -96,6 +99,7 @@ const columns = computed(() =>
     columnHelper.accessor('startDate', { header: columnLabels.value.startDate, size: 128, minSize: 100 }),
     columnHelper.accessor('endDate', { header: columnLabels.value.endDate, size: 128, minSize: 100 }),
     columnHelper.accessor('status', { header: columnLabels.value.status, size: 128, minSize: 100 }),
+    columnHelper.accessor('accounting1cMatched', { header: columnLabels.value.accounting1cMatched, enableSorting: false, size: 150, minSize: 130 }),
   ]),
 )
 
@@ -126,6 +130,7 @@ const createDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(nu
       :total-label="t('contracts.list.totalLabel')"
       :cell-text="cellText"
       :cell-renderers="cellRenderers"
+      :hidden-by-default="hiddenByDefault"
       storage-key="contracts"
       accent-icons
       selectable

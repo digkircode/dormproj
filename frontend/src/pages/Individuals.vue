@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import { ArrowLeft, ExternalLink, Plus } from 'lucide-vue-next'
 import EntityTable from '@/components/EntityTable.vue'
 import CreateIndividualDialog from '@/components/CreateIndividualDialog.vue'
+import Accounting1cMatchCell from '@/components/Accounting1cMatchCell.vue'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createAppColumnHelper } from '@/lib/table'
@@ -22,9 +23,11 @@ const columnLabels = computed<Record<string, string>>(() => ({
   snils: t('individuals.list.colSnils'),
   inn: t('individuals.list.colInn'),
   fizicheskoyeLitsoUid: t('individuals.list.colUid'),
+  accounting1cMatched: t('individuals.systemTables.colMapping'),
 }))
 const filterableFields = ['gender']
-const hiddenByDefault = ['fizicheskoyeLitsoUid']
+const hiddenByDefault = ['fizicheskoyeLitsoUid', 'accounting1cMatched']
+const cellRenderers = { accounting1cMatched: Accounting1cMatchCell }
 
 // gender — литерал 'Мужской'/'Женский' (см. individuals-api.ts, соответствует значению
 // в БД), переводим только отображение, те же ключи, что и в CreateContractDialog.vue.
@@ -50,6 +53,7 @@ const columns = computed(() =>
     columnHelper.accessor('gender', { header: columnLabels.value.gender, size: 96, minSize: 80 }),
     columnHelper.accessor('snils', { header: columnLabels.value.snils, size: 144, minSize: 100 }),
     columnHelper.accessor('inn', { header: columnLabels.value.inn, size: 144, minSize: 100 }),
+    columnHelper.accessor('accounting1cMatched', { header: columnLabels.value.accounting1cMatched, enableSorting: false, size: 150, minSize: 130 }),
   ]),
 )
 
@@ -76,6 +80,7 @@ const createDialogRef = ref<InstanceType<typeof CreateIndividualDialog> | null>(
       :get-row-id="(i: Individual) => i.fizicheskoyeLitsoUid"
       :total-label="t('individuals.list.totalLabel')"
       :cell-text="cellText"
+      :cell-renderers="cellRenderers"
       :hidden-by-default="hiddenByDefault"
       storage-key="individuals"
       accent-icons

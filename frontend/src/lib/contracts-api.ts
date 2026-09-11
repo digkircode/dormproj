@@ -17,6 +17,7 @@ export interface ContractListItem {
   residentFullName: string
   room: string | null
   roomId: number | null
+  accounting1cMatched: boolean
 }
 
 export type ContractsPage = ListPage<ContractListItem>
@@ -87,6 +88,7 @@ export interface ContractDetail {
   // Известна ли 1С Бухгалтерии пара ContractorUID/ContractUID по этому договору (флоу 1/2/3,
   // см. промпт проекта) — не null только после первой успешной отправки платежа в 1С.
   accounting1cUid: string | null
+  accounting1cContractorUid: string | null
   legalRepName: string | null
   legalRepPhone: string | null
   legalRepGender: string | null
@@ -278,6 +280,22 @@ export async function fetchContractDetail(id: number): Promise<ContractDetail> {
   const response = await apiFetch(`/contracts/${id}`)
   if (!response.ok) {
     throw new Error(i18n.global.t('contracts.errors.fetchContractFailed', { status: response.status }))
+  }
+  return response.json()
+}
+
+export async function updateContractAccounting1cMapping(
+  id: number,
+  input: { contractUid: string | null; contractorUid: string | null },
+): Promise<ContractDetail> {
+  const response = await apiFetch(`/contracts/${id}/accounting-1c-mapping`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!response.ok) {
+    const body: { message?: string } = await response.json().catch(() => ({}))
+    throw new Error(body.message ?? i18n.global.t('contracts.errors.mappingSaveFailed', { status: response.status }))
   }
   return response.json()
 }

@@ -193,6 +193,10 @@ const mergeIndividualSchema = z.object({
   targetUid: z.string().trim().min(1),
 });
 
+const accounting1cMappingSchema = z.object({
+  contractorUid: z.string().trim().max(200).nullish().transform((value) => value || null),
+});
+
 // Точный слепок того, что было перенесено с источника на цель при слиянии — только так
 // unmerge() (ниже) может надёжно понять, какие ИЗ ТЕКУЩИХ данных цели принадлежали именно
 // источнику на момент слияния, а не появились у цели независимо (до или после слияния).
@@ -298,7 +302,15 @@ export class IndividualsController {
       this.prisma.individual.count({ where }),
     ]);
 
-    return { data, total, page, pageSize };
+    return {
+      data: data.map((individual) => ({
+        ...individual,
+        accounting1cMatched: Boolean(individual.accounting1cContractorUid),
+      })),
+      total,
+      page,
+      pageSize,
+    };
   }
 
   @Post()
@@ -352,6 +364,36 @@ export class IndividualsController {
 
       return created;
     });
+  }
+
+  @Patch(':uid/accounting-1c-mapping')
+  async updateAccounting1cMapping(@Param('uid') uid: string, @Body() body: unknown, @Req() req: Request) {
+    const parsed = accounting1cMappingSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(zodErrorMessage(parsed.error));
+    if (!req.user) throw new BadRequestException('contracts.errors.sessionUserNotFound');
+
+    const existing = await this.prisma.individual.findUnique({ where: { fizicheskoyeLitsoUid: uid } });
+    if (!existing) throw new NotFoundException('individuals.errors.individualNotFound');
+
+    await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.individual.update({
+        where: { fizicheskoyeLitsoUid: uid },
+        data: { accounting1cContractorUid: parsed.data.contractorUid },
+      });
+      const userId = await ensureUserRecord(tx, req.user!);
+      await this.auditLog.log(tx, {
+        userId,
+        action: 'UPDATE',
+        entityType: 'Individual',
+        entityId: uid,
+        entityLabel: `Сопоставление с 1С — ${existing.fullName}`,
+        before: existing,
+        after: updated,
+        fields: ['accounting1cContractorUid'],
+      });
+    });
+
+    return this.detail(uid);
   }
 
   // "Критическая правка" — пишет напрямую в те же таблицы, что и ночной синхрон 1С
@@ -513,6 +555,7 @@ export class IndividualsController {
 
     return {
       ...individual,
+      accounting1cMatched: Boolean(individual.accounting1cContractorUid),
       passports: sortPassportsByPriority(individual.passports),
       contactInfos: pickLatestContactInfo(individual.contactInfos),
       students,

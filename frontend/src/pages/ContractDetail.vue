@@ -31,6 +31,7 @@ import { Label } from '@/components/ui/label'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import ContractStatusPill from '@/components/ContractStatusPill.vue'
 import Accounting1cLinkedBadge from '@/components/Accounting1cLinkedBadge.vue'
+import Accounting1cMappingDialog from '@/components/Accounting1cMappingDialog.vue'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Dialog, DialogScrollContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -68,6 +69,18 @@ const contractId = computed(() => Number(route.params.id))
 const contract = ref<ContractDetail | null>(null)
 const isLoading = ref(true)
 const loadError = ref('')
+const mappingDialogRef = ref<InstanceType<typeof Accounting1cMappingDialog> | null>(null)
+
+function openAccounting1cMapping() {
+  if (!contract.value) return
+  mappingDialogRef.value?.open({
+    kind: 'contract',
+    id: contract.value.id,
+    label: t('contracts.detail.titleWithNumber', { number: contract.value.number }),
+    contractUid: contract.value.accounting1cUid,
+    contractorUid: contract.value.accounting1cContractorUid,
+  })
+}
 
 async function load() {
   isLoading.value = true
@@ -302,7 +315,9 @@ async function confirmReversePayment() {
         {{ contract ? t('contracts.detail.titleWithNumber', { number: contract.number }) : t('contracts.detail.titleFallback') }}
       </h1>
       <ContractStatusPill v-if="contract" :status="contract.status" />
-      <Accounting1cLinkedBadge v-if="contract" :linked="contract.accounting1cUid !== null" />
+      <button v-if="contract" type="button" class="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" @click="openAccounting1cMapping">
+        <Accounting1cLinkedBadge :linked="contract.accounting1cUid !== null && contract.accounting1cContractorUid !== null" />
+      </button>
       <!-- Меню действий — тут же, на уровне номера договора (было отдельной тонкой строкой
            над карточкой, легко теряющейся), с текстовой подписью — заметнее, чем голая
            иконка (по прямой просьбе 2026-08-26). -->
@@ -667,5 +682,6 @@ async function confirmReversePayment() {
         <p v-else class="text-sm text-muted-foreground">{{ t('contracts.myContract.penaltyNeverAccrued') }}</p>
       </DialogScrollContent>
     </Dialog>
+    <Accounting1cMappingDialog ref="mappingDialogRef" @saved="load" />
   </div>
 </template>

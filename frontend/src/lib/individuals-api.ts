@@ -37,6 +37,7 @@ export interface Individual {
   // Известен ли 1С Бухгалтерии ContractorUID этого человека (флоу 1/2/3, см. промпт
   // проекта) — не null только после первой успешной отправки платежа в 1С.
   accounting1cContractorUid: string | null
+  accounting1cMatched: boolean
 }
 
 export interface IndividualCitizenship {
@@ -153,6 +154,19 @@ export async function fetchIndividualDetail(uid: string): Promise<IndividualDeta
   const response = await apiFetch(`/individuals/${encodeURIComponent(uid)}`)
   if (!response.ok) {
     throw new Error(`Не удалось получить данные физлица (${response.status})`)
+  }
+  return response.json()
+}
+
+export async function updateIndividualAccounting1cMapping(uid: string, contractorUid: string | null): Promise<IndividualDetail> {
+  const response = await apiFetch(`/individuals/${encodeURIComponent(uid)}/accounting-1c-mapping`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contractorUid }),
+  })
+  if (!response.ok) {
+    const body: { message?: string } = await response.json().catch(() => ({}))
+    throw new Error(body.message ?? `Не удалось сохранить сопоставление (${response.status})`)
   }
   return response.json()
 }

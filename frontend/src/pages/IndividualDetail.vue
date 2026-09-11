@@ -24,6 +24,7 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import Accounting1cLinkedBadge from '@/components/Accounting1cLinkedBadge.vue'
+import Accounting1cMappingDialog from '@/components/Accounting1cMappingDialog.vue'
 import PassportTable from '@/components/PassportTable.vue'
 import StudentFields from '@/components/StudentFields.vue'
 import CreateContractDialog from '@/components/CreateContractDialog.vue'
@@ -56,6 +57,7 @@ const detail = ref<IndividualDetail | null>(null)
 const isLoading = ref(true)
 const notFound = ref(false)
 const copiedField = ref<'uid' | 'code' | null>(null)
+const mappingDialogRef = ref<InstanceType<typeof Accounting1cMappingDialog> | null>(null)
 let copyResetTimeout: ReturnType<typeof setTimeout> | undefined
 
 // gender — свободный текст (см. individuals-api.ts), переводим только если совпадает
@@ -75,6 +77,16 @@ const initials = computed(() =>
     .join('')
     .toUpperCase(),
 )
+
+function openAccounting1cMapping() {
+  if (!detail.value) return
+  mappingDialogRef.value?.open({
+    kind: 'individual',
+    id: detail.value.fizicheskoyeLitsoUid,
+    label: detail.value.fullName,
+    contractorUid: detail.value.accounting1cContractorUid,
+  })
+}
 
 const citizenship = computed(() => detail.value?.citizenships[0] ?? null)
 // Ручной ввод (detail.citizenship, см. schema.prisma) — только если нет синхронной записи
@@ -344,7 +356,9 @@ onUnmounted(() => {
             <div class="flex flex-col gap-1" :class="detail.isManual ? '' : 'pt-1'">
               <div class="flex flex-wrap items-center gap-2">
                 <div class="text-xl font-semibold">{{ detail.fullName }}</div>
-                <Accounting1cLinkedBadge :linked="detail.accounting1cContractorUid !== null" />
+                <button type="button" class="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" @click="openAccounting1cMapping">
+                  <Accounting1cLinkedBadge :linked="detail.accounting1cContractorUid !== null" />
+                </button>
               </div>
               <!-- Копирование UID/кода 1С — только у синхронизируемых физлиц, у ручных
                    (isManual) это не настоящий код/guid из 1С, а синтетический
@@ -537,5 +551,6 @@ onUnmounted(() => {
     <EditIndividualDialog ref="editDialogRef" @saved="onIndividualSaved" />
     <IndividualHistoryDialog ref="historyDialogRef" />
     <MergeIndividualDialog ref="mergeDialogRef" @merged="onMerged" />
+    <Accounting1cMappingDialog ref="mappingDialogRef" @saved="loadDetail" />
   </div>
 </template>

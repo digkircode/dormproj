@@ -124,9 +124,10 @@ const storedTableState = readStoredTableState()
 
 // Пусто = видны все колонки (в TanStack отсутствие записи значит "видима", не "скрыта") —
 // поэтому "скрыто по умолчанию" выражается явной записью false, а не просто отсутствием.
-const columnVisibility = ref<ColumnVisibilityState>(
-  storedTableState?.columnVisibility ?? Object.fromEntries(props.hiddenByDefault.map((id) => [id, false])),
-)
+const columnVisibility = ref<ColumnVisibilityState>({
+  ...Object.fromEntries(props.hiddenByDefault.map((id) => [id, false])),
+  ...(storedTableState?.columnVisibility ?? {}),
+})
 const pagination = ref<PaginationState>({ pageIndex: 0, pageSize: 20 })
 const sorting = ref<SortingState>(storedTableState?.sorting ?? [props.defaultSort])
 // columnSizing по умолчанию — неконтролируемое внутреннее состояние TanStack (не Vue ref),

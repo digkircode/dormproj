@@ -47,6 +47,7 @@ const FIELD_LABELS = computed<Record<string, string>>(() => ({
   passportIssuedBy: t('individuals.history.fieldPassportIssuedBy'),
   passportIssuedCode: t('individuals.history.fieldPassportIssuedCode'),
   passportIssuedAt: t('individuals.history.fieldPassportIssuedAt'),
+  accounting1cContractorUid: t('individuals.history.fieldAccounting1cContractorUid'),
 }))
 
 const isOpen = ref(false)

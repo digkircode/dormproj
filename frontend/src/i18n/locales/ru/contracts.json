@@ -12,7 +12,8 @@
       "addPaymentFailed": "Не удалось внести платёж ({status})",
       "reversePaymentFailed": "Не удалось сторнировать платёж ({status})",
       "syncPaymentToAccounting1cFailed": "Не удалось отправить платёж в 1С ({status})",
-      "recalculatePenaltyFailed": "Не удалось пересчитать пеню ({status})"
+      "recalculatePenaltyFailed": "Не удалось пересчитать пеню ({status})",
+      "mappingSaveFailed": "Не удалось сохранить сопоставление ({status})"
     },
     "status": {
       "ACTIVE": "Действует",
@@ -31,6 +32,7 @@
       "colStart": "Начало",
       "colEnd": "Окончание",
       "colStatus": "Статус",
+      "colMapping": "Сопоставление",
       "totalLabel": "договоров",
       "openContract": "Открыть договор",
       "newContract": "Новый договор",

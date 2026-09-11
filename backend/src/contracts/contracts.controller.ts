@@ -6,6 +6,7 @@ import {
   Get,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -117,6 +118,11 @@ const createContractSchema = z
   });
 
 const terminateSchema = z.object({ actualEndDate: z.coerce.date() });
+
+const accounting1cMappingSchema = z.object({
+  contractUid: z.string().trim().max(200).nullish().transform((value) => value || null),
+  contractorUid: z.string().trim().max(200).nullish().transform((value) => value || null),
+});
 
 // Поля, участвующие в diff'е истории изменений (AuditLogService) — residentSnapshot (JSON-
 // слепок) и penaltyAccruedThrough (служебное, для идемпотентности крона) намеренно не
@@ -231,7 +237,7 @@ export class ContractsController {
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: {
-          resident: { select: { fullName: true } },
+          resident: { select: { fullName: true, accounting1cContractorUid: true } },
           roomAssignments: { where: { toDate: null }, include: { room: { select: { id: true, room: true } } } },
         },
       }),
@@ -250,6 +256,7 @@ export class ContractsController {
         residentFullName: c.resident.fullName,
         room: c.roomAssignments[0]?.room.room ?? null,
         roomId: c.roomAssignments[0]?.room.id ?? null,
+        accounting1cMatched: Boolean(c.accounting1cUid && c.resident.accounting1cContractorUid),
       })),
       total,
       page,
@@ -314,7 +321,7 @@ export class ContractsController {
     const contract = await this.prisma.contract.findUnique({
       where: { id },
       include: {
-        resident: { select: { fullName: true, fizicheskoyeLitsoUid: true } },
+        resident: { select: { fullName: true, fizicheskoyeLitsoUid: true, accounting1cContractorUid: true } },
         terms: { orderBy: { validFrom: 'desc' } },
         roomAssignments: { orderBy: { fromDate: 'desc' }, include: { room: { select: { id: true, room: true } } } },
         accruals: {
@@ -362,6 +369,7 @@ export class ContractsController {
         .map((l) => ({ date: l.date, amount: Number(l.amount), overdueBase: Number(l.overdueBase) })),
       residentFullName: resident.fullName,
       residentIndividualUid: resident.fizicheskoyeLitsoUid,
+      accounting1cContractorUid: resident.accounting1cContractorUid,
       currentRoom: roomAssignments.find((a) => a.toDate === null)?.room ?? null,
       roomHistory: roomAssignments,
       terms: terms.map(serializeTerms),
@@ -383,6 +391,55 @@ export class ContractsController {
       // сторнированной) удаление блокируется навсегда, см. remove() ниже.
       hasPayments: payments.length > 0,
     };
+  }
+
+  @Patch(':id/accounting-1c-mapping')
+  async updateAccounting1cMapping(@Param('id') idParam: string, @Body() body: unknown, @Req() req: Request) {
+    const id = parseIdParam(idParam);
+    const parsed = accounting1cMappingSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(zodErrorMessage(parsed.error));
+    if (!req.user) throw new BadRequestException('contracts.errors.sessionUserNotFound');
+
+    const existing = await this.prisma.contract.findUnique({
+      where: { id },
+      include: { resident: true },
+    });
+    if (!existing) throw new NotFoundException('contracts.errors.contractNotFound');
+
+    await this.prisma.$transaction(async (tx) => {
+      const userId = await ensureUserRecord(tx, req.user!);
+      const updatedContract = await tx.contract.update({
+        where: { id },
+        data: { accounting1cUid: parsed.data.contractUid },
+      });
+      const updatedIndividual = await tx.individual.update({
+        where: { fizicheskoyeLitsoUid: existing.residentIndividualUid },
+        data: { accounting1cContractorUid: parsed.data.contractorUid },
+      });
+
+      await this.auditLog.log(tx, {
+        userId,
+        action: 'UPDATE',
+        entityType: 'Contract',
+        entityId: existing.id,
+        entityLabel: `Сопоставление с 1С — договор №${existing.number}`,
+        before: existing,
+        after: updatedContract,
+        fields: ['accounting1cUid'],
+      });
+      await this.auditLog.log(tx, {
+        userId,
+        action: 'UPDATE',
+        entityType: 'Individual',
+        entityId: existing.residentIndividualUid,
+        entityLabel: `Сопоставление с 1С — ${existing.resident.fullName}`,
+        before: existing.resident,
+        after: updatedIndividual,
+        fields: ['accounting1cContractorUid'],
+      });
+    });
+
+    return this.detail(String(id));
   }
 
   @Post()

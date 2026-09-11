@@ -350,6 +350,8 @@ export class BillingController {
     if (!req.user) return;
     const userId = await ensureUserRecord(this.prisma, req.user);
     const beforeById = new Map(before.map((row) => [row.id, row]));
+    const typeLabel = (type: string) => type === 'RENT' ? 'Найм' : type === 'UTILITIES' ? 'Коммуналка' : type;
+    const operationLabel = operation === 'MANUAL_RECALCULATION' ? 'Ручной пересчёт' : operation === 'MANUAL_SEND' ? 'Ручная отправка в 1С' : operation;
     for (const row of after) {
       const previous = beforeById.get(row.id);
       await this.auditLog.log(this.prisma, {
@@ -357,9 +359,9 @@ export class BillingController {
         action: 'UPDATE',
         entityType: 'ServiceProvisionDocument',
         entityId: row.id,
-        entityLabel: `Оказание услуг — ${row.type} — ${row.periodStart.toISOString().slice(0, 7)}`,
+        entityLabel: `Оказание услуг — ${typeLabel(row.type)} — ${row.periodStart.toISOString().slice(0, 7)}`,
         before: previous ? { ...previous, _operation: null } : null,
-        after: { ...row, _operation: { name: operation, result } },
+        after: { ...row, _operation: `${operationLabel}: ${JSON.stringify(result)}` },
         fields: ['documentSumm', 'contractCount', 'accounting1cSyncStatus', 'accounting1cDocumentUid', 'accounting1cSyncError', '_operation'],
       });
     }

@@ -33,6 +33,11 @@ const ENTITY_TYPE_LABELS: Record<string, string> = {
 
 const SEARCHABLE_FIELDS = ['entityLabel', 'action', 'entityType'] as const;
 
+function localizeEntityLabel(entityType: string, label: string): string {
+  if (entityType !== 'ServiceProvisionDocument') return label;
+  return label.replace(' — RENT — ', ' — Найм — ').replace(' — UTILITIES — ', ' — Коммуналка — ');
+}
+
 const SORTABLE_FIELDS: Record<string, string> = {
   createdAt: 'createdAt',
   action: 'action',
@@ -113,7 +118,7 @@ export class AuditLogController {
         action: row.action,
         entityType: row.entityType,
         entityId: row.entityId,
-        entityLabel: row.entityLabel,
+        entityLabel: localizeEntityLabel(row.entityType, row.entityLabel),
         changes: row.changes,
         createdAt: row.createdAt,
       })),

@@ -38,8 +38,6 @@ export class PenaltyScheduler {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  // Позже ночного синка 1С (01:00) — чтобы не спорить за БД с ним.
-  @Cron('0 2 * * *', { timeZone: 'Europe/Moscow' })
   private async runLogged(task: () => Promise<Record<string, unknown>>): Promise<void> {
     let log: { id: number };
     try {
@@ -67,6 +65,8 @@ export class PenaltyScheduler {
     }
   }
 
+  // Позже ночного синка 1С (01:00) — чтобы не спорить за БД с ним.
+  @Cron('0 2 * * *', { timeZone: 'Europe/Moscow' })
   async accruePenalties(): Promise<void> {
     await this.runLogged(async () => this.accruePenaltiesInternal());
   }
