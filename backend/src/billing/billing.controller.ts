@@ -209,6 +209,11 @@ export class BillingController {
       throw new NotFoundException('contracts.errors.contractNotFound');
     }
 
+    const previousPenalty = await this.prisma.penaltyAccrualLog.aggregate({
+      where: { contractId },
+      _count: true,
+      _sum: { amount: true },
+    });
     const { rowsCreated, totalAdded } = await this.penaltyRecalculate.recalculate(contractId);
     const updated = await this.prisma.contract.findUniqueOrThrow({ where: { id: contractId } });
 
@@ -219,9 +224,19 @@ export class BillingController {
       entityType: 'Contract',
       entityId: contract.id,
       entityLabel: `Пересчёт пени — договор №${contract.number}`,
-      before: contract,
-      after: updated,
-      fields: ['penaltyAccruedThrough'],
+      before: {
+        ...contract,
+        _operation: null,
+        _penaltyRowsCount: previousPenalty._count,
+        _penaltyTotal: previousPenalty._sum.amount ?? new Prisma.Decimal(0),
+      },
+      after: {
+        ...updated,
+        _operation: 'Ручной пересчёт пени',
+        _penaltyRowsCount: rowsCreated,
+        _penaltyTotal: totalAdded,
+      },
+      fields: ['_operation', '_penaltyRowsCount', '_penaltyTotal', 'penaltyAccruedThrough'],
     });
 
     return { rowsCreated, totalAdded: Number(totalAdded) };

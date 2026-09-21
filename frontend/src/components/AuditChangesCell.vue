@@ -16,11 +16,17 @@ const FIELD_LABELS = computed<Record<string, string>>(() => ({
   accounting1cUid: t('audit.fieldAccounting1cUid'),
   accounting1cContractorUid: t('audit.fieldAccounting1cContractorUid'),
   _operation: t('audit.fieldOperation'),
+  _penaltyRowsCount: t('audit.fieldPenaltyRowsCount'),
+  _penaltyTotal: t('audit.fieldPenaltyTotal'),
+  penaltyAccruedThrough: t('audit.fieldPenaltyAccruedThrough'),
 }))
 
-function formatValue(value: unknown): string {
+function formatValue(value: unknown, field: string): string {
   if (value === null || value === undefined || value === '') return '—'
   if (typeof value === 'boolean') return value ? t('boolean.yes') : t('boolean.no')
+  if (field === '_penaltyTotal' && typeof value === 'number') {
+    return `${new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)} ₽`
+  }
   // ISO-строка (дата/дата-время) — те же паттерны, что и во всём приложении.
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(T|$)/.test(value)) {
     const date = new Date(value)
@@ -56,8 +62,8 @@ function formatValue(value: unknown): string {
           <TableBody>
             <TableRow v-for="(change, field) in row.changes" :key="field">
               <TableCell class="font-medium">{{ FIELD_LABELS[field] ?? field }}</TableCell>
-              <TableCell class="text-muted-foreground">{{ formatValue(change.before) }}</TableCell>
-              <TableCell>{{ formatValue(change.after) }}</TableCell>
+              <TableCell class="text-muted-foreground">{{ formatValue(change.before, field) }}</TableCell>
+              <TableCell>{{ formatValue(change.after, field) }}</TableCell>
             </TableRow>
           </TableBody>
         </Table>

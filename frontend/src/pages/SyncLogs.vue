@@ -23,9 +23,10 @@ import { goBack } from '@/lib/utils'
 
 const route = useRoute()
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const entity = computed(() => SYNC_ENTITIES.find((e) => e.slug === route.params.slug))
 const isServiceProvision = computed(() => entity.value?.slug === 'service-provision-documents')
+const isPenalty = computed(() => entity.value?.slug === 'penalties')
 const storageKey = computed(() => `sync-logs:${entity.value?.slug ?? 'unknown'}`)
 
 const selectedLog = ref<SyncLogEntry | null>(null)
@@ -51,6 +52,24 @@ const stepLabels = computed<Record<string, string>>(() => ({
   passport: t('sync.logs.stepPassport'),
   contactInfo: t('sync.logs.stepContactInfo'),
 }))
+
+const penaltyDetails = computed(() => {
+  const details = selectedLog.value?.details as Record<string, unknown> | null
+  const numberValue = (key: string) => typeof details?.[key] === 'number' ? details[key] as number : null
+  return {
+    operation: details?.operation === 'DAILY_ACCRUAL'
+      ? t('sync.logs.penaltyOperationDailyAccrual')
+      : String(details?.operation ?? '—'),
+    processedContracts: numberValue('processedContracts'),
+    penaltyRowsCreated: numberValue('penaltyRowsCreated'),
+    totalAdded: numberValue('totalAdded'),
+  }
+})
+
+function formatMoney(value: number | null): string {
+  if (value === null) return '—'
+  return `${new Intl.NumberFormat(locale.value, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)} ₽`
+}
 
 function cellText(columnId: string, value: unknown): string {
   if (columnId === 'trigger' && typeof value === 'string') {
@@ -155,7 +174,7 @@ onUnmounted(() => clearTimeout(pollTimeout))
           <DialogDescription>{{ formatDateTimeWithSeconds(selectedLog.startedAt) }}</DialogDescription>
         </DialogHeader>
 
-        <div class="grid min-w-0 grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
+        <div v-if="!isServiceProvision && !isPenalty" class="grid min-w-0 grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
           <div>
             <div class="text-muted-foreground">{{ t('sync.logs.fetched') }}</div>
             <div>{{ selectedLog.fetchedCount ?? '—' }}</div>
@@ -189,7 +208,7 @@ onUnmounted(() => clearTimeout(pollTimeout))
         <!-- Разбивка по шагам — только у точечной синхронизации физлица (details
              заполняется лишь там, см. IndividualSyncService), раскрыта сразу при
              открытии модалки (default-open), в отличие от errorStack выше. -->
-        <Collapsible v-if="selectedLog.details && !isServiceProvision" default-open v-slot="{ open }">
+        <Collapsible v-if="selectedLog.details && !isServiceProvision && !isPenalty" default-open v-slot="{ open }">
           <CollapsibleTrigger class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ChevronRight class="size-4 shrink-0 text-primary transition-transform" :class="{ 'rotate-90': open }" />
             {{ t('sync.logs.moreByTables') }}
@@ -212,6 +231,32 @@ onUnmounted(() => clearTimeout(pollTimeout))
                   v-if="stats.records?.length"
                   class="overflow-auto rounded-md bg-muted p-2 text-xs whitespace-pre-wrap break-words"
                 >{{ JSON.stringify(stats.records, null, 2) }}</pre>
+              </div>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+        <Collapsible v-else-if="selectedLog.details && isPenalty" default-open v-slot="{ open }">
+          <CollapsibleTrigger class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+            <ChevronRight class="size-4 shrink-0 text-primary transition-transform" :class="{ 'rotate-90': open }" />
+            {{ t('sync.logs.penaltyResult') }}
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div class="mt-2 grid gap-3 rounded-md border p-3 text-sm sm:grid-cols-2">
+              <div>
+                <div class="text-muted-foreground">{{ t('sync.logs.penaltyOperation') }}</div>
+                <div>{{ penaltyDetails.operation }}</div>
+              </div>
+              <div>
+                <div class="text-muted-foreground">{{ t('sync.logs.penaltyProcessedContracts') }}</div>
+                <div>{{ penaltyDetails.processedContracts ?? '—' }}</div>
+              </div>
+              <div>
+                <div class="text-muted-foreground">{{ t('sync.logs.penaltyRowsCreated') }}</div>
+                <div>{{ penaltyDetails.penaltyRowsCreated ?? '—' }}</div>
+              </div>
+              <div>
+                <div class="text-muted-foreground">{{ t('sync.logs.penaltyTotalAdded') }}</div>
+                <div>{{ formatMoney(penaltyDetails.totalAdded) }}</div>
               </div>
             </div>
           </CollapsibleContent>
