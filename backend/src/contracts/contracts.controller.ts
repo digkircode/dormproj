@@ -39,6 +39,7 @@ import { CONTRACT_STATUS_LABELS } from './contract-display-status';
 import { buildContractHomeSummary } from './contract-home-summary';
 import { ContractStatus } from '../../generated/prisma/client.js';
 import { zodErrorMessage } from '../i18n/zod-error-message';
+import { roomAvailability } from './room-capacity';
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -179,6 +180,15 @@ export class ContractsController {
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
   ) {}
+
+  @Get('room-availability')
+  async availability(@Query() query: unknown) {
+    const parsed = z.object({ roomId: z.coerce.number().int().positive(), startDate: z.coerce.date(), endDate: z.coerce.date() })
+      .refine((v) => v.endDate >= v.startDate).safeParse(query);
+    if (!parsed.success) throw new BadRequestException(zodErrorMessage(parsed.error));
+    const { roomId, startDate, endDate } = parsed.data;
+    return roomAvailability(this.prisma, roomId, startDate, endDate);
+  }
 
   @Get()
   async list(
@@ -446,7 +456,9 @@ export class ContractsController {
   async create(@Body() body: unknown, @Req() req: Request) {
     const parsed = createContractSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException(zodErrorMessage(parsed.error));
+      const fieldErrors = Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0]),
+        issue.code === 'custom' ? issue.message : 'Проверьте значение поля']));
+      throw new BadRequestException({ message: 'Проверьте корректность введённых данных', fieldErrors });
     }
     const data = parsed.data;
     if (!req.user) {
@@ -455,11 +467,11 @@ export class ContractsController {
 
     const individual = await this.prisma.individual.findUnique({ where: { fizicheskoyeLitsoUid: data.residentIndividualUid } });
     if (!individual) {
-      throw new NotFoundException('contracts.errors.individualNotFound');
+      throw new NotFoundException({ message: 'Проживающий не найден', fieldErrors: { residentIndividualUid: 'Выберите проживающего заново' } });
     }
     const room = await this.prisma.room.findUnique({ where: { id: data.roomId } });
     if (!room) {
-      throw new NotFoundException('contracts.errors.roomNotFound');
+      throw new NotFoundException({ message: 'Комната не найдена', fieldErrors: { roomId: 'Выберите комнату заново' } });
     }
 
     // Стоимость комнаты в характеристике — это полный месячный платёж: найм +
@@ -504,23 +516,29 @@ export class ContractsController {
     // клиента, но источниками истины служат карточка комнаты и карточка общежития.
     // У посуточной комнаты обе месячные части равны нулю.
     if (!isDailyOnlyRoom && (roomPriceCharacteristic === null || roomPriceCharacteristic.valueNumber === null)) {
-      throw new BadRequestException('contracts.errors.roomPriceNotConfigured');
+      throw new BadRequestException({ message: 'Не настроена стоимость комнаты', fieldErrors: { roomCost: 'Настройте цену для категории проживающего в карточке комнаты' } });
     }
     if (!isDailyOnlyRoom && (dormitoryInfo === null || dormitoryInfo.communalServicesCost === null)) {
-      throw new BadRequestException('contracts.errors.communalServicesCostNotConfigured');
+      throw new BadRequestException({ message: 'Не настроены коммунальные услуги', fieldErrors: { roomCost: 'Укажите стоимость коммунальных услуг в карточке общежития' } });
     }
     const roomCost = data.roomCost !== undefined
       ? new Prisma.Decimal(data.roomCost)
       : roomPriceCharacteristic?.valueNumber ?? new Prisma.Decimal(0);
     const utilitiesAmount = isDailyOnlyRoom ? new Prisma.Decimal(0) : dormitoryInfo!.communalServicesCost!;
     if (utilitiesAmount.greaterThan(roomCost)) {
-      throw new BadRequestException('contracts.errors.communalServicesCostExceedsRoomCost');
+      throw new BadRequestException({ message: 'Стоимость ниже коммунальной части', fieldErrors: { roomCost: 'Стоимость не может быть меньше коммунальных услуг' } });
     }
     const rentAmount = isDailyOnlyRoom ? new Prisma.Decimal(0) : roomCost.minus(utilitiesAmount);
     const dailyRateAmount = new Prisma.Decimal(data.dailyRateAmount);
 
     try {
       return await this.prisma.$transaction(async (tx) => {
+        // Serialize bookings for this room before reading occupancy (READ COMMITTED).
+        await tx.$queryRaw`SELECT id FROM rooms WHERE id = ${data.roomId} FOR UPDATE`;
+        const { capacity, occupied } = await roomAvailability(tx, data.roomId, data.startDate, data.endDate);
+        if (occupied >= capacity) {
+          throw new BadRequestException({ message: 'Нет свободных мест на выбранный период', fieldErrors: { roomId: `Все места заняты на часть выбранного периода (мест: ${capacity})` } });
+        }
         const createdByUserId = await ensureUserRecord(tx, req.user!);
 
         // Снимок личных данных проживающего на момент подписания — печать договора
@@ -569,20 +587,6 @@ export class ContractsController {
           },
         });
 
-        // Пересечение по датам с уже существующим заселением в эту же комнату — двух
-        // активных договоров на одну комнату с перекрывающимися периодами быть не должно.
-        // toDate: null — заселение ещё не закрыто (действующий договор или неотслеженный
-        // EXPIRED, см. известную проблему в промпте проекта), считаем его открытым до бесконечности.
-        const overlapping = await tx.roomAssignment.findFirst({
-          where: {
-            roomId: data.roomId,
-            fromDate: { lte: data.endDate },
-            OR: [{ toDate: null }, { toDate: { gte: data.startDate } }],
-          },
-        });
-        if (overlapping) {
-          throw new BadRequestException('contracts.errors.roomAlreadyOccupied');
-        }
 
         await tx.roomAssignment.create({
           data: { contractId: contract.id, roomId: data.roomId, fromDate: data.startDate },
@@ -667,7 +671,7 @@ export class ContractsController {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new BadRequestException('contracts.errors.numberAlreadyExists');
+        throw new BadRequestException({ message: 'Договор с таким номером уже существует', fieldErrors: { number: 'Этот номер уже занят' } });
       }
       throw error;
     }

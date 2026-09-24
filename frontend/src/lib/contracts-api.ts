@@ -307,8 +307,8 @@ export async function createContract(input: CreateContractInput): Promise<{ id: 
     body: JSON.stringify(input),
   })
   if (!response.ok) {
-    const body: { message?: string } = await response.json().catch(() => ({}))
-    throw new Error(body.message ?? i18n.global.t('contracts.errors.createFailed', { status: response.status }))
+    const body: { message?: string; fieldErrors?: Record<string, string> } = await response.json().catch(() => ({}))
+    throw Object.assign(new Error(body.message ?? i18n.global.t('contracts.errors.createFailed', { status: response.status })), { fieldErrors: body.fieldErrors })
   }
   return response.json()
 }
