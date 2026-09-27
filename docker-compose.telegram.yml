@@ -1,0 +1,5 @@
+services:
+  backend:
+    env_file:
+      - path: ${TELEGRAM_ENV_FILE:?Telegram environment file is required}
+        required: true

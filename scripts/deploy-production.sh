@@ -16,6 +16,17 @@ unset GHCR_TOKEN
 compose=(docker compose --project-name dormproj --project-directory "$DEPLOY_ROOT"
   --env-file "$DEPLOY_ROOT/.env" -f "$DEPLOY_ROOT/.releases/$RELEASE_SHA/docker-compose.yml")
 
+# The bot is optional. Its secrets live outside the repository and are added to
+# the backend only when the complete server-side file has been provisioned.
+TELEGRAM_ENV_FILE="$DEPLOY_ROOT/.secrets/telegram.env"
+if [ -f "$TELEGRAM_ENV_FILE" ]; then
+  for key in TELEGRAM_BOT_TOKEN TELEGRAM_BOT_USERNAME TELEGRAM_WEBHOOK_SECRET; do
+    grep -qE "^${key}=.+$" "$TELEGRAM_ENV_FILE" || { echo "Incomplete Telegram configuration: $key" >&2; exit 1; }
+  done
+  export TELEGRAM_ENV_FILE
+  compose+=(-f "$DEPLOY_ROOT/.releases/$RELEASE_SHA/docker-compose.telegram.yml")
+fi
+
 # Download sequentially while the current application continues serving requests.
 "${compose[@]}" pull backend
 "${compose[@]}" pull frontend
