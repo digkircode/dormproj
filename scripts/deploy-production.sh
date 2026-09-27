@@ -22,6 +22,16 @@ compose=(docker compose --project-name dormproj --project-directory "$DEPLOY_ROO
 # Apply idempotent Prisma migrations with the new backend image before switching traffic.
 "${compose[@]}" run --rm --no-deps -T backend ./node_modules/.bin/prisma migrate deploy
 # No compilation or database recreation on the production server.
-"${compose[@]}" up -d --no-build --pull never --no-deps --wait --wait-timeout 180 backend
+previous_backend_container=$("${compose[@]}" ps -q backend)
+previous_backend_image=''
+if [ -n "$previous_backend_container" ]; then
+  previous_backend_image=$(docker inspect --format '{{.Config.Image}}' "$previous_backend_container")
+fi
+if ! "${compose[@]}" up -d --no-build --pull never --no-deps --wait --wait-timeout 180 backend; then
+  if [ -n "$previous_backend_image" ]; then
+    BACKEND_IMAGE="$previous_backend_image" "${compose[@]}" up -d --no-build --pull never --no-deps --wait --wait-timeout 180 backend || true
+  fi
+  exit 1
+fi
 "${compose[@]}" up -d --no-build --pull never --no-deps --wait --wait-timeout 90 frontend
 "${compose[@]}" ps
