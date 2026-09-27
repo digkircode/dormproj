@@ -105,7 +105,7 @@ function onSelect(value: DateValue | undefined) {
   <div class="relative flex items-center">
     <input
       :value="text"
-      :placeholder="placeholder ?? 'дд.мм.гггг'"
+      :placeholder="placeholder ?? t('datePicker.placeholder')"
       :class="cn(INPUT_CLASS, 'pr-9', invalid ? 'border-red-500' : '')"
       @input="onTextInput"
       @blur="commitText"

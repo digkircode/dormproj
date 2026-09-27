@@ -16,7 +16,7 @@ import { OKSM_COUNTRIES } from '@/lib/citizenship-list'
 import { blockNonDigitKeys, formatSnils, formatSubdivisionCode, isValidEmailFormat, parseApiError } from '@/lib/utils'
 
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 // Тот же fade-переход открытия/закрытия, что у остальных диалогов (CreateContractDialog.vue).
 const DIALOG_ANIMATE_CLASS =
@@ -251,7 +251,7 @@ async function submitCreate() {
             <div class="grid grid-cols-2 gap-4">
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.createDialog.phone') }}</Label>
-                <PhoneInput ref="phoneInputRef" v-model="phone" required />
+                <PhoneInput :key="locale" ref="phoneInputRef" v-model="phone" required />
               </div>
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.email') }}</Label>

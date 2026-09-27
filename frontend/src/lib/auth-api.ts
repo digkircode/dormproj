@@ -1,4 +1,5 @@
 import { apiFetch, apiUrl } from './api-base'
+import { i18n } from '@/i18n'
 
 // Стабильные ключи ролей (roles.name в БД, см. backend/src/auth/types.ts) — не для
 // отображения. Первый этап ролевой модели: только сами роли и назначение, без своего
@@ -34,7 +35,7 @@ export async function fetchCurrentUser(): Promise<SessionUser | null> {
     return null
   }
   if (!response.ok) {
-    throw new Error(`Не удалось получить данные пользователя (${response.status})`)
+    throw new Error(i18n.global.t('errors.fetchUserFailed', { status: response.status }))
   }
   return response.json()
 }

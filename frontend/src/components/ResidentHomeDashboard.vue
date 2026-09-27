@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import CreatePaymentDialog from '@/components/CreatePaymentDialog.vue'
 import AnnouncementReadDialog from '@/components/AnnouncementReadDialog.vue'
 import AllAnnouncementsDialog from '@/components/AllAnnouncementsDialog.vue'
+import ResidentNotificationsCard from '@/components/ResidentNotificationsCard.vue'
 import { fetchMyContractHomeSummary, type MyContractHomeSummary } from '@/lib/contracts-api'
 import { fetchMyAnnouncements, type ResidentAnnouncement } from '@/lib/announcements-api'
 import { residentUnreadCount } from '@/lib/chat-unread-state'
@@ -405,6 +406,7 @@ function formatDate(value: string): string {
     </div>
 
     <AnnouncementReadDialog ref="announcementReadDialog" @read="markAnnouncementAsRead" />
+    <ResidentNotificationsCard v-if="!props.demo" />
     <AllAnnouncementsDialog ref="allAnnouncementsDialog" :announcements="announcements" @read="markAnnouncementAsRead" />
   </div>
 </template>

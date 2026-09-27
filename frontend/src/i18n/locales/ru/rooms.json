@@ -60,6 +60,13 @@
       "confirmDelete": "Да, удалить"
     },
     "detail": {
+      "dormitoryFields": {
+        "communalServicesCost": "Коммунальные услуги",
+        "dailyPaymentInternal": "Суточная оплата (Вн. вуз.)",
+        "dailyPaymentOther": "Суточная оплата (Другой вуз.)",
+        "passRestorationCost": "Восстановление пропускного документа",
+        "guestRoomDailyRate": "Гостевая стоимость (сутки)"
+      },
       "dormitoryTitle": "Общежитие РосНОУ",
       "deleteRoom": "Удалить комнату",
       "roomPlaceholder": "Комната",

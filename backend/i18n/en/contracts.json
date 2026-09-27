@@ -23,6 +23,20 @@
     "numberAlreadyExists": "A contract with this number already exists",
     "endDateBeforeStartDate": "The move-out date is earlier than the move-in date",
     "hasPaymentsCannotDelete": "Payments have already been made on this contract — deletion is unavailable",
-    "contractsNotFound": "One or more contracts not found"
+    "contractsNotFound": "One or more contracts not found",
+    "checkFields": "Please check the entered data",
+    "invalidField": "Check the field value",
+    "parentNameRequired": "Enter the parent's full name",
+    "parentPhoneRequired": "Enter the parent's phone number",
+    "selectResidentAgain": "Select the resident again",
+    "selectRoomAgain": "Select the room again",
+    "setRoomPrice": "Set the price for this resident category on the room page",
+    "setUtilitiesCost": "Set the utilities cost on the dormitory page",
+    "roomCostBelowUtilities": "The room cost cannot be less than the utilities cost",
+    "noAvailablePlaces": "No places available for the selected period",
+    "capacityOccupied": "All places are occupied during part of the selected period (capacity: {capacity})",
+    "numberTaken": "This number is already in use",
+    "capacityMissing": "Set the number of places on the room page",
+    "capacityNotConfigured": "The number of places is not configured on the room page"
   }
 }

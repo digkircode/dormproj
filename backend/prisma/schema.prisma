@@ -262,6 +262,7 @@ model User {
   // Заполняется/обновляется автоматически при каждом логине из фолбека rosnou-id
   // (SessionUser.email, см. auth.controller.ts) — не из формы, своего UI на это поле нет.
   email    String?
+  notificationLocale String @default("ru") @map("notification_locale")
 
   individual Individual? @relation(fields: [univerId], references: [fizicheskoyeLitsoUid], onDelete: SetNull)
 
@@ -272,6 +273,8 @@ model User {
   chatMessages         ChatMessage[]
   announcementsCreated Announcement[]
   announcementReads    AnnouncementRead[]
+  notificationLinks    NotificationLink[]
+  notificationDeliveries NotificationDelivery[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1135,4 +1138,69 @@ model AnnouncementRead {
   @@unique([announcementId, userId])
   @@index([userId])
   @@map("announcement_reads")
+}
+
+enum NotificationChannel {
+  TELEGRAM
+  MAX
+}
+
+enum NotificationKind {
+  ANNOUNCEMENT
+  CHAT
+}
+
+enum NotificationStatus {
+  PENDING
+  PROCESSING
+  SENT
+  SKIPPED
+  FAILED
+}
+
+model NotificationLink {
+  id             Int                 @id @default(autoincrement())
+  userId         Int                 @map("user_id")
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel        NotificationChannel
+  externalId     String              @map("external_id")
+  enabled        Boolean             @default(true)
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+
+  @@unique([userId, channel])
+  @@unique([channel, externalId])
+  @@map("notification_links")
+}
+
+model NotificationLinkToken {
+  id         Int                 @id @default(autoincrement())
+  userId     Int                 @map("user_id")
+  channel    NotificationChannel
+  tokenHash  String              @unique @map("token_hash")
+  expiresAt  DateTime            @map("expires_at")
+  createdAt  DateTime            @default(now()) @map("created_at")
+
+  @@index([userId, channel])
+  @@map("notification_link_tokens")
+}
+
+model NotificationDelivery {
+  id             Int                 @id @default(autoincrement())
+  userId         Int                 @map("user_id")
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel        NotificationChannel
+  kind           NotificationKind
+  sourceId       Int                 @map("source_id")
+  status         NotificationStatus  @default(PENDING)
+  dueAt          DateTime            @map("due_at")
+  attempts       Int                 @default(0)
+  lastError      String?             @map("last_error")
+  providerId     String?             @map("provider_id")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+
+  @@unique([userId, channel, kind, sourceId])
+  @@index([status, dueAt])
+  @@map("notification_deliveries")
 }

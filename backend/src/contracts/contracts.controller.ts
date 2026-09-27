@@ -17,6 +17,7 @@ import type { Request, Response } from 'express';
 import archiver from 'archiver';
 import { PDFDocument } from 'pdf-lib';
 import { z } from 'zod';
+import { I18nContext } from 'nestjs-i18n';
 import { Prisma } from '../../generated/prisma/client.js';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -103,18 +104,18 @@ const createContractSchema = z
     ...legalRepFields,
     ...matCapitalFields,
   })
-  .refine((data) => data.endDate >= data.startDate, { message: 'Дата окончания раньше даты начала', path: ['endDate'] })
+  .refine((data) => data.endDate >= data.startDate, { message: 'contracts.errors.endDateBeforeStartDate', path: ['endDate'] })
   // ФИО и телефон родителя обязательны у ЛЮБОГО договора, не только у несовершеннолетнего
   // (форма CreateContractDialog.vue требует их всегда, см. legalRepNameInvalid/phoneValid
   // там) — раньше эта проверка была только на фронте, legalRepFields сами по себе nullish,
   // прямой POST /contracts мимо формы мог создать договор вообще без данных родителя.
   // Добавлено по прямой просьбе 2026-08-26 при разборе уязвимостей проекта.
   .refine((data) => (data.legalRepName?.trim().length ?? 0) > 0, {
-    message: 'Укажите ФИО родителя',
+    message: 'contracts.errors.parentNameRequired',
     path: ['legalRepName'],
   })
   .refine((data) => (data.legalRepPhone?.trim().length ?? 0) > 0, {
-    message: 'Укажите телефон родителя',
+    message: 'contracts.errors.parentPhoneRequired',
     path: ['legalRepPhone'],
   });
 
@@ -457,8 +458,8 @@ export class ContractsController {
     const parsed = createContractSchema.safeParse(body);
     if (!parsed.success) {
       const fieldErrors = Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0]),
-        issue.code === 'custom' ? issue.message : 'Проверьте значение поля']));
-      throw new BadRequestException({ message: 'Проверьте корректность введённых данных', fieldErrors });
+        issue.code === 'custom' ? issue.message : 'contracts.errors.invalidField']));
+      throw new BadRequestException({ message: 'contracts.errors.checkFields', fieldErrors });
     }
     const data = parsed.data;
     if (!req.user) {
@@ -467,11 +468,11 @@ export class ContractsController {
 
     const individual = await this.prisma.individual.findUnique({ where: { fizicheskoyeLitsoUid: data.residentIndividualUid } });
     if (!individual) {
-      throw new NotFoundException({ message: 'Проживающий не найден', fieldErrors: { residentIndividualUid: 'Выберите проживающего заново' } });
+      throw new NotFoundException({ message: 'contracts.errors.individualNotFound', fieldErrors: { residentIndividualUid: 'contracts.errors.selectResidentAgain' } });
     }
     const room = await this.prisma.room.findUnique({ where: { id: data.roomId } });
     if (!room) {
-      throw new NotFoundException({ message: 'Комната не найдена', fieldErrors: { roomId: 'Выберите комнату заново' } });
+      throw new NotFoundException({ message: 'contracts.errors.roomNotFound', fieldErrors: { roomId: 'contracts.errors.selectRoomAgain' } });
     }
 
     // Стоимость комнаты в характеристике — это полный месячный платёж: найм +
@@ -516,17 +517,17 @@ export class ContractsController {
     // клиента, но источниками истины служат карточка комнаты и карточка общежития.
     // У посуточной комнаты обе месячные части равны нулю.
     if (!isDailyOnlyRoom && (roomPriceCharacteristic === null || roomPriceCharacteristic.valueNumber === null)) {
-      throw new BadRequestException({ message: 'Не настроена стоимость комнаты', fieldErrors: { roomCost: 'Настройте цену для категории проживающего в карточке комнаты' } });
+      throw new BadRequestException({ message: 'contracts.errors.roomPriceNotConfigured', fieldErrors: { roomCost: 'contracts.errors.setRoomPrice' } });
     }
     if (!isDailyOnlyRoom && (dormitoryInfo === null || dormitoryInfo.communalServicesCost === null)) {
-      throw new BadRequestException({ message: 'Не настроены коммунальные услуги', fieldErrors: { roomCost: 'Укажите стоимость коммунальных услуг в карточке общежития' } });
+      throw new BadRequestException({ message: 'contracts.errors.communalServicesCostNotConfigured', fieldErrors: { roomCost: 'contracts.errors.setUtilitiesCost' } });
     }
     const roomCost = data.roomCost !== undefined
       ? new Prisma.Decimal(data.roomCost)
       : roomPriceCharacteristic?.valueNumber ?? new Prisma.Decimal(0);
     const utilitiesAmount = isDailyOnlyRoom ? new Prisma.Decimal(0) : dormitoryInfo!.communalServicesCost!;
     if (utilitiesAmount.greaterThan(roomCost)) {
-      throw new BadRequestException({ message: 'Стоимость ниже коммунальной части', fieldErrors: { roomCost: 'Стоимость не может быть меньше коммунальных услуг' } });
+      throw new BadRequestException({ message: 'contracts.errors.communalServicesCostExceedsRoomCost', fieldErrors: { roomCost: 'contracts.errors.roomCostBelowUtilities' } });
     }
     const rentAmount = isDailyOnlyRoom ? new Prisma.Decimal(0) : roomCost.minus(utilitiesAmount);
     const dailyRateAmount = new Prisma.Decimal(data.dailyRateAmount);
@@ -537,7 +538,7 @@ export class ContractsController {
         await tx.$queryRaw`SELECT id FROM rooms WHERE id = ${data.roomId} FOR UPDATE`;
         const { capacity, occupied } = await roomAvailability(tx, data.roomId, data.startDate, data.endDate);
         if (occupied >= capacity) {
-          throw new BadRequestException({ message: 'Нет свободных мест на выбранный период', fieldErrors: { roomId: `Все места заняты на часть выбранного периода (мест: ${capacity})` } });
+          throw new BadRequestException({ message: 'contracts.errors.noAvailablePlaces', fieldErrors: { roomId: I18nContext.current()?.t('contracts.errors.capacityOccupied', { args: { capacity } }) ?? `Все места заняты на часть выбранного периода (мест: ${capacity})` } });
         }
         const createdByUserId = await ensureUserRecord(tx, req.user!);
 
@@ -671,7 +672,7 @@ export class ContractsController {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new BadRequestException({ message: 'Договор с таким номером уже существует', fieldErrors: { number: 'Этот номер уже занят' } });
+        throw new BadRequestException({ message: 'contracts.errors.numberAlreadyExists', fieldErrors: { number: 'contracts.errors.numberTaken' } });
       }
       throw error;
     }

@@ -19,6 +19,8 @@ compose=(docker compose --project-name dormproj --project-directory "$DEPLOY_ROO
 # Download sequentially while the current application continues serving requests.
 "${compose[@]}" pull backend
 "${compose[@]}" pull frontend
+# Apply idempotent Prisma migrations with the new backend image before switching traffic.
+"${compose[@]}" run --rm --no-deps -T backend ./node_modules/.bin/prisma migrate deploy
 # No compilation or database recreation on the production server.
 "${compose[@]}" up -d --no-build --pull never --no-deps --wait --wait-timeout 180 backend
 "${compose[@]}" up -d --no-build --pull never --no-deps --wait --wait-timeout 90 frontend

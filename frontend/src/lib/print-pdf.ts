@@ -7,6 +7,8 @@
 // iframe не display:none — в части браузеров скрытый через display:none iframe не
 // печатает вообще (известная особенность, не баг в этом коде) — вместо этого уводим его
 // за пределы экрана 1x1px, оставляя реально отрендеренным.
+import { i18n } from '@/i18n'
+
 const PRINT_IFRAME_CLEANUP_MS = 60_000;
 
 export async function printPdfBlob(blob: Blob): Promise<void> {
@@ -23,12 +25,12 @@ export async function printPdfBlob(blob: Blob): Promise<void> {
 
   await new Promise<void>((resolve, reject) => {
     iframe.onload = () => resolve()
-    iframe.onerror = () => reject(new Error('Не удалось загрузить PDF для печати'))
+    iframe.onerror = () => reject(new Error(i18n.global.t('errors.printPdfLoadFailed')))
     document.body.appendChild(iframe)
   })
 
   const win = iframe.contentWindow
-  if (!win) throw new Error('Не удалось открыть окно печати')
+  if (!win) throw new Error(i18n.global.t('errors.printWindowFailed'))
   win.focus()
   win.print()
 

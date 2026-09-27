@@ -141,7 +141,7 @@ async function saveDormitoryField(field: (typeof DORMITORY_INFO_FIELDS)[number])
   } else {
     const num = Number(raw)
     if (!Number.isFinite(num)) {
-      dormitoryFieldErrors[field.key] = t('rooms.detail.fieldMustBeNumber', { name: field.name })
+      dormitoryFieldErrors[field.key] = t('rooms.detail.fieldMustBeNumber', { name: t(`rooms.detail.dormitoryFields.${field.key}`) })
       return
     }
     value = num
@@ -545,7 +545,7 @@ async function confirmDeleteValue() {
               class="flex items-center justify-between gap-2 px-3 py-2 text-sm"
               :class="index > 0 ? 'border-t border-border' : ''"
             >
-              <span class="shrink-0 text-muted-foreground">{{ field.name }}</span>
+              <span class="shrink-0 text-muted-foreground">{{ t(`rooms.detail.dormitoryFields.${field.key}`) }}</span>
               <div class="flex shrink-0 items-center gap-1.5">
                 <input
                   v-model="dormitoryEditValues[field.key]"

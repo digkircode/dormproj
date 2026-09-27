@@ -4,9 +4,10 @@ import { ChatsController } from './chats.controller';
 import { MyChatController } from './my-chat.controller';
 import { ChatEventsService } from './chat-events.service';
 import { ChatRateLimiterService } from './chat-rate-limiter.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, NotificationsModule],
   controllers: [ChatsController, MyChatController],
   providers: [ChatEventsService, ChatRateLimiterService],
 })

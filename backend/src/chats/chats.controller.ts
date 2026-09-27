@@ -40,6 +40,7 @@ import {
 } from './chat-attachments-storage';
 import { cleanupUploadedFiles, validateAttachmentSizes, type ValidatedAttachment } from './chat-attachments';
 import { isMessageRead } from './chat-read-status';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const MAX_BODY_LENGTH = 4000;
 // Размер страницы истории сообщений — и первая загрузка, и подгрузка по скроллу вверх
@@ -108,6 +109,7 @@ export class ChatsController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: ChatEventsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   @Get()
@@ -241,6 +243,7 @@ export class ChatsController {
               attachments: { create: attachmentsPerRecipient[i] },
             },
           });
+          await this.notifications.enqueueChat(tx, message.id, recipient.individualUid);
           created.push({ conversationId: conversation.id, individualUid: recipient.individualUid, messageId: message.id });
         }
 
@@ -392,6 +395,7 @@ export class ChatsController {
           where: { id: conversationId },
           data: { lastMessageAt: now, staffLastReadAt: now },
         });
+        await this.notifications.enqueueChat(tx, created.id, conversation.individualUid);
         return { message: created, individualUid: conversation.individualUid };
       });
 

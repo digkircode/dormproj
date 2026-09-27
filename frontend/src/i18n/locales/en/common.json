@@ -125,7 +125,13 @@
       "chatCta": "Write a message",
       "announcementsHeading": "Announcements",
       "announcementsEmpty": "No announcements yet",
-      "announcementsSeeAll": "All announcements"
+      "announcementsSeeAll": "All announcements",
+      "notificationsHeading": "Messenger notifications",
+      "notificationsDescription": "Connect a bot to get new announcements right away and staff messages in one digest after a pause. Text appears in the bot; photos and videos open through a link to your account. You can disconnect each channel separately.",
+      "notificationsConnect": "Connect",
+      "notificationsDisconnect": "Disconnect",
+      "notificationsSoon": "Coming soon",
+      "notificationsError": "Could not update notification settings"
     }
   },
   "roomInfo": {
@@ -137,7 +143,8 @@
     "no": "No"
   },
   "datePicker": {
-    "openCalendar": "Open calendar"
+    "openCalendar": "Open calendar",
+    "placeholder": "dd.mm.yyyy"
   },
   "footer": {
     "copyright": "© 1991–2026 Russian New University"
@@ -149,6 +156,11 @@
   },
   "errors": {
     "tooManyRequests": "Too many requests — please wait a moment and try again",
-    "checkDataFields": "Please check the data you entered"
+    "checkDataFields": "Please check the data you entered",
+    "fetchUserFailed": "Could not load user details ({status})",
+    "fetchListFailed": "Could not load data ({status})",
+    "fetchFacetsFailed": "Could not load filter values ({status})",
+    "printPdfLoadFailed": "Could not load the PDF for printing",
+    "printWindowFailed": "Could not open the print window"
   }
 }

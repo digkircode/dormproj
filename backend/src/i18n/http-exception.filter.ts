@@ -29,6 +29,9 @@ export class I18nHttpExceptionFilter implements ExceptionFilter {
     const translate = (value: unknown) => (typeof value === 'string' ? this.i18n.translate(value, { lang }) : value);
     const raw = (body as { message: unknown }).message;
     const message = Array.isArray(raw) ? raw.map(translate) : translate(raw);
-    response.status(status).json({ ...body, message });
+    const fieldErrors = 'fieldErrors' in body && typeof body.fieldErrors === 'object' && body.fieldErrors !== null
+      ? Object.fromEntries(Object.entries(body.fieldErrors).map(([field, value]) => [field, translate(value)]))
+      : undefined;
+    response.status(status).json({ ...body, message, ...(fieldErrors ? { fieldErrors } : {}) });
   }
 }

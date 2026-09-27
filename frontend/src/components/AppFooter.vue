@@ -12,6 +12,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import type { AppLocale } from '@/i18n'
 import { LOCALE_STORAGE_KEY } from '@/i18n'
+import { currentUser } from '@/lib/auth-state'
+import { syncNotificationLocale } from '@/lib/notifications-api'
 
 // Названия языков в списке — всегда на самих себе ("Русский"/"English"), не переводятся
 // вместе с остальным интерфейсом: стандартный паттерн для переключателя языка, человек,
@@ -32,6 +34,10 @@ watch(locale, (value) => {
     // localStorage может быть недоступен (приватный режим и т.п.) — выбор просто не переживёт перезагрузку
   }
   document.documentElement.lang = value
+}, { immediate: true })
+
+watch([locale, currentUser], ([value, user]) => {
+  if (user?.roles?.includes('RESIDENT')) void syncNotificationLocale(value as AppLocale).catch(() => {})
 }, { immediate: true })
 
 // Пути и брендовые цвета — из simple-icons (VK 0077FF, Telegram 26A5E4). У себя

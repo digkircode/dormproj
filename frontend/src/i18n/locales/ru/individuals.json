@@ -1,5 +1,16 @@
 {
   "individuals": {
+    "apiErrors": {
+      "createFailed": "Не удалось создать физическое лицо ({status})",
+      "fetchFailed": "Не удалось получить данные физлица ({status})",
+      "mappingFailed": "Не удалось сохранить сопоставление ({status})",
+      "updateFailed": "Не удалось сохранить изменения ({status})",
+      "historyFailed": "Не удалось получить историю изменений ({status})",
+      "syncFailed": "Не удалось синхронизировать физлицо ({status})",
+      "mergeCandidatesFailed": "Не удалось получить кандидатов на объединение ({status})",
+      "mergeFailed": "Не удалось объединить физлица ({status})",
+      "unmergeFailed": "Не удалось отменить объединение ({status})"
+    },
     "systemTables": {
       "back": "Назад",
       "colFullName": "ФИО",

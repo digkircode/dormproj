@@ -74,9 +74,9 @@ const staff: StaffPerson[] = [
 
 const ddm = computed(() => [
   { icon: MapPin, label: t('student.contactsAdmin.addressLabel'), value: 'г. Москва, ул. Радио, д. 22, каб. 801' },
-  { icon: Phone, label: t('student.contactsAdmin.phoneLabel'), value: '+7 (495) 925-03-71 (вн. 211)' },
+  { icon: Phone, label: t('student.contactsAdmin.phoneLabel'), value: t('student.contactsAdmin.extensionPhone') },
   { icon: Mail, label: t('student.contactsAdmin.emailLabel'), value: 'ddm@rosnou.ru, hostel@rosnou.ru' },
-  { icon: Clock, label: t('student.contactsAdmin.hoursLabel'), value: 'Пн–Пт 10:00–18:00' },
+  { icon: Clock, label: t('student.contactsAdmin.hoursLabel'), value: t('student.contactsAdmin.weekdayHours') },
 ])
 
 const ddmStaff: StaffPerson[] = [

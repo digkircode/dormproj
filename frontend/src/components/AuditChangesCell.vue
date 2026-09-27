@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import type { AuditLogRow } from '@/lib/audit-log-api'
+import { dateLocaleTag } from '@/lib/format-locale'
 
 const props = defineProps<{ value: unknown; row: AuditLogRow }>()
 
@@ -25,13 +26,12 @@ function formatValue(value: unknown, field: string): string {
   if (value === null || value === undefined || value === '') return '—'
   if (typeof value === 'boolean') return value ? t('boolean.yes') : t('boolean.no')
   if (field === '_penaltyTotal' && typeof value === 'number') {
-    return `${new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)} ₽`
+    return `${new Intl.NumberFormat(dateLocaleTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)} ₽`
   }
   // ISO-строка (дата/дата-время) — те же паттерны, что и во всём приложении.
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(T|$)/.test(value)) {
     const date = new Date(value)
-    const pad = (n: number) => n.toString().padStart(2, '0')
-    return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
+    return date.toLocaleDateString(dateLocaleTag())
   }
   if (typeof value === 'object') return JSON.stringify(value, null, 2)
   return String(value)

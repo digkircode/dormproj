@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, Clock, DoorClosed, FileText } from 'lucide-vue-next'
@@ -91,6 +91,7 @@ async function onSend(body: string, files: File[]) {
 useChatStream(
   '/my-chat/stream',
   async (event: ChatStreamEvent) => {
+    if (document.visibilityState !== 'visible') return
     if (event.messageId != null && pendingSelfSentIds.delete(event.messageId)) return
     const chat = await fetchMyChat()
     messages.value = appendNewMessages(messages.value, chat.messages)
@@ -100,7 +101,11 @@ useChatStream(
   streamEnabled,
 )
 
-onMounted(load)
+function onVisible() {
+  if (document.visibilityState === 'visible' && streamEnabled.value) void load()
+}
+onMounted(() => { void load(); document.addEventListener('visibilitychange', onVisible) })
+onUnmounted(() => document.removeEventListener('visibilitychange', onVisible))
 </script>
 
 <template>

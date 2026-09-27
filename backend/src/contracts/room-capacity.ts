@@ -9,7 +9,7 @@ export async function roomAvailability(tx: Prisma.TransactionClient, roomId: num
   });
   const capacity = Number(value?.valueNumber ?? 0);
   if (!Number.isSafeInteger(capacity) || capacity < 1) {
-    throw new BadRequestException({ message: 'Укажите количество мест в карточке комнаты', fieldErrors: { roomId: 'В карточке комнаты не настроено количество мест' } });
+    throw new BadRequestException({ message: 'contracts.errors.capacityMissing', fieldErrors: { roomId: 'contracts.errors.capacityNotConfigured' } });
   }
   const stays = await tx.roomAssignment.findMany({
     where: { roomId, fromDate: { lte: end }, OR: [{ toDate: null }, { toDate: { gte: start } }] },

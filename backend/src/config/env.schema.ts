@@ -15,6 +15,12 @@ export const envSchema = z.object({
   ROSNOU_ID_REDIRECT_URI: z.url(),
   FRONTEND_URL: z.url(),
   SESSION_SECRET: z.string().min(32),
+  TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
+  TELEGRAM_BOT_USERNAME: z.string().min(1).optional(),
+  TELEGRAM_WEBHOOK_SECRET: z.string().min(5).optional(),
+  MAX_BOT_TOKEN: z.string().min(1).optional(),
+  MAX_BOT_USERNAME: z.string().min(1).optional(),
+  MAX_WEBHOOK_SECRET: z.string().min(5).optional(),
 
   // Эквайринг ГПБ (онлайн-оплата проживающих, см. acquiring/) — все поля опциональны:
   // пока не заполнены, GazprombankAcquiringProvider.isConfigured() возвращает false и

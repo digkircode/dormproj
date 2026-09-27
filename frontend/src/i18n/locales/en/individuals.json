@@ -1,5 +1,16 @@
 {
   "individuals": {
+    "apiErrors": {
+      "createFailed": "Could not create the individual ({status})",
+      "fetchFailed": "Could not load individual details ({status})",
+      "mappingFailed": "Could not save the mapping ({status})",
+      "updateFailed": "Could not save changes ({status})",
+      "historyFailed": "Could not load change history ({status})",
+      "syncFailed": "Could not sync the individual ({status})",
+      "mergeCandidatesFailed": "Could not load merge candidates ({status})",
+      "mergeFailed": "Could not merge individuals ({status})",
+      "unmergeFailed": "Could not undo the merge ({status})"
+    },
     "systemTables": {
       "back": "Back",
       "colFullName": "Full name",

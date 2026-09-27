@@ -169,7 +169,7 @@ const CELL_TRIGGER_CLASS = cn(
   <div class="relative grid grid-cols-2 gap-5">
     <input
       :value="fromText"
-      placeholder="дд.мм.гггг"
+      :placeholder="t('datePicker.placeholder')"
       :class="cn(INPUT_CLASS, invalid ? 'border-red-500' : '')"
       @input="onFromInput"
       @blur="commitFrom"
@@ -180,7 +180,7 @@ const CELL_TRIGGER_CLASS = cn(
     <div class="relative flex items-center">
       <input
         :value="toText"
-        placeholder="дд.мм.гггг"
+        :placeholder="t('datePicker.placeholder')"
         :class="cn(INPUT_CLASS, 'pr-9', invalid ? 'border-red-500' : '')"
         @input="onToInput"
         @blur="commitTo"

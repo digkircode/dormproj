@@ -60,6 +60,13 @@
       "confirmDelete": "Yes, delete"
     },
     "detail": {
+      "dormitoryFields": {
+        "communalServicesCost": "Utilities",
+        "dailyPaymentInternal": "Daily rate (RosNOU students)",
+        "dailyPaymentOther": "Daily rate (other students)",
+        "passRestorationCost": "Pass replacement cost",
+        "guestRoomDailyRate": "Guest room daily rate"
+      },
       "dormitoryTitle": "RosNOU dormitory",
       "deleteRoom": "Delete room",
       "roomPlaceholder": "Room",

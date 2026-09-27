@@ -21,7 +21,7 @@ import { fetchDormitoryInfo } from '@/lib/dormitory-info-api'
 import { blockNonDigitKeys, blockNonNumericKeys, formatSnils, formatSubdivisionCode, parseApiError } from '@/lib/utils'
 
 const router = useRouter()
-const { t } = useI18n()
+const { t, te, locale } = useI18n()
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
@@ -74,7 +74,7 @@ const endDate = ref('')
 const roomId = ref<number | null>(null)
 const availability = ref<{ capacity: number; available: number } | null>(null)
 const availabilityError = ref('')
-watch([roomId, startDate, endDate], async ([room, start, end], _, onCleanup) => {
+watch([roomId, startDate, endDate, locale], async ([room, start, end], _, onCleanup) => {
   let cancelled = false
   onCleanup(() => { cancelled = true })
   availability.value = null
@@ -86,7 +86,7 @@ watch([roomId, startDate, endDate], async ([room, start, end], _, onCleanup) => 
     if (!response.ok) throw new Error(result.message)
     if (!cancelled) availability.value = result
   } catch (error) {
-    if (!cancelled) availabilityError.value = error instanceof Error ? error.message : 'Не удалось проверить свободные места'
+    if (!cancelled) availabilityError.value = error instanceof Error && error.message ? error.message : t('contracts.createDialog.validation.availabilityFailed')
   }
 })
 // Полная месячная стоимость договора. По умолчанию берётся из карточки комнаты, но
@@ -174,40 +174,45 @@ const isMinor = computed(() => {
 // очищенном поле), а не undefined, и клиентская проверка это не ловит.
 const fieldErrors = ref<Record<string, string>>({})
 const formMessage = computed(() => Object.keys(fieldErrors.value).length > 1
-  ? 'Проверьте корректность введённых данных'
+  ? t('contracts.createDialog.validation.checkFields')
   : Object.keys(fieldErrors.value).length ? '' : dialogError.value)
 const nonnegative = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0
 
 
 function validateFields(phoneValid: boolean) {
   const errors: Record<string, string> = {}
-  if (!number.value.trim()) errors.number = 'Укажите номер договора'
-  if (!contractDate.value) errors.contractDate = 'Укажите дату договора'
-  if (!selectedIndividual.value) errors.residentIndividualUid = 'Выберите проживающего'
-  if (!roomId.value) errors.roomId = 'Выберите комнату'
-  else if (availability.value?.available === 0) errors.roomId = 'Нет свободных мест на выбранный период'
+  if (!number.value.trim()) errors.number = 'numberRequired'
+  if (!contractDate.value) errors.contractDate = 'contractDateRequired'
+  if (!selectedIndividual.value) errors.residentIndividualUid = 'residentRequired'
+  if (!roomId.value) errors.roomId = 'roomRequired'
+  else if (availability.value?.available === 0) errors.roomId = 'noAvailablePlaces'
   else if (availabilityError.value) errors.roomId = availabilityError.value
-  if (!startDate.value) errors.startDate = 'Укажите дату начала'
-  if (!endDate.value) errors.endDate = 'Укажите дату окончания'
-  else if (startDate.value && endDate.value < startDate.value) errors.endDate = 'Не раньше даты начала'
-  if (roomId.value && !nonnegative(roomCost.value)) errors.roomCost = 'Укажите стоимость, не меньше 0'
-  else if (roomId.value && (!nonnegative(rentAmount.value) || utilitiesAmount.value === undefined)) errors.roomCost = 'Проверьте стоимость комнаты и коммунальных услуг'
-  if (roomId.value && dailyRateAmount.value === undefined) errors.roomId = 'Настройте суточную ставку в карточке общежития'
-  if (!legalRepName.value.trim()) errors.legalRepName = 'Укажите ФИО родителя'
-  if (!phoneValid) errors.legalRepPhone = 'Укажите корректный телефон'
+  if (!startDate.value) errors.startDate = 'startDateRequired'
+  if (!endDate.value) errors.endDate = 'endDateRequired'
+  else if (startDate.value && endDate.value < startDate.value) errors.endDate = 'endDateBeforeStart'
+  if (roomId.value && !nonnegative(roomCost.value)) errors.roomCost = 'roomCostRequired'
+  else if (roomId.value && (!nonnegative(rentAmount.value) || utilitiesAmount.value === undefined)) errors.roomCost = 'roomCostBreakdownInvalid'
+  if (roomId.value && dailyRateAmount.value === undefined) errors.roomId = 'dailyRateMissing'
+  if (!legalRepName.value.trim()) errors.legalRepName = 'parentNameRequired'
+  if (!phoneValid) errors.legalRepPhone = 'phoneInvalid'
   if (isMinor.value) {
-    if (!legalRepBirthDate.value) errors.legalRepBirthDate = 'Укажите дату рождения родителя'
-    if (!legalRepPassportNumber.value.trim()) errors.legalRepPassportNumber = 'Укажите номер паспорта'
-    if (!legalRepPassportIssuedAt.value) errors.legalRepPassportIssuedAt = 'Укажите дату выдачи паспорта'
+    if (!legalRepBirthDate.value) errors.legalRepBirthDate = 'parentBirthDateRequired'
+    if (!legalRepPassportNumber.value.trim()) errors.legalRepPassportNumber = 'passportNumberRequired'
+    if (!legalRepPassportIssuedAt.value) errors.legalRepPassportIssuedAt = 'passportIssuedAtRequired'
   }
-  if (dailyRateCategory.value === 'OTHER_UNIVERSITY' && !residenceReason.value.trim()) errors.residenceReason = 'Укажите причину проживания'
+  if (dailyRateCategory.value === 'OTHER_UNIVERSITY' && !residenceReason.value.trim()) errors.residenceReason = 'residenceReasonRequired'
   if (useMatCapital.value) {
-    if (!matCapitalCoveredFrom.value || !matCapitalCoveredTo.value) errors.matCapitalCoveredFrom = 'Укажите начало и конец периода'
-    else if (matCapitalCoveredTo.value < matCapitalCoveredFrom.value) errors.matCapitalCoveredFrom = 'Конец периода раньше начала'
-    if (!nonnegative(matCapitalAmount.value)) errors.matCapitalAmount = 'Укажите сумму, не меньше 0'
-    if (!matCapitalDeferredUntil.value) errors.matCapitalDeferredUntil = 'Укажите дату отсрочки'
+    if (!matCapitalCoveredFrom.value || !matCapitalCoveredTo.value) errors.matCapitalCoveredFrom = 'capitalPeriodRequired'
+    else if (matCapitalCoveredTo.value < matCapitalCoveredFrom.value) errors.matCapitalCoveredFrom = 'capitalPeriodInvalid'
+    if (!nonnegative(matCapitalAmount.value)) errors.matCapitalAmount = 'capitalAmountRequired'
+    if (!matCapitalDeferredUntil.value) errors.matCapitalDeferredUntil = 'deferredUntilRequired'
   }
   fieldErrors.value = errors
+}
+
+function fieldError(value: string | undefined): string {
+  return value && te(`contracts.createDialog.validation.${value}`)
+    ? t(`contracts.createDialog.validation.${value}`) : value ?? ''
 }
 
 // --- Поиск проживающего (SearchSelect) ---
@@ -559,12 +564,12 @@ async function submitCreate() {
               <div class="flex flex-col gap-2">
                 <Label>{{ t('contracts.createDialog.fieldNumber') }}</Label>
                 <Input v-model="number"  :class="[NO_SPINNER_CLASS, fieldErrors.number ? 'border-red-500' : '']" />
-                <p v-if="fieldErrors.number" class="text-xs text-destructive">{{ fieldErrors.number }}</p>
+                <p v-if="fieldErrors.number" class="text-xs text-destructive">{{ fieldError(fieldErrors.number) }}</p>
               </div>
               <div class="flex flex-col gap-2">
                 <Label>{{ t('contracts.createDialog.fieldContractDate') }}</Label>
                 <DatePickerField v-model="contractDate" :invalid="!!fieldErrors.contractDate" />
-                <p v-if="fieldErrors.contractDate" class="text-xs text-destructive">{{ fieldErrors.contractDate }}</p>
+                <p v-if="fieldErrors.contractDate" class="text-xs text-destructive">{{ fieldError(fieldErrors.contractDate) }}</p>
               </div>
             </div>
 
@@ -582,7 +587,7 @@ async function submitCreate() {
                 @search="onIndividualSearch"
                 @select="pickIndividual"
               />
-                <p v-if="fieldErrors.residentIndividualUid" class="text-xs text-destructive">{{ fieldErrors.residentIndividualUid }}</p>
+                <p v-if="fieldErrors.residentIndividualUid" class="text-xs text-destructive">{{ fieldError(fieldErrors.residentIndividualUid) }}</p>
             </div>
 
             <div class="grid grid-cols-3 gap-4">
@@ -598,25 +603,25 @@ async function submitCreate() {
                   @search="onRoomSearch"
                   @select="pickRoom"
                 />
-                <p v-if="fieldErrors.roomId" class="text-xs text-destructive">{{ fieldErrors.roomId }}</p>
+                <p v-if="fieldErrors.roomId" class="text-xs text-destructive">{{ fieldError(fieldErrors.roomId) }}</p>
               </div>
               <div class="flex flex-col gap-2">
                 <Label>{{ t('contracts.createDialog.fieldStartDate') }}</Label>
                 <DatePickerField v-model="startDate" :invalid="!!fieldErrors.startDate" />
-                <p v-if="fieldErrors.startDate" class="text-xs text-destructive">{{ fieldErrors.startDate }}</p>
+                <p v-if="fieldErrors.startDate" class="text-xs text-destructive">{{ fieldError(fieldErrors.startDate) }}</p>
               </div>
               <div class="flex flex-col gap-2">
                 <Label>{{ t('contracts.createDialog.fieldEndDate') }}</Label>
                 <DatePickerField v-model="endDate" :invalid="!!fieldErrors.endDate" />
-                <p v-if="fieldErrors.endDate" class="text-xs text-destructive">{{ fieldErrors.endDate }}</p>
+                <p v-if="fieldErrors.endDate" class="text-xs text-destructive">{{ fieldError(fieldErrors.endDate) }}</p>
               </div>
             </div>
 
             <!-- Комната без месячной "Стоимости" (112-2/410-2 на момент введения) — целиком
                  посуточная, поле не показываем вообще (см. isDailyOnlyRoom/applyRoomPrice). -->
             <p v-if="availability" class="text-sm" :class="availability.available === 0 ? 'text-destructive' : 'text-muted-foreground'">
-              Свободно на весь выбранный период: {{ availability.available }} из {{ availability.capacity }}.
-              День выезда считается занятым.
+              {{ t('contracts.createDialog.validation.availabilitySummary', { available: availability.available, capacity: availability.capacity }) }}
+              {{ t('contracts.createDialog.validation.departureDayOccupied') }}
             </p>
             <p v-if="availabilityError" class="text-sm text-destructive">{{ availabilityError }}</p>
             <div v-if="isDailyOnlyRoom" class="flex flex-col gap-2">
@@ -635,7 +640,7 @@ async function submitCreate() {
                   @keydown="blockNonNumericKeys"
                   @input="onRoomCostInput"
                 :class="[NO_SPINNER_CLASS, fieldErrors.roomCost ? 'border-red-500' : '']" />
-                <p v-if="fieldErrors.roomCost" class="text-xs text-destructive">{{ fieldErrors.roomCost }}</p>
+                <p v-if="fieldErrors.roomCost" class="text-xs text-destructive">{{ fieldError(fieldErrors.roomCost) }}</p>
                 <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">₽</span>
               </div>
               <p v-if="rentAmount !== undefined && utilitiesAmount !== undefined" class="text-xs text-muted-foreground">
@@ -649,7 +654,7 @@ async function submitCreate() {
               <div v-if="dailyRateCategoryKnown && dailyRateCategory === 'OTHER_UNIVERSITY'" class="flex flex-col gap-2">
                 <Label>{{ t('contracts.createDialog.fieldResidenceReason') }}</Label>
                 <Input v-model="residenceReason"  :class="[NO_SPINNER_CLASS, fieldErrors.residenceReason ? 'border-red-500' : '']" />
-                <p v-if="fieldErrors.residenceReason" class="text-xs text-destructive">{{ fieldErrors.residenceReason }}</p>
+                <p v-if="fieldErrors.residenceReason" class="text-xs text-destructive">{{ fieldError(fieldErrors.residenceReason) }}</p>
               </div>
             </Transition>
           </div>
@@ -667,12 +672,12 @@ async function submitCreate() {
               <div class="flex flex-col gap-2">
                 <Label>{{ t('contracts.createDialog.fieldFullName') }}</Label>
                 <Input v-model="legalRepName"  :class="[NO_SPINNER_CLASS, fieldErrors.legalRepName ? 'border-red-500' : '']" />
-                <p v-if="fieldErrors.legalRepName" class="text-xs text-destructive">{{ fieldErrors.legalRepName }}</p>
+                <p v-if="fieldErrors.legalRepName" class="text-xs text-destructive">{{ fieldError(fieldErrors.legalRepName) }}</p>
               </div>
               <div class="flex flex-col gap-2">
                 <Label>{{ t('contracts.createDialog.fieldPhone') }}</Label>
-                <PhoneInput ref="phoneInputRef" v-model="legalRepPhone" required />
-                <p v-if="fieldErrors.legalRepPhone" class="text-xs text-destructive">{{ fieldErrors.legalRepPhone }}</p>
+                <PhoneInput :key="locale" ref="phoneInputRef" v-model="legalRepPhone" required />
+                <p v-if="fieldErrors.legalRepPhone" class="text-xs text-destructive">{{ fieldError(fieldErrors.legalRepPhone) }}</p>
               </div>
             </div>
 
@@ -699,7 +704,7 @@ async function submitCreate() {
                   <div class="flex flex-col gap-2">
                     <Label>{{ t('contracts.createDialog.fieldBirthDate') }}</Label>
                     <DatePickerField v-model="legalRepBirthDate" :invalid="!!fieldErrors.legalRepBirthDate" />
-                <p v-if="fieldErrors.legalRepBirthDate" class="text-xs text-destructive">{{ fieldErrors.legalRepBirthDate }}</p>
+                <p v-if="fieldErrors.legalRepBirthDate" class="text-xs text-destructive">{{ fieldError(fieldErrors.legalRepBirthDate) }}</p>
                   </div>
                   <div class="flex flex-col gap-2">
                     <Label>{{ t('contracts.createDialog.fieldSnils') }}</Label>
@@ -725,7 +730,7 @@ async function submitCreate() {
                   <div class="flex flex-col gap-2">
                     <Label>{{ t('contracts.createDialog.fieldPassportNumber') }}</Label>
                     <Input v-model="legalRepPassportNumber" :class="[NO_SPINNER_CLASS, fieldErrors.legalRepPassportNumber ? 'border-red-500' : '']" />
-                <p v-if="fieldErrors.legalRepPassportNumber" class="text-xs text-destructive">{{ fieldErrors.legalRepPassportNumber }}</p>
+                <p v-if="fieldErrors.legalRepPassportNumber" class="text-xs text-destructive">{{ fieldError(fieldErrors.legalRepPassportNumber) }}</p>
                   </div>
                   <div class="flex flex-col gap-2">
                     <Label>{{ t('contracts.createDialog.fieldPassportIssuedCode') }}</Label>
@@ -740,7 +745,7 @@ async function submitCreate() {
                   <div class="flex flex-col gap-2">
                     <Label>{{ t('contracts.createDialog.fieldPassportIssuedAt') }}</Label>
                     <DatePickerField v-model="legalRepPassportIssuedAt" :invalid="!!fieldErrors.legalRepPassportIssuedAt" />
-                <p v-if="fieldErrors.legalRepPassportIssuedAt" class="text-xs text-destructive">{{ fieldErrors.legalRepPassportIssuedAt }}</p>
+                <p v-if="fieldErrors.legalRepPassportIssuedAt" class="text-xs text-destructive">{{ fieldError(fieldErrors.legalRepPassportIssuedAt) }}</p>
                   </div>
                   <div class="col-span-2 flex flex-col gap-2">
                     <Label>{{ t('contracts.createDialog.fieldPassportIssuedBy') }}</Label>
@@ -768,7 +773,7 @@ async function submitCreate() {
                         v-model:to="matCapitalCoveredTo"
                         :invalid="!!fieldErrors.matCapitalCoveredFrom"
                       />
-<p v-if="fieldErrors.matCapitalCoveredFrom" class="text-xs text-destructive">{{ fieldErrors.matCapitalCoveredFrom }}</p>
+<p v-if="fieldErrors.matCapitalCoveredFrom" class="text-xs text-destructive">{{ fieldError(fieldErrors.matCapitalCoveredFrom) }}</p>
                     </div>
                     <div class="grid grid-cols-2 gap-5">
                       <div class="flex flex-col gap-2">
@@ -779,12 +784,12 @@ async function submitCreate() {
 
                           @keydown="blockNonNumericKeys"
                         :class="[NO_SPINNER_CLASS, fieldErrors.matCapitalAmount ? 'border-red-500' : '']" />
-                <p v-if="fieldErrors.matCapitalAmount" class="text-xs text-destructive">{{ fieldErrors.matCapitalAmount }}</p>
+                <p v-if="fieldErrors.matCapitalAmount" class="text-xs text-destructive">{{ fieldError(fieldErrors.matCapitalAmount) }}</p>
                       </div>
                       <div class="flex flex-col gap-2">
                         <Label>{{ t('contracts.createDialog.fieldDeferredUntil') }}</Label>
                         <DatePickerField v-model="matCapitalDeferredUntil" :invalid="!!fieldErrors.matCapitalDeferredUntil" />
-                <p v-if="fieldErrors.matCapitalDeferredUntil" class="text-xs text-destructive">{{ fieldErrors.matCapitalDeferredUntil }}</p>
+                <p v-if="fieldErrors.matCapitalDeferredUntil" class="text-xs text-destructive">{{ fieldError(fieldErrors.matCapitalDeferredUntil) }}</p>
                       </div>
                     </div>
                   </div>

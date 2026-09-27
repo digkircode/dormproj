@@ -1,4 +1,5 @@
 import { apiFetch } from './api-base'
+import { i18n } from '@/i18n'
 
 export interface ListOptions {
   page: number
@@ -50,7 +51,7 @@ export async function fetchListPage<T>(
   }
   const response = await apiFetch(`${basePath}?${params}`, { signal })
   if (!response.ok) {
-    throw new Error(`Не удалось получить данные (${response.status})`)
+    throw new Error(i18n.global.t('errors.fetchListFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -59,7 +60,7 @@ export async function fetchListPage<T>(
 export async function fetchListFacets(basePath: string, field: string): Promise<FacetOption[]> {
   const response = await apiFetch(`${basePath}/facets/${encodeURIComponent(field)}`)
   if (!response.ok) {
-    throw new Error(`Не удалось получить значения для фильтра (${response.status})`)
+    throw new Error(i18n.global.t('errors.fetchFacetsFailed', { status: response.status }))
   }
   return response.json()
 }

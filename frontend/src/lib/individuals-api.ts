@@ -1,4 +1,5 @@
 import { apiFetch } from './api-base'
+import { i18n } from '@/i18n'
 import { fetchListPage, fetchListFacets, type ListOptions, type ListPage, type FacetOption } from './list-api'
 
 export interface Individual {
@@ -145,7 +146,7 @@ export async function createIndividual(input: CreateIndividualInput): Promise<In
   })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
-    throw new Error(body.message ?? `Не удалось создать физическое лицо (${response.status})`)
+    throw new Error(body.message ?? i18n.global.t('individuals.apiErrors.createFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -153,7 +154,7 @@ export async function createIndividual(input: CreateIndividualInput): Promise<In
 export async function fetchIndividualDetail(uid: string): Promise<IndividualDetail> {
   const response = await apiFetch(`/individuals/${encodeURIComponent(uid)}`)
   if (!response.ok) {
-    throw new Error(`Не удалось получить данные физлица (${response.status})`)
+    throw new Error(i18n.global.t('individuals.apiErrors.fetchFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -166,7 +167,7 @@ export async function updateIndividualAccounting1cMapping(uid: string, contracto
   })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
-    throw new Error(body.message ?? `Не удалось сохранить сопоставление (${response.status})`)
+    throw new Error(body.message ?? i18n.global.t('individuals.apiErrors.mappingFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -204,7 +205,7 @@ export async function updateIndividual(uid: string, input: UpdateIndividualInput
   })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
-    throw new Error(body.message ?? `Не удалось сохранить изменения (${response.status})`)
+    throw new Error(body.message ?? i18n.global.t('individuals.apiErrors.updateFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -220,7 +221,7 @@ export interface IndividualAuditLogEntry {
 export async function fetchIndividualAuditLog(uid: string): Promise<IndividualAuditLogEntry[]> {
   const response = await apiFetch(`/individuals/${encodeURIComponent(uid)}/audit-log`)
   if (!response.ok) {
-    throw new Error(`Не удалось получить историю изменений (${response.status})`)
+    throw new Error(i18n.global.t('individuals.apiErrors.historyFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -241,7 +242,7 @@ export async function syncIndividual(uid: string): Promise<IndividualSyncResult>
   const response = await apiFetch(`/individuals/${encodeURIComponent(uid)}/sync`, { method: 'POST' })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
-    throw new Error(body.message ?? `Не удалось синхронизировать физлицо (${response.status})`)
+    throw new Error(body.message ?? i18n.global.t('individuals.apiErrors.syncFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -261,7 +262,7 @@ export interface IndividualMergeCandidate {
 export async function fetchIndividualMergeCandidates(uid: string): Promise<IndividualMergeCandidate[]> {
   const response = await apiFetch(`/individuals/${encodeURIComponent(uid)}/merge-candidates`)
   if (!response.ok) {
-    throw new Error(`Не удалось получить кандидатов на объединение (${response.status})`)
+    throw new Error(i18n.global.t('individuals.apiErrors.mergeCandidatesFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -274,7 +275,7 @@ export async function mergeIndividual(uid: string, targetUid: string): Promise<I
   })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
-    throw new Error(body.message ?? `Не удалось объединить физлица (${response.status})`)
+    throw new Error(body.message ?? i18n.global.t('individuals.apiErrors.mergeFailed', { status: response.status }))
   }
   return response.json()
 }
@@ -285,7 +286,7 @@ export async function unmergeIndividual(uid: string): Promise<IndividualDetail> 
   const response = await apiFetch(`/individuals/${encodeURIComponent(uid)}/unmerge`, { method: 'POST' })
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
-    throw new Error(body.message ?? `Не удалось отменить объединение (${response.status})`)
+    throw new Error(body.message ?? i18n.global.t('individuals.apiErrors.unmergeFailed', { status: response.status }))
   }
   return response.json()
 }

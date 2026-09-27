@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ensureUserRecord } from '../users/ensure-user';
 import { zodErrorMessage } from '../i18n/zod-error-message';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 // Тот же максимум, что MAX_BODY_LENGTH в chats.controller.ts, для согласованности —
 // объявления не длиннее одного сообщения чата.
@@ -38,6 +39,7 @@ export class AnnouncementsController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   @Get()
@@ -85,6 +87,7 @@ export class AnnouncementsController {
         after: announcement,
         fields: AUDITED_ANNOUNCEMENT_FIELDS,
       });
+      await this.notifications.enqueueAnnouncement(tx, announcement.id);
       return announcement;
     });
     return { id: created.id, createdAt: created.createdAt };
