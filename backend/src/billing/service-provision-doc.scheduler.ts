@@ -36,7 +36,8 @@ function isAfterFinalSendTime(now: Date): boolean {
 
 // Текущий месяц создаётся при старте приложения и пересчитывается каждый день в 03:00
 // МСК. В 23:55 последнего календарного дня выполняется ещё один пересчёт и сразу после
-// него отправляются только два документа текущего месяца.
+// него отправляются документы с подтверждённым форматом 1С. Документ «Пени»
+// создаётся и пересчитывается вместе с остальными, но пока не отправляется в 1С.
 @Injectable()
 export class ServiceProvisionDocScheduler implements OnApplicationBootstrap {
   private readonly logger = new Logger(ServiceProvisionDocScheduler.name);

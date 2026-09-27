@@ -36,15 +36,16 @@ function formatPeriod(value: string): string {
   return new Date(value).toLocaleDateString(dateLocaleTag(), { month: 'long', year: 'numeric' })
 }
 
-const STATUS_LABELS: Record<Accounting1cSyncStatus, string> = {
+const STATUS_LABELS = computed<Record<Accounting1cSyncStatus, string>>(() => ({
   NOT_SYNCED: t('paymentImports.statusWebsite.NOT_SYNCED'),
   SYNCED: t('paymentImports.statusWebsite.SYNCED'),
   FAILED: t('paymentImports.statusWebsite.FAILED'),
-}
-const TYPE_LABELS: Record<ServiceProvisionType, string> = {
+}))
+const TYPE_LABELS = computed<Record<ServiceProvisionType, string>>(() => ({
   RENT: t('serviceProvisionDocuments.type.RENT'),
   UTILITIES: t('serviceProvisionDocuments.type.UTILITIES'),
-}
+  PENALTY: t('serviceProvisionDocuments.type.PENALTY'),
+}))
 
 interface TableRow {
   id: number
@@ -106,12 +107,12 @@ const columnLabels = computed<Record<string, string>>(() => ({
 }))
 function cellText(columnId: string, value: unknown): string {
   if (columnId === 'periodStart' && typeof value === 'string') return formatPeriod(value)
-  if (columnId === 'type') return TYPE_LABELS[value as ServiceProvisionType] ?? String(value)
+  if (columnId === 'type') return TYPE_LABELS.value[value as ServiceProvisionType] ?? String(value)
   if (columnId === 'documentSumm' && typeof value === 'number') return formatMoney(value)
   if (columnId === 'unmatchedContractCount' && typeof value === 'number') {
     return value === 0 ? t('serviceProvisionDocuments.allMatched') : t('serviceProvisionDocuments.unmatchedCount', { count: value })
   }
-  if (columnId === 'status') return STATUS_LABELS[value as Accounting1cSyncStatus] ?? String(value)
+  if (columnId === 'status') return STATUS_LABELS.value[value as Accounting1cSyncStatus] ?? String(value)
   return String(value ?? '—')
 }
 
@@ -127,14 +128,14 @@ const columns = computed(() =>
   ]),
 )
 const fetchPage = createClientFetchPage<TableRow>(() => docs.value, {
-  searchText: (row) => `${TYPE_LABELS[row.type]} ${formatPeriod(row.periodStart)}`,
+  searchText: (row) => `${TYPE_LABELS.value[row.type]} ${formatPeriod(row.periodStart)}`,
   sortValue: (row, sortBy) => (row as unknown as Record<string, string | number>)[sortBy] ?? '',
   filterValue: (row, field) => (field === 'status' ? row.status : field === 'type' ? row.type : ''),
 })
 const fetchFacetValues = createClientFacetValues<TableRow>(
   () => docs.value,
   (row, field) => (field === 'status' ? row.status : field === 'type' ? row.type : ''),
-  (field, value) => (field === 'type' ? (TYPE_LABELS[value as ServiceProvisionType] ?? value) : (STATUS_LABELS[value as Accounting1cSyncStatus] ?? value)),
+  (field, value) => (field === 'type' ? (TYPE_LABELS.value[value as ServiceProvisionType] ?? value) : (STATUS_LABELS.value[value as Accounting1cSyncStatus] ?? value)),
 )
 
 const isRecalculating = ref(false)
@@ -210,7 +211,7 @@ async function openDetail(row: TableRow) {
 const detailTitle = computed(() => {
   if (!detailDoc.value) return ''
   return t('serviceProvisionDocuments.detailDialogTitle', {
-    type: TYPE_LABELS[detailDoc.value.type],
+    type: TYPE_LABELS.value[detailDoc.value.type],
     period: formatPeriod(detailDoc.value.periodStart),
   })
 })
@@ -388,11 +389,14 @@ function matchLabel(missingMappings: ('CONTRACTOR' | 'CONTRACT')[]): string {
             </tbody>
           </table>
         </div>
+        <p v-if="pendingSendDocs.some((row) => row.type === 'PENALTY')" class="text-sm text-amber-600">
+          {{ t('serviceProvisionDocuments.penaltySendUnavailable') }}
+        </p>
         <DialogFooter>
           <Button variant="outline" :disabled="isSending" @click="sendConfirmationOpen = false">
             {{ t('serviceProvisionDocuments.cancel') }}
           </Button>
-          <Button :loading="isSending" @click="confirmSend">
+          <Button :loading="isSending" :disabled="pendingSendDocs.every((row) => row.type === 'PENALTY')" @click="confirmSend">
             <Send class="size-4" />
             {{ t('serviceProvisionDocuments.confirmSend') }}
           </Button>

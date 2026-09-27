@@ -32,6 +32,7 @@ interface ContractLine {
   contractUid: string | null;
   rent: Prisma.Decimal;
   utilities: Prisma.Decimal;
+  penalty: Prisma.Decimal;
 }
 
 interface StoredServiceProvisionDetail {
@@ -63,11 +64,12 @@ export function splitServiceProvisionTotal(
   return { rent: total.minus(utilities), utilities };
 }
 
-// Флоу 3 (см. промпт проекта) — собирает ДВА сводных документа за календарный месяц:
-// "Найм" и "Коммуналка" отдельно — по всем договорам, у которых есть
+// Флоу 3 (см. промпт проекта) — собирает три сводных документа за календарный месяц:
+// "Найм" и "Коммуналка" — по всем договорам, у которых есть
 // неотменённое начисление за этот месяц (см. collectContractLines — статус договора
 // намеренно не смотрим, см. комментарий там), независимо от того, оплачены начисления
-// или нет. Отправляет пачкой в 1С (ServProvisionDoc).
+// или нет. "Пени" — по журналу фактических начислений за дни этого месяца.
+// В 1С отправляются только подтверждённые типы ServProvisionDoc.
 //
 // Документ на сайте строится по нашим начислениям и включает договоры независимо от
 // наличия связки с 1С. Отсутствующие ContractorUID/ContractUID сохраняются в детализации
@@ -158,9 +160,49 @@ export class ServiceProvisionDocService {
         contractUid: contract.accounting1cUid,
         rent,
         utilities,
+        penalty: new Decimal(0),
       });
     }
     return lines;
+  }
+
+  private async collectPenaltyLines(monthStart: Date, nextMonthStart: Date): Promise<ContractLine[]> {
+    const accruals = await this.prisma.penaltyAccrualLog.findMany({
+      where: { date: { gte: monthStart, lt: nextMonthStart } },
+      orderBy: [{ contractId: 'asc' }, { date: 'asc' }],
+      select: {
+        contractId: true,
+        amount: true,
+        contract: {
+          select: {
+            number: true,
+            residentIndividualUid: true,
+            accounting1cUid: true,
+            resident: { select: { fullName: true, accounting1cContractorUid: true } },
+          },
+        },
+      },
+    });
+    const byContract = new Map<number, ContractLine>();
+    for (const accrual of accruals) {
+      const existing = byContract.get(accrual.contractId);
+      if (existing) {
+        existing.penalty = existing.penalty.plus(accrual.amount);
+        continue;
+      }
+      byContract.set(accrual.contractId, {
+        contractId: accrual.contractId,
+        contractNumber: accrual.contract.number,
+        residentIndividualUid: accrual.contract.residentIndividualUid,
+        residentFullName: accrual.contract.resident.fullName,
+        contractorUid: accrual.contract.resident.accounting1cContractorUid,
+        contractUid: accrual.contract.accounting1cUid,
+        rent: new Decimal(0),
+        utilities: new Decimal(0),
+        penalty: accrual.amount,
+      });
+    }
+    return [...byContract.values()];
   }
 
   private buildDetails(lines: ContractLine[], pick: (line: ContractLine) => Prisma.Decimal): {
@@ -196,18 +238,25 @@ export class ServiceProvisionDocService {
   // документов не может захватить ни одно сентябрьское начисление.
   async computeAndSave(
     targetMonth: Date = new Date(),
-    requestedTypes: ServiceProvisionType[] = ['RENT', 'UTILITIES'],
+    requestedTypes: ServiceProvisionType[] = ['RENT', 'UTILITIES', 'PENALTY'],
   ): Promise<{ documentIds: number[] }> {
     const monthStart = startOfMonth(targetMonth);
     const nextMonthStart = addMonths(monthStart, 1);
-    const lines = await this.collectContractLines(monthStart, nextMonthStart);
+    const [lines, penaltyLines] = await Promise.all([
+      requestedTypes.some((type) => type === 'RENT' || type === 'UTILITIES')
+        ? this.collectContractLines(monthStart, nextMonthStart) : Promise.resolve([]),
+      requestedTypes.includes('PENALTY')
+        ? this.collectPenaltyLines(monthStart, nextMonthStart) : Promise.resolve([]),
+    ]);
     const monthLabel = `${MONTHS_NOMINATIVE[monthStart.getUTCMonth()]} ${monthStart.getUTCFullYear()}`;
     const rent = this.buildDetails(lines, (line) => line.rent);
     const utilities = this.buildDetails(lines, (line) => line.utilities);
+    const penalties = this.buildDetails(penaltyLines, (line) => line.penalty);
 
-    const specs: { type: ServiceProvisionType; nomenclature: 'Найм' | 'Коммуналка'; commentLabel: string; details: StoredServiceProvisionDetail[]; total: Prisma.Decimal }[] = [
+    const specs: { type: ServiceProvisionType; nomenclature: 'Найм' | 'Коммуналка' | 'Пени'; commentLabel: string; details: StoredServiceProvisionDetail[]; total: Prisma.Decimal }[] = [
       { type: 'RENT', nomenclature: 'Найм', commentLabel: 'Найм услуги', details: rent.details, total: rent.total },
       { type: 'UTILITIES', nomenclature: 'Коммуналка', commentLabel: 'Коммунальные услуги', details: utilities.details, total: utilities.total },
+      { type: 'PENALTY', nomenclature: 'Пени', commentLabel: 'Пени', details: penalties.details, total: penalties.total },
     ];
 
     const documentIds: number[] = [];
@@ -275,12 +324,13 @@ export class ServiceProvisionDocService {
   }): AccountingServiceProvisionPush | null {
     const raw = row.rawPayload as unknown as {
       Date: string;
-      NomenclatureType: 'Найм' | 'Коммуналка';
+      NomenclatureType: 'Найм' | 'Коммуналка' | 'Пени';
       DocumentSumm: number;
       Comment: string;
       DocumentSummDetails?: StoredServiceProvisionDetail[];
     };
     const details = Array.isArray(raw.DocumentSummDetails) ? raw.DocumentSummDetails : [];
+    if (raw.NomenclatureType === 'Пени') return null;
     if (details.length === 0 || details.some((detail) => !detail.ContractorUID || !detail.ContractUID)) return null;
     const accountingDetails: AccountingServiceProvisionDetail[] = details.map((detail) => ({
       ContractorUID: detail.ContractorUID!,

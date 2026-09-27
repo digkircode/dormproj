@@ -27,6 +27,7 @@ test('service documents preserve period totals and allocate fixed utilities once
   const stored = new Map();
   const prisma = {
     contract: { findMany: async () => contracts },
+    penaltyAccrualLog: { findMany: async () => [] },
     dormitoryInfo: { findUnique: async () => ({ communalServicesCost: money(1100) }) },
     serviceProvisionDocument: {
       findUnique: async ({ where }) => stored.get(where.periodStart_type.type) ?? null,
@@ -41,10 +42,11 @@ test('service documents preserve period totals and allocate fixed utilities once
   };
   const service = new ServiceProvisionDocService(prisma, {});
   const first = await service.computeAndSave(date('2026-09-01'));
-  assert.equal(first.documentIds.length, 2);
+  assert.equal(first.documentIds.length, 3);
 
   const rent = stored.get('RENT').rawPayload;
   const utilities = stored.get('UTILITIES').rawPayload;
+  const penalties = stored.get('PENALTY').rawPayload;
   assert.equal(rent.DocumentSumm, 16300);
   assert.equal(utilities.DocumentSumm, 2200);
   assert.deepEqual(rent.DocumentSummDetails.map((row) => [row.ContractNumber, row.SummDetails]), [
@@ -54,13 +56,66 @@ test('service documents preserve period totals and allocate fixed utilities once
     ['legacy-full', 1100], ['daily-partial', 1100],
   ]);
   assert.equal(rent.DocumentSumm + utilities.DocumentSumm, 12500 + 3500 + 700 + 1100 + 700);
+  assert.equal(penalties.DocumentSumm, 0);
+  assert.deepEqual(penalties.DocumentSummDetails, []);
 
   const second = await service.computeAndSave(date('2026-09-01'));
   assert.deepEqual(second.documentIds, first.documentIds);
-  assert.equal(stored.size, 2);
+  assert.equal(stored.size, 3);
 
   stored.get('RENT').rawPayload.DocumentSummDetails[0].SummDetails = 12500;
   await service.computeAndSave(date('2026-09-01'));
   assert.equal(stored.get('RENT').accounting1cSyncStatus, 'NOT_SYNCED');
   assert.equal(stored.get('RENT').rawPayload.DocumentSummDetails[0].SummDetails, 11400);
+});
+
+test('penalty document groups actual daily charges by contract and month, including contracts without service charges', async () => {
+  const logs = [
+    { contractId: 1, date: date('2026-09-01'), amount: money('1.25') },
+    { contractId: 1, date: date('2026-09-02'), amount: money('2.35') },
+    { contractId: 2, date: date('2026-09-20'), amount: money('3.40') },
+    { contractId: 1, date: date('2026-10-01'), amount: money('10.00') },
+  ];
+  const stored = new Map();
+  let nextId = 1;
+  const prisma = {
+    penaltyAccrualLog: {
+      findMany: async ({ where }) => logs
+        .filter((log) => log.date >= where.date.gte && log.date < where.date.lt)
+        .map((log) => ({ ...log, contract: {
+          number: `penalty-${log.contractId}`,
+          residentIndividualUid: `resident-${log.contractId}`,
+          accounting1cUid: `contract-uid-${log.contractId}`,
+          resident: { fullName: `Resident ${log.contractId}`, accounting1cContractorUid: `contractor-uid-${log.contractId}` },
+        } })),
+    },
+    serviceProvisionDocument: {
+      findUnique: async ({ where }) => stored.get(`${where.periodStart_type.periodStart.toISOString()}-${where.periodStart_type.type}`) ?? null,
+      findMany: async ({ where }) => [...stored.values()]
+        .filter((row) => where.id.in.includes(row.id))
+        .map((row) => ({ id: row.id, rawPayload: row.rawPayload, accounting1cDocumentUid: null })),
+      upsert: async ({ where, create, update }) => {
+        const key = `${where.periodStart_type.periodStart.toISOString()}-${where.periodStart_type.type}`;
+        const existing = stored.get(key);
+        const row = existing ? { ...existing, ...update } : { id: nextId++, ...create };
+        stored.set(key, row);
+        return row;
+      },
+    },
+  };
+  const provider = { isServiceProvisionConfigured: () => true, pushServiceProvisionDocs: async () => { throw new Error('Penalty must not be sent'); } };
+  const service = new ServiceProvisionDocService(prisma, provider);
+  const september = await service.computeAndSave(date('2026-09-01'), ['PENALTY']);
+  const document = stored.get(`${date('2026-09-01').toISOString()}-PENALTY`);
+  assert.equal(document.rawPayload.NomenclatureType, 'Пени');
+  assert.equal(document.rawPayload.DocumentSumm, 7);
+  assert.deepEqual(document.rawPayload.DocumentSummDetails.map((row) => [row.ContractNumber, row.SummDetails]), [
+    ['penalty-1', 3.6], ['penalty-2', 3.4],
+  ]);
+  assert.equal(document.contractCount, 2);
+  assert.deepEqual((await service.computeAndSave(date('2026-09-01'), ['PENALTY'])).documentIds, september.documentIds);
+  const october = await service.computeAndSave(date('2026-10-01'), ['PENALTY']);
+  assert.notDeepEqual(october.documentIds, september.documentIds);
+  assert.equal(stored.get(`${date('2026-10-01').toISOString()}-PENALTY`).rawPayload.DocumentSumm, 10);
+  assert.equal((await service.sendDocuments(september.documentIds)).blocked, 1);
 });

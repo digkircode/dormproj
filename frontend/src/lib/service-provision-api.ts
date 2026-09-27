@@ -2,7 +2,7 @@ import { apiFetch } from './api-base'
 import { i18n } from '@/i18n'
 import type { Accounting1cSyncStatus } from './payment-imports-api'
 
-export type ServiceProvisionType = 'RENT' | 'UTILITIES'
+export type ServiceProvisionType = 'RENT' | 'UTILITIES' | 'PENALTY'
 
 // Флоу 3 (см. промпт проекта) — только чтение + ручной повтор, своего одобрения/правки
 // нет: суммы собираются автоматически из начислений, сотрудник ничего тут не вводит.
