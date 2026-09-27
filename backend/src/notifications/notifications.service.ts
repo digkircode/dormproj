@@ -14,6 +14,9 @@ const hashToken = (token: string) => createHash('sha256').update(token).digest('
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
   private running = false;
+  private pollingTelegram = false;
+  private telegramOffset = 0;
+  private nextTelegramPollAt = 0;
 
   constructor(private readonly prisma: PrismaService, private readonly config: ConfigService<Env, true>) {}
 
@@ -60,6 +63,41 @@ export class NotificationsService {
       await tx.notificationLinkToken.delete({ where: { id: linkToken.id } });
       return true;
     });
+  }
+
+  async handleTelegramUpdate(update: unknown): Promise<void> {
+    const message = (update as { message?: { text?: string; chat?: { id?: number; type?: string } } } | null)?.message;
+    const match = message?.text?.match(/^\/start\s+([A-Za-z0-9_-]{20,128})$/);
+    if (match && message?.chat?.type === 'private' && message.chat.id != null) {
+      await this.connect('TELEGRAM', match[1], String(message.chat.id));
+    }
+  }
+
+  // Production currently has no public HTTPS endpoint. Long polling receives
+  // /start links over the outbound Telegram API connection instead.
+  @Interval(1000)
+  async pollTelegram() {
+    if (this.pollingTelegram || Date.now() < this.nextTelegramPollAt || !this.configured('TELEGRAM')) return;
+    this.pollingTelegram = true;
+    try {
+      const response = await fetch(`https://api.telegram.org/bot${this.config.get('TELEGRAM_BOT_TOKEN')}/getUpdates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ offset: this.telegramOffset, limit: 100, timeout: 25, allowed_updates: ['message'] }),
+        signal: AbortSignal.timeout(35_000),
+      });
+      const body = await response.json() as { ok?: boolean; result?: Array<{ update_id: number; message?: unknown }> };
+      if (!response.ok || !body.ok || !Array.isArray(body.result)) throw new Error(`HTTP ${response.status}`);
+      for (const update of body.result) {
+        await this.handleTelegramUpdate(update);
+        this.telegramOffset = update.update_id + 1;
+      }
+    } catch {
+      this.nextTelegramPollAt = Date.now() + 30_000;
+      this.logger.warn('Не удалось получить обновления Telegram; повтор через 30 секунд');
+    } finally {
+      this.pollingTelegram = false;
+    }
   }
 
   async disconnect(userId: number, channel: NotificationChannel) {

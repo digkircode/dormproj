@@ -58,11 +58,7 @@ export class NotificationWebhooksController {
   @Post('telegram')
   async telegram(@Headers('x-telegram-bot-api-secret-token') secret: string | undefined, @Body() body: unknown) {
     if (!equalSecret(secret, this.config.get('TELEGRAM_WEBHOOK_SECRET'))) throw new ForbiddenException();
-    const update = body as { message?: { text?: string; chat?: { id?: number; type?: string } } };
-    const match = update?.message?.text?.match(/^\/start\s+([A-Za-z0-9_-]{20,128})$/);
-    if (match && update.message?.chat?.type === 'private' && update.message.chat.id != null) {
-      await this.notifications.connect('TELEGRAM', match[1], String(update.message.chat.id));
-    }
+    await this.notifications.handleTelegramUpdate(body);
     return { ok: true };
   }
 
