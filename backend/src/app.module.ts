@@ -4,7 +4,7 @@ import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { I18nModule, HeaderResolver } from 'nestjs-i18n';
+import { I18nModule, AcceptLanguageResolver } from 'nestjs-i18n';
 import { AppController } from './app.controller';
 import { I18nHttpExceptionFilter } from './i18n/http-exception.filter';
 import { AppService } from './app.service';
@@ -55,7 +55,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     I18nModule.forRoot({
       fallbackLanguage: 'ru',
       loaderOptions: { path: path.join(process.cwd(), 'i18n'), watch: process.env.NODE_ENV !== 'production' },
-      resolvers: [new HeaderResolver(['accept-language'])],
+      resolvers: [AcceptLanguageResolver],
     }),
     PrismaModule,
     AuditLogModule,
