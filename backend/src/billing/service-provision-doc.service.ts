@@ -9,6 +9,7 @@ import {
   type AccountingServiceProvisionPush,
 } from '../accounting-1c/accounting-1c.types';
 import { formatDateOnlyIso } from './build-accounting-payment-payload';
+import { isFullMonthAccrualPeriod } from './accrual-generation';
 import { startOfMonth, addMonths } from './period-utils';
 import { getErrorMessage } from '../sync/sync.errors';
 import { ServiceProvisionType } from '../../generated/prisma/client.js';
@@ -45,6 +46,23 @@ interface StoredServiceProvisionDetail {
   MissingMappings: ('CONTRACTOR' | 'CONTRACT')[];
 }
 
+// The accrual already contains the charge for the whole period (including any
+// daily-rate calculation and termination adjustment). Only split that total
+// between the two service documents; never multiply the daily rate again.
+export function splitServiceProvisionTotal(
+  total: Prisma.Decimal,
+  monthlyUtilities: Prisma.Decimal,
+  isDailyPeriod: boolean,
+): { rent: Prisma.Decimal; utilities: Prisma.Decimal } {
+  const zero = new Decimal(0);
+  const utilitiesCost = monthlyUtilities.greaterThan(0) ? monthlyUtilities : zero;
+  if (total.lessThanOrEqualTo(0) || (isDailyPeriod && total.lessThanOrEqualTo(utilitiesCost))) {
+    return { rent: total, utilities: zero };
+  }
+  const utilities = utilitiesCost.lessThan(total) ? utilitiesCost : total;
+  return { rent: total.minus(utilities), utilities };
+}
+
 // Флоу 3 (см. промпт проекта) — собирает ДВА сводных документа за календарный месяц:
 // "Найм" и "Коммуналка" отдельно — по всем договорам, у которых есть
 // неотменённое начисление за этот месяц (см. collectContractLines — статус договора
@@ -78,38 +96,59 @@ export class ServiceProvisionDocService {
   // (adjustmentAmount) — см. termination.ts. Поэтому фильтруем прямо по наличию
   // неотменённого начисления за целевой месяц, статус договора вообще не смотрим.
   private async collectContractLines(monthStart: Date, nextMonthStart: Date): Promise<ContractLine[]> {
-    const contracts = await this.prisma.contract.findMany({
-      where: {
-        accruals: { some: { periodStart: { gte: monthStart, lt: nextMonthStart }, voidedAt: null } },
-      },
-      orderBy: { id: 'asc' },
-      select: {
-        id: true,
-        number: true,
-        residentIndividualUid: true,
-        accounting1cUid: true,
-        resident: { select: { fullName: true, accounting1cContractorUid: true } },
-        accruals: {
-          where: { periodStart: { gte: monthStart, lt: nextMonthStart }, voidedAt: null },
-          select: { rentAmount: true, utilitiesAmount: true, adjustmentAmount: true },
+    const [contracts, dormitoryInfo] = await Promise.all([
+      this.prisma.contract.findMany({
+        where: {
+          accruals: { some: { periodStart: { gte: monthStart, lt: nextMonthStart }, voidedAt: null } },
         },
-      },
-    });
+        orderBy: { id: 'asc' },
+        select: {
+          id: true,
+          number: true,
+          residentIndividualUid: true,
+          accounting1cUid: true,
+          resident: { select: { fullName: true, accounting1cContractorUid: true } },
+          terms: {
+            orderBy: { validFrom: 'desc' },
+            select: { validFrom: true, validTo: true, rentAmount: true, utilitiesAmount: true },
+          },
+          accruals: {
+            where: { periodStart: { gte: monthStart, lt: nextMonthStart }, voidedAt: null },
+            orderBy: { periodStart: 'asc' },
+            select: { periodStart: true, periodEnd: true, rentAmount: true, utilitiesAmount: true, adjustmentAmount: true },
+          },
+        },
+      }),
+      this.prisma.dormitoryInfo.findUnique({ where: { id: 1 }, select: { communalServicesCost: true } }),
+    ]);
 
     const lines: ContractLine[] = [];
     for (const contract of contracts) {
       if (contract.accruals.length === 0) continue;
-      // Обычно ровно одно начисление на месяц — сумма на случай, если когда-нибудь
-      // появится больше одной строки за один и тот же период (защитно, не рабочий кейс).
-      // adjustmentAmount (ручная корректировка, см. Accrual в schema.prisma) — в "Найм",
-      // это единственная сторона, к которой её можно осмысленно отнести: сам тип
-      // корректировки не размечен как "по найму"/"по коммуналке" отдельно.
-      let rent = new Decimal(0);
-      let utilities = new Decimal(0);
-      for (const accrual of contract.accruals) {
-        rent = rent.plus(accrual.rentAmount).plus(accrual.adjustmentAmount);
-        utilities = utilities.plus(accrual.utilitiesAmount);
+      // One line per contract and month. The accrual is the source of the total
+      // even for partial/daily periods and early termination; its existing split
+      // can be proportional and is not the split required by these documents.
+      const total = contract.accruals.reduce(
+        (sum, accrual) => sum.plus(accrual.rentAmount).plus(accrual.utilitiesAmount).plus(accrual.adjustmentAmount),
+        new Decimal(0),
+      );
+      const firstPeriod = contract.accruals[0];
+      const terms = contract.terms.find((item) => item.validFrom <= firstPeriod.periodStart
+        && (item.validTo === null || item.validTo > firstPeriod.periodStart));
+      // New contracts have a fixed utilities amount in their terms. Older
+      // contracts and daily-only rooms have zero there, so use the dormitory
+      // setting, as the printed contract already does for legacy contracts.
+      const monthlyUtilities = terms?.utilitiesAmount.greaterThan(0)
+        ? terms.utilitiesAmount
+        : dormitoryInfo?.communalServicesCost;
+      if (monthlyUtilities == null) {
+        throw new Error(`Не задана стоимость коммунальных услуг для документа по договору №${contract.number}`);
       }
+      const dailyOnlyRoom = !!terms && terms.rentAmount.isZero() && terms.utilitiesAmount.isZero();
+      const isDailyPeriod = dailyOnlyRoom
+        || contract.accruals.some((accrual) => !isFullMonthAccrualPeriod(accrual.periodStart, accrual.periodEnd)
+          || !accrual.adjustmentAmount.isZero());
+      const { rent, utilities } = splitServiceProvisionTotal(total, monthlyUtilities, isDailyPeriod);
       lines.push({
         contractId: contract.id,
         contractNumber: contract.number,
