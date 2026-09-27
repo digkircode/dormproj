@@ -94,6 +94,11 @@ test('penalty document groups actual daily charges by contract and month, includ
       findMany: async ({ where }) => [...stored.values()]
         .filter((row) => where.id.in.includes(row.id))
         .map((row) => ({ id: row.id, rawPayload: row.rawPayload, accounting1cDocumentUid: null })),
+      update: async ({ where, data }) => {
+        const row = [...stored.values()].find((item) => item.id === where.id);
+        Object.assign(row, data);
+        return row;
+      },
       upsert: async ({ where, create, update }) => {
         const key = `${where.periodStart_type.periodStart.toISOString()}-${where.periodStart_type.type}`;
         const existing = stored.get(key);
@@ -103,11 +108,19 @@ test('penalty document groups actual daily charges by contract and month, includ
       },
     },
   };
-  const provider = { isServiceProvisionConfigured: () => true, pushServiceProvisionDocs: async () => { throw new Error('Penalty must not be sent'); } };
+  const pushed = [];
+  const provider = {
+    isServiceProvisionConfigured: () => true,
+    pushServiceProvisionDocs: async (items) => {
+      pushed.push(...items);
+      return items.map((item) => ({ SiteDocumentID: item.SiteDocumentID, FinalStatus: true, DocumentUID: 'penalty-uid' }));
+    },
+  };
   const service = new ServiceProvisionDocService(prisma, provider);
   const september = await service.computeAndSave(date('2026-09-01'), ['PENALTY']);
   const document = stored.get(`${date('2026-09-01').toISOString()}-PENALTY`);
   assert.equal(document.rawPayload.NomenclatureType, 'Пени');
+  assert.equal(document.rawPayload.Comment, 'HostelRosNOUWeb | Пени | Сентябрь 2026');
   assert.equal(document.rawPayload.DocumentSumm, 7);
   assert.deepEqual(document.rawPayload.DocumentSummDetails.map((row) => [row.ContractNumber, row.SummDetails]), [
     ['penalty-1', 3.6], ['penalty-2', 3.4],
@@ -117,5 +130,12 @@ test('penalty document groups actual daily charges by contract and month, includ
   const october = await service.computeAndSave(date('2026-10-01'), ['PENALTY']);
   assert.notDeepEqual(october.documentIds, september.documentIds);
   assert.equal(stored.get(`${date('2026-10-01').toISOString()}-PENALTY`).rawPayload.DocumentSumm, 10);
-  assert.equal((await service.sendDocuments(september.documentIds)).blocked, 1);
+  assert.deepEqual(await service.sendDocuments(september.documentIds), {
+    pushed: 1, succeeded: 1, failed: 0, blocked: 0, skipped: false,
+  });
+  assert.equal(pushed[0].NomenclatureType, 'Пени');
+  assert.equal(pushed[0].Comment, 'HostelRosNOUWeb | Пени | Сентябрь 2026');
+  const sentDocument = stored.get(`${date('2026-09-01').toISOString()}-PENALTY`);
+  assert.equal(sentDocument.accounting1cSyncStatus, 'SYNCED');
+  assert.equal(sentDocument.accounting1cDocumentUid, 'penalty-uid');
 });

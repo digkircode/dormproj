@@ -19,7 +19,6 @@
     "sendResult": "Sent successfully: {succeeded}; failed: {failed}; blocked: {blocked}",
     "sendConfirmTitle": "Send the selected documents to 1C?",
     "sendConfirmDescription": "Check the period, type, and amount of each document. Only the rows in this list will be sent.",
-    "penaltySendUnavailable": "Penalty documents cannot be sent to 1C yet: this document type has not been confirmed.",
     "cancel": "Cancel",
     "confirmSend": "Confirm sending",
     "viewDetails": "Contract list",

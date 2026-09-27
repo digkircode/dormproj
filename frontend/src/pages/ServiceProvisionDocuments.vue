@@ -389,14 +389,11 @@ function matchLabel(missingMappings: ('CONTRACTOR' | 'CONTRACT')[]): string {
             </tbody>
           </table>
         </div>
-        <p v-if="pendingSendDocs.some((row) => row.type === 'PENALTY')" class="text-sm text-amber-600">
-          {{ t('serviceProvisionDocuments.penaltySendUnavailable') }}
-        </p>
         <DialogFooter>
           <Button variant="outline" :disabled="isSending" @click="sendConfirmationOpen = false">
             {{ t('serviceProvisionDocuments.cancel') }}
           </Button>
-          <Button :loading="isSending" :disabled="pendingSendDocs.every((row) => row.type === 'PENALTY')" @click="confirmSend">
+          <Button :loading="isSending" @click="confirmSend">
             <Send class="size-4" />
             {{ t('serviceProvisionDocuments.confirmSend') }}
           </Button>

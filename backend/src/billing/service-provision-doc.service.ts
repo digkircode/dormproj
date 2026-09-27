@@ -69,7 +69,7 @@ export function splitServiceProvisionTotal(
 // неотменённое начисление за этот месяц (см. collectContractLines — статус договора
 // намеренно не смотрим, см. комментарий там), независимо от того, оплачены начисления
 // или нет. "Пени" — по журналу фактических начислений за дни этого месяца.
-// В 1С отправляются только подтверждённые типы ServProvisionDoc.
+// Все три типа отправляются через ServProvisionDoc.
 //
 // Документ на сайте строится по нашим начислениям и включает договоры независимо от
 // наличия связки с 1С. Отсутствующие ContractorUID/ContractUID сохраняются в детализации
@@ -330,7 +330,6 @@ export class ServiceProvisionDocService {
       DocumentSummDetails?: StoredServiceProvisionDetail[];
     };
     const details = Array.isArray(raw.DocumentSummDetails) ? raw.DocumentSummDetails : [];
-    if (raw.NomenclatureType === 'Пени') return null;
     if (details.length === 0 || details.some((detail) => !detail.ContractorUID || !detail.ContractUID)) return null;
     const accountingDetails: AccountingServiceProvisionDetail[] = details.map((detail) => ({
       ContractorUID: detail.ContractorUID!,

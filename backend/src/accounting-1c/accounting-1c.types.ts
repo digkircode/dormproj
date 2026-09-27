@@ -101,7 +101,7 @@ export interface AccountingServiceProvisionPush {
   SiteDocumentID: number;
 
   Date: string; // "YYYY-MM-DDT00:00:00" (formatDateOnlyIso) — 1-е число целевого месяца
-  NomenclatureType: 'Найм' | 'Коммуналка';
+  NomenclatureType: 'Найм' | 'Коммуналка' | 'Пени';
   DocumentSumm: number; // сумма всех DocumentSummDetails
   Comment: string;
 
