@@ -39,7 +39,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 </script>
 
 <template>
-  <section class="mt-4 w-full max-w-lg rounded-2xl border border-sky-200/80 bg-gradient-to-br from-sky-50 via-background to-background p-4 shadow-sm dark:border-sky-500/20 dark:from-sky-500/10" :aria-label="t('home.resident.notificationsHeading')">
+  <section class="relative z-10 w-full min-w-0 rounded-2xl border border-sky-200/80 bg-gradient-to-br from-sky-50 via-background to-background p-4 shadow-sm dark:border-sky-500/20 dark:from-sky-500/10" :aria-label="t('home.resident.notificationsHeading')">
     <div class="flex items-start gap-3">
       <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300">
         <Bell class="size-4" />

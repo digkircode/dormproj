@@ -99,15 +99,13 @@ function formatDate(value: string): string {
 
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
-    <!-- Шапка сделана буквально по присланному пользователем референсу (2026-08-28):
-         приветствие по имени + текст + кнопка слева, маскот с "репликой" справа.
-         Фон — по прямой просьбе 2026-08-29 приведён к тому же bg-card, что у остальных
-         карточек ниже (раньше был отдельный светло-голубой оттенок). На широком экране
-         сохранён отступ 80px по просьбе 2026-08-31; на узком он меньше, чтобы блок
-         подключения мессенджеров не сжимался. pt-6 (24px, вернули по прямой просьбе —
-         первая версия убрала верхний отступ вместе с нижним), без нижнего паддинга (было
-         p-6=24px со всех сторон). -->
-    <Card class="relative flex flex-col items-start gap-6 overflow-hidden px-5 pt-6 sm:px-10 lg:flex-row lg:items-center lg:gap-8 lg:px-[80px]">
+    <!-- На широком экране три зоны: приветствие, уведомления и маскот.
+         Отступ 80px сохранён для больших экранов; на узких блоки занимают
+         две колонки или идут друг под другом, чтобы не растягивать шапку. -->
+    <Card
+      class="relative grid grid-cols-1 items-center gap-4 overflow-hidden px-5 py-6 md:px-10 xl:gap-5 xl:pb-0 2xl:px-[80px]"
+      :class="props.demo ? 'xl:grid-cols-[minmax(0,1fr)_auto]' : 'md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,0.7fr)]'"
+    >
       <!-- "Облачка" — девятый заход 2026-08-28, по прямой просьбе отказались от попытки
            воспроизвести точный силуэт — просто россыпь кружков разного размера по всей
            шапке (не только в углу), тот же самый мягкий цвет (bg-sky-100/dark:bg-sky-400/15),
@@ -131,10 +129,7 @@ function formatDate(value: string): string {
         <div class="absolute top-[46%] -right-[2%] aspect-square w-[7%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
       </div>
 
-      <!-- justify-between → gap-8 на самой Card (по прямой просьбе 2026-08-28: расстояние
-           между приветственным текстом и маскотом/облачком было слишком большим на широких
-           экранах — justify-between растягивал его на весь остаток ширины). -->
-      <div class="relative z-10 w-full max-w-xl min-w-0">
+      <div class="relative z-10 w-full min-w-0">
         <h1 class="text-2xl font-semibold">
           <!-- Явный эмодзи-шрифт первым в стеке (не общий 'Inter Variable'/sans-serif сайта) —
                форсирует настоящую цветную отрисовку системным цветным эмодзи-шрифтом вместо
@@ -145,7 +140,6 @@ function formatDate(value: string): string {
           <span class="font-emoji">👋</span>
           {{ firstName ? t('home.resident.greetingTitle', { name: firstName }) : t('home.resident.greetingTitleFallback') }}
         </h1>
-        <ResidentNotificationsCard v-if="!props.demo" />
         <p class="mt-3 text-base text-muted-foreground">{{ t('home.resident.greetingBody1') }}</p>
         <p class="mt-3 text-base text-muted-foreground">{{ t('home.resident.greetingBody2') }}</p>
         <!-- Кнопка "Мой договор" убрана из шапки по прямой просьбе 2026-08-29 — тот же
@@ -160,39 +154,14 @@ function formatDate(value: string): string {
         </div>
       </div>
 
-      <!-- lg:ml-auto — маскот прижат к правому краю шапки (по прямой просьбе 2026-08-28):
-           без него на широкой карточке (текст ýже max-w-xl, а карточка ещё шире) маскот
-           просто шёл сразу за текстом через gap-8, оставляя пустоту СПРАВА от него до края
-           карточки, а не наоборот. ml-auto съедает именно эту пустоту, подтягивая маскот к
-           краю; gap-8 остаётся минимальным отступом от текста, когда свободного места нет. -->
-      <!-- gap-1 (было gap-3) — по прямой просьбе 2026-08-29 маскот подвинут ближе к
-           пузырю с текстом. -->
-      <div class="relative z-10 flex shrink-0 items-center gap-1 lg:ml-auto">
-        <!-- "Реплика" маскота — hidden на узком экране (места впритык с текстом+
-             кнопками уже не остаётся), с lg: и выше показывается как в референсе. Хвостик
-             пузыря — повёрнутый на 45° квадрат с двумя видимыми гранями (border-t/border-r),
-             тот же трюк, что для CSS-стрелок без картинок/псевдоэлементов ::after.
-             text-base (было text-sm) — по прямой просьбе 2026-08-29. -->
-        <div class="relative hidden max-w-[220px] rounded-2xl border bg-background px-3 py-2 text-base shadow-sm lg:block">
-          {{ t('home.resident.mascotBubble') }}
-          <span class="absolute top-1/2 -right-1.5 size-3 -translate-y-1/2 rotate-45 border-t border-r bg-background" />
-        </div>
-        <!-- "Выглядывает" из шапки — по прямой просьбе 2026-08-29. mascot.webp сам обрезан
-             впритык по прозрачным краям (см. историю правок), поэтому "обрезать по ступни"
-             сделано НЕ перекраиванием файла (тогда лапы исчезли бы совсем), а обёрткой
-             с overflow-hidden короче самой картинки: img выше своего контейнера — блочный
-             элемент по умолчанию прижат к верху бокса, поэтому лишнее уходит вниз за пределы
-             контейнера и обрезается именно там. Разница высот подобрана по факту разметки
-             самой картинки (сверил направляющими линиями через sharp/composite на разных %
-             высоты) так, чтобы обрезка проходила ровно по ступням, не задевая голени —
-             ~10% от высоты картинки, соотношение сохранено и после уменьшения 2026-08-31
-             (маскот поменьше по прямой просьбе — h-[218px]/img h-[241px] на мобильном,
-             sm:h-[326px]/sm:img h-[363px], было h-64(256px)/img h-[284px] и
-             sm:h-96(384px)/sm:img h-[427px] — те же ~10% контейнер короче картинки, лапы
-             по-прежнему обрезаны). -translate-x — сдвиг чуть левее (по просьбе), transform
-             не занимает места в layout, на соседа (пузырь) не влияет. -->
-        <div class="relative h-[218px] -translate-x-2 overflow-hidden sm:h-[326px] sm:-translate-x-3">
-          <img :src="mascotSrc" alt="" class="h-[241px] w-auto sm:h-[363px]" />
+      <ResidentNotificationsCard v-if="!props.demo" />
+
+      <div class="relative z-10 hidden justify-self-end xl:block">
+        <!-- Обёртка немного короче изображения, чтобы маскот выглядывал из шапки.
+             На широком экране размер уменьшен: высоту шапки теперь определяют три зоны,
+             а не отдельный большой рисунок. -->
+        <div class="relative h-[260px] max-w-full overflow-hidden 2xl:h-[326px]">
+          <img :src="mascotSrc" alt="" class="h-[288px] max-w-full object-contain object-left 2xl:h-[363px]" />
         </div>
       </div>
       <CreatePaymentDialog ref="paymentDialog" />
