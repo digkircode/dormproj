@@ -30,6 +30,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ensureUserRecord } from '../users/ensure-user';
 import { zodErrorMessage } from '../i18n/zod-error-message';
 import { ChatEventsService } from './chat-events.service';
+import { ChatUploadGuard } from './chat-upload.guard';
 import { chatRecipientFacets, chatRecipients, type ChatRecipientFilters } from './chat-recipients';
 import {
   CHAT_UPLOADS_DIR,
@@ -173,6 +174,7 @@ export class ChatsController {
   // рассылке на много получателей с тяжёлым видео, зато без миграции схемы под shared
   // storageKey и без будущей возни с подсчётом ссылок при удалении.
   @Post('broadcast')
+  @UseGuards(ChatUploadGuard)
   @UseInterceptors(FilesInterceptor('files', MAX_ATTACHMENTS_PER_MESSAGE, chatAttachmentsMulterOptions()))
   async broadcast(
     @UploadedFiles() files: Express.Multer.File[] = [],
@@ -343,6 +345,7 @@ export class ChatsController {
   }
 
   @Post(':id/messages')
+  @UseGuards(ChatUploadGuard)
   @UseInterceptors(FilesInterceptor('files', MAX_ATTACHMENTS_PER_MESSAGE, chatAttachmentsMulterOptions()))
   async sendMessage(
     @Param('id') idParam: string,
@@ -421,6 +424,7 @@ export class ChatsController {
       throw new NotFoundException('chat.errors.fileNotFound');
     }
     res.set('Content-Type', attachment.mimeType);
+    res.set('X-Content-Type-Options', 'nosniff');
     res.sendFile(filePath);
   }
 

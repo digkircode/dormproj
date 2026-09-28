@@ -29,6 +29,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ensureUserRecord } from '../users/ensure-user';
 import { ChatEventsService } from './chat-events.service';
 import { ChatRateLimiterService } from './chat-rate-limiter.service';
+import { ChatUploadGuard, ResidentMessageRateGuard } from './chat-upload.guard';
 import { CHAT_UPLOADS_DIR, MAX_ATTACHMENTS_PER_MESSAGE, chatAttachmentsMulterOptions } from './chat-attachments-storage';
 import { cleanupUploadedFiles, validateAttachmentSizes } from './chat-attachments';
 import { isMessageRead } from './chat-read-status';
@@ -190,6 +191,7 @@ export class MyChatController {
   }
 
   @Post('messages')
+  @UseGuards(ChatUploadGuard, ResidentMessageRateGuard)
   @UseInterceptors(FilesInterceptor('files', MAX_ATTACHMENTS_PER_MESSAGE, chatAttachmentsMulterOptions()))
   async sendMessage(
     @UploadedFiles() files: Express.Multer.File[] = [],
@@ -216,7 +218,7 @@ export class MyChatController {
     // одним try/catch, чтобы ни один путь отказа (лимит скорости, размер, аккаунт без
     // физлица, ошибка транзакции) не оставлял сиротские файлы.
     try {
-      this.rateLimiter.checkAndRecord(req.user.id, files.length);
+      this.rateLimiter.checkAndRecordAttachments(req.user.id, files.length);
       const attachments = await validateAttachmentSizes(files);
       const individualUid = await this.resolveIndividualUid(req.user.id);
       const now = new Date();
@@ -271,6 +273,7 @@ export class MyChatController {
       throw new NotFoundException('chat.errors.fileNotFound');
     }
     res.set('Content-Type', attachment.mimeType);
+    res.set('X-Content-Type-Options', 'nosniff');
     res.sendFile(filePath);
   }
 

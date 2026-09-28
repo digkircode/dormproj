@@ -4,11 +4,12 @@ import { ChatsController } from './chats.controller';
 import { MyChatController } from './my-chat.controller';
 import { ChatEventsService } from './chat-events.service';
 import { ChatRateLimiterService } from './chat-rate-limiter.service';
+import { ChatUploadGuard, ResidentMessageRateGuard } from './chat-upload.guard';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [AuthModule, NotificationsModule],
   controllers: [ChatsController, MyChatController],
-  providers: [ChatEventsService, ChatRateLimiterService],
+  providers: [ChatEventsService, ChatRateLimiterService, ChatUploadGuard, ResidentMessageRateGuard],
 })
 export class ChatsModule {}

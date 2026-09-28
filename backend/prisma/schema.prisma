@@ -275,12 +275,26 @@ model User {
   announcementReads    AnnouncementRead[]
   notificationLinks    NotificationLink[]
   notificationDeliveries NotificationDelivery[]
+  sessions             UserSession[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([univerId])
   @@map("users")
+}
+
+model UserSession {
+  id        String    @id
+  userId    Int       @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("user_sessions")
 }
 
 // История изменений (кто/что/где поменял) — только действия живых пользователей через UI,

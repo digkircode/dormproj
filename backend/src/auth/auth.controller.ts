@@ -5,7 +5,7 @@ import type { CookieOptions, Request, Response } from 'express';
 import type { Env } from '../config/env.schema';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthGuard } from './auth.guard';
-import { OAUTH_STATE_COOKIE_NAME, OAUTH_STATE_MAX_AGE_MS } from './auth.constants';
+import { OAUTH_STATE_COOKIE_NAME, OAUTH_STATE_MAX_AGE_MS, SESSION_COOKIE_NAME } from './auth.constants';
 import { RosnouIdService } from './rosnou-id.service';
 import { SessionService } from './session.service';
 import type { RoleName, SessionUser } from './types';
@@ -113,7 +113,8 @@ export class AuthController {
   // одобренный клиент + активная сессия там). rosnou-id сам даёт для этого выход
   // с редиректом обратно (см. routes/web.php: logout-portal).
   @Get('rosnou/logout')
-  logout(@Res() res: Response): void {
+  async logout(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.sessions.revoke(req.cookies?.[SESSION_COOKIE_NAME]);
     this.sessions.clearCookie(res);
     const rosnouIdBaseUrl = this.config.get('ROSNOU_ID_BASE_URL', { infer: true });
     const redirect = encodeURIComponent(this.config.get('FRONTEND_URL', { infer: true }));

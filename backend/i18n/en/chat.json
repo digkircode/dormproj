@@ -11,6 +11,8 @@
     "invalidFileType": "Unsupported file type: {type}",
     "unknownMimeType": "unknown",
     "fileTooLarge": "File \"{name}\" exceeds the allowed size ({max} MB)",
+    "totalFilesTooLarge": "Total file size exceeds 100 MB",
+    "invalidFileContent": "File content does not match a supported format",
     "tooFrequent": "Too fast — please wait a second before the next message",
     "tooManyMessages": "Too many messages in a row — please slow down",
     "tooManyAttachments": "Too many files in a row — please slow down"

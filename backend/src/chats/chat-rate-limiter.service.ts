@@ -25,11 +25,8 @@ export class ChatRateLimiterService {
   private readonly messageLog = new Map<number, number[]>();
   private readonly attachmentLog = new Map<number, number[]>();
 
-  // Бросает 429, если отправка ПРЯМО СЕЙЧАС нарушила бы один из лимитов — иначе
-  // регистрирует попытку. Вызывать ДО записи сообщения в БД; если уже успели записать
-  // файлы на диск (multer работает раньше тела хендлера) — вызывающий код отвечает за
-  // cleanupUploadedFiles при ошибке отсюда, см. my-chat.controller.ts.
-  checkAndRecord(userId: number, attachmentCount: number): void {
+  // Лимит сообщений проверяется guard'ом до чтения multipart-тела и записи файлов.
+  checkAndRecordMessage(userId: number): void {
     const now = Date.now();
 
     const messages = prune(this.messageLog.get(userId) ?? [], MESSAGE_WINDOW_MS, now);
@@ -41,15 +38,15 @@ export class ChatRateLimiterService {
       tooMany('chat.errors.tooManyMessages');
     }
 
-    if (attachmentCount > 0) {
-      const attachments = prune(this.attachmentLog.get(userId) ?? [], ATTACHMENT_WINDOW_MS, now);
-      if (attachments.length + attachmentCount > ATTACHMENT_LIMIT) {
-        tooMany('chat.errors.tooManyAttachments');
-      }
-      this.attachmentLog.set(userId, [...attachments, ...new Array(attachmentCount).fill(now)]);
-    }
-
     messages.push(now);
     this.messageLog.set(userId, messages);
+  }
+
+  checkAndRecordAttachments(userId: number, attachmentCount: number): void {
+    if (!attachmentCount) return;
+    const now = Date.now();
+    const attachments = prune(this.attachmentLog.get(userId) ?? [], ATTACHMENT_WINDOW_MS, now);
+    if (attachments.length + attachmentCount > ATTACHMENT_LIMIT) tooMany('chat.errors.tooManyAttachments');
+    this.attachmentLog.set(userId, [...attachments, ...new Array(attachmentCount).fill(now)]);
   }
 }
