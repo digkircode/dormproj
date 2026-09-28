@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ArrowRight, CreditCard, DoorOpen, Megaphone, MessageCircle, Newspaper, Wallet } from 'lucide-vue-next'
+import { ArrowRight, CreditCard, DoorOpen, Megaphone, Newspaper, Wallet } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import CreatePaymentDialog from '@/components/CreatePaymentDialog.vue'
@@ -10,7 +10,6 @@ import AllAnnouncementsDialog from '@/components/AllAnnouncementsDialog.vue'
 import ResidentNotificationsCard from '@/components/ResidentNotificationsCard.vue'
 import { fetchMyContractHomeSummary, type MyContractHomeSummary } from '@/lib/contracts-api'
 import { fetchMyAnnouncements, type ResidentAnnouncement } from '@/lib/announcements-api'
-import { residentUnreadCount } from '@/lib/chat-unread-state'
 import { currentUser } from '@/lib/auth-state'
 import { dateLocaleTag } from '@/lib/format-locale'
 import { iconBadgeColorClasses } from '@/lib/avatar-color'
@@ -52,7 +51,7 @@ const firstName = computed(() => currentUser.value?.name || null)
 // через {{ }}, не через v-html — см. обсуждение в промпте про XSS-инвариант проекта).
 // Видны ВСЕМ с ролью RESIDENT без таргетинга (см. MyAnnouncementsController на бэке).
 const announcements = ref<ResidentAnnouncement[]>([])
-const ANNOUNCEMENTS_PREVIEW_COUNT = 3
+const ANNOUNCEMENTS_PREVIEW_COUNT = 2
 const announcementsPreview = computed(() => announcements.value.slice(0, ANNOUNCEMENTS_PREVIEW_COUNT))
 const announcementReadDialog = ref<InstanceType<typeof AnnouncementReadDialog> | null>(null)
 const allAnnouncementsDialog = ref<InstanceType<typeof AllAnnouncementsDialog> | null>(null)
@@ -99,13 +98,7 @@ function formatDate(value: string): string {
 
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
-    <!-- На широком экране три зоны: приветствие, уведомления и маскот.
-         Отступ 80px сохранён для больших экранов; на узких блоки занимают
-         две колонки или идут друг под другом, чтобы не растягивать шапку. -->
-    <Card
-      class="relative grid grid-cols-1 items-center gap-4 overflow-hidden px-5 py-6 md:px-10 xl:gap-5 xl:pb-0 2xl:px-[80px]"
-      :class="props.demo ? 'xl:grid-cols-[minmax(0,1fr)_auto]' : 'md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,0.7fr)]'"
-    >
+    <Card class="relative flex flex-col items-start gap-6 overflow-hidden px-5 pt-6 sm:px-10 lg:flex-row lg:items-center lg:gap-8 lg:px-[80px]">
       <!-- "Облачка" — девятый заход 2026-08-28, по прямой просьбе отказались от попытки
            воспроизвести точный силуэт — просто россыпь кружков разного размера по всей
            шапке (не только в углу), тот же самый мягкий цвет (bg-sky-100/dark:bg-sky-400/15),
@@ -129,7 +122,7 @@ function formatDate(value: string): string {
         <div class="absolute top-[46%] -right-[2%] aspect-square w-[7%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
       </div>
 
-      <div class="relative z-10 w-full min-w-0">
+      <div class="relative z-10 w-full max-w-xl min-w-0">
         <h1 class="text-2xl font-semibold">
           <!-- Явный эмодзи-шрифт первым в стеке (не общий 'Inter Variable'/sans-serif сайта) —
                форсирует настоящую цветную отрисовку системным цветным эмодзи-шрифтом вместо
@@ -154,14 +147,13 @@ function formatDate(value: string): string {
         </div>
       </div>
 
-      <ResidentNotificationsCard v-if="!props.demo" />
-
-      <div class="relative z-10 hidden justify-self-end xl:block">
-        <!-- Обёртка немного короче изображения, чтобы маскот выглядывал из шапки.
-             На широком экране размер уменьшен: высоту шапки теперь определяют три зоны,
-             а не отдельный большой рисунок. -->
-        <div class="relative h-[260px] max-w-full overflow-hidden 2xl:h-[326px]">
-          <img :src="mascotSrc" alt="" class="h-[288px] max-w-full object-contain object-left 2xl:h-[363px]" />
+      <div class="relative z-10 flex shrink-0 items-center gap-1 lg:ml-auto">
+        <div class="relative hidden max-w-[220px] rounded-2xl border bg-background px-3 py-2 text-base shadow-sm lg:block">
+          {{ t('home.resident.mascotBubble') }}
+          <span class="absolute top-1/2 -right-1.5 size-3 -translate-y-1/2 rotate-45 border-t border-r bg-background" />
+        </div>
+        <div class="relative h-[218px] -translate-x-2 overflow-hidden sm:h-[326px] sm:-translate-x-3">
+          <img :src="mascotSrc" alt="" class="h-[241px] w-auto sm:h-[363px]" />
         </div>
       </div>
       <CreatePaymentDialog ref="paymentDialog" />
@@ -287,16 +279,8 @@ function formatDate(value: string): string {
       </Card>
     </div>
 
-    <!-- По прямой просьбе 2026-08-31: блок "Контакты" убран целиком (был здесь справа от
-         чата), "Объявления" переехали с отдельной полноширинной строки сюда, слева от чата.
-         Раньше это были два отдельных grid grid-cols-2 (чат+контакты 50/50, объявления
-         отдельной строкой на всю ширину) — теперь одна строка с sm:grid-cols-[7fr_3fr]
-         (не обычный grid-cols-2, чтобы деление было 70/30, а не ровно посередине).
-         minmax(0,7fr)/minmax(0,3fr), не голые 7fr/3fr — без minmax(0,...) трек по умолчанию
-         не может стать уже max-content своего содержимого (объявления с их строками), из-за
-         чего весь grid раздувался шире контейнера и утаскивал колонку с чатом за пределы
-         экрана (баг, найденный пользователем сразу после первого деплоя 2026-08-31). -->
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">
+    <!-- Уведомления занимают место карточки чата; на узком экране карточки идут друг под другом. -->
+    <div class="grid grid-cols-1 gap-4" :class="!props.demo ? 'lg:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)]' : ''">
       <!-- Объявления — по прямой просьбе 2026-08-30, фиолетовая иконка (в отличие от
            остальных карточек, у каждой свой фиксированный цвет — sky/green/amber/blue выше),
            показывает последние ANNOUNCEMENTS_PREVIEW_COUNT штук, полный список — в модалке
@@ -353,26 +337,7 @@ function formatDate(value: string): string {
         </div>
       </Card>
 
-      <!-- Чат с сотрудниками — жёлтая иконка, счётчик непрочитанных вместо кружка-точки,
-           "Написать сообщение" ссылкой под чертой (тот же паттерн карточки, что выше),
-           по прямой просьбе 2026-08-28. -->
-      <Card class="flex flex-col gap-3 p-6">
-        <div class="flex items-center gap-1.5 text-base font-medium">
-          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-500/15">
-            <MessageCircle class="size-4 text-amber-600 dark:text-amber-400" />
-          </div>
-          {{ t('home.resident.chatHeading') }}
-        </div>
-        <p class="text-sm text-muted-foreground">{{ t('home.resident.chatUnreadCount', { count: residentUnreadCount }) }}</p>
-        <!-- mt-auto + черта на обёртке, кликабельна только ссылка внутри — тот же приём,
-             что у "Подробнее" в "Моей комнате" выше (см. комментарий там). -->
-        <div class="mt-auto border-t pt-3">
-          <RouterLink to="/student/chat" class="inline-flex items-center gap-1 text-sm text-primary hover:underline">
-            {{ t('home.resident.chatCta') }}
-            <ArrowRight class="size-3.5" />
-          </RouterLink>
-        </div>
-      </Card>
+      <ResidentNotificationsCard v-if="!props.demo" />
     </div>
 
     <AnnouncementReadDialog ref="announcementReadDialog" @read="markAnnouncementAsRead" />
