@@ -167,42 +167,44 @@ export class ServiceProvisionDocService {
   }
 
   private async collectPenaltyLines(monthStart: Date, nextMonthStart: Date): Promise<ContractLine[]> {
-    const accruals = await this.prisma.penaltyAccrualLog.findMany({
-      where: { date: { gte: monthStart, lt: nextMonthStart } },
-      orderBy: [{ contractId: 'asc' }, { date: 'asc' }],
-      select: {
-        contractId: true,
-        amount: true,
-        contract: {
-          select: {
-            number: true,
-            residentIndividualUid: true,
-            accounting1cUid: true,
-            resident: { select: { fullName: true, accounting1cContractorUid: true } },
-          },
-        },
-      },
-    });
-    const byContract = new Map<number, ContractLine>();
-    for (const accrual of accruals) {
-      const existing = byContract.get(accrual.contractId);
-      if (existing) {
-        existing.penalty = existing.penalty.plus(accrual.amount);
-        continue;
-      }
-      byContract.set(accrual.contractId, {
-        contractId: accrual.contractId,
-        contractNumber: accrual.contract.number,
-        residentIndividualUid: accrual.contract.residentIndividualUid,
-        residentFullName: accrual.contract.resident.fullName,
-        contractorUid: accrual.contract.resident.accounting1cContractorUid,
-        contractUid: accrual.contract.accounting1cUid,
-        rent: new Decimal(0),
-        utilities: new Decimal(0),
-        penalty: accrual.amount,
+    return this.prisma.$transaction(async (tx) => {
+      const totals = await tx.penaltyAccrualLog.groupBy({
+        by: ['contractId'],
+        where: { date: { gte: monthStart, lt: nextMonthStart } },
+        _sum: { amount: true },
+        orderBy: { contractId: 'asc' },
       });
-    }
-    return [...byContract.values()];
+      if (totals.length === 0) return [];
+
+      const contracts = await tx.contract.findMany({
+        where: { id: { in: totals.map((item) => item.contractId) } },
+        select: {
+          id: true,
+          number: true,
+          residentIndividualUid: true,
+          accounting1cUid: true,
+          resident: { select: { fullName: true, accounting1cContractorUid: true } },
+        },
+      });
+      const byId = new Map(contracts.map((contract) => [contract.id, contract]));
+      return totals.map((item) => {
+        const contract = byId.get(item.contractId);
+        if (!contract || item._sum.amount === null) {
+          throw new Error(`Не удалось собрать пеню по договору ID ${item.contractId}`);
+        }
+        return {
+          contractId: item.contractId,
+          contractNumber: contract.number,
+          residentIndividualUid: contract.residentIndividualUid,
+          residentFullName: contract.resident.fullName,
+          contractorUid: contract.resident.accounting1cContractorUid,
+          contractUid: contract.accounting1cUid,
+          rent: new Decimal(0),
+          utilities: new Decimal(0),
+          penalty: item._sum.amount,
+        };
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 
   private buildDetails(lines: ContractLine[], pick: (line: ContractLine) => Prisma.Decimal): {

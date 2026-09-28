@@ -36,10 +36,9 @@ import {
   CHAT_UPLOADS_DIR,
   MAX_ATTACHMENTS_PER_MESSAGE,
   chatAttachmentsMulterOptions,
-  cleanupStorageKeys,
-  duplicateStoredFile,
 } from './chat-attachments-storage';
-import { cleanupUploadedFiles, validateAttachmentSizes, type ValidatedAttachment } from './chat-attachments';
+import { attachmentCreateData, cleanupUploadedFiles, validateAttachmentSizes } from './chat-attachments';
+import { ChatBroadcastService } from './chat-broadcast.service';
 import { isMessageRead } from './chat-read-status';
 import { NotificationsService } from '../notifications/notifications.service';
 
@@ -62,6 +61,7 @@ function attachmentPreviewLabel(attachments: { kind: string }[]): string {
 // ниже), поэтому JSON-часть (все поля кроме файлов) уходит одним текстовым полем
 // 'filters' и парсится вручную той же схемой, что и раньше.
 const broadcastSchema = z.object({
+  requestId: z.string().uuid(),
   body: z.string().trim().min(1).max(4000),
   floors: z.array(z.string().trim().min(1)).nullish(),
   corpus: z.string().trim().min(1).nullish(),
@@ -111,6 +111,7 @@ export class ChatsController {
     private readonly prisma: PrismaService,
     private readonly events: ChatEventsService,
     private readonly notifications: NotificationsService,
+    private readonly broadcasts: ChatBroadcastService,
   ) {}
 
   @Get()
@@ -167,12 +168,8 @@ export class ChatsController {
   // Сервер сам пересчитывает получателей по фильтрам на момент отправки (не доверяет
   // списку uid от клиента) — превью в диалоге и реальная рассылка используют одну и ту
   // же функцию chatRecipients, поэтому не могут разойтись.
-  // Вложения в рассылке (добавлено 2026-08-24, по прямой просьбе — раньше сознательно не
-  // делали, "один файл на много диалогов сразу это другая модель хранения") — физически
-  // копируем присланный файл под новым storageKey на каждого получателя, кроме первого
-  // (см. duplicateStoredFile в chat-attachments-storage.ts). Дороже по месту на диске при
-  // рассылке на много получателей с тяжёлым видео, зато без миграции схемы под shared
-  // storageKey и без будущей возни с подсчётом ссылок при удалении.
+  // Получатели фиксируются при приёме задания. Обработчик создаёт сообщения партиями,
+  // а все вложения ссылаются на один физический файл.
   @Post('broadcast')
   @UseGuards(ChatUploadGuard)
   @UseInterceptors(FilesInterceptor('files', MAX_ATTACHMENTS_PER_MESSAGE, chatAttachmentsMulterOptions()))
@@ -180,6 +177,7 @@ export class ChatsController {
     @UploadedFiles() files: Express.Multer.File[] = [],
     @Body('body') bodyText: string | undefined,
     @Body('filters') filtersRaw: string | undefined,
+    @Body('requestId') requestId: string | undefined,
     @Req() req: Request,
   ) {
     if (!req.user) {
@@ -194,74 +192,61 @@ export class ChatsController {
       await cleanupUploadedFiles(files);
       throw new BadRequestException('chat.errors.invalidRecipientFilters');
     }
-    const parsed = broadcastSchema.safeParse({ ...(filtersJson as object), body: bodyText });
+    const parsed = broadcastSchema.safeParse({ ...(filtersJson as object), body: bodyText, requestId });
     if (!parsed.success) {
       await cleanupUploadedFiles(files);
       throw new BadRequestException(zodErrorMessage(parsed.error));
     }
     const data = parsed.data;
 
-    // Копии физических файлов, созданные для получателей 2..N — если что-то ниже упадёт,
-    // подчищаем их вместе с исходными (cleanupUploadedFiles), чтобы не оставлять сирот.
-    const createdCopyKeys: string[] = [];
+    let accepted = false;
+    let creationStarted = false;
     try {
+      const previous = await this.broadcasts.findExisting(data.requestId, req.user.id);
+      if (previous) {
+        await cleanupUploadedFiles(files);
+        return this.broadcasts.status(previous.id);
+      }
       const baseAttachments = await validateAttachmentSizes(files);
       const recipients = await chatRecipients(this.prisma, toFilters(data));
       if (recipients.length === 0) {
         throw new BadRequestException('chat.errors.noMatchingResidents');
       }
-
-      // Копирование — файловый I/O, вне транзакции БД (не удерживать транзакцию открытой
-      // на время дисковых операций). Первый получатель забирает исходные файлы как есть.
-      const attachmentsPerRecipient: ValidatedAttachment[][] = [baseAttachments];
-      for (let i = 1; i < recipients.length; i++) {
-        const copies: ValidatedAttachment[] = [];
-        for (const attachment of baseAttachments) {
-          const newKey = await duplicateStoredFile(attachment.storageKey);
-          createdCopyKeys.push(newKey);
-          copies.push({ ...attachment, storageKey: newKey });
-        }
-        attachmentsPerRecipient.push(copies);
-      }
-
-      const now = new Date();
-      const results = await this.prisma.$transaction(async (tx) => {
-        const userId = await ensureUserRecord(tx, req.user!);
-        const created: { conversationId: number; individualUid: string; messageId: number }[] = [];
-
-        for (let i = 0; i < recipients.length; i++) {
-          const recipient = recipients[i];
-          const conversation = await tx.chatConversation.upsert({
-            where: { individualUid: recipient.individualUid },
-            create: { individualUid: recipient.individualUid, lastMessageAt: now, staffLastReadAt: now },
-            update: { lastMessageAt: now, staffLastReadAt: now },
-          });
-          const message = await tx.chatMessage.create({
-            data: {
-              conversationId: conversation.id,
-              senderUserId: userId,
-              senderRole: 'STAFF',
-              body: data.body,
-              attachments: { create: attachmentsPerRecipient[i] },
-            },
-          });
-          await this.notifications.enqueueChat(tx, message.id, recipient.individualUid);
-          created.push({ conversationId: conversation.id, individualUid: recipient.individualUid, messageId: message.id });
-        }
-
-        return created;
-      });
-
-      for (const result of results) {
-        this.events.emit(result);
-      }
-
-      return { sentCount: results.length };
+      creationStarted = true;
+      const job = await this.broadcasts.create(
+        data.requestId, req.user, data.body,
+        [...new Set(recipients.map((recipient) => recipient.individualUid))], baseAttachments,
+      );
+      accepted = true;
+      return this.broadcasts.status(job.id);
     } catch (error) {
-      await cleanupUploadedFiles(files);
-      await cleanupStorageKeys(createdCopyKeys);
+      if (!accepted && creationStarted) {
+        // После обрыва соединения COMMIT мог выполниться. Удалять такие файлы нельзя.
+        let previous: Awaited<ReturnType<ChatBroadcastService['findExisting']>>;
+        try {
+          previous = await this.broadcasts.findExisting(data.requestId, req.user.id);
+        } catch {
+          throw error;
+        }
+        if (previous) {
+          const savedKeys = new Set(previous.files.map((item) => item.file.storageKey));
+          await cleanupUploadedFiles(files.filter((file) => !savedKeys.has(file.filename)));
+          return this.broadcasts.status(previous.id);
+        }
+      }
+      if (!accepted) await cleanupUploadedFiles(files);
       throw error;
     }
+  }
+
+  @Get('broadcasts/:id')
+  async broadcastStatus(@Param('id') idParam: string) {
+    return this.broadcasts.status(parseId(idParam));
+  }
+
+  @Post('broadcasts/:id/retry')
+  async retryBroadcast(@Param('id') idParam: string) {
+    return this.broadcasts.retry(parseId(idParam));
   }
 
   @Sse('stream')
@@ -391,7 +376,7 @@ export class ChatsController {
             senderUserId: userId,
             senderRole: 'STAFF',
             body: trimmedBody || null,
-            attachments: { create: attachments },
+            attachments: { create: attachmentCreateData(attachments) },
           },
         });
         await tx.chatConversation.update({
@@ -415,11 +400,11 @@ export class ChatsController {
   @Get('attachments/:id')
   async attachment(@Param('id') idParam: string, @Res() res: Response) {
     const id = parseId(idParam);
-    const attachment = await this.prisma.chatAttachment.findUnique({ where: { id } });
+    const attachment = await this.prisma.chatAttachment.findUnique({ where: { id }, include: { file: true } });
     if (!attachment) {
       throw new NotFoundException('chat.errors.fileNotFound');
     }
-    const filePath = join(CHAT_UPLOADS_DIR, attachment.storageKey);
+    const filePath = join(CHAT_UPLOADS_DIR, attachment.file.storageKey);
     if (!existsSync(filePath)) {
       throw new NotFoundException('chat.errors.fileNotFound');
     }

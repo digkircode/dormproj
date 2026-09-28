@@ -271,6 +271,7 @@ model User {
   roles                UserRole[]
   auditLogs            AuditLog[]
   chatMessages         ChatMessage[]
+  chatBroadcasts        ChatBroadcast[]
   announcementsCreated Announcement[]
   announcementReads    AnnouncementRead[]
   notificationLinks    NotificationLink[]
@@ -768,6 +769,7 @@ model PenaltyAccrualLog {
 
   @@unique([contractId, date])
   @@index([contractId, date])
+  @@index([date, contractId])
   @@map("penalty_accrual_log")
 }
 
@@ -1078,6 +1080,7 @@ model ChatMessage {
   body String?
 
   attachments ChatAttachment[]
+  broadcastRecipient ChatBroadcastRecipient?
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -1090,10 +1093,9 @@ enum ChatAttachmentKind {
   VIDEO
 }
 
-// Файл лежит на диске backend-контейнера (persistent docker volume, см.
-// docker-compose.yml) — БД хранит только метаданные + сгенерированное имя файла
-// (storageKey), не сам байты и не оригинальное имя как путь (избегаем path traversal
-// через управляемое пользователем имя файла).
+// Файл лежит в persistent docker volume. Метаданные вложения принадлежат сообщению,
+// а физический storageKey вынесен в ChatStoredFile: рассылка ссылается на один файл.
+// Оригинальное имя используется только для отображения, никогда как путь на диске.
 model ChatAttachment {
   id         Int                @id @default(autoincrement())
   messageId  Int                @map("message_id")
@@ -1103,13 +1105,76 @@ model ChatAttachment {
   // Оригинальное имя файла — только для отображения/Content-Disposition, не для пути на диске.
   fileName   String             @map("file_name")
   sizeBytes  Int                @map("size_bytes")
-  // Сгенерированное имя файла на диске (randomUUID + расширение) — см. chat-attachments-storage.ts.
-  storageKey String             @unique @map("storage_key")
+  fileId     Int                @map("file_id")
+  file       ChatStoredFile     @relation(fields: [fileId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([messageId])
+  @@index([fileId])
   @@map("chat_attachments")
+}
+
+model ChatStoredFile {
+  id         Int      @id @default(autoincrement())
+  storageKey String   @unique @map("storage_key")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  attachments ChatAttachment[]
+  broadcastFiles ChatBroadcastFile[]
+
+  @@map("chat_stored_files")
+}
+
+model ChatBroadcast {
+  id           Int      @id @default(autoincrement())
+  requestId    String   @unique @map("request_id")
+  senderUserId Int      @map("sender_user_id")
+  sender       User     @relation(fields: [senderUserId], references: [id])
+  body         String
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  files       ChatBroadcastFile[]
+  recipients  ChatBroadcastRecipient[]
+
+  @@map("chat_broadcasts")
+}
+
+model ChatBroadcastFile {
+  id          Int                @id @default(autoincrement())
+  broadcastId Int                @map("broadcast_id")
+  broadcast   ChatBroadcast      @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  fileId      Int                @map("file_id")
+  file        ChatStoredFile     @relation(fields: [fileId], references: [id])
+  kind        ChatAttachmentKind
+  mimeType    String             @map("mime_type")
+  fileName    String             @map("file_name")
+  sizeBytes   Int                @map("size_bytes")
+
+  @@unique([broadcastId, fileId])
+  @@map("chat_broadcast_files")
+}
+
+enum ChatBroadcastRecipientStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model ChatBroadcastRecipient {
+  id            Int                          @id @default(autoincrement())
+  broadcastId   Int                          @map("broadcast_id")
+  broadcast     ChatBroadcast                @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  individualUid String                       @map("individual_uid")
+  status        ChatBroadcastRecipientStatus @default(PENDING)
+  attempts      Int                          @default(0)
+  lastError     String?                      @map("last_error")
+  messageId     Int?                         @unique @map("message_id")
+  message       ChatMessage?                 @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@unique([broadcastId, individualUid])
+  @@index([status, id])
+  @@map("chat_broadcast_recipients")
 }
 
 // Объявления сотрудников для проживающих — лента на "Главной" резидента + секция на

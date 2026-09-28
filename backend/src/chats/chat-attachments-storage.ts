@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync } from 'fs';
-import { copyFile, readFile, unlink, writeFile } from 'fs/promises';
+import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { diskStorage } from 'multer';
@@ -46,23 +46,6 @@ export function maxBytesForKind(kind: ChatAttachmentKind): number {
 // Content-Disposition/показа) — исключает path traversal и коллизии имён.
 function generateStorageKey(): string {
   return randomUUID();
-}
-
-// Рассылка (см. chats.controller.ts#broadcast) — один и тот же файл уходит нескольким
-// получателям, а ChatAttachment.storageKey уникален в схеме (@@unique), поэтому одну
-// запись на несколько диалогов не переиспользовать — физически копируем файл под новым
-// случайным именем на каждого получателя, кроме первого (тот получает оригинал как есть).
-// Осознанный компромисс: дороже по месту на диске, зато без миграции схемы под shared-
-// storageKey (и без будущей возни с подсчётом ссылок при удалении).
-export async function duplicateStoredFile(sourceStorageKey: string): Promise<string> {
-  const ext = sourceStorageKey.includes('.') ? sourceStorageKey.slice(sourceStorageKey.lastIndexOf('.')) : '';
-  const newKey = `${randomUUID()}${ext}`;
-  await copyFile(join(CHAT_UPLOADS_DIR, sourceStorageKey), join(CHAT_UPLOADS_DIR, newKey));
-  return newKey;
-}
-
-export async function cleanupStorageKeys(storageKeys: string[]): Promise<void> {
-  await Promise.all(storageKeys.map((key) => unlink(join(CHAT_UPLOADS_DIR, key)).catch(() => {})));
 }
 
 // Сжатие фото при приёме (2026-08-24, по прямой просьбе — диск ограничен, 20 ГБ, вложения
@@ -115,8 +98,8 @@ export function chatAttachmentsMulterOptions() {
     limits: {
       fileSize: MAX_VIDEO_BYTES,
       files: MAX_ATTACHMENTS_PER_MESSAGE,
-      fields: 2,
-      parts: MAX_ATTACHMENTS_PER_MESSAGE + 2,
+      fields: 3,
+      parts: MAX_ATTACHMENTS_PER_MESSAGE + 3,
       fieldSize: 16 * 1024,
       fieldNameSize: 100,
       headerPairs: 50,

@@ -51,6 +51,13 @@
       "messagePlaceholder": "Текст сообщения...",
       "attachHint": "Уйдёт каждому получателю рассылки",
       "send": "Отправить",
+      "progressTitle": "Ход рассылки",
+      "running": "Отправлено {sent} из {total}",
+      "partial": "Отправлено {sent} из {total}, ошибок: {failed}",
+      "completed": "Отправлено всем: {count}",
+      "canClose": "Можно закрыть окно — рассылка продолжится в фоне.",
+      "retryFailed": "Повторить ошибки",
+      "newBroadcast": "Новая рассылка",
       "emptyBody": "Введите текст сообщения",
       "noRecipients": "Нет проживающих, подходящих под выбранные фильтры"
     },
@@ -68,6 +75,8 @@
       "fetchRecipientFacetsFailed": "Не удалось получить фильтры получателей ({status})",
       "fetchRecipientsFailed": "Не удалось получить список получателей ({status})",
       "sendBroadcastFailed": "Не удалось отправить рассылку ({status})",
+      "fetchBroadcastFailed": "Не удалось получить состояние рассылки ({status})",
+      "retryBroadcastFailed": "Не удалось повторить рассылку ({status})",
       "fetchMyChatFailed": "Не удалось получить чат ({status})",
       "fetchMyResidentInfoFailed": "Не удалось получить информацию о договоре ({status})"
     }

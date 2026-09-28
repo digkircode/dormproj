@@ -13,12 +13,15 @@ import SearchSelect from '@/components/SearchSelect.vue'
 import {
   fetchRecipientFacets,
   fetchRecipients,
+  fetchBroadcastStatus,
+  retryBroadcast,
   sendBroadcast,
   MAX_ATTACHMENTS_PER_MESSAGE,
   MAX_IMAGE_BYTES,
   MAX_VIDEO_BYTES,
   type ChatRecipient,
   type ChatRecipientFacets,
+  type ChatBroadcastStatus,
 } from '@/lib/chat-api'
 import { parseApiError } from '@/lib/utils'
 
@@ -34,16 +37,49 @@ const facets = ref<ChatRecipientFacets | null>(null)
 const recipients = ref<ChatRecipient[]>([])
 const isLoadingRecipients = ref(false)
 const isSending = ref(false)
+const isRetrying = ref(false)
 const dialogError = ref('')
+const activeJob = ref<ChatBroadcastStatus | null>(null)
+function newRequestId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+const requestId = ref(newRequestId())
+const storedJobKey = 'chat-broadcast-job-id'
+let pollTimer: ReturnType<typeof setInterval> | undefined
+let lastReportedSent = 0
+
+async function pollJob() {
+  if (!activeJob.value || !isDialogOpen.value) return
+  try {
+    const status = await fetchBroadcastStatus(activeJob.value.id)
+    activeJob.value = status
+    if (status.sent > lastReportedSent) {
+      lastReportedSent = status.sent
+      emit('sent')
+    }
+  } catch (error) {
+    dialogError.value = parseApiError(error).message
+  }
+}
+
+watch([isDialogOpen, activeJob], () => {
+  if (pollTimer) clearInterval(pollTimer)
+  pollTimer = undefined
+  if (isDialogOpen.value && activeJob.value?.status === 'RUNNING') {
+    pollTimer = setInterval(pollJob, 2000)
+  }
+})
 
 const floors = ref<string[]>([])
 const corpus = ref<string>('')
 const debtorsOnly = ref(false)
 const body = ref('')
 
-// Вложения (2026-08-24, по прямой просьбе) — тот же композер-приём, что в ChatThread.vue
-// (fileInputRef+превью+object URL), но один набор файлов физически копируется на каждого
-// получателя рассылки (см. broadcast() на бэке) — тут это просто список выбранных файлов.
+// Один набор файлов хранится физически один раз для всех адресатов рассылки.
 const pendingFiles = ref<File[]>([])
 const attachError = ref('')
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -77,6 +113,7 @@ function keyFor(file: File): number {
   return key
 }
 onBeforeUnmount(() => {
+  if (pollTimer) clearInterval(pollTimer)
   for (const url of objectUrls.values()) URL.revokeObjectURL(url)
   objectUrls.clear()
 })
@@ -160,6 +197,7 @@ function toggleFloor(value: string, checked: boolean) {
 }
 
 async function refreshRecipients() {
+  if (!isDialogOpen.value || activeJob.value) return
   // Явные выборы уже полный список сам по себе — доп. запрос не нужен, повторно
   // используем то, что уже есть на руках (см. pickPerson/removePerson).
   if (hasExplicitPicks.value) {
@@ -184,6 +222,8 @@ watch([floors, corpus, debtorsOnly], refreshRecipients)
 
 async function open() {
   dialogError.value = ''
+  activeJob.value = null
+  requestId.value = newRequestId()
   floors.value = []
   corpus.value = ''
   debtorsOnly.value = false
@@ -197,8 +237,37 @@ async function open() {
   attachError.value = ''
   isDialogOpen.value = true
 
+  const savedId = Number(sessionStorage.getItem(storedJobKey))
+  if (Number.isSafeInteger(savedId) && savedId > 0) {
+    try {
+      activeJob.value = await fetchBroadcastStatus(savedId)
+      lastReportedSent = activeJob.value.sent
+      return
+    } catch {
+      sessionStorage.removeItem(storedJobKey)
+    }
+  }
+
   facets.value = await fetchRecipientFacets()
   await refreshRecipients()
+}
+
+async function newBroadcast() {
+  sessionStorage.removeItem(storedJobKey)
+  await open()
+}
+
+async function retryFailed() {
+  if (!activeJob.value) return
+  isRetrying.value = true
+  dialogError.value = ''
+  try {
+    activeJob.value = await retryBroadcast(activeJob.value.id)
+  } catch (error) {
+    dialogError.value = parseApiError(error).message
+  } finally {
+    isRetrying.value = false
+  }
 }
 
 defineExpose({ open })
@@ -216,7 +285,7 @@ async function submit() {
 
   isSending.value = true
   try {
-    await sendBroadcast(
+    const job = await sendBroadcast(
       body.value.trim(),
       hasExplicitPicks.value
         ? { individualUids: pickedIndividuals.value.map((p) => p.individualUid) }
@@ -225,10 +294,15 @@ async function submit() {
             corpus: corpus.value || undefined,
             debtorsOnly: debtorsOnly.value || undefined,
           },
+      requestId.value,
       pendingFiles.value,
     )
-    isDialogOpen.value = false
-    emit('sent')
+    activeJob.value = job
+    lastReportedSent = job.sent
+    sessionStorage.setItem(storedJobKey, String(job.id))
+    for (const file of pendingFiles.value) revokePreviewUrl(file)
+    pendingFiles.value = []
+    if (job.sent > 0) emit('sent')
   } catch (error) {
     dialogError.value = parseApiError(error).message
   } finally {
@@ -244,7 +318,15 @@ async function submit() {
         <DialogTitle>{{ t('chat.list.newMessage') }}</DialogTitle>
       </DialogHeader>
 
-      <div class="flex flex-col gap-4">
+      <div v-if="activeJob" class="flex flex-col gap-3 rounded-md border p-4" aria-live="polite">
+        <p class="font-medium">{{ t('chat.broadcast.progressTitle') }}</p>
+        <p v-if="activeJob.status === 'RUNNING'">{{ t('chat.broadcast.running', { sent: activeJob.sent, total: activeJob.total }) }}</p>
+        <p v-else-if="activeJob.status === 'PARTIAL'">{{ t('chat.broadcast.partial', { sent: activeJob.sent, total: activeJob.total, failed: activeJob.failed }) }}</p>
+        <p v-else>{{ t('chat.broadcast.completed', { count: activeJob.sent }) }}</p>
+        <p v-if="activeJob.status === 'RUNNING'" class="text-sm text-muted-foreground">{{ t('chat.broadcast.canClose') }}</p>
+      </div>
+
+      <div v-else class="flex flex-col gap-4">
         <div class="flex flex-col gap-2">
           <Label>{{ t('chat.broadcast.specificPeopleLabel') }}</Label>
           <SearchSelect
@@ -373,7 +455,9 @@ async function submit() {
 
       <DialogFooter>
         <p v-if="dialogError" class="mr-auto self-center text-sm text-red-500">{{ dialogError }}</p>
-        <Button :loading="isSending" :disabled="recipients.length === 0" @click="submit">{{ t('chat.broadcast.send') }}</Button>
+        <Button v-if="activeJob?.status === 'PARTIAL'" :loading="isRetrying" @click="retryFailed">{{ t('chat.broadcast.retryFailed') }}</Button>
+        <Button v-if="activeJob && activeJob.status !== 'RUNNING'" variant="outline" @click="newBroadcast">{{ t('chat.broadcast.newBroadcast') }}</Button>
+        <Button v-if="!activeJob" :loading="isSending" :disabled="recipients.length === 0" @click="submit">{{ t('chat.broadcast.send') }}</Button>
       </DialogFooter>
     </DialogScrollContent>
   </Dialog>

@@ -6,10 +6,11 @@ import { ChatEventsService } from './chat-events.service';
 import { ChatRateLimiterService } from './chat-rate-limiter.service';
 import { ChatUploadGuard, ResidentMessageRateGuard } from './chat-upload.guard';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { ChatBroadcastService } from './chat-broadcast.service';
 
 @Module({
   imports: [AuthModule, NotificationsModule],
   controllers: [ChatsController, MyChatController],
-  providers: [ChatEventsService, ChatRateLimiterService, ChatUploadGuard, ResidentMessageRateGuard],
+  providers: [ChatEventsService, ChatBroadcastService, ChatRateLimiterService, ChatUploadGuard, ResidentMessageRateGuard],
 })
 export class ChatsModule {}

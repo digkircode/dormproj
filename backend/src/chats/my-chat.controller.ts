@@ -31,7 +31,7 @@ import { ChatEventsService } from './chat-events.service';
 import { ChatRateLimiterService } from './chat-rate-limiter.service';
 import { ChatUploadGuard, ResidentMessageRateGuard } from './chat-upload.guard';
 import { CHAT_UPLOADS_DIR, MAX_ATTACHMENTS_PER_MESSAGE, chatAttachmentsMulterOptions } from './chat-attachments-storage';
-import { cleanupUploadedFiles, validateAttachmentSizes } from './chat-attachments';
+import { attachmentCreateData, cleanupUploadedFiles, validateAttachmentSizes } from './chat-attachments';
 import { isMessageRead } from './chat-read-status';
 import { MESSAGES_PAGE_SIZE } from './chats.controller';
 
@@ -236,7 +236,7 @@ export class MyChatController {
             senderUserId: userId,
             senderRole: 'RESIDENT',
             body: trimmedBody || null,
-            attachments: { create: attachments },
+            attachments: { create: attachmentCreateData(attachments) },
           },
         });
         return { message: created, conversationId: conversation.id };
@@ -262,13 +262,13 @@ export class MyChatController {
 
     const attachment = await this.prisma.chatAttachment.findUnique({
       where: { id },
-      include: { message: { include: { conversation: true } } },
+      include: { file: true, message: { include: { conversation: true } } },
     });
     if (!attachment || attachment.message.conversation.individualUid !== individualUid) {
       throw new NotFoundException('chat.errors.fileNotFound');
     }
 
-    const filePath = join(CHAT_UPLOADS_DIR, attachment.storageKey);
+    const filePath = join(CHAT_UPLOADS_DIR, attachment.file.storageKey);
     if (!existsSync(filePath)) {
       throw new NotFoundException('chat.errors.fileNotFound');
     }

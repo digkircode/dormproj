@@ -13,6 +13,13 @@ export interface ValidatedAttachment {
   storageKey: string;
 }
 
+export function attachmentCreateData(attachments: ValidatedAttachment[]) {
+  return attachments.map(({ storageKey, ...metadata }) => ({
+    ...metadata,
+    file: { create: { storageKey } },
+  }));
+}
+
 // fileFilter (см. chatAttachmentsMulterOptions) уже отсеивает недопустимые MIME-типы
 // при приёме — здесь точный лимит РАЗМЕРА по типу: multer.limits.fileSize — одна общая
 // граница на все файлы сразу (нет способа задать её по-разному для фото/видео), поэтому

@@ -175,13 +175,36 @@ export async function fetchRecipients(filters: ChatRecipientFilters): Promise<Ch
 // multipart/form-data, а не JSON (2026-08-24, добавлены вложения) — фильтры уходят одним
 // текстовым полем 'filters' (JSON-строка), файлы — тем же 'files', что и у обычной
 // отправки (см. messageFormData/chats.controller.ts#broadcast).
-export async function sendBroadcast(body: string, filters: ChatRecipientFilters, files: File[] = []): Promise<{ sentCount: number }> {
+export interface ChatBroadcastStatus {
+  id: number
+  createdAt: string
+  total: number
+  pending: number
+  sent: number
+  failed: number
+  status: 'RUNNING' | 'PARTIAL' | 'COMPLETED'
+}
+
+export async function sendBroadcast(body: string, filters: ChatRecipientFilters, requestId: string, files: File[] = []): Promise<ChatBroadcastStatus> {
   const form = new FormData()
   form.set('body', body)
   form.set('filters', JSON.stringify(filters))
+  form.set('requestId', requestId)
   for (const file of files) form.append('files', file)
   const response = await apiFetch('/chats/broadcast', { method: 'POST', body: form })
   if (!response.ok) throw new Error(await parseErrorMessage(response, 'chat.errors.sendBroadcastFailed'))
+  return response.json()
+}
+
+export async function fetchBroadcastStatus(id: number): Promise<ChatBroadcastStatus> {
+  const response = await apiFetch(`/chats/broadcasts/${id}`)
+  if (!response.ok) throw new Error(await parseErrorMessage(response, 'chat.errors.fetchBroadcastFailed'))
+  return response.json()
+}
+
+export async function retryBroadcast(id: number): Promise<ChatBroadcastStatus> {
+  const response = await apiFetch(`/chats/broadcasts/${id}/retry`, { method: 'POST' })
+  if (!response.ok) throw new Error(await parseErrorMessage(response, 'chat.errors.retryBroadcastFailed'))
   return response.json()
 }
 

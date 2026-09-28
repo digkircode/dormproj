@@ -51,6 +51,13 @@
       "messagePlaceholder": "Message text...",
       "attachHint": "Will be sent to every broadcast recipient",
       "send": "Send",
+      "progressTitle": "Broadcast progress",
+      "running": "Sent {sent} of {total}",
+      "partial": "Sent {sent} of {total}; failed: {failed}",
+      "completed": "Sent to all {count}",
+      "canClose": "You can close this window; delivery will continue in the background.",
+      "retryFailed": "Retry failed",
+      "newBroadcast": "New broadcast",
       "emptyBody": "Enter the message text",
       "noRecipients": "No residents match the selected filters"
     },
@@ -68,6 +75,8 @@
       "fetchRecipientFacetsFailed": "Failed to load recipient filters ({status})",
       "fetchRecipientsFailed": "Failed to load the recipient list ({status})",
       "sendBroadcastFailed": "Failed to send the broadcast ({status})",
+      "fetchBroadcastFailed": "Failed to load broadcast status ({status})",
+      "retryBroadcastFailed": "Failed to retry the broadcast ({status})",
       "fetchMyChatFailed": "Failed to load the chat ({status})",
       "fetchMyResidentInfoFailed": "Failed to load contract information ({status})"
     }
