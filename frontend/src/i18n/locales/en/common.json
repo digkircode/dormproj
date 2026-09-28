@@ -128,6 +128,7 @@
       "announcementsSeeAll": "All announcements",
       "notificationsHeading": "Messenger notifications",
       "notificationsTagline": "Announcements and staff messages in your messenger",
+      "notificationsDemoHint": "Connect messengers from a resident account.",
       "notificationsConnected": "Connected",
       "notificationsNotConnected": "Not connected",
       "notificationsDescription": "Connect a bot to get new announcements right away and staff messages in one digest after a pause. Text appears in the bot; photos and videos open through a link to your account. You can disconnect each channel separately.",

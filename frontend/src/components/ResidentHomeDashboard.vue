@@ -163,12 +163,12 @@ function formatDate(value: string): string {
       <!-- "Моя комната" — по прямой просьбе 2026-08-28: слева комната/этаж, через
            вертикальную черту справа номер договора/дата создания, "Подробнее" под
            горизонтальной чертой снизу (не 2x2 корпус/этаж/комната/тип, как раньше). -->
-      <Card class="flex flex-col gap-3 p-6">
-        <div class="flex items-center gap-1.5 text-base font-medium">
-          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-500/15">
+      <Card class="flex flex-col gap-3 rounded-2xl border-sky-200/80 bg-gradient-to-br from-sky-50 via-background to-background p-4 dark:border-sky-500/20 dark:from-sky-500/10">
+        <div class="flex items-start gap-3">
+          <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-500/20">
             <DoorOpen class="size-4 text-sky-600 dark:text-sky-400" />
           </div>
-          {{ t('home.resident.roomHeading') }}
+          <h2 class="min-w-0 text-sm font-semibold leading-5">{{ t('home.resident.roomHeading') }}</h2>
         </div>
         <template v-if="!isLoading && contract?.currentRoom">
           <div class="flex divide-x text-sm">
@@ -221,12 +221,12 @@ function formatDate(value: string): string {
       <!-- "Оплата" (была "Общий баланс") — задолженность в цветной плашке + пилюля
            "Просрочен платёж", следующий платёж, "Перейти к оплате" ссылкой (не кнопкой)
            под чертой, открывает модалку оплаты — всё по прямой просьбе 2026-08-28. -->
-      <Card class="flex flex-col gap-3 p-6">
-        <div class="flex items-center gap-1.5 text-base font-medium">
-          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-green-100 dark:bg-green-500/15">
+      <Card class="flex flex-col gap-3 rounded-2xl border-green-200/80 bg-gradient-to-br from-green-50 via-background to-background p-4 dark:border-green-500/20 dark:from-green-500/10">
+        <div class="flex items-start gap-3">
+          <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-green-100 dark:bg-green-500/20">
             <Wallet class="size-4 text-green-600 dark:text-green-400" />
           </div>
-          {{ t('home.resident.paymentHeading') }}
+          <h2 class="min-w-0 text-sm font-semibold leading-5">{{ t('home.resident.paymentHeading') }}</h2>
         </div>
         <template v-if="!isLoading && contract">
           <div
@@ -280,17 +280,17 @@ function formatDate(value: string): string {
     </div>
 
     <!-- Уведомления занимают место карточки чата; на узком экране карточки идут друг под другом. -->
-    <div class="grid grid-cols-1 gap-4" :class="!props.demo ? 'lg:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)]' : ''">
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)]">
       <!-- Объявления — по прямой просьбе 2026-08-30, фиолетовая иконка (в отличие от
            остальных карточек, у каждой свой фиксированный цвет — sky/green/amber/blue выше),
            показывает последние ANNOUNCEMENTS_PREVIEW_COUNT штук, полный список — в модалке
            "Все объявления" ниже (та же кнопка-ссылка под чертой, что и у остальных карточек). -->
-      <Card class="flex flex-col gap-3 p-6">
-        <div class="flex items-center gap-1.5 text-base font-medium">
-          <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-500/15">
+      <Card class="flex flex-col gap-3 rounded-2xl border-violet-200/80 bg-gradient-to-br from-violet-50 via-background to-background p-4 dark:border-violet-500/20 dark:from-violet-500/10">
+        <div class="flex items-start gap-3">
+          <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-violet-100 dark:bg-violet-500/20">
             <Megaphone class="size-4 text-violet-600 dark:text-violet-400" />
           </div>
-          {{ t('home.resident.announcementsHeading') }}
+          <h2 class="min-w-0 text-sm font-semibold leading-5">{{ t('home.resident.announcementsHeading') }}</h2>
         </div>
         <p v-if="!isLoading && !announcements.length" class="text-sm text-muted-foreground">{{ t('home.resident.announcementsEmpty') }}</p>
         <!-- Раньше — hover:bg-accent на голом ряду + divide-y между рядами. По прямой
@@ -337,7 +337,7 @@ function formatDate(value: string): string {
         </div>
       </Card>
 
-      <ResidentNotificationsCard v-if="!props.demo" />
+      <ResidentNotificationsCard :demo="props.demo" />
     </div>
 
     <AnnouncementReadDialog ref="announcementReadDialog" @read="markAnnouncementAsRead" />
