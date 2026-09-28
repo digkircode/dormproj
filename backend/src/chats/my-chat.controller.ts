@@ -26,6 +26,8 @@ import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
+import { currentResidentAssignments } from '../contracts/resident-assignments';
+import { dateOnly } from '../billing/period-utils';
 import { ensureUserRecord } from '../users/ensure-user';
 import { ChatEventsService } from './chat-events.service';
 import { ChatRateLimiterService } from './chat-rate-limiter.service';
@@ -144,16 +146,10 @@ export class MyChatController {
       throw new BadRequestException('contracts.errors.sessionUserNotFound');
     }
     const individualUid = await this.resolveIndividualUid(req.user.id);
-    const contract = await this.prisma.contract.findFirst({
-      // ACTIVE/EXPIRING — оба ещё "сейчас проживает" (срок не вышел), см. ContractStatus
-      // в schema.prisma.
-      where: { residentIndividualUid: individualUid, status: { in: ['ACTIVE', 'EXPIRING'] } },
-      orderBy: { contractDate: 'desc' },
-      include: { roomAssignments: { where: { toDate: null }, include: { room: { select: { room: true } } } } },
-    });
+    const assignment = (await currentResidentAssignments(this.prisma, dateOnly(new Date()), true, individualUid))[0];
     return {
-      contractNumber: contract?.number ?? null,
-      room: contract?.roomAssignments[0]?.room.room ?? null,
+      contractNumber: assignment?.contract.number ?? null,
+      room: assignment?.room.room ?? null,
     };
   }
 

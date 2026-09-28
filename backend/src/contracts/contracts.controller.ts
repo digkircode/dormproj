@@ -41,6 +41,7 @@ import { buildContractHomeSummary } from './contract-home-summary';
 import { ContractStatus } from '../../generated/prisma/client.js';
 import { zodErrorMessage } from '../i18n/zod-error-message';
 import { roomAvailability } from './room-capacity';
+import { conflictingRoomAssignment } from './room-conflict';
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -534,6 +535,15 @@ export class ContractsController {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
+        // Serialize contract creation for one resident. Otherwise two requests
+        // for different rooms could both pass the conflict check concurrently.
+        await tx.$queryRaw`SELECT fizicheskoye_litso_uid FROM individuals WHERE fizicheskoye_litso_uid = ${data.residentIndividualUid} FOR UPDATE`;
+        if (await conflictingRoomAssignment(tx, data.residentIndividualUid, data.roomId, data.startDate, data.endDate)) {
+          throw new BadRequestException({
+            message: 'contracts.errors.conflictingRoomAssignment',
+            fieldErrors: { roomId: 'contracts.errors.conflictingRoomAssignment' },
+          });
+        }
         // Serialize bookings for this room before reading occupancy (READ COMMITTED).
         await tx.$queryRaw`SELECT id FROM rooms WHERE id = ${data.roomId} FOR UPDATE`;
         const { capacity, occupied } = await roomAvailability(tx, data.roomId, data.startDate, data.endDate);

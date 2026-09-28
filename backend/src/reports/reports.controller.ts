@@ -13,6 +13,8 @@ import { parseListOptions, paginateInMemory, filterAndSortInMemory, facetsFromVa
 import { sendExcelReport, type ExcelColumn } from './excel-export';
 import { buildDebtorRows, type DebtorRow } from './debtor-rows';
 import { CONTRACT_STATUS_LABELS } from '../contracts/contract-display-status';
+import { currentResidentAssignments } from '../contracts/resident-assignments';
+import { buildMovementEvents, type MovementEvent, type MovementOperationType } from './movement-events';
 
 const { Decimal } = Prisma;
 
@@ -86,21 +88,6 @@ interface ContractRegistryRow {
   daysUntilEnd: number;
   bucket: ContractRegistryBucket;
 }
-
-type MovementOperationType = 'IN' | 'OUT' | 'MOVE' | 'RENEWAL';
-
-interface MovementEvent {
-  date: Date;
-  contractId: number;
-  contractNumber: string;
-  residentIndividualUid: string;
-  residentFullName: string;
-  operation: MovementOperationType;
-  from: string | null;
-  to: string | null;
-}
-
-const MOVEMENT_GAP_DAYS = 30;
 
 const MOVEMENT_LABELS_RU: Record<MovementOperationType, string> = {
   IN: 'Заселение',
@@ -462,35 +449,10 @@ export class ReportsController {
   // Один резидент — одна строка (по прямой просьбе 2026-09-05), даже если на asOf у него
   // одновременно больше одного договора/заселения (поддерживается в проекте, см. промпт —
   // "несколько одновременных договоров") — раньше каждое совпадающее по дате RoomAssignment
-  // давало отдельную строку с одним и тем же ФИО. Дедуп ниже, после сортировки по fromDate
-  // (уже стоит orderBy), оставляет ту запись, где резидент реально жил (или жил ещё) на
-  // asOf, что заселился туда позже всех остальных — той же логике, что и Occupancy
-  // (комната на дату), просто применённой на уровне резидента, а не комнаты.
+  // давало отдельную строку с одним и тем же ФИО. Общая с чатом выборка оставляет
+  // последнее заселение на дату, а при равной дате — запись с большим id.
   private async buildContingentRows(asOf: Date): Promise<ContingentRow[]> {
-    const assignments = await this.prisma.roomAssignment.findMany({
-      where: { fromDate: { lte: asOf }, OR: [{ toDate: null }, { toDate: { gte: asOf } }] },
-      include: {
-        room: { select: { room: true } },
-        contract: {
-          select: {
-            id: true,
-            number: true,
-            residentIndividualUid: true,
-            resident: {
-              select: {
-                fullName: true,
-                birthDate: true,
-                // "Текущее" гражданство — та же эвристика, что в individuals.controller.ts:
-                // просто последняя запись по period, без спецобработки 1С-сентинелов
-                // (та нужна только contactInfos, см. pickLatestContactInfo).
-                citizenships: { orderBy: { period: 'desc' }, take: 1, select: { country: true } },
-              },
-            },
-          },
-        },
-      },
-      orderBy: { fromDate: 'desc' },
-    });
+    const assignments = await currentResidentAssignments(this.prisma, asOf);
 
     const uids = [...new Set(assignments.map((a) => a.contract.residentIndividualUid))];
     const students = await this.prisma.student.findMany({
@@ -516,16 +478,7 @@ export class ReportsController {
       if (!existing || c.startDate < existing) firstContractStartByUid.set(c.residentIndividualUid, c.startDate);
     }
 
-    // assignments уже отсортирован по fromDate desc (см. orderBy выше) — первое вхождение
-    // на резидента и есть самое недавнее заселение, покрывающее asOf.
-    const seenResidentUids = new Set<string>();
-    const uniqueAssignments = assignments.filter((a) => {
-      if (seenResidentUids.has(a.contract.residentIndividualUid)) return false;
-      seenResidentUids.add(a.contract.residentIndividualUid);
-      return true;
-    });
-
-    return uniqueAssignments.map((a) => {
+    return assignments.map((a) => {
       const student = studentByUid.get(a.contract.residentIndividualUid);
       const citizenship = a.contract.resident.citizenships[0]?.country ?? null;
       return {
@@ -720,18 +673,8 @@ export class ReportsController {
   }
 
   // ===== Отчёт "Движение проживающих" (бывшее "Заселение / выселение") =====
-  // События — не хранимая сущность, а производная от истории ДОГОВОРОВ одного физлица
-  // (не RoomAssignment, как было раньше) — по прямой просьбе 2026-08-22, правило "разрыв
-  // 30 дней": для каждого договора C смотрим предыдущий/следующий договор ТОГО ЖЕ физлица
-  // по хронологии.
-  // - Старт C: если нет предыдущего договора ИЛИ разрыв (C.startDate - prev.endEffective)
-  //   больше 30 дней -> ЗАСЕЛЕНИЕ. Иначе (разрыв <=30 дней) -> та же комната, что у
-  //   предыдущего -> ПРОДЛЕНИЕ; другая комната -> ПЕРЕСЕЛЕНИЕ. Дата события — startDate.
-  // - Конец C: если нет следующего договора ИЛИ разрыв (next.startDate - C.endEffective)
-  //   больше 30 дней -> ВЫСЕЛЕНИЕ, дата события — endEffective (actualEndDate ?? endDate).
-  //   Если следующий договор укладывается в 30 дней — отдельного события выселения нет,
-  //   переход уже описан стартовым событием следующего договора (продление/переселение).
-  // endEffective — actualEndDate, если было досрочное расторжение, иначе endDate.
+  // Events are derived from contracts and their actual occupancy intervals.
+  // The 30-day comparison is implemented and tested in movement-events.ts.
   private async buildMovementEvents(): Promise<MovementEvent[]> {
     const contracts = await this.prisma.contract.findMany({
       select: {
@@ -742,53 +685,10 @@ export class ReportsController {
         endDate: true,
         actualEndDate: true,
         resident: { select: { fullName: true } },
-        roomAssignments: { orderBy: { fromDate: 'asc' }, take: 1, select: { room: { select: { room: true } } } },
+        roomAssignments: { select: { id: true, fromDate: true, toDate: true, room: { select: { room: true } } } },
       },
     });
-
-    const byResident = new Map<string, typeof contracts>();
-    for (const c of contracts) {
-      const list = byResident.get(c.residentIndividualUid);
-      if (list) list.push(c);
-      else byResident.set(c.residentIndividualUid, [c]);
-    }
-
-    const events: MovementEvent[] = [];
-    const MS_PER_DAY = 24 * 60 * 60 * 1000;
-    const gapDays = (a: Date, b: Date) => Math.round((b.getTime() - a.getTime()) / MS_PER_DAY);
-
-    for (const list of byResident.values()) {
-      list.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
-      for (let i = 0; i < list.length; i++) {
-        const c = list[i];
-        const prev = i > 0 ? list[i - 1] : null;
-        const next = i < list.length - 1 ? list[i + 1] : null;
-        const room = c.roomAssignments[0]?.room.room ?? null;
-        const endEffective = c.actualEndDate ?? c.endDate;
-        const meta = {
-          contractId: c.id,
-          contractNumber: c.number,
-          residentIndividualUid: c.residentIndividualUid,
-          residentFullName: c.resident.fullName,
-        };
-
-        const prevEndEffective = prev ? (prev.actualEndDate ?? prev.endDate) : null;
-        const prevRoom = prev ? (prev.roomAssignments[0]?.room.room ?? null) : null;
-        if (!prev || !prevEndEffective || gapDays(prevEndEffective, c.startDate) > MOVEMENT_GAP_DAYS) {
-          events.push({ date: c.startDate, operation: 'IN', from: null, to: room, ...meta });
-        } else if (prevRoom === room) {
-          events.push({ date: c.startDate, operation: 'RENEWAL', from: room, to: room, ...meta });
-        } else {
-          events.push({ date: c.startDate, operation: 'MOVE', from: prevRoom, to: room, ...meta });
-        }
-
-        if (!next || gapDays(endEffective, next.startDate) > MOVEMENT_GAP_DAYS) {
-          events.push({ date: endEffective, operation: 'OUT', from: room, to: null, ...meta });
-        }
-      }
-    }
-
-    return events;
+    return buildMovementEvents(contracts);
   }
 
   @Get('movements')

@@ -154,6 +154,7 @@
         "residentRequired": "Выберите проживающего",
         "roomRequired": "Выберите комнату",
         "noAvailablePlaces": "Нет свободных мест на выбранный период",
+        "conflictingRoomAssignment": "У проживающего уже есть договор на другую комнату в этот период",
         "startDateRequired": "Укажите дату начала",
         "endDateRequired": "Укажите дату окончания",
         "endDateBeforeStart": "Не раньше даты начала",

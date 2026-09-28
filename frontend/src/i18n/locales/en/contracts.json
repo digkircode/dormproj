@@ -154,6 +154,7 @@
         "residentRequired": "Select a resident",
         "roomRequired": "Select a room",
         "noAvailablePlaces": "No places available for the selected period",
+        "conflictingRoomAssignment": "The resident already has a contract for another room during this period",
         "startDateRequired": "Enter the start date",
         "endDateRequired": "Enter the end date",
         "endDateBeforeStart": "Must not be before the start date",

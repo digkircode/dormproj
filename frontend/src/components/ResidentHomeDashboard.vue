@@ -102,12 +102,12 @@ function formatDate(value: string): string {
     <!-- Шапка сделана буквально по присланному пользователем референсу (2026-08-28):
          приветствие по имени + текст + кнопка слева, маскот с "репликой" справа.
          Фон — по прямой просьбе 2026-08-29 приведён к тому же bg-card, что у остальных
-         карточек ниже (раньше был отдельный светло-голубой оттенок). px-[80px] (80px по
-         прямой просьбе 2026-08-31, было px-[72px] — не попадает в стандартную шкалу
-         Tailwind, отсюда произвольное значение вместо именованного класса), pt-6 (24px, вернули по прямой просьбе —
+         карточек ниже (раньше был отдельный светло-голубой оттенок). На широком экране
+         сохранён отступ 80px по просьбе 2026-08-31; на узком он меньше, чтобы блок
+         подключения мессенджеров не сжимался. pt-6 (24px, вернули по прямой просьбе —
          первая версия убрала верхний отступ вместе с нижним), без нижнего паддинга (было
          p-6=24px со всех сторон). -->
-    <Card class="relative flex flex-col items-start gap-6 overflow-hidden px-[80px] pt-6 sm:flex-row sm:items-center sm:gap-8">
+    <Card class="relative flex flex-col items-start gap-6 overflow-hidden px-5 pt-6 sm:px-10 lg:flex-row lg:items-center lg:gap-8 lg:px-[80px]">
       <!-- "Облачка" — девятый заход 2026-08-28, по прямой просьбе отказались от попытки
            воспроизвести точный силуэт — просто россыпь кружков разного размера по всей
            шапке (не только в углу), тот же самый мягкий цвет (bg-sky-100/dark:bg-sky-400/15),
@@ -134,7 +134,7 @@ function formatDate(value: string): string {
       <!-- justify-between → gap-8 на самой Card (по прямой просьбе 2026-08-28: расстояние
            между приветственным текстом и маскотом/облачком было слишком большим на широких
            экранах — justify-between растягивал его на весь остаток ширины). -->
-      <div class="relative z-10 max-w-xl">
+      <div class="relative z-10 w-full max-w-xl min-w-0">
         <h1 class="text-2xl font-semibold">
           <!-- Явный эмодзи-шрифт первым в стеке (не общий 'Inter Variable'/sans-serif сайта) —
                форсирует настоящую цветную отрисовку системным цветным эмодзи-шрифтом вместо
@@ -145,6 +145,7 @@ function formatDate(value: string): string {
           <span class="font-emoji">👋</span>
           {{ firstName ? t('home.resident.greetingTitle', { name: firstName }) : t('home.resident.greetingTitleFallback') }}
         </h1>
+        <ResidentNotificationsCard v-if="!props.demo" />
         <p class="mt-3 text-base text-muted-foreground">{{ t('home.resident.greetingBody1') }}</p>
         <p class="mt-3 text-base text-muted-foreground">{{ t('home.resident.greetingBody2') }}</p>
         <!-- Кнопка "Мой договор" убрана из шапки по прямой просьбе 2026-08-29 — тот же
@@ -157,23 +158,22 @@ function formatDate(value: string): string {
             {{ t('home.resident.payHero') }}
           </Button>
         </div>
-        <ResidentNotificationsCard v-if="!props.demo" />
       </div>
 
-      <!-- sm:ml-auto — маскот прижат к правому краю шапки (по прямой просьбе 2026-08-28):
+      <!-- lg:ml-auto — маскот прижат к правому краю шапки (по прямой просьбе 2026-08-28):
            без него на широкой карточке (текст ýже max-w-xl, а карточка ещё шире) маскот
            просто шёл сразу за текстом через gap-8, оставляя пустоту СПРАВА от него до края
            карточки, а не наоборот. ml-auto съедает именно эту пустоту, подтягивая маскот к
            краю; gap-8 остаётся минимальным отступом от текста, когда свободного места нет. -->
       <!-- gap-1 (было gap-3) — по прямой просьбе 2026-08-29 маскот подвинут ближе к
            пузырю с текстом. -->
-      <div class="relative z-10 flex shrink-0 items-center gap-1 sm:ml-auto">
-        <!-- "Реплика" маскота — hidden на самом узком экране (места впритык с текстом+
-             кнопками уже не остаётся), с sm: и выше показывается как в референсе. Хвостик
+      <div class="relative z-10 flex shrink-0 items-center gap-1 lg:ml-auto">
+        <!-- "Реплика" маскота — hidden на узком экране (места впритык с текстом+
+             кнопками уже не остаётся), с lg: и выше показывается как в референсе. Хвостик
              пузыря — повёрнутый на 45° квадрат с двумя видимыми гранями (border-t/border-r),
              тот же трюк, что для CSS-стрелок без картинок/псевдоэлементов ::after.
              text-base (было text-sm) — по прямой просьбе 2026-08-29. -->
-        <div class="relative hidden max-w-[220px] rounded-2xl border bg-background px-3 py-2 text-base shadow-sm sm:block">
+        <div class="relative hidden max-w-[220px] rounded-2xl border bg-background px-3 py-2 text-base shadow-sm lg:block">
           {{ t('home.resident.mascotBubble') }}
           <span class="absolute top-1/2 -right-1.5 size-3 -translate-y-1/2 rotate-45 border-t border-r bg-background" />
         </div>

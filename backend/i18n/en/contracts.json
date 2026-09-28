@@ -34,6 +34,7 @@
     "setUtilitiesCost": "Set the utilities cost on the dormitory page",
     "roomCostBelowUtilities": "The room cost cannot be less than the utilities cost",
     "noAvailablePlaces": "No places available for the selected period",
+    "conflictingRoomAssignment": "The resident already has a contract for another room during this period",
     "capacityOccupied": "All places are occupied during part of the selected period (capacity: {capacity})",
     "numberTaken": "This number is already in use",
     "capacityMissing": "Set the number of places on the room page",

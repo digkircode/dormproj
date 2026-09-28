@@ -3,6 +3,7 @@ import type { PrismaService } from '../prisma/prisma.service';
 import { dateOnly } from '../billing/period-utils';
 import { buildDebtorRows, type DebtorRow } from '../reports/debtor-rows';
 import { fromStoredValue } from '../rooms/characteristic-value';
+import { currentResidentAssignments } from '../contracts/resident-assignments';
 
 // Название характеристик комнаты, по которым фильтруется рассылка — "Этаж" уже
 // существует (см. reports.controller.ts), "Корпус" в проекте изначально не заведён
@@ -69,31 +70,18 @@ function currentByRoom(rows: CharacteristicRow[], definitionName: string): Map<n
   return result;
 }
 
-// Базовая выборка "реальных" проживающих для чата/рассылки — те, у кого прямо сейчас
-// действующий договор (ACTIVE или EXPIRING — срок ещё не вышел, см. ContractStatus в
-// schema.prisma) с активным заселением в комнату. Сознательно не роль RESIDENT — та
-// завязана на весь жизненный цикл договора включая 30-дневный грейс-период после
-// естественного завершения (см. resident-role-sync.ts), не привязана к факту проживания/
-// комнате — фильтры по этажу/корпусу без комнаты физически не имеют смысла, поэтому
-// берём именно эту базу.
-// buildDebtorRows отдаёт строку НА ДОГОВОР, не на проживающего — бизнес-правила не
-// запрещают явно два одновременных договора одного физлица в разных комнатах
-// (редкий случай, но не невозможный), а у чата ровно один диалог на Individual
-// (@@unique на individualUid, см. schema.prisma) — дедуп по individualUid здесь,
-// чтобы рассылка не отправила такому человеку одно и то же сообщение дважды.
+// One chat per individual. Use the same current assignment as the residents
+// registry; buildDebtorRows supplies the balance for that assignment's contract.
 async function currentResidents(prisma: PrismaService): Promise<(DebtorRow & { roomId: number })[]> {
-  const rows = await buildDebtorRows(prisma, dateOnly(new Date()));
-  const active = rows.filter(
-    (r): r is DebtorRow & { roomId: number } => (r.status === 'ACTIVE' || r.status === 'EXPIRING') && r.roomId !== null,
-  );
-
-  const byIndividual = new Map<string, DebtorRow & { roomId: number }>();
-  for (const row of active) {
-    if (!byIndividual.has(row.residentIndividualUid)) {
-      byIndividual.set(row.residentIndividualUid, row);
-    }
-  }
-  return [...byIndividual.values()];
+  const asOf = dateOnly(new Date());
+  const [rows, assignments] = await Promise.all([
+    buildDebtorRows(prisma, asOf), currentResidentAssignments(prisma, asOf, true),
+  ]);
+  const byContract = new Map(rows.map((row) => [row.contractId, row]));
+  return assignments.flatMap((assignment) => {
+    const row = byContract.get(assignment.contract.id);
+    return row ? [{ ...row, room: assignment.room.room, roomId: assignment.roomId }] : [];
+  });
 }
 
 async function loadCharacteristics(prisma: PrismaService, roomIds: number[]) {

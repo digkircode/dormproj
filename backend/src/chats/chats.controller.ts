@@ -32,6 +32,8 @@ import { zodErrorMessage } from '../i18n/zod-error-message';
 import { ChatEventsService } from './chat-events.service';
 import { ChatUploadGuard } from './chat-upload.guard';
 import { chatRecipientFacets, chatRecipients, type ChatRecipientFilters } from './chat-recipients';
+import { currentResidentAssignments } from '../contracts/resident-assignments';
+import { dateOnly } from '../billing/period-utils';
 import {
   CHAT_UPLOADS_DIR,
   MAX_ATTACHMENTS_PER_MESSAGE,
@@ -314,18 +316,12 @@ export class ChatsController {
       throw new NotFoundException('chat.errors.conversationNotFound');
     }
 
-    const contract = await this.prisma.contract.findFirst({
-      // ACTIVE/EXPIRING — оба ещё "сейчас проживает" (срок не вышел), см. ContractStatus
-      // в schema.prisma.
-      where: { residentIndividualUid: conversation.individualUid, status: { in: ['ACTIVE', 'EXPIRING'] } },
-      orderBy: { contractDate: 'desc' },
-      include: { roomAssignments: { where: { toDate: null }, include: { room: { select: { room: true } } } } },
-    });
+    const assignment = (await currentResidentAssignments(this.prisma, dateOnly(new Date()), true, conversation.individualUid))[0];
 
     return {
-      contractId: contract?.id ?? null,
-      contractNumber: contract?.number ?? null,
-      room: contract?.roomAssignments[0]?.room.room ?? null,
+      contractId: assignment?.contract.id ?? null,
+      contractNumber: assignment?.contract.number ?? null,
+      room: assignment?.room.room ?? null,
     };
   }
 
