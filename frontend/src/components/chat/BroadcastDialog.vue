@@ -36,6 +36,14 @@ const isDialogOpen = ref(false)
 const facets = ref<ChatRecipientFacets | null>(null)
 const recipients = ref<ChatRecipient[]>([])
 const isLoadingRecipients = ref(false)
+const showRecipientList = ref(false)
+const recipientSearch = ref('')
+const filteredRecipients = computed(() => {
+  const query = recipientSearch.value.trim().toLocaleLowerCase()
+  return query ? recipients.value.filter((person) =>
+    [person.fullName, person.room, person.floor, person.corpus].some((value) => value?.toLocaleLowerCase().includes(query))) : recipients.value
+})
+let recipientsRequest = 0
 const isSending = ref(false)
 const isRetrying = ref(false)
 const dialogError = ref('')
@@ -177,6 +185,8 @@ async function searchPeople(query: string) {
 const debouncedSearchPeople = useDebounceFn(searchPeople, 300)
 
 function pickPerson(person: ChatRecipient) {
+  recipientsRequest++
+  isLoadingRecipients.value = false
   pickedIndividuals.value.push(person)
   personQuery.value = ''
   personSearchResults.value = []
@@ -184,6 +194,8 @@ function pickPerson(person: ChatRecipient) {
 }
 
 function removePerson(uid: string) {
+  recipientsRequest++
+  isLoadingRecipients.value = false
   pickedIndividuals.value = pickedIndividuals.value.filter((p) => p.individualUid !== uid)
   if (pickedIndividuals.value.length > 0) {
     recipients.value = [...pickedIndividuals.value]
@@ -198,23 +210,27 @@ function toggleFloor(value: string, checked: boolean) {
 
 async function refreshRecipients() {
   if (!isDialogOpen.value || activeJob.value) return
+  const request = ++recipientsRequest
   // Явные выборы уже полный список сам по себе — доп. запрос не нужен, повторно
   // используем то, что уже есть на руках (см. pickPerson/removePerson).
   if (hasExplicitPicks.value) {
+    isLoadingRecipients.value = false
     recipients.value = [...pickedIndividuals.value]
     return
   }
   isLoadingRecipients.value = true
+  recipients.value = []
   try {
-    recipients.value = await fetchRecipients({
+    const result = await fetchRecipients({
       floors: floors.value.length ? floors.value : undefined,
       corpus: corpus.value || undefined,
       debtorsOnly: debtorsOnly.value || undefined,
     })
+    if (request === recipientsRequest) recipients.value = result
   } catch {
-    recipients.value = []
+    if (request === recipientsRequest) recipients.value = []
   } finally {
-    isLoadingRecipients.value = false
+    if (request === recipientsRequest) isLoadingRecipients.value = false
   }
 }
 
@@ -232,6 +248,9 @@ async function open() {
   personQuery.value = ''
   personSearchResults.value = []
   recipients.value = []
+  recipientsRequest++
+  showRecipientList.value = false
+  recipientSearch.value = ''
   for (const file of pendingFiles.value) revokePreviewUrl(file)
   pendingFiles.value = []
   attachError.value = ''
@@ -410,10 +429,42 @@ async function submit() {
           </Label>
         </div>
 
-        <div class="flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-          <Users class="size-4 shrink-0" />
-          <span v-if="isLoadingRecipients">{{ t('chat.broadcast.countingRecipients') }}</span>
-          <span v-else>{{ t('chat.broadcast.willReceive', { count: recipients.length }) }}</span>
+        <div class="rounded-md border bg-muted/50 px-3 py-2 text-sm">
+          <div class="flex flex-wrap items-center gap-2">
+            <Users class="size-4 shrink-0 text-muted-foreground" />
+            <span v-if="isLoadingRecipients" class="text-muted-foreground">{{ t('chat.broadcast.countingRecipients') }}</span>
+            <span v-else class="font-medium">{{ t('chat.broadcast.willReceive', { count: recipients.length }) }}</span>
+            <button
+              v-if="!isLoadingRecipients && recipients.length"
+              type="button"
+              class="ml-auto inline-flex items-center gap-1 text-primary hover:underline"
+              :aria-expanded="showRecipientList"
+              @click="showRecipientList = !showRecipientList"
+            >
+              {{ showRecipientList ? t('chat.broadcast.hideRecipients') : t('chat.broadcast.showRecipients') }}
+              <ChevronDown class="size-4 transition-transform" :class="showRecipientList ? 'rotate-180' : ''" />
+            </button>
+          </div>
+          <p v-if="!isLoadingRecipients && recipients.length && !showRecipientList" class="mt-1 truncate text-muted-foreground">
+            {{ recipients.slice(0, 3).map((person) => person.fullName).join(', ') }}{{ recipients.length > 3 ? '…' : '' }}
+          </p>
+          <div v-if="showRecipientList && !isLoadingRecipients && recipients.length" class="mt-3 border-t pt-3">
+            <input
+              v-model="recipientSearch"
+              type="search"
+              :placeholder="t('chat.broadcast.searchRecipients')"
+              :aria-label="t('chat.broadcast.searchRecipients')"
+              class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring"
+            />
+            <p class="mt-2 text-xs text-muted-foreground">{{ t('chat.broadcast.foundRecipients', { count: filteredRecipients.length }) }}</p>
+            <div class="mt-2 max-h-48 overflow-y-auto rounded-md border bg-background">
+              <div v-for="person in filteredRecipients" :key="person.individualUid" class="flex justify-between gap-3 border-b px-3 py-2 last:border-b-0">
+                <span class="min-w-0 break-words">{{ person.fullName }}</span>
+                <span v-if="person.room" class="shrink-0 text-muted-foreground">{{ t('chat.broadcast.room', { room: person.room }) }}</span>
+              </div>
+              <p v-if="!filteredRecipients.length" class="px-3 py-2 text-muted-foreground">{{ t('chat.broadcast.noSearchRecipients') }}</p>
+            </div>
+          </div>
         </div>
 
         <div class="flex flex-col gap-2">
@@ -457,7 +508,7 @@ async function submit() {
         <p v-if="dialogError" class="mr-auto self-center text-sm text-red-500">{{ dialogError }}</p>
         <Button v-if="activeJob?.status === 'PARTIAL'" :loading="isRetrying" @click="retryFailed">{{ t('chat.broadcast.retryFailed') }}</Button>
         <Button v-if="activeJob && activeJob.status !== 'RUNNING'" variant="outline" @click="newBroadcast">{{ t('chat.broadcast.newBroadcast') }}</Button>
-        <Button v-if="!activeJob" :loading="isSending" :disabled="recipients.length === 0" @click="submit">{{ t('chat.broadcast.send') }}</Button>
+        <Button v-if="!activeJob" :loading="isSending" :disabled="isLoadingRecipients || recipients.length === 0" @click="submit">{{ t('chat.broadcast.send') }}</Button>
       </DialogFooter>
     </DialogScrollContent>
   </Dialog>

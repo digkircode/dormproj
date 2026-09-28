@@ -5,6 +5,7 @@ import { Interval } from '@nestjs/schedule';
 import { Prisma, type NotificationChannel, type NotificationDelivery } from '../../generated/prisma/client.js';
 import type { Env } from '../config/env.schema';
 import { PrismaService } from '../prisma/prisma.service';
+import { announcementNotification, chatNotification, type NotificationText } from './notification-text';
 
 const digestDelay = 5 * 60_000;
 const maxDigestDelay = 15 * 60_000;
@@ -140,17 +141,17 @@ export class NotificationsService {
     }
   }
 
-  private async send(channel: NotificationChannel, externalId: string, text: string): Promise<string | null> {
+  private async send(channel: NotificationChannel, externalId: string, notification: NotificationText): Promise<string | null> {
     let url: string;
     let headers: Record<string, string> = { 'Content-Type': 'application/json' };
     let body: unknown;
     if (channel === 'TELEGRAM') {
       url = `https://api.telegram.org/bot${this.config.get('TELEGRAM_BOT_TOKEN')}/sendMessage`;
-      body = { chat_id: externalId, text };
+      body = { chat_id: externalId, text: notification.telegramHtml, parse_mode: 'HTML', link_preview_options: { is_disabled: true } };
     } else {
       url = `https://platform-api2.max.ru/messages?user_id=${encodeURIComponent(externalId)}`;
       headers = { ...headers, Authorization: this.config.get('MAX_BOT_TOKEN') ?? '' };
-      body = { text };
+      body = { text: notification.plain };
     }
     const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(15_000) });
     const result = await response.json() as { ok?: boolean; result?: { message_id?: number }; message?: { body?: { mid?: string } }; description?: string };
@@ -181,16 +182,14 @@ export class NotificationsService {
         return;
       }
       const base = this.config.get('FRONTEND_URL').replace(/\/$/, '');
-      let text: string;
+      let notification: NotificationText;
       if (row.kind === 'ANNOUNCEMENT') {
         const announcement = await this.prisma.announcement.findUnique({ where: { id: row.sourceId } });
         if (!announcement) {
           await this.prisma.notificationDelivery.update({ where: { id: row.id }, data: { status: 'SKIPPED' } });
           return;
         }
-        text = user?.notificationLocale === 'en'
-          ? `New announcement: ${announcement.title}\n\n${announcement.body}\n\n${base}/`
-          : `Новое объявление: ${announcement.title}\n\n${announcement.body}\n\n${base}/`;
+        notification = announcementNotification(announcement.title, announcement.body, `${base}/`, user?.notificationLocale === 'en');
       } else {
         const messages = await this.prisma.chatMessage.findMany({
           where: { id: { in: [row.sourceId, ...group.map((item) => item.sourceId)] }, senderRole: 'STAFF' },
@@ -202,14 +201,13 @@ export class NotificationsService {
           await this.prisma.notificationDelivery.updateMany({ where: { id: { in: groupIds } }, data: { status: 'SKIPPED' } });
           return;
         }
-        const en = user?.notificationLocale === 'en';
-        const shown = unread.slice(-3).map((message) => message.body || message.attachments.map((a) => a.kind === 'VIDEO' ? (en ? 'Video' : 'Видео') : (en ? 'Photo' : 'Фото')).join(', '));
-        text = en
-          ? `Messages from staff:\n${shown.join('\n\n')}${unread.length > 3 ? `\n\nAnd ${unread.length - 3} more messages` : ''}\n\n${base}/student/chat`
-          : `Сообщения администрации:\n${shown.join('\n\n')}${unread.length > 3 ? `\n\nИ ещё ${unread.length - 3} сообщений` : ''}\n\n${base}/student/chat`;
+        notification = chatNotification(
+          unread.map((message) => ({ body: message.body, hasAttachments: message.attachments.length > 0 })),
+          `${base}/student/chat`,
+          user?.notificationLocale === 'en',
+        );
       }
-      const url = row.kind === 'CHAT' ? `${base}/student/chat` : `${base}/`;
-      const providerId = await this.send(row.channel, link.externalId, text.length > 3900 ? `${text.slice(0, 3800)}…\n\n${url}` : text);
+      const providerId = await this.send(row.channel, link.externalId, notification);
       await this.prisma.notificationDelivery.updateMany({ where: { id: { in: groupIds } }, data: { status: 'SENT', providerId } });
     } catch (error) {
       this.logger.warn(`Не удалось отправить уведомление ${row.id}: ${error instanceof Error ? error.message : String(error)}`);

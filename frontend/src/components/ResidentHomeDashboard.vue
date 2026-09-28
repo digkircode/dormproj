@@ -157,6 +157,7 @@ function formatDate(value: string): string {
             {{ t('home.resident.payHero') }}
           </Button>
         </div>
+        <ResidentNotificationsCard v-if="!props.demo" />
       </div>
 
       <!-- sm:ml-auto — маскот прижат к правому краю шапки (по прямой просьбе 2026-08-28):
@@ -406,7 +407,6 @@ function formatDate(value: string): string {
     </div>
 
     <AnnouncementReadDialog ref="announcementReadDialog" @read="markAnnouncementAsRead" />
-    <ResidentNotificationsCard v-if="!props.demo" />
     <AllAnnouncementsDialog ref="allAnnouncementsDialog" :announcements="announcements" @read="markAnnouncementAsRead" />
   </div>
 </template>
