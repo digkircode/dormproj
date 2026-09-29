@@ -50,7 +50,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 </script>
 
 <template>
-  <section class="relative z-10 w-full min-w-0 rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50 via-background to-background p-4 shadow-sm dark:border-amber-500/20 dark:from-amber-500/10" :aria-label="t('home.resident.notificationsHeading')">
+  <section class="relative z-10 w-full min-w-0 rounded-2xl bg-card p-4 text-card-foreground shadow-sm" :aria-label="t('home.resident.notificationsHeading')">
     <div class="flex items-start gap-3">
       <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400">
         <Bell class="size-4" />
@@ -61,7 +61,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
       </div>
     </div>
     <div class="mt-3 flex flex-col gap-2">
-      <div v-for="item in displayChannels" :key="item.channel" class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border bg-background/85 px-3 py-2.5 shadow-xs">
+      <div v-for="item in displayChannels" :key="item.channel" class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-muted/50 px-3 py-2.5">
         <div class="flex size-9 shrink-0 items-center justify-center rounded-full" :class="item.channel === 'TELEGRAM' ? 'bg-[#26A5E4] text-white' : 'bg-violet-600 text-white'">
           <svg v-if="item.channel === 'TELEGRAM'" viewBox="0 0 24 24" aria-hidden="true" class="size-5 fill-current">
             <path d="M20.665 3.717 2.934 10.554c-1.21.486-1.203 1.16-.222 1.46l4.552 1.42 10.532-6.645c.498-.303.953-.14.579.192l-8.532 7.7-.316 4.77c.463 0 .667-.212.926-.463l2.22-2.158 4.617 3.411c.85.469 1.46.228 1.67-.787l3.02-14.234c.309-1.24-.474-1.801-1.315-1.503Z" />
