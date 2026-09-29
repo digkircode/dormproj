@@ -46,7 +46,7 @@ function formatDateIso(iso: string): string {
 }
 function cellText(columnId: string, value: unknown): string {
   if (columnId === 'date' && typeof value === 'string') return formatDateIso(value)
-  if (columnId === 'from' || columnId === 'to') return typeof value === 'string' ? value : '—'
+  if (columnId === 'from' || columnId === 'to') return typeof value === 'string' ? value : '-'
   return String(value ?? '')
 }
 

@@ -32,7 +32,7 @@ export class Accounting1cPushService {
   // сотрудник явно попросил переотправить, независимо от текущего состояния.
   async pushPayments(paymentIds?: number[]): Promise<{ sent: number; succeeded: number; failed: number }> {
     if (!this.provider.isConfigured()) {
-      this.logger.warn('1С Бухгалтерия не настроена — пропуск отправки платежей');
+      this.logger.warn('1С Бухгалтерия не настроена - пропуск отправки платежей');
       return { sent: 0, succeeded: 0, failed: 0 };
     }
 

@@ -120,7 +120,7 @@ const latestPassport = computed(() => passportRows.value[0] ?? null)
 const latestPassportRows = computed(() => (latestPassport.value ? [latestPassport.value] : []))
 
 function formatDate(iso: string | null | undefined): string {
-  if (!iso) return '—'
+  if (!iso) return '-'
   const date = new Date(iso)
   const pad = (n: number) => n.toString().padStart(2, '0')
   return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
@@ -393,7 +393,7 @@ onUnmounted(() => {
                     </span>
                     <span v-else key="value" class="col-start-1 row-start-1 flex items-center gap-1.5">
                       <Copy class="size-3.5 shrink-0" />
-                      <span>{{ detail.code ?? '—' }}</span>
+                      <span>{{ detail.code ?? '-' }}</span>
                     </span>
                   </Transition>
                 </button>
@@ -471,14 +471,14 @@ onUnmounted(() => {
               <component :is="contactTypeIcon(contact.type)" v-if="contactTypeIcon(contact.type)" class="size-4 shrink-0 text-primary" />
               {{ contact.type }}
             </span>
-            <span>{{ contact.predstavleniye || '—' }}</span>
+            <span>{{ contact.predstavleniye || '-' }}</span>
           </div>
         </div>
 
         <div class="flex flex-col divide-y divide-border pt-4 lg:w-64 lg:shrink-0 lg:pt-0 lg:pl-6">
           <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
             <span class="text-muted-foreground">{{ t('individuals.detail.citizenship') }}</span>
-            <span>{{ citizenshipDisplay ?? '—' }}</span>
+            <span>{{ citizenshipDisplay ?? '-' }}</span>
           </div>
           <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
             <span class="text-muted-foreground">{{ t('individuals.detail.birthDate') }}</span>
@@ -486,15 +486,15 @@ onUnmounted(() => {
           </div>
           <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
             <span class="text-muted-foreground">{{ t('individuals.detail.gender') }}</span>
-            <span>{{ genderDisplay ?? '—' }}</span>
+            <span>{{ genderDisplay ?? '-' }}</span>
           </div>
           <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
             <span class="text-muted-foreground">{{ t('individuals.detail.snils') }}</span>
-            <span>{{ detail.snils ?? '—' }}</span>
+            <span>{{ detail.snils ?? '-' }}</span>
           </div>
           <div class="flex items-center justify-between gap-4 py-2 text-sm first:pt-0 last:pb-0">
             <span class="text-muted-foreground">{{ t('individuals.detail.inn') }}</span>
-            <span>{{ detail.inn ?? '—' }}</span>
+            <span>{{ detail.inn ?? '-' }}</span>
           </div>
         </div>
       </Card>

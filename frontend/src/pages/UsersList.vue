@@ -46,7 +46,7 @@ const filterableFields = ['role']
 const cellRenderers = { roles: UserRolesCell }
 function cellText(columnId: string, value: unknown): string {
   if (columnId === 'createdAt' && typeof value === 'string') return formatDateIso(value)
-  return String(value ?? '—')
+  return String(value ?? '-')
 }
 
 const columnHelper = createAppColumnHelper<AllUsersRow>()

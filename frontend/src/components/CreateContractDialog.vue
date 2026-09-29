@@ -627,7 +627,7 @@ async function submitCreate() {
             <div v-if="isDailyOnlyRoom" class="flex flex-col gap-2">
               <Label>{{ t('contracts.createDialog.fieldCost') }}</Label>
               <p class="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
-                {{ t('contracts.createDialog.dailyOnlyNote', { rate: dailyRateAmount ?? '—' }) }}
+                {{ t('contracts.createDialog.dailyOnlyNote', { rate: dailyRateAmount ?? '-' }) }}
               </p>
             </div>
             <div v-else class="flex flex-col gap-2">

@@ -122,7 +122,7 @@
       "fieldEndDate": "Дата окончания",
       "fieldCost": "Стоимость комнаты",
       "costBreakdown": "Найм: {rent} ₽ · Коммунальные услуги: {utilities} ₽",
-      "dailyOnlyNote": "Посуточная оплата — {rate} ₽/сутки, месячной ставки нет",
+      "dailyOnlyNote": "Посуточная оплата - {rate} ₽/сутки, месячной ставки нет",
       "fieldResidenceReason": "Причина проживания",
       "sectionParentInfo": "Информация о родителе",
       "fieldFullName": "ФИО",
@@ -174,7 +174,7 @@
       }
     },
     "myContract": {
-      "contractOption": "№ {number} — {status}",
+      "contractOption": "№ {number} - {status}",
       "noContractFound": "Действующего договора не найдено",
       "noContractHint": "Как только с вами будет заключён договор найма, информация о нём появится на этой странице.",
       "colDescription": "Описание",
@@ -182,7 +182,7 @@
       "totalAccruals": "начислений",
       "totalPayments": "платежей",
       "penaltyHistoryTitle": "История начисления пени",
-      "penaltyHistoryDescription": "0,14% в день от суммы просроченных непогашенных начислений — начисляется с 10 числа месяца, следующего за неоплаченным периодом.",
+      "penaltyHistoryDescription": "0,14% в день от суммы просроченных непогашенных начислений - начисляется с 10 числа месяца, следующего за неоплаченным периодом.",
       "penaltyLine": "{rate} от {amount}",
       "penaltyNeverAccrued": "Пеня ни разу не начислялась."
     }

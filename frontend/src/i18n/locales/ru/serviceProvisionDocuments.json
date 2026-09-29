@@ -22,7 +22,7 @@
     "cancel": "Отмена",
     "confirmSend": "Подтвердить отправку",
     "viewDetails": "Список договоров",
-    "detailDialogTitle": "{type} — {period}",
+    "detailDialogTitle": "{type} - {period}",
     "colContractNumber": "Договор",
     "colResident": "Резидент",
     "detailSearchPlaceholder": "Поиск по номеру договора или ФИО",

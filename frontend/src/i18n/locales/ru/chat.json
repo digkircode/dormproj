@@ -7,7 +7,7 @@
     },
     "resident": {
       "title": "Чат с сотрудниками",
-      "officeHours": "Время работы администрации: 9:30–18:00"
+      "officeHours": "Время работы администрации: 9:30-18:00"
     },
     "noActiveContract": "Нет действующего договора",
     "thread": {
@@ -17,7 +17,7 @@
       "sizeMb": "{size} МБ",
       "sizeKb": "{size} КБ",
       "attachTooMany": "Не больше {max} файлов в одном сообщении",
-      "attachInvalidType": "«{name}» — недопустимый тип файла",
+      "attachInvalidType": "«{name}» - недопустимый тип файла",
       "attachTooLarge": "«{name}» больше {max} МБ",
       "noMessagesYet": "Сообщений пока нет",
       "newMessages": "Новые сообщения",
@@ -37,7 +37,7 @@
       "specificPeopleLabel": "Конкретным людям (ищет по ФИО, можно добавить несколько)",
       "specificPeoplePlaceholder": "Например, Иванов",
       "removePerson": "Убрать {name}",
-      "explicitPicksHint": "Выбраны конкретные получатели — фильтры по этажу/корпусу/должникам ниже не участвуют.",
+      "explicitPicksHint": "Выбраны конкретные получатели - фильтры по этажу/корпусу/должникам ниже не участвуют.",
       "floorLabel": "Этаж",
       "allFloors": "Все этажи",
       "noFloorData": "Нет данных по этажам",
@@ -61,7 +61,7 @@
       "running": "Отправлено {sent} из {total}",
       "partial": "Отправлено {sent} из {total}, ошибок: {failed}",
       "completed": "Отправлено всем: {count}",
-      "canClose": "Можно закрыть окно — рассылка продолжится в фоне.",
+      "canClose": "Можно закрыть окно - рассылка продолжится в фоне.",
       "retryFailed": "Повторить ошибки",
       "newBroadcast": "Новая рассылка",
       "emptyBody": "Введите текст сообщения",

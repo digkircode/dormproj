@@ -217,7 +217,7 @@ async function submit() {
                   :class="c.id === selectedContractId ? 'font-medium' : ''"
                   @click="switchContract(c.id)"
                 >
-                  № {{ c.number }} — {{ CONTRACT_STATUS_LABELS[c.status] }}
+                  № {{ c.number }} - {{ CONTRACT_STATUS_LABELS[c.status] }}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

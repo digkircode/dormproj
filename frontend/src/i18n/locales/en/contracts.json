@@ -122,7 +122,7 @@
       "fieldEndDate": "End date",
       "fieldCost": "Room cost",
       "costBreakdown": "Rent: {rent} ₽ · Utilities: {utilities} ₽",
-      "dailyOnlyNote": "Daily payment — {rate} ₽/day, no monthly rate",
+      "dailyOnlyNote": "Daily payment - {rate} ₽/day, no monthly rate",
       "fieldResidenceReason": "Reason for residence",
       "sectionParentInfo": "Parent information",
       "fieldFullName": "Full name",
@@ -174,7 +174,7 @@
       }
     },
     "myContract": {
-      "contractOption": "No. {number} — {status}",
+      "contractOption": "No. {number} - {status}",
       "noContractFound": "No active contract found",
       "noContractHint": "Once a housing contract is signed with you, its information will appear on this page.",
       "colDescription": "Description",
@@ -182,7 +182,7 @@
       "totalAccruals": "accruals",
       "totalPayments": "payments",
       "penaltyHistoryTitle": "Penalty accrual history",
-      "penaltyHistoryDescription": "0.14% per day of the overdue unpaid balance — accrued from the 10th of the month following the unpaid period.",
+      "penaltyHistoryDescription": "0.14% per day of the overdue unpaid balance - accrued from the 10th of the month following the unpaid period.",
       "penaltyLine": "{rate} of {amount}",
       "penaltyNeverAccrued": "No penalty has ever been accrued."
     }

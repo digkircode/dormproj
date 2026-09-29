@@ -71,12 +71,12 @@
   },
   "forbidden": {
     "title": "Access denied",
-    "description": "Your role does not have access to this section. If this is a mistake — contact an administrator.",
+    "description": "Your role does not have access to this section. If this is a mistake - contact an administrator.",
     "goHome": "Go home"
   },
   "notFound": {
     "title": "Page not found",
-    "description": "This page does not exist — check the address or go back home.",
+    "description": "This page does not exist - check the address or go back home.",
     "goHome": "Go home"
   },
   "home": {
@@ -91,18 +91,18 @@
     "quickNewAnnouncement": "New announcement",
     "attentionTitle": "Needs attention",
     "attentionEmpty": "Nothing needs attention.",
-    "attentionContractLine": "Contract No. {number} — {name}",
-    "attentionDebtorLine": "{name} — room {room}",
+    "attentionContractLine": "Contract No. {number} - {name}",
+    "attentionDebtorLine": "{name} - room {room}",
     "attentionUnreadChats": "Unread messages: {count}",
     "attentionUnreadChatsHint": "Chat with residents",
     "staffAnnouncementsTitle": "Announcements",
-    "staffAnnouncementsEmpty": "No announcements yet — create the first one.",
+    "staffAnnouncementsEmpty": "No announcements yet - create the first one.",
     "resident": {
       "greetingTitle": "Hi, {name}!",
       "greetingTitleFallback": "Hi!",
       "greetingBody1": "Welcome to your dorm personal account. Here you can manage everything about your stay: check your room info, pay for your stay, find documents, or contact staff.",
       "greetingBody2": "Everything you need is at hand. And if a question comes up, we're right here.",
-      "mascotBubble": "Everything about the dorm — right here. Simple, no hassle 💙",
+      "mascotBubble": "Everything about the dorm - right here. Simple, no hassle 💙",
       "payHero": "Pay for your stay",
       "roomHeading": "My contract",
       "roomTagline": "Your room and contract details are always at hand",
@@ -154,7 +154,7 @@
     "placeholder": "dd.mm.yyyy"
   },
   "footer": {
-    "copyright": "© 1991–2026 Russian New University"
+    "copyright": "© 1991-2026 Russian New University"
   },
   "session": {
     "expiredTitle": "Session expired",
@@ -162,7 +162,7 @@
     "expiredAction": "Log in"
   },
   "errors": {
-    "tooManyRequests": "Too many requests — please wait a moment and try again",
+    "tooManyRequests": "Too many requests - please wait a moment and try again",
     "checkDataFields": "Please check the data you entered",
     "fetchUserFailed": "Could not load user details ({status})",
     "fetchListFailed": "Could not load data ({status})",

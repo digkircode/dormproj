@@ -15,7 +15,7 @@ export function validateCitizenshipApiResponse(
 ): CitizenshipApiRecord[] {
   if (!Array.isArray(raw)) {
     throw new CitizenshipApiFormatError(
-      'Ответ внешнего API — не массив. Похоже, формат ответа изменился.',
+      'Ответ внешнего API - не массив. Похоже, формат ответа изменился.',
     );
   }
   if (raw.length === 0) {
@@ -43,7 +43,7 @@ export function validateCitizenshipApiResponse(
   const invalidRatio = invalidCount / raw.length;
   if (invalidRatio > MAX_INVALID_RATIO) {
     throw new CitizenshipApiFormatError(
-      `${invalidCount} из ${raw.length} записей (${Math.round(invalidRatio * 100)}%) не прошли валидацию — похоже, формат ответа внешнего API изменился, а не единичный сбой в паре записей.`,
+      `${invalidCount} из ${raw.length} записей (${Math.round(invalidRatio * 100)}%) не прошли валидацию - похоже, формат ответа внешнего API изменился, а не единичный сбой в паре записей.`,
     );
   }
 

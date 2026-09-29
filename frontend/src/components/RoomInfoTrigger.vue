@@ -48,12 +48,12 @@ async function openDialog() {
         @click="openDialog"
       >
         <DoorOpen class="size-4 shrink-0 text-primary" />
-        {{ roomName ?? '—' }}
+        {{ roomName ?? '-' }}
       </button>
     </TooltipTrigger>
     <TooltipContent>{{ t('roomInfo.tooltip') }}</TooltipContent>
   </Tooltip>
-  <span v-else>{{ roomName ?? '—' }}</span>
+  <span v-else>{{ roomName ?? '-' }}</span>
 
   <Dialog :open="isOpen" @update:open="(v) => (isOpen = v)">
     <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">

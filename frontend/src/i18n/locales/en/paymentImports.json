@@ -26,7 +26,7 @@
     "bulkApproveDialogTitle": "Bulk approval",
     "bulkReverse": "Reverse selected ({count})",
     "bulkReverseDialogTitle": "Bulk reversal",
-    "bulkSkipped": "{count} payment(s) skipped — no suggested contract or already reviewed, handle them individually",
+    "bulkSkipped": "{count} payment(s) skipped - no suggested contract or already reviewed, handle them individually",
     "statusWebsite": {
       "NOT_SYNCED": "Not sent to 1C",
       "SYNCED": "Sent to 1C",

@@ -10,7 +10,7 @@ defineProps<{ value: unknown; row: { isCurrent: boolean } }>()
 const { t } = useI18n()
 
 function formatPeriod(value: unknown): string {
-  if (typeof value !== 'string') return String(value ?? '—')
+  if (typeof value !== 'string') return String(value ?? '-')
   return new Date(value).toLocaleDateString(dateLocaleTag(), { month: 'long', year: 'numeric' })
 }
 </script>

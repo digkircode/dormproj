@@ -71,7 +71,7 @@ export class ContractStatusScheduler {
     }
 
     this.logger.log(
-      `Переход статусов договоров: в "Истекает" — ${toExpiring}, в "Завершён" — ${toCompleted}, в "Просрочен" — ${toOverdue}`,
+      `Переход статусов договоров: в "Истекает" - ${toExpiring}, в "Завершён" - ${toCompleted}, в "Просрочен" - ${toOverdue}`,
     );
   }
 }

@@ -181,7 +181,7 @@ export class ContactInfoSyncService {
       }
 
       this.logger.warn(
-        `Найден зависший лок синхронизации контактной информации (старше ${LOCK_STALE_MS / 60000} мин) — считаю его брошенным и перехватываю`,
+        `Найден зависший лок синхронизации контактной информации (старше ${LOCK_STALE_MS / 60000} мин) - считаю его брошенным и перехватываю`,
       );
       await this.prisma.syncLock.deleteMany({
         where: { type: SYNC_TYPE_CONTACT_INFO },

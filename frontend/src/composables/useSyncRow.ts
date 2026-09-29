@@ -21,8 +21,8 @@ export function useSyncRow(nameKey: string, basePath: string) {
     return {
       name: i18n.global.t(nameKey),
       status,
-      time: log ? formatDateTime(log.startedAt) : '—',
-      duration: log ? formatDuration(log.startedAt, log.finishedAt) : '—',
+      time: log ? formatDateTime(log.startedAt) : '-',
+      duration: log ? formatDuration(log.startedAt, log.finishedAt) : '-',
       // Сырые значения — для сортировки по времени/длительности на странице /sync
       // (EntityTable), где time/duration уже отформатированные строки и по ним
       // сортировать некорректно ("21.08.2026" не сортируется лексикографически как дата).

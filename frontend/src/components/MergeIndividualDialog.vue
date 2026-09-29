@@ -104,7 +104,7 @@ async function submit() {
 }
 
 function formatDate(iso: string | null): string {
-  if (!iso) return '—'
+  if (!iso) return '-'
   return new Date(iso).toLocaleDateString(dateLocaleTag())
 }
 </script>
@@ -138,7 +138,7 @@ function formatDate(iso: string | null): string {
             {{ c.fullName }}
           </span>
           <span class="text-xs text-muted-foreground">
-            {{ t('individuals.merge.candidateMeta', { birthDate: formatDate(c.birthDate), snils: c.snils ?? '—' }) }}
+            {{ t('individuals.merge.candidateMeta', { birthDate: formatDate(c.birthDate), snils: c.snils ?? '-' }) }}
           </span>
         </button>
       </div>

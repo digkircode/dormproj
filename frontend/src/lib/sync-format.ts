@@ -12,7 +12,7 @@ export type SyncStatusKey = 'RUNNING' | 'SUCCESS' | 'FAILED' | 'NONE'
 // это ломалось (для EN лейбл больше не совпадал бы с русским ключом), поэтому статус-иконки
 // переведены на ключи enum, а перевод текста — в statusLabel отдельно.
 export const statusLabel: Record<SyncStatusKey, string> = new Proxy({} as Record<SyncStatusKey, string>, {
-  get: (_target, status: string) => (status === 'NONE' ? '—' : i18n.global.t(`sync.status.${status}`)),
+  get: (_target, status: string) => (status === 'NONE' ? '-' : i18n.global.t(`sync.status.${status}`)),
 })
 
 export const triggerLabel: Record<'CRON' | 'MANUAL', string> = new Proxy({} as Record<'CRON' | 'MANUAL', string>, {
@@ -49,7 +49,7 @@ export function formatDateTimeWithSeconds(iso: string): string {
 }
 
 export function formatDuration(startedAt: string, finishedAt: string | null): string {
-  if (!finishedAt) return '—'
+  if (!finishedAt) return '-'
   const seconds = Math.round((new Date(finishedAt).getTime() - new Date(startedAt).getTime()) / 1000)
   const minutes = Math.floor(seconds / 60)
   return minutes > 0

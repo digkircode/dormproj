@@ -176,7 +176,7 @@ const CELL_TRIGGER_CLASS = cn(
       @keydown.enter="commitFrom"
       @keydown="onFromKeydown"
     />
-    <span class="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground">–</span>
+    <span class="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground">-</span>
     <div class="relative flex items-center">
       <input
         :value="toText"

@@ -64,7 +64,7 @@ export class SyncService {
             records.length < existingCount * MIN_SURVIVAL_RATIO
           ) {
             throw new SyncGuardTrippedError(
-              `Во внешнем API пришло ${records.length} записей, а сейчас в базе ${existingCount} студентов — это меньше ${Math.round(MIN_SURVIVAL_RATIO * 100)}% от текущего количества. Похоже на сбой источника, синхронизация остановлена без удаления данных.`,
+              `Во внешнем API пришло ${records.length} записей, а сейчас в базе ${existingCount} студентов - это меньше ${Math.round(MIN_SURVIVAL_RATIO * 100)}% от текущего количества. Похоже на сбой источника, синхронизация остановлена без удаления данных.`,
             );
           }
 
@@ -203,7 +203,7 @@ export class SyncService {
       }
 
       this.logger.warn(
-        `Найден зависший лок синхронизации (старше ${LOCK_STALE_MS / 60000} мин) — считаю его брошенным и перехватываю`,
+        `Найден зависший лок синхронизации (старше ${LOCK_STALE_MS / 60000} мин) - считаю его брошенным и перехватываю`,
       );
       await this.prisma.syncLock.deleteMany({
         where: { type: SYNC_TYPE_STUDENTS },

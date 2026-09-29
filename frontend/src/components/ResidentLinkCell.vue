@@ -21,5 +21,5 @@ const residentIndividualUid = (props.row as { residentIndividualUid?: string } |
     <User class="size-4 shrink-0 text-primary" />
     <span class="min-w-0 truncate">{{ value }}</span>
   </RouterLink>
-  <span v-else class="min-w-0 truncate text-muted-foreground">{{ value ?? '—' }}</span>
+  <span v-else class="min-w-0 truncate text-muted-foreground">{{ value ?? '-' }}</span>
 </template>

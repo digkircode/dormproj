@@ -295,7 +295,7 @@ async function onExport() {
           <DialogTitle>
             {{
               breakdown
-                ? t('reports.debt.breakdownTitle', { name: breakdown.residentFullName, room: breakdown.room ?? '—' })
+                ? t('reports.debt.breakdownTitle', { name: breakdown.residentFullName, room: breakdown.room ?? '-' })
                 : t('reports.debt.breakdownTitleFallback')
             }}
           </DialogTitle>
@@ -323,7 +323,7 @@ async function onExport() {
                   <TableCell :class="[CELL_BORDER_CLASS, p.voidedAt ? 'text-muted-foreground line-through' : '']">
                     <div class="flex flex-col">
                       <span>{{ monthLabel(p.periodStart) }}</span>
-                      <span class="text-xs text-muted-foreground">({{ formatDateShort(p.periodStart) }}–{{ formatDateShort(p.periodEnd) }})</span>
+                      <span class="text-xs text-muted-foreground">({{ formatDateShort(p.periodStart) }}-{{ formatDateShort(p.periodEnd) }})</span>
                     </div>
                   </TableCell>
                   <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(p.total) }}</TableCell>
@@ -371,7 +371,7 @@ async function onExport() {
           <DialogTitle>
             {{
               penaltyLog
-                ? t('reports.debt.penaltyTitle', { name: penaltyLog.residentFullName, room: penaltyLog.room ?? '—' })
+                ? t('reports.debt.penaltyTitle', { name: penaltyLog.residentFullName, room: penaltyLog.room ?? '-' })
                 : t('reports.debt.penaltyTitleFallback')
             }}
           </DialogTitle>

@@ -34,7 +34,7 @@ const hiddenByDefault = ['xml', 'json', 'fizicheskoyeLitsoUid']
 function cellText(columnId: string, value: unknown): string {
   if (columnId === 'dateStart' && typeof value === 'string') {
     const date = new Date(value)
-    if (date.getUTCFullYear() <= 1) return '—'
+    if (date.getUTCFullYear() <= 1) return '-'
     const pad = (n: number) => n.toString().padStart(2, '0')
     return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
   }

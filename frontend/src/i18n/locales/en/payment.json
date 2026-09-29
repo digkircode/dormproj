@@ -14,7 +14,7 @@
     },
     "receipt": {
       "open": "Open",
-      "stubTitle": "Placeholder — once the till is connected, this will link to the receipt from the OFD"
+      "stubTitle": "Placeholder - once the till is connected, this will link to the receipt from the OFD"
     },
     "accounting1c": {
       "linked": "Matched",
@@ -34,17 +34,17 @@
       "noOpenAccruals": "No outstanding accruals.",
       "noAccrualsSelected": "No accruals selected",
       "penaltyRowLabel": "Penalty",
-      "includingPenalty": "including penalty — {amount}",
+      "includingPenalty": "including penalty - {amount}",
       "payerSection": "Payer",
       "payerIsResident": "Paying myself",
       "payerIsOther": "Someone else is paying",
       "representativeName": "Payer's full name",
       "payerEmail": "Email for the receipt",
       "invalidEmail": "Invalid email",
-      "certificateNotice": "The site uses certificates from the Russian Ministry of Digital Development — to avoid payment errors, use Yandex Browser or install the ministry's certificates on your device.",
+      "certificateNotice": "The site uses certificates from the Russian Ministry of Digital Development - to avoid payment errors, use Yandex Browser or install the ministry's certificates on your device.",
       "taxDeductionNotice": "For a tax deduction, the payment must be made by the person who intends to claim it.",
       "amountDue": "Amount due",
-      "acquiringUnavailable": "Card payment is temporarily unavailable — card processing is not yet connected.",
+      "acquiringUnavailable": "Card payment is temporarily unavailable - card processing is not yet connected.",
       "cancel": "Cancel",
       "pay": "Pay {amount}"
     },
@@ -62,7 +62,7 @@
       "back": "Back",
       "title": "Payment",
       "waitingBank": "Waiting for bank confirmation…",
-      "acquiringUnavailable": "Payment is temporarily unavailable — card processing is not yet connected. Please try again later.",
+      "acquiringUnavailable": "Payment is temporarily unavailable - card processing is not yet connected. Please try again later.",
       "payerIsResidentMe": "I'm paying myself",
       "representativeNamePlaceholder": "Jane Doe",
       "paymentHistory": "Payment history"

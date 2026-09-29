@@ -43,7 +43,7 @@ const hiddenByDefault = ['zachetnayaKnigaUid', 'fizicheskoyeLitsoUid']
 // Текст ячейки — должен совпадать с тем, что реально отрисовано, а не с сырым
 // значением (у profilSpec/dot свой формат), используется и в теле, и в тултипе.
 function cellText(columnId: string, value: unknown): string {
-  if (columnId === 'profilSpec') return (value as string | null) || '—'
+  if (columnId === 'profilSpec') return (value as string | null) || '-'
   if (columnId === 'dot') return value ? t('boolean.yes') : t('boolean.no')
   return String(value ?? '')
 }

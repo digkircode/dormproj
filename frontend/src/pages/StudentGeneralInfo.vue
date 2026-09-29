@@ -60,7 +60,7 @@ const contacts = computed(() => [
   { icon: MapPin, label: t('student.contactsAdmin.addressLabel'), value: 'г. Москва, ул. Авиамоторная, д. 55, корп. 5' },
   { icon: Phone, label: t('student.contactsAdmin.phoneLabel'), value: '+7 (977) 812-81-87, +7 (495) 223-40-49' },
   { icon: Mail, label: t('student.contactsAdmin.emailLabel'), value: 'hostel@rosnou.ru' },
-  { icon: Clock, label: t('student.contactsAdmin.hoursLabel'), value: '9:30–18:00' },
+  { icon: Clock, label: t('student.contactsAdmin.hoursLabel'), value: '9:30-18:00' },
 ])
 
 // photo — файлы получены от пользователя 2026-08-23 с говорящими именами (mol/cic/jil/isa/

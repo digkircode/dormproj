@@ -23,7 +23,7 @@ const FIELD_LABELS = computed<Record<string, string>>(() => ({
 }))
 
 function formatValue(value: unknown, field: string): string {
-  if (value === null || value === undefined || value === '') return '—'
+  if (value === null || value === undefined || value === '') return '-'
   if (typeof value === 'boolean') return value ? t('boolean.yes') : t('boolean.no')
   if (field === '_penaltyTotal' && typeof value === 'number') {
     return `${new Intl.NumberFormat(dateLocaleTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)} ₽`

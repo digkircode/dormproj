@@ -35,5 +35,5 @@ defineProps<{ value: unknown; row: { fiscalReceiptUrl: string | null; showReceip
     {{ t('payment.receipt.open') }}
     <ExternalLink class="size-3.5" />
   </button>
-  <span v-else class="text-muted-foreground">—</span>
+  <span v-else class="text-muted-foreground">-</span>
 </template>

@@ -177,7 +177,7 @@ export class IndividualsSyncService {
       }
 
       this.logger.warn(
-        `Найден зависший лок синхронизации физлиц (старше ${LOCK_STALE_MS / 60000} мин) — считаю его брошенным и перехватываю`,
+        `Найден зависший лок синхронизации физлиц (старше ${LOCK_STALE_MS / 60000} мин) - считаю его брошенным и перехватываю`,
       );
       await this.prisma.syncLock.deleteMany({
         where: { type: SYNC_TYPE_INDIVIDUALS },

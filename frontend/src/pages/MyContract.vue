@@ -125,7 +125,7 @@ const isDailyOnlyContract = computed(
 )
 
 function formatDate(value: string | null): string {
-  if (!value) return '—'
+  if (!value) return '-'
   return new Date(value).toLocaleDateString(dateLocaleTag())
 }
 function monthLabel(value: string): string {
@@ -346,7 +346,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
           </span>
           <span class="flex items-center gap-1.5">
             <CalendarRange class="size-4 shrink-0 text-primary" />
-            {{ formatDate(contract.startDate) }} — {{ formatDate(contract.actualEndDate ?? contract.endDate) }}
+            {{ formatDate(contract.startDate) }} - {{ formatDate(contract.actualEndDate ?? contract.endDate) }}
           </span>
           <!-- Дата создания — тут же, в карточке (была в общем заголовке страницы, но там
                теперь кнопка "Оплатить", по прямой просьбе 2026-08-26). -->

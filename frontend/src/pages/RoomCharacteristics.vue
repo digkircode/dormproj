@@ -295,7 +295,7 @@ async function confirmDelete() {
                 {{ VALUE_TYPE_LABELS[d.valueType] }}
                 <span v-if="d.options.length" class="text-muted-foreground"> ({{ d.options.join(', ') }})</span>
               </TableCell>
-              <TableCell>{{ d.unit ?? '—' }}</TableCell>
+              <TableCell>{{ d.unit ?? '-' }}</TableCell>
               <TableCell class="py-2 pl-1 pr-3 text-right">
                 <!-- Без Tooltip на самом триггере — вложенность Tooltip+DropdownMenuTrigger
                      на одной кнопке рискует тем же классом багов с зависающими Reka UI

@@ -124,7 +124,7 @@ const attentionRows = computed<AttentionRow[]>(() => {
     key: `debtor-${d.contractId}`,
     icon: AlertTriangle,
     iconClass: 'text-red-500',
-    title: t('home.attentionDebtorLine', { name: d.residentFullName, room: d.room ?? '—' }),
+    title: t('home.attentionDebtorLine', { name: d.residentFullName, room: d.room ?? '-' }),
     subtitle: formatMoney(d.totalBalance),
     to: `/contracts/${d.contractId}`,
   }))
@@ -182,7 +182,7 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
           {{ t('home.kpiRooms') }}
         </div>
         <p class="mt-1 text-2xl font-semibold tabular-nums">
-          {{ isLoading ? '—' : t('home.kpiRoomsValue', { occupied: occupancy?.occupied ?? 0, total: occupancy?.totalPlaces ?? 0 }) }}
+          {{ isLoading ? '-' : t('home.kpiRoomsValue', { occupied: occupancy?.occupied ?? 0, total: occupancy?.totalPlaces ?? 0 }) }}
         </p>
       </RouterLink>
 
@@ -194,7 +194,7 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
           <AlertTriangle class="size-4 shrink-0 text-red-600 dark:text-red-400" />
           {{ t('home.kpiDebtors') }}
         </div>
-        <p class="mt-1 text-2xl font-semibold tabular-nums">{{ isLoading ? '—' : (debtorsSummary?.debtorsCount ?? 0) }}</p>
+        <p class="mt-1 text-2xl font-semibold tabular-nums">{{ isLoading ? '-' : (debtorsSummary?.debtorsCount ?? 0) }}</p>
         <p v-if="!isLoading && debtorsSummary" class="text-xs text-muted-foreground">{{ formatMoney(debtorsSummary.totalDebt) }}</p>
       </RouterLink>
 
@@ -206,7 +206,7 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
           <CalendarX class="size-4 shrink-0 text-rose-600 dark:text-rose-400" />
           {{ t('home.kpiOverdue') }}
         </div>
-        <p class="mt-1 text-2xl font-semibold tabular-nums">{{ isLoading ? '—' : (contractsSummary?.overdue ?? 0) }}</p>
+        <p class="mt-1 text-2xl font-semibold tabular-nums">{{ isLoading ? '-' : (contractsSummary?.overdue ?? 0) }}</p>
       </RouterLink>
 
       <RouterLink
@@ -217,7 +217,7 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
           <Clock class="size-4 shrink-0 text-orange-600 dark:text-orange-400" />
           {{ t('home.kpiExpiring') }}
         </div>
-        <p class="mt-1 text-2xl font-semibold tabular-nums">{{ isLoading ? '—' : (contractsSummary?.expiring30 ?? 0) }}</p>
+        <p class="mt-1 text-2xl font-semibold tabular-nums">{{ isLoading ? '-' : (contractsSummary?.expiring30 ?? 0) }}</p>
       </RouterLink>
 
       <RouterLink
@@ -228,7 +228,7 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
           <MessageCircle class="size-4 shrink-0 text-violet-600 dark:text-violet-400" />
           {{ t('home.kpiUnread') }}
         </div>
-        <p class="mt-1 text-2xl font-semibold tabular-nums">{{ isLoading ? '—' : unreadChatsCount }}</p>
+        <p class="mt-1 text-2xl font-semibold tabular-nums">{{ isLoading ? '-' : unreadChatsCount }}</p>
       </RouterLink>
     </div>
 

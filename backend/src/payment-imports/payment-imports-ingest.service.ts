@@ -40,13 +40,13 @@ export class PaymentImportsIngestService {
 
   async ingest(): Promise<{ fetched: number; imported: number; skippedExisting: number }> {
     if (!this.provider.isFetchConfigured()) {
-      this.logger.warn('Получение платежей из 1С не настроено — пропуск импорта');
+      this.logger.warn('Получение платежей из 1С не настроено - пропуск импорта');
       return { fetched: 0, imported: 0, skippedExisting: 0 };
     }
 
     const pairs = await this.collectKnownPairs();
     if (pairs.length === 0) {
-      this.logger.log('Импорт платежей из 1С: нет ни одного договора с известной парой ContractorUID/ContractUID — нечего спрашивать');
+      this.logger.log('Импорт платежей из 1С: нет ни одного договора с известной парой ContractorUID/ContractUID - нечего спрашивать');
       return { fetched: 0, imported: 0, skippedExisting: 0 };
     }
 

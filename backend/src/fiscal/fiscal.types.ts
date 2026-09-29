@@ -34,7 +34,7 @@ export interface FiscalStatusResult {
 
 export class FiscalNotConfiguredError extends Error {
   constructor() {
-    super('Касса не настроена — не заполнены реквизиты в переменных окружения');
+    super('Касса не настроена - не заполнены реквизиты в переменных окружения');
     this.name = 'FiscalNotConfiguredError';
   }
 }

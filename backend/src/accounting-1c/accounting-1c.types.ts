@@ -62,7 +62,7 @@ export interface AccountingPaymentPushResult {
 
 export class Accounting1cNotConfiguredError extends Error {
   constructor() {
-    super('1С Бухгалтерия не настроена — не заполнены реквизиты в переменных окружения');
+    super('1С Бухгалтерия не настроена - не заполнены реквизиты в переменных окружения');
     this.name = 'Accounting1cNotConfiguredError';
   }
 }

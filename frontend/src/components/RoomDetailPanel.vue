@@ -226,7 +226,7 @@ function formatDate(iso: string): string {
 }
 
 function formatValue(entry: { valueType: CharacteristicValueType; value: CharacteristicValue; unit: string | null }): string {
-  if (entry.value === null || entry.value === undefined) return '—'
+  if (entry.value === null || entry.value === undefined) return '-'
   if (entry.valueType === 'BOOLEAN') return entry.value ? t('boolean.yes') : t('boolean.no')
   return entry.unit ? `${entry.value} ${entry.unit}` : String(entry.value)
 }
@@ -655,8 +655,8 @@ async function confirmDeleteValue() {
               <tbody>
                 <tr v-for="entry in filteredHistory" :key="entry.id" class="border-t">
                   <td class="px-3 py-2">{{ entry.name }}</td>
-                  <td class="px-3 py-2">{{ entry.hasValue ? formatValue(entry) : '—' }}</td>
-                  <td class="px-3 py-2">{{ entry.period ? formatDate(entry.period) : '—' }}</td>
+                  <td class="px-3 py-2">{{ entry.hasValue ? formatValue(entry) : '-' }}</td>
+                  <td class="px-3 py-2">{{ entry.period ? formatDate(entry.period) : '-' }}</td>
                   <td class="px-3 py-2 text-right">
                     <DropdownMenu v-if="entry.hasValue && !entry.isProtected">
                       <DropdownMenuTrigger as-child>

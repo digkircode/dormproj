@@ -8,7 +8,7 @@ const { t } = useI18n()
 defineProps<{ passports: IndividualPassport[] }>()
 
 function formatDate(iso: string | null | undefined): string {
-  if (!iso) return '—'
+  if (!iso) return '-'
   const date = new Date(iso)
   const pad = (n: number) => n.toString().padStart(2, '0')
   return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`

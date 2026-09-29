@@ -192,7 +192,7 @@ const { sort: paymentSort, sorted: sortedPayments, toggle: togglePaymentSort } =
 )
 
 function formatDate(value: string | null): string {
-  if (!value) return '—'
+  if (!value) return '-'
   return new Date(value).toLocaleDateString(dateLocaleTag())
 }
 function formatMoney(value: number): string {
@@ -366,10 +366,10 @@ async function confirmReversePayment() {
               <User class="size-4 shrink-0 text-primary" />
               {{ contract.residentFullName }}
             </RouterLink>
-            <RoomInfoTrigger :room-id="contract.currentRoom?.id ?? null" :room-name="contract.currentRoom?.room ?? '—'" />
+            <RoomInfoTrigger :room-id="contract.currentRoom?.id ?? null" :room-name="contract.currentRoom?.room ?? '-'" />
             <span class="flex items-center gap-1.5">
               <CalendarRange class="size-4 shrink-0 text-primary" />
-              {{ formatDate(contract.startDate) }} — {{ formatDate(contract.actualEndDate ?? contract.endDate) }}
+              {{ formatDate(contract.startDate) }} - {{ formatDate(contract.actualEndDate ?? contract.endDate) }}
             </span>
             <!-- Дата создания — тут же, в карточке (была в общем заголовке страницы, но
                  там теперь меню действий, по прямой просьбе 2026-08-26). -->
@@ -407,7 +407,7 @@ async function confirmReversePayment() {
               <div>
                 <p class="text-xs text-muted-foreground">{{ t('contracts.detail.utilities') }}</p>
                 <p class="text-lg font-medium">
-                  {{ isDailyOnlyContract ? '—' : formatMoney(utilitiesAmount) }}
+                  {{ isDailyOnlyContract ? '-' : formatMoney(utilitiesAmount) }}
                 </p>
               </div>
             </div>
@@ -459,8 +459,8 @@ async function confirmReversePayment() {
             >
               <div class="overflow-hidden">
                 <div class="flex items-center gap-x-6 whitespace-nowrap pl-4 text-sm">
-                  <span><span class="text-muted-foreground">{{ t('contracts.detail.fullName') }}</span> {{ contract.legalRepName ?? '—' }}</span>
-                  <span><span class="text-muted-foreground">{{ t('contracts.detail.phone') }}</span> {{ contract.legalRepPhone ?? '—' }}</span>
+                  <span><span class="text-muted-foreground">{{ t('contracts.detail.fullName') }}</span> {{ contract.legalRepName ?? '-' }}</span>
+                  <span><span class="text-muted-foreground">{{ t('contracts.detail.phone') }}</span> {{ contract.legalRepPhone ?? '-' }}</span>
                 </div>
               </div>
             </div>
@@ -512,10 +512,10 @@ async function confirmReversePayment() {
                 </TableHeader>
                 <TableBody>
                   <TableRow v-for="a in sortedAccruals" :key="a.id" :class="a.voidedAt ? 'opacity-40' : ''">
-                    <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.periodStart) }} — {{ formatDate(a.periodEnd) }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.periodStart) }} - {{ formatDate(a.periodEnd) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.dueDate) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.total) }}</TableCell>
-                    <TableCell :class="CELL_BORDER_CLASS">{{ a.adjustmentAmount ? formatMoney(a.adjustmentAmount) : '—' }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ a.adjustmentAmount ? formatMoney(a.adjustmentAmount) : '-' }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.paid) }}</TableCell>
                     <TableCell :class="a.balance > 0 ? 'text-red-500' : ''">
                       {{ a.voidedAt ? t('contracts.detail.voided') : formatMoney(a.balance) }}
@@ -556,8 +556,8 @@ async function confirmReversePayment() {
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(p.paidAt) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(p.amount) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ t(`payment.method.${p.method}`) }}</TableCell>
-                    <TableCell :class="CELL_BORDER_CLASS">{{ p.purpose ?? '—' }}</TableCell>
-                    <TableCell :class="CELL_BORDER_CLASS">{{ p.rawComment ?? '—' }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ p.purpose ?? '-' }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ p.rawComment ?? '-' }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">
                       <!-- Только для платежей с сайта (эквайринг) — MANUAL/IMPORTED_1C
                            никогда не отправляются этим потоком, см. billing/accounting-1c-push.service.ts. -->
@@ -567,7 +567,7 @@ async function confirmReversePayment() {
                         :error="p.accounting1cSyncError"
                         :synced-at="p.accounting1cSyncedAt"
                       />
-                      <span v-else class="text-muted-foreground">—</span>
+                      <span v-else class="text-muted-foreground">-</span>
                     </TableCell>
                   </TableRow>
                 </TableBody>

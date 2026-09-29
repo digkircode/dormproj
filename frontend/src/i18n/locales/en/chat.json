@@ -7,7 +7,7 @@
     },
     "resident": {
       "title": "Chat with staff",
-      "officeHours": "Office hours: 9:30 AM–6:00 PM"
+      "officeHours": "Office hours: 9:30 AM-6:00 PM"
     },
     "noActiveContract": "No active contract",
     "thread": {
@@ -17,7 +17,7 @@
       "sizeMb": "{size} MB",
       "sizeKb": "{size} KB",
       "attachTooMany": "No more than {max} files per message",
-      "attachInvalidType": "\"{name}\" — unsupported file type",
+      "attachInvalidType": "\"{name}\" - unsupported file type",
       "attachTooLarge": "\"{name}\" is larger than {max} MB",
       "noMessagesYet": "No messages yet",
       "newMessages": "New messages",
@@ -37,7 +37,7 @@
       "specificPeopleLabel": "Specific people (search by full name, you can add several)",
       "specificPeoplePlaceholder": "E.g. Smith",
       "removePerson": "Remove {name}",
-      "explicitPicksHint": "Specific recipients selected — the floor/building/debtors filters below are not applied.",
+      "explicitPicksHint": "Specific recipients selected - the floor/building/debtors filters below are not applied.",
       "floorLabel": "Floor",
       "allFloors": "All floors",
       "noFloorData": "No floor data",

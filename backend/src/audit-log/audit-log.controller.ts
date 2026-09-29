@@ -34,8 +34,9 @@ const ENTITY_TYPE_LABELS: Record<string, string> = {
 const SEARCHABLE_FIELDS = ['entityLabel', 'action', 'entityType'] as const;
 
 function localizeEntityLabel(entityType: string, label: string): string {
-  if (entityType !== 'ServiceProvisionDocument') return label;
-  return label.replace(' — RENT — ', ' — Найм — ').replace(' — UTILITIES — ', ' — Коммуналка — ').replace(' — PENALTY — ', ' — Пени — ');
+  const normalized = label.replace(/[—–]/g, '-');
+  if (entityType !== 'ServiceProvisionDocument') return normalized;
+  return normalized.replace(' - RENT - ', ' - Найм - ').replace(' - UTILITIES - ', ' - Коммуналка - ').replace(' - PENALTY - ', ' - Пени - ');
 }
 
 const SORTABLE_FIELDS: Record<string, string> = {

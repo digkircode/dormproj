@@ -48,7 +48,7 @@ const props = withDefaults(
 const emit = defineEmits<{ select: [definitionId: number] }>()
 
 function formatValue(entry: { valueType: CharacteristicValueType; value: CharacteristicValue; unit: string | null }): string {
-  if (entry.value === null || entry.value === undefined) return '—'
+  if (entry.value === null || entry.value === undefined) return '-'
   if (entry.valueType === 'BOOLEAN') return entry.value ? t('boolean.yes') : t('boolean.no')
   return entry.unit ? `${entry.value} ${entry.unit}` : String(entry.value)
 }
@@ -96,7 +96,7 @@ const sortedRows = computed(() =>
       @click="interactive && emit('select', c.definitionId)"
     >
       <span class="min-w-0 truncate text-muted-foreground">{{ c.name }}</span>
-      <span class="shrink-0 font-medium">{{ c.hasValue === false ? '—' : formatValue(c) }}</span>
+      <span class="shrink-0 font-medium">{{ c.hasValue === false ? '-' : formatValue(c) }}</span>
     </div>
     <!-- Нечётное количество характеристик — последняя карточка одна в своей строке,
          пустое место остаётся пустым, а не растягивается на обе колонки. Вместо этого

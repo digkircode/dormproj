@@ -59,7 +59,7 @@ const penaltyDetails = computed(() => {
   return {
     operation: details?.operation === 'DAILY_ACCRUAL'
       ? t('sync.logs.penaltyOperationDailyAccrual')
-      : String(details?.operation ?? '—'),
+      : String(details?.operation ?? '-'),
     processedContracts: numberValue('processedContracts'),
     penaltyRowsCreated: numberValue('penaltyRowsCreated'),
     totalAdded: numberValue('totalAdded'),
@@ -67,7 +67,7 @@ const penaltyDetails = computed(() => {
 })
 
 function formatMoney(value: number | null): string {
-  if (value === null) return '—'
+  if (value === null) return '-'
   return `${new Intl.NumberFormat(locale.value, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)} ₽`
 }
 
@@ -79,7 +79,7 @@ function cellText(columnId: string, value: unknown): string {
     return formatDateTimeWithSeconds(value)
   }
   if (columnId === 'finishedAt') {
-    return typeof value === 'string' ? formatDateTimeWithSeconds(value) : '—'
+    return typeof value === 'string' ? formatDateTimeWithSeconds(value) : '-'
   }
   return String(value ?? '')
 }
@@ -146,7 +146,7 @@ onUnmounted(() => clearTimeout(pollTimeout))
         <ArrowLeft class="text-primary" />
         <span class="sr-only">{{ t('sync.back') }}</span>
       </Button>
-      <h1 class="text-lg font-medium">{{ t('sync.logs.title', { name: entity ? t(entity.nameKey) : '—' }) }}</h1>
+      <h1 class="text-lg font-medium">{{ t('sync.logs.title', { name: entity ? t(entity.nameKey) : '-' }) }}</h1>
     </div>
 
     <EntityTable
@@ -177,19 +177,19 @@ onUnmounted(() => clearTimeout(pollTimeout))
         <div v-if="!isServiceProvision && !isPenalty" class="grid min-w-0 grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
           <div>
             <div class="text-muted-foreground">{{ t('sync.logs.fetched') }}</div>
-            <div>{{ selectedLog.fetchedCount ?? '—' }}</div>
+            <div>{{ selectedLog.fetchedCount ?? '-' }}</div>
           </div>
           <div>
             <div class="text-muted-foreground">{{ t('sync.logs.added') }}</div>
-            <div>{{ selectedLog.added ?? '—' }}</div>
+            <div>{{ selectedLog.added ?? '-' }}</div>
           </div>
           <div>
             <div class="text-muted-foreground">{{ t('sync.logs.updated') }}</div>
-            <div>{{ selectedLog.updated ?? '—' }}</div>
+            <div>{{ selectedLog.updated ?? '-' }}</div>
           </div>
           <div>
             <div class="text-muted-foreground">{{ t('sync.logs.removed') }}</div>
-            <div>{{ selectedLog.removed ?? '—' }}</div>
+            <div>{{ selectedLog.removed ?? '-' }}</div>
           </div>
         </div>
 
@@ -248,11 +248,11 @@ onUnmounted(() => clearTimeout(pollTimeout))
               </div>
               <div>
                 <div class="text-muted-foreground">{{ t('sync.logs.penaltyProcessedContracts') }}</div>
-                <div>{{ penaltyDetails.processedContracts ?? '—' }}</div>
+                <div>{{ penaltyDetails.processedContracts ?? '-' }}</div>
               </div>
               <div>
                 <div class="text-muted-foreground">{{ t('sync.logs.penaltyRowsCreated') }}</div>
-                <div>{{ penaltyDetails.penaltyRowsCreated ?? '—' }}</div>
+                <div>{{ penaltyDetails.penaltyRowsCreated ?? '-' }}</div>
               </div>
               <div>
                 <div class="text-muted-foreground">{{ t('sync.logs.penaltyTotalAdded') }}</div>

@@ -114,7 +114,7 @@ async function openRoom(room: OccupancyRoom) {
   roomDialogOpen.value = true
 }
 function formatCharacteristicValue(entry: { valueType: string; value: boolean | number | string | null; unit: string | null }): string {
-  if (entry.value === null || entry.value === undefined) return '—'
+  if (entry.value === null || entry.value === undefined) return '-'
   if (entry.valueType === 'BOOLEAN') return entry.value ? t('boolean.yes') : t('boolean.no')
   return entry.unit ? `${entry.value} ${entry.unit}` : String(entry.value)
 }
@@ -239,7 +239,7 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
               <div class="h-2 overflow-hidden rounded-full bg-border">
                 <div class="h-full rounded-full transition-all" :class="barClass(room)" :style="{ width: `${occupancyRatio(room) * 100}%` }" />
               </div>
-              <span class="text-xs text-muted-foreground">({{ room.occupied }} / {{ room.capacity ?? '—' }})</span>
+              <span class="text-xs text-muted-foreground">({{ room.occupied }} / {{ room.capacity ?? '-' }})</span>
             </button>
           </div>
         </div>

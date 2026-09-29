@@ -102,11 +102,11 @@
       "selectedHint": "Will be merged into: {name}",
       "cancel": "Cancel",
       "confirm": "Merge",
-      "mergedBanner": "This individual has been merged into another record — the data has been moved, work with it instead:",
+      "mergedBanner": "This individual has been merged into another record - the data has been moved, work with it instead:",
       "mergedBannerLink": "Open the current record",
       "undoButton": "Undo merge",
       "mergedFromLabel": "Merged into this record:",
-      "hintBanner": "Found {count} similar synced individual(s) — this might be a duplicate.",
+      "hintBanner": "Found {count} similar synced individual(s) - this might be a duplicate.",
       "hintBannerAction": "Check"
     },
     "history": {
@@ -168,7 +168,7 @@
     },
     "editDialog": {
       "title": "Edit individual",
-      "warning": "Edits are written directly to the individual's data. For individuals synced from 1C, the next nightly sync may overwrite them back — use this only for critical situations.",
+      "warning": "Edits are written directly to the individual's data. For individuals synced from 1C, the next nightly sync may overwrite them back - use this only for critical situations.",
       "sectionPersonal": "Personal information",
       "surname": "Last name",
       "name": "First name",

@@ -183,7 +183,7 @@ function formatDate(value: string): string {
               <div>
                 <p class="text-xs text-muted-foreground">{{ t('home.resident.floorLabel') }}</p>
                 <p class="font-medium">
-                  {{ contract.currentRoom.floor != null ? t('home.resident.floorValue', { floor: contract.currentRoom.floor }) : '—' }}
+                  {{ contract.currentRoom.floor != null ? t('home.resident.floorValue', { floor: contract.currentRoom.floor }) : '-' }}
                 </p>
               </div>
             </div>

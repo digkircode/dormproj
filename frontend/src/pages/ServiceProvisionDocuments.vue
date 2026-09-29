@@ -113,7 +113,7 @@ function cellText(columnId: string, value: unknown): string {
     return value === 0 ? t('serviceProvisionDocuments.allMatched') : t('serviceProvisionDocuments.unmatchedCount', { count: value })
   }
   if (columnId === 'status') return STATUS_LABELS.value[value as Accounting1cSyncStatus] ?? String(value)
-  return String(value ?? '—')
+  return String(value ?? '-')
 }
 
 const columnHelper = createAppColumnHelper<TableRow>()
@@ -335,7 +335,7 @@ function matchLabel(missingMappings: ('CONTRACTOR' | 'CONTRACT')[]): string {
                     >
                       {{ line.residentFullName }}
                     </RouterLink>
-                    <span v-else>{{ line.residentFullName ?? '—' }}</span>
+                    <span v-else>{{ line.residentFullName ?? '-' }}</span>
                   </td>
                   <td class="px-3 py-2">
                     <span

@@ -47,7 +47,7 @@ export interface AcquiringStatusResult {
 // платежа (см. решение "блокировать понятным сообщением", обсуждение 2026-08-25).
 export class AcquiringNotConfiguredError extends Error {
   constructor() {
-    super('Эквайринг не настроен — не заполнены реквизиты банка в переменных окружения');
+    super('Эквайринг не настроен - не заполнены реквизиты банка в переменных окружения');
     this.name = 'AcquiringNotConfiguredError';
   }
 }

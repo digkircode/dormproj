@@ -120,7 +120,7 @@ export class IndividualSyncService {
         throw new SyncAlreadyRunningError();
       }
 
-      this.logger.warn(`Найден зависший лок синхронизации физлица (старше ${LOCK_STALE_MS / 60000} мин) — считаю его брошенным и перехватываю`);
+      this.logger.warn(`Найден зависший лок синхронизации физлица (старше ${LOCK_STALE_MS / 60000} мин) - считаю его брошенным и перехватываю`);
       await this.prisma.syncLock.deleteMany({ where: { type: SYNC_TYPE_INDIVIDUAL } });
 
       try {

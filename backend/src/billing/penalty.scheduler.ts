@@ -147,7 +147,7 @@ export class PenaltyScheduler {
     }
 
     this.logger.log(
-      `Начисление пени: обновлено договоров — ${updatedContractIds.length}, строк журнала — ${logRows.length}, всего добавлено — ${totalAdded.toFixed(2)}`,
+      `Начисление пени: обновлено договоров - ${updatedContractIds.length}, строк журнала - ${logRows.length}, всего добавлено - ${totalAdded.toFixed(2)}`,
     );
     return {
       processedContracts: updatedContractIds.length,

@@ -22,7 +22,7 @@
     "cancel": "Cancel",
     "confirmSend": "Confirm sending",
     "viewDetails": "Contract list",
-    "detailDialogTitle": "{type} — {period}",
+    "detailDialogTitle": "{type} - {period}",
     "colContractNumber": "Contract",
     "colResident": "Resident",
     "detailSearchPlaceholder": "Search by contract number or resident name",

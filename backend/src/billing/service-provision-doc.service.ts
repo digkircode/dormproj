@@ -370,7 +370,7 @@ export class ServiceProvisionDocService {
       return { pushed: 0, succeeded: 0, failed: 0, blocked, skipped: true };
     }
     if (!this.provider.isServiceProvisionConfigured()) {
-      this.logger.warn('1С Бухгалтерия (оказание услуг) не настроена — пропуск отправки');
+      this.logger.warn('1С Бухгалтерия (оказание услуг) не настроена - пропуск отправки');
       return { pushed: 0, succeeded: 0, failed: 0, blocked, skipped: true };
     }
 

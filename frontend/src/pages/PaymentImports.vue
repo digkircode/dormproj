@@ -37,11 +37,11 @@ const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
 
 function formatDate(value: string | null): string {
-  if (!value) return '—'
+  if (!value) return '-'
   return new Date(value).toLocaleDateString(dateLocaleTag())
 }
 function formatMoney(value: number | null): string {
-  if (value === null) return '—'
+  if (value === null) return '-'
   return `${value.toLocaleString(dateLocaleTag(), { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
 }
 
@@ -69,7 +69,7 @@ function importCellText(columnId: string, value: unknown): string {
   if (columnId === 'amount' && typeof value === 'number') return formatMoney(value)
   if (columnId === 'status') return IMPORT_STATUS_LABELS[value as PaymentImportRow['status']] ?? String(value)
   if (columnId === 'contractNumberDisplay') return (value as string | null) ?? t('paymentImports.noSuggestion')
-  return String(value ?? '—')
+  return String(value ?? '-')
 }
 
 // Договор/ФИО — теперь отдельные кликабельные колонки (ContractLinkCell/ResidentLinkCell,
@@ -250,7 +250,7 @@ function websiteCellText(columnId: string, value: unknown): string {
   if (columnId === 'paidAt' && typeof value === 'string') return formatDate(value)
   if (columnId === 'amount' && typeof value === 'number') return formatMoney(value)
   if (columnId === 'status') return WEBSITE_STATUS_LABELS[value as WebsitePaymentRow['accounting1cSyncStatus']] ?? String(value)
-  return String(value ?? '—')
+  return String(value ?? '-')
 }
 
 interface WebsiteTableRow {
@@ -454,7 +454,7 @@ async function submitBulkRetry() {
         </DialogHeader>
         <ul class="flex max-h-48 flex-col gap-1 overflow-y-auto text-sm">
           <li v-for="row in bulkApprovable" :key="row.id">
-            {{ formatMoney(row.amount) }} — {{ row.contractorFio }} → №{{ row.suggestedContract!.number }}
+            {{ formatMoney(row.amount) }} - {{ row.contractorFio }} → №{{ row.suggestedContract!.number }}
           </li>
         </ul>
         <p v-if="bulkSkipped > 0" class="text-sm text-muted-foreground">
@@ -474,7 +474,7 @@ async function submitBulkRetry() {
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader><DialogTitle>{{ t('paymentImports.bulkReverseDialogTitle') }}</DialogTitle></DialogHeader>
         <ul class="flex max-h-48 flex-col gap-1 overflow-y-auto text-sm">
-          <li v-for="row in bulkReverseTargets" :key="row.id">{{ formatMoney(row.amount) }} — {{ row.contractorFio }}</li>
+          <li v-for="row in bulkReverseTargets" :key="row.id">{{ formatMoney(row.amount) }} - {{ row.contractorFio }}</li>
         </ul>
         <p v-if="reverseImportError" class="text-sm text-red-500">{{ reverseImportError }}</p>
         <DialogFooter>
@@ -520,25 +520,25 @@ async function submitBulkRetry() {
             </div>
             <div class="col-span-2">
               <Label class="text-xs text-muted-foreground">{{ t('paymentImports.type') }}</Label>
-              <p>{{ reviewDetail.candidate.type ?? '—' }}</p>
+              <p>{{ reviewDetail.candidate.type ?? '-' }}</p>
             </div>
             <div class="col-span-2">
               <Label class="text-xs text-muted-foreground">{{ t('paymentImports.colPayer') }}</Label>
-              <p>{{ reviewDetail.candidate.contractorFio ?? '—' }}</p>
+              <p>{{ reviewDetail.candidate.contractorFio ?? '-' }}</p>
             </div>
             <div class="col-span-2">
               <Label class="text-xs text-muted-foreground">{{ t('paymentImports.colComment') }}</Label>
-              <p class="break-words">{{ reviewDetail.candidate.comment ?? '—' }}</p>
+              <p class="break-words">{{ reviewDetail.candidate.comment ?? '-' }}</p>
             </div>
           </div>
 
           <div class="flex flex-col gap-2">
             <Label>{{ t('paymentImports.contract') }}</Label>
-            <p>{{ reviewDetail.suggestedContract ? '№' + reviewDetail.suggestedContract.number : '—' }}</p>
+            <p>{{ reviewDetail.suggestedContract ? '№' + reviewDetail.suggestedContract.number : '-' }}</p>
           </div>
           <template v-if="!isActionable">
             <p class="text-sm text-muted-foreground">
-              {{ t('paymentImports.alreadyReviewedHint') }} — {{ t(`paymentImports.status.${reviewDetail.status}`) }}
+              {{ t('paymentImports.alreadyReviewedHint') }} - {{ t(`paymentImports.status.${reviewDetail.status}`) }}
               <span v-if="reviewDetail.matchedContract">(№{{ reviewDetail.matchedContract.number }})</span>
             </p>
           </template>

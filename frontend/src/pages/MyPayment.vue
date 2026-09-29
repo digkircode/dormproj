@@ -173,7 +173,7 @@ onMounted(async () => {
                   {{ t('payment.receipt.open') }}
                   <ExternalLink class="size-3.5" />
                 </a>
-                <span v-else class="text-muted-foreground">—</span>
+                <span v-else class="text-muted-foreground">-</span>
               </TableCell>
             </TableRow>
           </TableBody>
