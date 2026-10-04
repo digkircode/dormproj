@@ -91,10 +91,10 @@ function handleGroupClick(title: string, isActive?: boolean) {
                    висит на самой иконке, виден только в свёрнутом состоянии. -->
               <span class="relative inline-flex shrink-0">
                 <component :is="item.icon" v-if="item.icon" class="size-4 shrink-0 text-primary" />
-                <span v-if="item.badge" class="absolute -top-0.5 -right-0.5 hidden size-2 animate-pulse rounded-full bg-primary motion-reduce:animate-none group-data-[collapsible=icon]:block" />
+                <span v-if="item.badge" class="absolute -top-0.5 -right-0.5 hidden size-2 rounded-full bg-primary group-data-[collapsible=icon]:block" />
               </span>
               <span class="truncate">{{ item.title }}</span>
-              <span v-if="item.badge" class="ml-auto size-2 shrink-0 animate-pulse rounded-full bg-primary motion-reduce:animate-none group-data-[collapsible=icon]:hidden" />
+              <span v-if="item.badge" class="ml-auto size-2 shrink-0 rounded-full bg-primary group-data-[collapsible=icon]:hidden" />
             </RouterLink>
           </SidebarMenuButton>
         </SidebarMenuItem>

@@ -57,8 +57,10 @@ export async function fetchListPage<T>(
 }
 
 // Общая форма фасетов: GET basePath/facets/:field
-export async function fetchListFacets(basePath: string, field: string): Promise<FacetOption[]> {
-  const response = await apiFetch(`${basePath}/facets/${encodeURIComponent(field)}`)
+export async function fetchListFacets(basePath: string, field: string, extra?: Record<string, string>): Promise<FacetOption[]> {
+  const params = new URLSearchParams(extra)
+  const query = params.size ? `?${params}` : ''
+  const response = await apiFetch(`${basePath}/facets/${encodeURIComponent(field)}${query}`)
   if (!response.ok) {
     throw new Error(i18n.global.t('errors.fetchFacetsFailed', { status: response.status }))
   }

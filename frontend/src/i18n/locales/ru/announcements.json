@@ -9,7 +9,8 @@
       "bodyPlaceholder": "Текст объявления...",
       "create": "Создать",
       "save": "Сохранить",
-      "emptyFields": "Заполните тему и текст"
+      "titleRequired": "Укажите тему объявления",
+      "bodyRequired": "Введите текст объявления"
     },
     "deleteDialog": {
       "title": "Удалить объявление?",

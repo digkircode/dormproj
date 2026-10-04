@@ -22,6 +22,8 @@ const dialogError = ref('')
 const editingId = ref<number | null>(null)
 const title = ref('')
 const body = ref('')
+const titleError = ref('')
+const bodyError = ref('')
 
 const dialogTitle = computed(() => (editingId.value === null ? t('announcements.dialog.createTitle') : t('announcements.dialog.editTitle')))
 const submitLabel = computed(() => (editingId.value === null ? t('announcements.dialog.create') : t('announcements.dialog.save')))
@@ -31,6 +33,8 @@ const submitLabel = computed(() => (editingId.value === null ? t('announcements.
 // форм в проекте, см. ловушку про Dialog-в-Dialog в промпте).
 function open(existing?: StaffAnnouncement) {
   dialogError.value = ''
+  titleError.value = ''
+  bodyError.value = ''
   editingId.value = existing?.id ?? null
   title.value = existing?.title ?? ''
   body.value = existing?.body ?? ''
@@ -40,9 +44,12 @@ function open(existing?: StaffAnnouncement) {
 defineExpose({ open })
 
 async function submit() {
+  if (isSaving.value) return
   dialogError.value = ''
-  if (!title.value.trim() || !body.value.trim()) {
-    dialogError.value = t('announcements.dialog.emptyFields')
+  titleError.value = title.value.trim() ? '' : t('announcements.dialog.titleRequired')
+  bodyError.value = body.value.trim() ? '' : t('announcements.dialog.bodyRequired')
+  if (titleError.value || bodyError.value) {
+    document.getElementById(titleError.value ? 'announcement-title' : 'announcement-body')?.focus()
     return
   }
 
@@ -73,18 +80,33 @@ async function submit() {
 
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-2">
-          <Label>{{ t('announcements.dialog.titleLabel') }}</Label>
-          <Input v-model="title" :placeholder="t('announcements.dialog.titlePlaceholder')" maxlength="200" />
+          <Label for="announcement-title">{{ t('announcements.dialog.titleLabel') }}</Label>
+          <Input
+            id="announcement-title"
+            v-model="title"
+            :placeholder="t('announcements.dialog.titlePlaceholder')"
+            :aria-invalid="!!titleError"
+            :aria-describedby="titleError ? 'announcement-title-error' : undefined"
+            :class="titleError ? 'border-destructive' : ''"
+            maxlength="200"
+            @input="titleError = ''"
+          />
+          <p v-if="titleError" id="announcement-title-error" class="text-xs text-destructive">{{ titleError }}</p>
         </div>
         <div class="flex flex-col gap-2">
-          <Label>{{ t('announcements.dialog.bodyLabel') }}</Label>
+          <Label for="announcement-body">{{ t('announcements.dialog.bodyLabel') }}</Label>
           <textarea
+            id="announcement-body"
             v-model="body"
             rows="5"
             maxlength="4000"
             :placeholder="t('announcements.dialog.bodyPlaceholder')"
-            class="flex w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground transition-shadow focus-visible:outline-none focus-visible:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/20 focus-visible:shadow-sm"
+            :aria-invalid="!!bodyError"
+            :aria-describedby="bodyError ? 'announcement-body-error' : undefined"
+            :class="['flex w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground transition-shadow focus-visible:outline-none focus-visible:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/20 focus-visible:shadow-sm', bodyError ? 'border-destructive' : '']"
+            @input="bodyError = ''"
           />
+          <p v-if="bodyError" id="announcement-body-error" class="text-xs text-destructive">{{ bodyError }}</p>
         </div>
       </div>
 

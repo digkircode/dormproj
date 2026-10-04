@@ -216,8 +216,8 @@ export function fetchOccupancy(): Promise<OccupancyReport> {
 export function fetchContingentPage(options: ListOptions, asOf: string, signal?: AbortSignal): Promise<ListPage<ContingentRow>> {
   return fetchListPage<ContingentRow>('/reports/contingent', options, { asOf }, signal)
 }
-export function fetchContingentFacets(field: string): Promise<FacetOption[]> {
-  return fetchListFacets('/reports/contingent', field)
+export function fetchContingentFacets(field: string, asOf: string): Promise<FacetOption[]> {
+  return fetchListFacets('/reports/contingent', field, { asOf })
 }
 export function exportContingentExcel(asOf: string): Promise<void> {
   return downloadFile(`/reports/contingent/export?asOf=${asOf}`, `Реестр проживающих на ${asOf}.xlsx`)

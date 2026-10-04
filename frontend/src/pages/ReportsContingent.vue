@@ -67,6 +67,9 @@ const asOf = ref(todayIso())
 function fetchPage(options: ListOptions, signal?: AbortSignal) {
   return fetchContingentPage(options, asOf.value, signal)
 }
+function fetchFacets(field: string) {
+  return fetchContingentFacets(field, asOf.value)
+}
 
 const entityTable = ref<{ refresh: () => void } | null>(null)
 watch(asOf, () => entityTable.value?.refresh())
@@ -103,7 +106,8 @@ async function onExport() {
       :filterable-fields="filterableFields"
       :default-sort="{ id: 'movedInDate', desc: true }"
       :fetch-page="fetchPage"
-      :fetch-facet-values="fetchContingentFacets"
+      :fetch-facet-values="fetchFacets"
+      :facet-cache-key="asOf"
       :get-row-id="(r: ContingentRow) => String(r.contractId)"
       :total-label="t('reports.contingent.totalLabel')"
       :cell-text="cellText"

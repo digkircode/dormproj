@@ -31,10 +31,12 @@ function ensureProfileDir(): Promise<void> {
   return profileDirReady;
 }
 
-function runSoffice(args: string[]): Promise<void> {
+export function runSoffice(args: string[], timeoutMs = CONVERT_TIMEOUT_MS, executable = 'soffice'): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn('soffice', args, {
+    const child = spawn(executable, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
+      // A separate process group lets the timeout stop soffice and its children.
+      detached: process.platform !== 'win32',
       env: {
         ...process.env,
         // Явно фиксирует headless-бэкенд рендеринга вместо автоопределения GUI-тулкита —
@@ -43,13 +45,28 @@ function runSoffice(args: string[]): Promise<void> {
       },
     });
     let stderr = '';
+    let spawnError: Error | null = null;
+    let timedOut = false;
     child.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString();
+      stderr = (stderr + chunk.toString()).slice(0, 2000);
     });
-    child.on('error', reject);
+    const timer = setTimeout(() => {
+      timedOut = true;
+      try {
+        if (process.platform !== 'win32' && child.pid) process.kill(-child.pid, 'SIGKILL');
+        else child.kill('SIGKILL');
+      } catch {
+        child.kill('SIGKILL');
+      }
+    }, timeoutMs);
+    child.on('error', (error) => { spawnError = error; });
+    // Wait for process exit before releasing the shared LibreOffice profile.
     child.on('close', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`soffice exited with code ${code}: ${stderr.slice(0, 2000)}`));
+      clearTimeout(timer);
+      if (timedOut) reject(new Error('Конвертация в PDF не уложилась в таймаут'));
+      else if (spawnError) reject(spawnError);
+      else if (code === 0) resolve();
+      else reject(new Error(`soffice exited with code ${code}: ${stderr}`));
     });
   });
 }
@@ -66,22 +83,17 @@ async function convertOnce(buffer: Buffer): Promise<Buffer> {
   const outputPath = join(workDir, 'input.pdf');
   try {
     await writeFile(inputPath, buffer);
-    await Promise.race([
-      runSoffice([
-        '--headless',
-        '--norestore',
-        '--nologo',
-        '--nofirststartwizard',
-        `-env:UserInstallation=file://${PROFILE_DIR}`,
-        '--convert-to',
-        'pdf:writer_pdf_Export',
-        '--outdir',
-        workDir,
-        inputPath,
-      ]),
-      new Promise<void>((_, reject) =>
-        setTimeout(() => reject(new Error('Конвертация в PDF не уложилась в таймаут')), CONVERT_TIMEOUT_MS),
-      ),
+    await runSoffice([
+      '--headless',
+      '--norestore',
+      '--nologo',
+      '--nofirststartwizard',
+      `-env:UserInstallation=file://${PROFILE_DIR}`,
+      '--convert-to',
+      'pdf:writer_pdf_Export',
+      '--outdir',
+      workDir,
+      inputPath,
     ]);
     return await readFile(outputPath);
   } finally {

@@ -9,7 +9,8 @@
       "bodyPlaceholder": "Announcement text...",
       "create": "Create",
       "save": "Save",
-      "emptyFields": "Fill in the subject and text"
+      "titleRequired": "Enter an announcement subject",
+      "bodyRequired": "Enter the announcement text"
     },
     "deleteDialog": {
       "title": "Delete announcement?",

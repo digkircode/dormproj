@@ -56,6 +56,8 @@ const props = withDefaults(
     // ниже); реализации на клиентских данных (client-list.ts) его просто игнорируют.
     fetchPage: (options: ListOptions, signal?: AbortSignal) => Promise<ListPage<TData>>
     fetchFacetValues: (field: string) => Promise<FacetOption[]>
+    // Изменение внешнего параметра отчёта (например, даты) сбрасывает варианты фасетов.
+    facetCacheKey?: string
     getRowId: (row: TData) => string
     totalLabel: string
     cellText?: (columnId: string, value: unknown) => string
@@ -139,6 +141,11 @@ const search = ref('')
 const activeFilterFields = ref<string[]>(Object.keys(props.defaultFilters))
 const filterValues = ref<Record<string, string[]>>({ ...props.defaultFilters })
 const facetOptions = ref<Record<string, FacetOption[]>>({})
+let facetVersion = 0
+watch(() => props.facetCacheKey, () => {
+  facetVersion++
+  facetOptions.value = {}
+})
 
 // Модалка работает с черновиком: пока не нажали "Готово", ничего не применяется
 // и фильтр не появляется в списке — иначе просто открыв и закрыв модалку,
@@ -312,10 +319,13 @@ function toggleAllRows(checked: boolean) {
 // ниже подставляет значение как есть, если facetOptions[field] ещё не заполнен.
 async function ensureFacetOptions(field: string) {
   if (facetOptions.value[field]) return
+  const version = facetVersion
   try {
     const options = await props.fetchFacetValues(field)
+    if (version !== facetVersion) return
     facetOptions.value = { ...facetOptions.value, [field]: options }
   } catch (error) {
+    if (version !== facetVersion) return
     errorText.value = error instanceof Error ? error.message : String(error)
   }
 }
@@ -324,9 +334,11 @@ async function ensureFacetOptions(field: string) {
 // (донастроить) — в обоих случаях открывает модалку с черновиком выбора,
 // ничего не меняя в применённых фильтрах, пока не подтвердят.
 async function openFilterField(field: string) {
+  const version = facetVersion
   filterModalField.value = field
   filterModalDraft.value = [...(filterValues.value[field] ?? [])]
   await ensureFacetOptions(field)
+  if (version !== facetVersion) return
   filterModalSearch.value = ''
   isFilterModalOpen.value = true
 }
@@ -432,55 +444,51 @@ defineExpose({ refresh: loadPage })
       <div class="flex items-center gap-2">
         <slot name="actions" />
 
-        <DropdownMenu>
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <DropdownMenuTrigger as-child>
-                <Button variant="outline" size="icon">
-                  <ListFilter :class="{ 'text-primary': accentIcons }" />
-                  <span class="sr-only">{{ t('entityTable.addFilter') }}</span>
-                </Button>
-              </DropdownMenuTrigger>
-            </TooltipTrigger>
-            <TooltipContent>{{ t('entityTable.addFilter') }}</TooltipContent>
-          </Tooltip>
-          <DropdownMenuContent align="end" class="w-56">
-            <template v-if="filterableFields.filter((f) => !activeFilterFields.includes(f)).length">
-              <DropdownMenuItem
-                v-for="field in filterableFields.filter((f) => !activeFilterFields.includes(f))"
-                :key="field"
-                @click="openFilterField(field)"
-              >
-                {{ columnLabels[field] }}
-              </DropdownMenuItem>
-            </template>
-            <div v-else class="px-2 py-1.5 text-sm text-muted-foreground">{{ t('entityTable.allFieldsAdded') }}</div>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div class="group relative">
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button variant="outline" size="icon">
+                <ListFilter :class="{ 'text-primary': accentIcons }" />
+                <span class="sr-only">{{ t('entityTable.addFilter') }}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" class="w-56">
+              <template v-if="filterableFields.filter((f) => !activeFilterFields.includes(f)).length">
+                <DropdownMenuItem
+                  v-for="field in filterableFields.filter((f) => !activeFilterFields.includes(f))"
+                  :key="field"
+                  @click="openFilterField(field)"
+                >
+                  {{ columnLabels[field] }}
+                </DropdownMenuItem>
+              </template>
+              <div v-else class="px-2 py-1.5 text-sm text-muted-foreground">{{ t('entityTable.allFieldsAdded') }}</div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <span aria-hidden="true" class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100">{{ t('entityTable.addFilter') }}</span>
+        </div>
 
-        <DropdownMenu>
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <DropdownMenuTrigger as-child>
-                <Button variant="outline" size="icon">
-                  <Settings2 :class="{ 'text-primary': accentIcons }" />
-                  <span class="sr-only">{{ t('entityTable.tableSettings') }}</span>
-                </Button>
-              </DropdownMenuTrigger>
-            </TooltipTrigger>
-            <TooltipContent>{{ t('entityTable.tableSettings') }}</TooltipContent>
-          </Tooltip>
-          <DropdownMenuContent align="end" class="w-56">
-            <DropdownMenuCheckboxItem
-              v-for="column in table.getAllColumns().filter((c) => c.getCanHide())"
-              :key="column.id"
-              :model-value="column.getIsVisible()"
-              @update:model-value="(value) => column.toggleVisibility(!!value)"
-            >
-              {{ columnLabels[column.id] ?? column.id }}
-            </DropdownMenuCheckboxItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div class="group relative">
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button variant="outline" size="icon">
+                <Settings2 :class="{ 'text-primary': accentIcons }" />
+                <span class="sr-only">{{ t('entityTable.tableSettings') }}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" class="w-56">
+              <DropdownMenuCheckboxItem
+                v-for="column in table.getAllColumns().filter((c) => c.getCanHide())"
+                :key="column.id"
+                :model-value="column.getIsVisible()"
+                @update:model-value="(value) => column.toggleVisibility(!!value)"
+              >
+                {{ columnLabels[column.id] ?? column.id }}
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <span aria-hidden="true" class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100">{{ t('entityTable.tableSettings') }}</span>
+        </div>
       </div>
     </div>
 

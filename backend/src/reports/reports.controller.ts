@@ -12,6 +12,7 @@ import { fromStoredValue } from '../rooms/characteristic-value';
 import { parseListOptions, paginateInMemory, filterAndSortInMemory, facetsFromValues, type FacetOption } from './list-helpers';
 import { sendExcelReport, type ExcelColumn } from './excel-export';
 import { buildDebtorRows, type DebtorRow } from './debtor-rows';
+import { roomAssignmentAtDate } from './room-assignment-at-date';
 import { CONTRACT_STATUS_LABELS } from '../contracts/contract-display-status';
 import { currentResidentAssignments } from '../contracts/resident-assignments';
 import { buildMovementEvents, type MovementEvent, type MovementOperationType } from './movement-events';
@@ -242,7 +243,7 @@ export class ReportsController {
       where: { id: contractId },
       include: {
         resident: { select: { fullName: true } },
-        roomAssignments: { where: { toDate: null }, include: { room: { select: { room: true } } } },
+        roomAssignments: { ...roomAssignmentAtDate(asOf), include: { room: { select: { room: true } } } },
         accruals: {
           where: { voidedAt: null },
           orderBy: { periodStart: 'asc' },
@@ -309,7 +310,7 @@ export class ReportsController {
         id: true,
         number: true,
         resident: { select: { fullName: true } },
-        roomAssignments: { where: { toDate: null }, include: { room: { select: { room: true } } } },
+        roomAssignments: { ...roomAssignmentAtDate(asOf), include: { room: { select: { room: true } } } },
         penaltyLogs: { orderBy: { date: 'asc' } },
       },
     });
@@ -520,7 +521,7 @@ export class ReportsController {
   }
 
   @Get('contingent/facets/:field')
-  async contingentFacets(@Param('field') field: string): Promise<FacetOption[]> {
+  async contingentFacets(@Param('field') field: string, @Query('asOf') asOfParam?: string): Promise<FacetOption[]> {
     if (field === 'citizenshipGroup') {
       return [
         { value: 'RU', label: t('reports.contingentFacets.citizenshipRu', 'Россия') },
@@ -534,7 +535,7 @@ export class ReportsController {
       ];
     }
     if (field !== 'facultet' && field !== 'kursNumber') return [];
-    const rows = await this.buildContingentRows(dateOnly(new Date()));
+    const rows = await this.buildContingentRows(resolveAsOf(asOfParam));
     return facetsFromValues(rows.map((r) => r[field]));
   }
 
@@ -578,7 +579,7 @@ export class ReportsController {
     const contracts = await this.prisma.contract.findMany({
       include: {
         resident: { select: { fullName: true } },
-        roomAssignments: { where: { toDate: null }, include: { room: { select: { room: true } } } },
+        roomAssignments: { ...roomAssignmentAtDate(asOf), include: { room: { select: { room: true } } } },
       },
     });
 

@@ -1,6 +1,7 @@
 import { Prisma, ContractStatus } from '../../generated/prisma/client.js';
 import type { PrismaService } from '../prisma/prisma.service';
 import { computePenaltyBalance } from '../billing/penalty-balance';
+import { roomAssignmentAtDate } from './room-assignment-at-date';
 
 const { Decimal } = Prisma;
 
@@ -44,7 +45,7 @@ export async function buildDebtorRows(prisma: PrismaService, asOf: Date): Promis
   const contracts = await prisma.contract.findMany({
     include: {
       resident: { select: { fullName: true, fizicheskoyeLitsoUid: true } },
-      roomAssignments: { where: { toDate: null }, include: { room: { select: { id: true, room: true } } } },
+      roomAssignments: { ...roomAssignmentAtDate(asOf), include: { room: { select: { id: true, room: true } } } },
       accruals: {
         where: { voidedAt: null },
         include: { allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } } },

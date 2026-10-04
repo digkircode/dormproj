@@ -79,7 +79,7 @@ function formatTime(iso: string): string {
                 class="truncate text-xs"
                 :class="conversation.unread ? 'font-medium text-foreground' : 'text-muted-foreground'"
               >{{ conversation.lastMessage ?? t('chat.list.noMessages') }}</span>
-              <span v-if="conversation.unread" class="size-2 shrink-0 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
+              <span v-if="conversation.unread" class="size-2 shrink-0 rounded-full bg-primary" />
             </div>
           </div>
         </button>
