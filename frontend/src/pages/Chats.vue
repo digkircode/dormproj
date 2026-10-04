@@ -39,27 +39,55 @@ const broadcastDialogRef = ref<InstanceType<typeof BroadcastDialog> | null>(null
 // сообщений вовсе, тогда length всегда 0, но "загрузка для этого id завершилась" всё
 // равно наступает.
 const messagesLoadedFor = ref<number | null>(null)
+const conversationError = ref('')
+let selectionVersion = 0
+let conversationsVersion = 0
+const pendingStreamRefresh = new Set<number>()
 
 async function loadConversations() {
-  conversations.value = await fetchConversations()
+  const version = ++conversationsVersion
+  const list = await fetchConversations()
+  if (version !== conversationsVersion) return
+  conversations.value = list
   hasUnreadStaffChats.value = conversations.value.some((c) => c.unread)
 }
 
 async function selectConversation(id: number) {
   // Клик по уже открытому диалогу — не гонять сеть заново (перезагрузка сообщений/
   // resident-info/повторная пометка прочитанным без надобности, см. известный баг проекта).
-  if (id === selectedId.value) return
+  if (id === selectedId.value && !conversationError.value) return
+  const version = ++selectionVersion
   selectedId.value = id
+  messagesLoadedFor.value = null
+  messages.value = []
+  pendingStreamRefresh.clear()
+  hasMoreOlder.value = false
+  isLoadingOlder.value = false
   residentInfo.value = null
-  const [page, info] = await Promise.all([fetchConversationMessages(id), fetchResidentInfo(id)])
-  messages.value = page.messages
-  hasMoreOlder.value = page.hasMore
-  messagesLoadedFor.value = id
-  residentInfo.value = info
-  await markConversationRead(id)
-  const conversation = conversations.value.find((c) => c.id === id)
-  if (conversation) conversation.unread = false
-  hasUnreadStaffChats.value = conversations.value.some((c) => c.unread)
+  conversationError.value = ''
+  try {
+    const [page, info] = await Promise.all([fetchConversationMessages(id), fetchResidentInfo(id)])
+    if (version !== selectionVersion || selectedId.value !== id) return
+    messages.value = page.messages
+    hasMoreOlder.value = page.hasMore
+    messagesLoadedFor.value = id
+    residentInfo.value = info
+    while (pendingStreamRefresh.delete(id)) {
+      const latest = await fetchConversationMessages(id)
+      if (version !== selectionVersion || selectedId.value !== id) return
+      messages.value = appendNewMessages(messages.value, latest.messages)
+    }
+    await markConversationRead(id)
+    if (version !== selectionVersion || selectedId.value !== id) return
+    conversationsVersion++
+    const conversation = conversations.value.find((c) => c.id === id)
+    if (conversation) conversation.unread = false
+    hasUnreadStaffChats.value = conversations.value.some((c) => c.unread)
+  } catch (error) {
+    if (version === selectionVersion && selectedId.value === id) {
+      conversationError.value = error instanceof Error ? error.message : String(error)
+    }
+  }
 }
 
 // Подгрузка истории по скроллу вверх (см. ChatThread.vue) — курсор от самого старого уже
@@ -67,15 +95,18 @@ async function selectConversation(id: number) {
 // от повторного триггера тем же скролл-событием, пока первый ответ ещё не пришёл).
 async function loadOlderMessages() {
   if (!selectedId.value || !hasMoreOlder.value || isLoadingOlder.value) return
+  const id = selectedId.value
+  const version = selectionVersion
   const oldestId = messages.value[0]?.id
   if (!oldestId) return
   isLoadingOlder.value = true
   try {
-    const page = await fetchConversationMessages(selectedId.value, oldestId)
+    const page = await fetchConversationMessages(id, oldestId)
+    if (version !== selectionVersion || selectedId.value !== id) return
     messages.value = prependOlderMessages(messages.value, page.messages)
     hasMoreOlder.value = page.hasMore
   } finally {
-    isLoadingOlder.value = false
+    if (version === selectionVersion) isLoadingOlder.value = false
   }
 }
 
@@ -90,10 +121,14 @@ const pendingSelfSentIds = new Set<number>()
 
 async function onSend(body: string, files: File[]) {
   if (!selectedId.value) return
-  const sent = await sendStaffMessage(selectedId.value, body, files)
+  const id = selectedId.value
+  const version = selectionVersion
+  const sent = await sendStaffMessage(id, body, files)
   pendingSelfSentIds.add(sent.id)
-  const page = await fetchConversationMessages(selectedId.value)
-  messages.value = appendNewMessages(messages.value, page.messages)
+  const page = await fetchConversationMessages(id)
+  if (version === selectionVersion && selectedId.value === id) {
+    messages.value = appendNewMessages(messages.value, page.messages)
+  }
   await loadConversations()
 }
 
@@ -108,10 +143,19 @@ useChatStream('/chats/stream', async (event: ChatStreamEvent) => {
   if (event.messageId != null && pendingSelfSentIds.delete(event.messageId)) return
   await loadConversations()
   if (event.conversationId === selectedId.value) {
-    const page = await fetchConversationMessages(selectedId.value)
+    const id = selectedId.value
+    if (messagesLoadedFor.value !== id) {
+      pendingStreamRefresh.add(id)
+      return
+    }
+    const version = selectionVersion
+    const page = await fetchConversationMessages(id)
+    if (version !== selectionVersion || selectedId.value !== id) return
     messages.value = appendNewMessages(messages.value, page.messages)
-    await markConversationRead(selectedId.value)
-    const conversation = conversations.value.find((c) => c.id === selectedId.value)
+    await markConversationRead(id)
+    if (version !== selectionVersion || selectedId.value !== id) return
+    conversationsVersion++
+    const conversation = conversations.value.find((c) => c.id === id)
     if (conversation) conversation.unread = false
     hasUnreadStaffChats.value = conversations.value.some((c) => c.unread)
   }
@@ -150,7 +194,7 @@ onMounted(loadConversations)
             <FileText class="size-4 text-primary" />
             {{ t('contracts.detail.titleWithNumber', { number: residentInfo.contractNumber }) }}
           </RouterLink>
-          <span v-else class="flex h-10 items-center gap-1.5">
+          <span v-else-if="messagesLoadedFor === selectedId" class="flex h-10 items-center gap-1.5">
             <FileText class="size-4 text-primary" />
             {{ t('chat.noActiveContract') }}
           </span>
@@ -160,6 +204,7 @@ onMounted(loadConversations)
           </span>
         </div>
 
+        <p v-if="conversationError && messagesLoadedFor === selectedId" class="px-3 pt-2 text-sm text-destructive">{{ conversationError }}</p>
         <ChatThread
           v-if="selectedId && messagesLoadedFor === selectedId"
           :key="selectedId"
@@ -170,6 +215,7 @@ onMounted(loadConversations)
           attachment-base-path="/chats/attachments"
           :on-send="onSend"
         />
+        <p v-else-if="conversationError" class="m-auto p-4 text-sm text-destructive">{{ conversationError }}</p>
         <p v-else class="m-auto text-sm text-muted-foreground">{{ selectedId ? t('entityTable.loading') : t('chat.selectDialogHint') }}</p>
       </div>
     </Card>

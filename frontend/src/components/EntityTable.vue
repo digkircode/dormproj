@@ -433,12 +433,17 @@ defineExpose({ refresh: loadPage })
         <slot name="actions" />
 
         <DropdownMenu>
-          <DropdownMenuTrigger as-child>
-            <Button variant="outline" size="icon" :title="t('entityTable.addFilter')">
-              <ListFilter :class="{ 'text-primary': accentIcons }" />
-              <span class="sr-only">{{ t('entityTable.addFilter') }}</span>
-            </Button>
-          </DropdownMenuTrigger>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <DropdownMenuTrigger as-child>
+                <Button variant="outline" size="icon">
+                  <ListFilter :class="{ 'text-primary': accentIcons }" />
+                  <span class="sr-only">{{ t('entityTable.addFilter') }}</span>
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent>{{ t('entityTable.addFilter') }}</TooltipContent>
+          </Tooltip>
           <DropdownMenuContent align="end" class="w-56">
             <template v-if="filterableFields.filter((f) => !activeFilterFields.includes(f)).length">
               <DropdownMenuItem
@@ -454,12 +459,17 @@ defineExpose({ refresh: loadPage })
         </DropdownMenu>
 
         <DropdownMenu>
-          <DropdownMenuTrigger as-child>
-            <Button variant="outline" size="icon" :title="t('entityTable.tableSettings')">
-              <Settings2 :class="{ 'text-primary': accentIcons }" />
-              <span class="sr-only">{{ t('entityTable.tableSettings') }}</span>
-            </Button>
-          </DropdownMenuTrigger>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <DropdownMenuTrigger as-child>
+                <Button variant="outline" size="icon">
+                  <Settings2 :class="{ 'text-primary': accentIcons }" />
+                  <span class="sr-only">{{ t('entityTable.tableSettings') }}</span>
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent>{{ t('entityTable.tableSettings') }}</TooltipContent>
+          </Tooltip>
           <DropdownMenuContent align="end" class="w-56">
             <DropdownMenuCheckboxItem
               v-for="column in table.getAllColumns().filter((c) => c.getCanHide())"

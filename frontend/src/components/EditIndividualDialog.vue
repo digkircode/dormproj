@@ -203,7 +203,7 @@ async function submitUpdate() {
             {{ t('individuals.editDialog.sectionPersonal') }}
           </p>
           <div class="flex flex-col gap-4 rounded-md border p-4">
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.surname') }}</Label>
                 <Input v-model="surname" :class="surnameInvalid ? 'border-red-500' : ''" />
@@ -259,7 +259,7 @@ async function submitUpdate() {
             {{ t('individuals.editDialog.sectionContact') }}
           </p>
           <div class="flex flex-col gap-4 rounded-md border p-4">
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.phone') }}</Label>
                 <Input v-model="phone" />
@@ -286,7 +286,7 @@ async function submitUpdate() {
             {{ t('individuals.editDialog.sectionDocuments') }}
           </p>
           <div class="flex flex-col gap-4 rounded-md border p-4">
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.snils') }}</Label>
                 <input :value="snils" :class="MASK_INPUT_CLASS" placeholder="000-000-000 00" @input="onSnilsInput" @keydown="blockNonDigitKeys" />

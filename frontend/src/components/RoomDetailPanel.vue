@@ -60,6 +60,8 @@ const detail = ref<RoomDetail | null>(null)
 const definitions = ref<RoomCharacteristicDefinition[]>([])
 const isLoading = ref(true)
 const loadError = ref('')
+let roomRequestVersion = 0
+let dormitoryRequestVersion = 0
 
 // Общежитские поля (DORMITORY_INFO_FIELDS) не должны попадать в выбор при добавлении
 // характеристики комнаты — они не per-room, см. компактную карточку в шаблоне ниже.
@@ -103,17 +105,20 @@ const dormitoryFieldErrors = reactive<Record<DormitoryInfoFieldKey, string>>({
 })
 
 async function loadDormitoryInfo() {
+  const version = ++dormitoryRequestVersion
   isDormitoryLoading.value = true
   dormitoryLoadError.value = ''
   try {
     const info = await fetchDormitoryInfo()
+    if (version !== dormitoryRequestVersion || !props.showDormitoryInfo) return
     for (const field of DORMITORY_INFO_FIELDS) {
       dormitoryEditValues[field.key] = info[field.key] === null ? '' : String(info[field.key])
     }
   } catch (error) {
+    if (version !== dormitoryRequestVersion || !props.showDormitoryInfo) return
     dormitoryLoadError.value = error instanceof Error ? error.message : String(error)
   } finally {
-    isDormitoryLoading.value = false
+    if (version === dormitoryRequestVersion) isDormitoryLoading.value = false
   }
 }
 
@@ -123,6 +128,10 @@ watch(
   () => props.showDormitoryInfo,
   (show) => {
     if (show) loadDormitoryInfo()
+    else {
+      dormitoryRequestVersion++
+      isDormitoryLoading.value = false
+    }
   },
   { immediate: true },
 )
@@ -180,30 +189,37 @@ function compareByCharacteristic(a: { name: string }, b: { name: string }): numb
   return a.name.localeCompare(b.name, 'ru')
 }
 
-// Первый загруз/смена комнаты — с "Загрузка…"; refresh() после правок — тихо, без
-// сброса текущего содержимого, чтобы TransitionGroup плавно доанимировал разницу,
-// а не мигал пустым экраном.
+// При смене комнаты показываем каркас до ответа. refresh() после правок сохраняет
+// текущую карточку. Версия запроса не даёт позднему ответу заменить новую комнату.
 async function load(id: number) {
+  const version = ++roomRequestVersion
   isLoading.value = true
   loadError.value = ''
   detail.value = null
   try {
     const [room, defs] = await Promise.all([fetchRoomDetail(id), fetchDefinitions()])
+    if (version !== roomRequestVersion || props.roomId !== id || props.showDormitoryInfo) return
     detail.value = room
     definitions.value = defs
   } catch (error) {
+    if (version !== roomRequestVersion || props.roomId !== id || props.showDormitoryInfo) return
     loadError.value = error instanceof Error ? error.message : String(error)
   } finally {
-    isLoading.value = false
+    if (version === roomRequestVersion) isLoading.value = false
   }
 }
 
 async function refresh() {
   if (!detail.value) return
+  const id = detail.value.id
+  const version = ++roomRequestVersion
   try {
-    detail.value = await fetchRoomDetail(detail.value.id)
+    const room = await fetchRoomDetail(id)
+    if (version === roomRequestVersion && props.roomId === id && !props.showDormitoryInfo) detail.value = room
   } catch (error) {
-    loadError.value = error instanceof Error ? error.message : String(error)
+    if (version === roomRequestVersion && props.roomId === id && !props.showDormitoryInfo) {
+      loadError.value = error instanceof Error ? error.message : String(error)
+    }
   }
 }
 
@@ -214,7 +230,12 @@ watch(
   (id) => {
     selectedCharacteristicFilter.value = null
     if (id !== null) load(id)
-    else detail.value = null
+    else {
+      roomRequestVersion++
+      detail.value = null
+      isLoading.value = false
+      loadError.value = ''
+    }
   },
   { immediate: true },
 )
@@ -532,21 +553,18 @@ async function confirmDeleteValue() {
             {{ t('rooms.detail.dormitoryInfo') }}
           </div>
           <p v-if="dormitoryLoadError" class="text-sm text-red-500">{{ dormitoryLoadError }}</p>
-          <p v-if="isDormitoryLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
-          <!-- max-w-md (не sm) — у самых длинных названий ("Суточная оплата (Другой
-               вуз.)") строка из метки+инпута+единицы+галочки не помещалась в одну строку
-               и переносилась. Галочка — всегда в DOM, переключается только opacity (не
-               v-if/v-else) — со свапом элементов Transition on/off рендерил оба сразу во
-               время кроссфейда, отсюда и "дёргало" ширину строки. -->
-          <div v-else class="w-full max-w-md overflow-hidden rounded-md border">
+          <div v-if="isDormitoryLoading" class="w-full max-w-md space-y-2" aria-hidden="true"><div v-for="n in 5" :key="n" class="h-10 animate-pulse rounded bg-muted motion-reduce:animate-none" /></div>
+          <!-- На узком экране метка и поле переносятся, не обрезая ввод. Галочка
+               остаётся в DOM и меняет только opacity, чтобы ширина не прыгала. -->
+          <div v-else-if="!dormitoryLoadError" class="w-full max-w-md rounded-md border">
             <div
               v-for="(field, index) in DORMITORY_INFO_FIELDS"
               :key="field.key"
-              class="flex items-center justify-between gap-2 px-3 py-2 text-sm"
+              class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
               :class="index > 0 ? 'border-t border-border' : ''"
             >
-              <span class="shrink-0 text-muted-foreground">{{ t(`rooms.detail.dormitoryFields.${field.key}`) }}</span>
-              <div class="flex shrink-0 items-center gap-1.5">
+              <span class="min-w-0 text-muted-foreground">{{ t(`rooms.detail.dormitoryFields.${field.key}`) }}</span>
+              <div class="flex items-center gap-1.5">
                 <input
                   v-model="dormitoryEditValues[field.key]"
                   type="number"
@@ -577,7 +595,7 @@ async function confirmDeleteValue() {
           <p class="text-sm">{{ t('rooms.detail.selectRoomHint') }}</p>
         </div>
 
-        <p v-else-if="isLoading" key="loading" class="p-4 text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
+        <div v-else-if="isLoading" key="loading" class="space-y-4 p-4 md:p-6" aria-hidden="true"><div class="h-8 w-1/2 animate-pulse rounded bg-muted motion-reduce:animate-none" /><div v-for="n in 6" :key="n" class="h-10 animate-pulse rounded bg-muted motion-reduce:animate-none" /></div>
         <p v-else-if="loadError" key="error" class="p-4 text-sm text-red-500">{{ loadError }}</p>
 
         <div v-else-if="detail" :key="detail.id" class="flex h-full min-h-0 flex-col gap-4 p-4 md:p-6">

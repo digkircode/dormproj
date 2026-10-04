@@ -40,7 +40,9 @@ const props = defineProps<{
 // раньше эта страница дёргала fetchMyContract() целиком (все начисления/платежи/пеня-лог/
 // terms, нужные "Договору/Платежам", MyContract.vue), хотя показывает только пару чисел.
 const contract = ref<MyContractHomeSummary | null>(null)
-const isLoading = ref(true)
+type LoadState = 'loading' | 'success' | 'error'
+const contractState = ref<LoadState>('loading')
+const announcementsState = ref<LoadState>('loading')
 const paymentDialog = ref<InstanceType<typeof CreatePaymentDialog> | null>(null)
 // Имя (не полное ФИО) — тот же rosnou-id аккаунт, что и у сотрудников, поле name отдельно
 // от surname/patronymic (см. SessionUser в auth-api.ts), фолбэк на случай пустого значения
@@ -65,20 +67,22 @@ function markAnnouncementAsRead(id: number) {
   if (found) found.unread = false
 }
 
-onMounted(async () => {
+onMounted(() => {
   if (props.demo) {
     contract.value = props.demoContract ?? null
     announcements.value = props.demoAnnouncements ?? []
-    isLoading.value = false
+    contractState.value = 'success'
+    announcementsState.value = 'success'
     return
   }
-  const [contractResult, announcementsResult] = await Promise.all([
-    fetchMyContractHomeSummary().catch(() => null),
-    fetchMyAnnouncements().catch(() => []),
-  ])
-  contract.value = contractResult
-  announcements.value = announcementsResult
-  isLoading.value = false
+  void fetchMyContractHomeSummary().then((value) => {
+    contract.value = value
+    contractState.value = 'success'
+  }).catch(() => { contractState.value = 'error' })
+  void fetchMyAnnouncements().then((value) => {
+    announcements.value = value
+    announcementsState.value = 'success'
+  }).catch(() => { announcementsState.value = 'error' })
 })
 
 // totalBalance/nextAccrual уже посчитаны на бэке (GET /my-contract/summary, FIFO-порядок
@@ -173,7 +177,9 @@ function formatDate(value: string): string {
             <p class="mt-0.5 text-xs leading-relaxed text-muted-foreground">{{ t('home.resident.roomTagline') }}</p>
           </div>
         </div>
-        <template v-if="!isLoading && contract?.currentRoom">
+        <div v-if="contractState === 'loading'" class="space-y-3" aria-hidden="true"><div v-for="n in 3" :key="n" class="h-8 animate-pulse rounded bg-muted motion-reduce:animate-none" /></div>
+        <p v-else-if="contractState === 'error'" class="text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
+        <template v-else-if="contract?.currentRoom">
           <div class="flex divide-x text-sm">
             <div class="flex flex-1 flex-col gap-3 pr-4">
               <div>
@@ -215,7 +221,7 @@ function formatDate(value: string): string {
             </RouterLink>
           </div>
         </template>
-        <template v-else-if="!isLoading">
+        <template v-else>
           <p class="text-sm text-muted-foreground">{{ t('home.resident.noContract') }}</p>
           <p class="text-xs text-muted-foreground">{{ t('home.resident.noContractHint') }}</p>
         </template>
@@ -234,7 +240,9 @@ function formatDate(value: string): string {
             <p class="mt-0.5 text-xs leading-relaxed text-muted-foreground">{{ t('home.resident.paymentTagline') }}</p>
           </div>
         </div>
-        <template v-if="!isLoading && contract">
+        <div v-if="contractState === 'loading'" class="space-y-3" aria-hidden="true"><div v-for="n in 3" :key="n" class="h-8 animate-pulse rounded bg-muted motion-reduce:animate-none" /></div>
+        <p v-else-if="contractState === 'error'" class="text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
+        <template v-else-if="contract">
           <div
             class="flex items-center justify-between gap-2 rounded-lg px-3 py-2"
             :class="totalBalance > 0 ? 'bg-red-50 dark:bg-red-500/10' : 'bg-green-50 dark:bg-green-500/10'"
@@ -281,7 +289,7 @@ function formatDate(value: string): string {
             </button>
           </div>
         </template>
-        <p v-else-if="!isLoading" class="text-sm text-muted-foreground">{{ t('home.resident.noContract') }}</p>
+        <p v-else class="text-sm text-muted-foreground">{{ t('home.resident.noContract') }}</p>
       </Card>
     </div>
 
@@ -301,7 +309,9 @@ function formatDate(value: string): string {
             <p class="mt-0.5 text-xs leading-relaxed text-muted-foreground">{{ t('home.resident.announcementsTagline') }}</p>
           </div>
         </div>
-        <p v-if="!isLoading && !announcements.length" class="text-sm text-muted-foreground">{{ t('home.resident.announcementsEmpty') }}</p>
+        <div v-if="announcementsState === 'loading'" class="space-y-3" aria-hidden="true"><div v-for="n in 2" :key="n" class="h-16 animate-pulse rounded bg-muted motion-reduce:animate-none" /></div>
+        <p v-else-if="announcementsState === 'error'" class="text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
+        <p v-else-if="!announcements.length" class="text-sm text-muted-foreground">{{ t('home.resident.announcementsEmpty') }}</p>
         <!-- Раньше — hover:bg-accent на голом ряду + divide-y между рядами. По прямой
              просьбе 2026-08-30 — каждый ряд теперь "невзрачный" блок с постоянным приглушённым
              фоном (не разделительные линии), gap между блоками вместо divide-y, hover — синим
@@ -334,7 +344,7 @@ function formatDate(value: string): string {
             </div>
           </button>
         </div>
-        <div class="mt-auto border-t pt-3">
+        <div v-if="announcementsState === 'success'" class="mt-auto border-t pt-3">
           <button
             type="button"
             class="inline-flex items-center gap-1 text-left text-sm text-primary hover:underline"

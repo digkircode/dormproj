@@ -91,6 +91,8 @@
     "quickNewAnnouncement": "New announcement",
     "attentionTitle": "Needs attention",
     "attentionEmpty": "Nothing needs attention.",
+    "attentionIncomplete": "Some data did not load. This list may be incomplete.",
+    "dataUnavailable": "Data unavailable",
     "attentionContractLine": "Contract No. {number} - {name}",
     "attentionDebtorLine": "{name} - room {room}",
     "attentionUnreadChats": "Unread messages: {count}",

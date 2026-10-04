@@ -43,9 +43,26 @@ const contractsSummary = ref<ContractsRegistrySummary | null>(null)
 const topExpiring = ref<ContractRegistryRow[]>([])
 const topOverdue = ref<ContractRegistryRow[]>([])
 const unreadChatsCount = ref(0)
-const isLoading = ref(true)
+type DashboardSource = 'occupancy' | 'debtSummary' | 'debtRows' | 'contractsSummary' | 'expiring' | 'overdue' | 'conversations'
+type LoadState = 'loading' | 'success' | 'error'
+const sourceState = ref<Record<DashboardSource, LoadState>>({
+  occupancy: 'loading', debtSummary: 'loading', debtRows: 'loading', contractsSummary: 'loading',
+  expiring: 'loading', overdue: 'loading', conversations: 'loading',
+})
 const announcements = ref<StaffAnnouncement[]>([])
-const isAnnouncementsLoading = ref(true)
+const announcementsState = ref<LoadState>('loading')
+const attentionSources: DashboardSource[] = ['debtRows', 'expiring', 'overdue', 'conversations']
+const attentionLoading = computed(() => attentionSources.some((key) => sourceState.value[key] === 'loading'))
+const attentionIncomplete = computed(() => attentionSources.some((key) => sourceState.value[key] === 'error'))
+
+async function loadSource<T>(key: DashboardSource, request: Promise<T>, assign: (value: T) => void) {
+  try {
+    assign(await request)
+    sourceState.value[key] = 'success'
+  } catch {
+    sourceState.value[key] = 'error'
+  }
+}
 
 function formatMoney(value: number): string {
   return `${value.toLocaleString(dateLocaleTag(), { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
@@ -54,37 +71,33 @@ function formatDate(value: string): string {
   return new Date(value).toLocaleDateString(dateLocaleTag())
 }
 
-onMounted(async () => {
+onMounted(() => {
   const asOf = todayIso()
   // pageSize 3 (было 4) — по прямой просьбе 2026-08-30, после того как "Требует внимания"
   // и "Объявления" встали бок о бок (см. template) карточка стала уже, 4 строки уже не
   // помещались так же комфортно, как раньше в полную ширину.
   const baseListOptions = { page: 1, pageSize: 3, search: '' }
-  const [occ, debtSummary, debtRows, regSummary, expiringRows, overdueRows, conversations] = await Promise.all([
-    fetchOccupancy().catch(() => null),
-    fetchDebtorsSummary(asOf).catch(() => null),
-    fetchDebtorsPage({ ...baseListOptions, sortBy: 'totalBalance', sortDir: 'desc', filters: {} }, asOf).catch(() => null),
-    fetchContractsRegistrySummary().catch(() => null),
-    fetchContractsRegistryPage({ ...baseListOptions, sortBy: 'endDate', sortDir: 'asc', filters: { bucket: ['EXPIRING'] } }).catch(() => null),
-    fetchContractsRegistryPage({ ...baseListOptions, sortBy: 'endDate', sortDir: 'asc', filters: { bucket: ['OVERDUE'] } }).catch(() => null),
-    fetchConversations().catch(() => []),
+  void Promise.all([
+    loadSource('occupancy', fetchOccupancy(), (value) => { occupancy.value = value }),
+    loadSource('debtSummary', fetchDebtorsSummary(asOf), (value) => { debtorsSummary.value = value }),
+    loadSource('debtRows', fetchDebtorsPage({ ...baseListOptions, sortBy: 'totalBalance', sortDir: 'desc', filters: {} }, asOf), (value) => { topDebtors.value = value.data.filter((r) => r.totalBalance > 0) }),
+    loadSource('contractsSummary', fetchContractsRegistrySummary(), (value) => { contractsSummary.value = value }),
+    loadSource('expiring', fetchContractsRegistryPage({ ...baseListOptions, sortBy: 'endDate', sortDir: 'asc', filters: { bucket: ['EXPIRING'] } }), (value) => { topExpiring.value = value.data }),
+    loadSource('overdue', fetchContractsRegistryPage({ ...baseListOptions, sortBy: 'endDate', sortDir: 'asc', filters: { bucket: ['OVERDUE'] } }), (value) => { topOverdue.value = value.data }),
+    loadSource('conversations', fetchConversations(), (value) => { unreadChatsCount.value = value.filter((c) => c.unread).length }),
   ])
-  occupancy.value = occ
-  debtorsSummary.value = debtSummary
-  topDebtors.value = (debtRows?.data ?? []).filter((r) => r.totalBalance > 0)
-  contractsSummary.value = regSummary
-  topExpiring.value = expiringRows?.data ?? []
-  topOverdue.value = overdueRows?.data ?? []
-  unreadChatsCount.value = conversations.filter((c) => c.unread).length
-  isLoading.value = false
 })
 
 // Объявления — отдельным запросом (не в общий Promise.all выше, чтобы падение одного не
 // задерживало остальные плашки визуально) — по прямой просьбе 2026-08-30.
 async function loadAnnouncements() {
-  isAnnouncementsLoading.value = true
-  announcements.value = await fetchAnnouncements().catch(() => [])
-  isAnnouncementsLoading.value = false
+  announcementsState.value = 'loading'
+  try {
+    announcements.value = await fetchAnnouncements()
+    announcementsState.value = 'success'
+  } catch {
+    announcementsState.value = 'error'
+  }
 }
 onMounted(loadAnnouncements)
 
@@ -181,9 +194,9 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
           <DoorOpen class="size-4 shrink-0 text-blue-600 dark:text-blue-400" />
           {{ t('home.kpiRooms') }}
         </div>
-        <p class="mt-1 text-2xl font-semibold tabular-nums">
-          {{ isLoading ? '-' : t('home.kpiRoomsValue', { occupied: occupancy?.occupied ?? 0, total: occupancy?.totalPlaces ?? 0 }) }}
-        </p>
+        <div v-if="sourceState.occupancy === 'loading'" class="mt-2 h-8 w-28 animate-pulse rounded bg-muted motion-reduce:animate-none" aria-hidden="true" />
+        <p v-else-if="sourceState.occupancy === 'error'" class="mt-1 text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
+        <p v-else class="mt-1 text-2xl font-semibold tabular-nums">{{ t('home.kpiRoomsValue', { occupied: occupancy!.occupied, total: occupancy!.totalPlaces }) }}</p>
       </RouterLink>
 
       <RouterLink
@@ -194,8 +207,10 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
           <AlertTriangle class="size-4 shrink-0 text-red-600 dark:text-red-400" />
           {{ t('home.kpiDebtors') }}
         </div>
-        <p class="mt-1 text-2xl font-semibold tabular-nums">{{ isLoading ? '-' : (debtorsSummary?.debtorsCount ?? 0) }}</p>
-        <p v-if="!isLoading && debtorsSummary" class="text-xs text-muted-foreground">{{ formatMoney(debtorsSummary.totalDebt) }}</p>
+        <div v-if="sourceState.debtSummary === 'loading'" class="mt-2 h-8 w-20 animate-pulse rounded bg-muted motion-reduce:animate-none" aria-hidden="true" />
+        <p v-else-if="sourceState.debtSummary === 'error'" class="mt-1 text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
+        <p v-else class="mt-1 text-2xl font-semibold tabular-nums">{{ debtorsSummary!.debtorsCount }}</p>
+        <p class="min-h-4 text-xs text-muted-foreground">{{ sourceState.debtSummary === 'success' ? formatMoney(debtorsSummary!.totalDebt) : '' }}</p>
       </RouterLink>
 
       <RouterLink
@@ -206,7 +221,9 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
           <CalendarX class="size-4 shrink-0 text-rose-600 dark:text-rose-400" />
           {{ t('home.kpiOverdue') }}
         </div>
-        <p class="mt-1 text-2xl font-semibold tabular-nums">{{ isLoading ? '-' : (contractsSummary?.overdue ?? 0) }}</p>
+        <div v-if="sourceState.contractsSummary === 'loading'" class="mt-2 h-8 w-20 animate-pulse rounded bg-muted motion-reduce:animate-none" aria-hidden="true" />
+        <p v-else-if="sourceState.contractsSummary === 'error'" class="mt-1 text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
+        <p v-else class="mt-1 text-2xl font-semibold tabular-nums">{{ contractsSummary!.overdue }}</p>
       </RouterLink>
 
       <RouterLink
@@ -217,7 +234,9 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
           <Clock class="size-4 shrink-0 text-orange-600 dark:text-orange-400" />
           {{ t('home.kpiExpiring') }}
         </div>
-        <p class="mt-1 text-2xl font-semibold tabular-nums">{{ isLoading ? '-' : (contractsSummary?.expiring30 ?? 0) }}</p>
+        <div v-if="sourceState.contractsSummary === 'loading'" class="mt-2 h-8 w-20 animate-pulse rounded bg-muted motion-reduce:animate-none" aria-hidden="true" />
+        <p v-else-if="sourceState.contractsSummary === 'error'" class="mt-1 text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
+        <p v-else class="mt-1 text-2xl font-semibold tabular-nums">{{ contractsSummary!.expiring30 }}</p>
       </RouterLink>
 
       <RouterLink
@@ -228,7 +247,9 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
           <MessageCircle class="size-4 shrink-0 text-violet-600 dark:text-violet-400" />
           {{ t('home.kpiUnread') }}
         </div>
-        <p class="mt-1 text-2xl font-semibold tabular-nums">{{ isLoading ? '-' : unreadChatsCount }}</p>
+        <div v-if="sourceState.conversations === 'loading'" class="mt-2 h-8 w-20 animate-pulse rounded bg-muted motion-reduce:animate-none" aria-hidden="true" />
+        <p v-else-if="sourceState.conversations === 'error'" class="mt-1 text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
+        <p v-else class="mt-1 text-2xl font-semibold tabular-nums">{{ unreadChatsCount }}</p>
       </RouterLink>
     </div>
 
@@ -261,7 +282,8 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
           <AlertTriangle class="size-4 text-primary" />
           {{ t('home.attentionTitle') }}
         </div>
-        <p v-if="isLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
+        <div v-if="attentionLoading" class="space-y-3" aria-hidden="true"><div v-for="n in 3" :key="n" class="h-10 animate-pulse rounded bg-muted motion-reduce:animate-none" /></div>
+        <p v-else-if="!attentionRows.length && attentionIncomplete" class="text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
         <p v-else-if="!attentionRows.length" class="text-sm text-muted-foreground">{{ t('home.attentionEmpty') }}</p>
         <div v-else class="flex flex-col divide-y divide-border">
           <RouterLink
@@ -277,6 +299,7 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
             </div>
           </RouterLink>
         </div>
+        <p v-if="!attentionLoading && attentionRows.length && attentionIncomplete" class="mt-2 text-xs text-destructive">{{ t('home.attentionIncomplete') }}</p>
       </Card>
 
       <!-- Объявления — по прямой просьбе 2026-08-30. Иконка каждой строки — свой цвет по
@@ -288,7 +311,8 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
           <Megaphone class="size-4 text-primary" />
           {{ t('home.staffAnnouncementsTitle') }}
         </div>
-        <p v-if="isAnnouncementsLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
+        <div v-if="announcementsState === 'loading'" class="space-y-3" aria-hidden="true"><div v-for="n in 3" :key="n" class="h-10 animate-pulse rounded bg-muted motion-reduce:animate-none" /></div>
+        <p v-else-if="announcementsState === 'error'" class="text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
         <p v-else-if="!announcements.length" class="text-sm text-muted-foreground">{{ t('home.staffAnnouncementsEmpty') }}</p>
         <div v-else class="flex flex-col divide-y divide-border">
           <!-- pb-6 + relative — освобождает место под ФИО/дату, притянутые в правый нижний

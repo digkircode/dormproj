@@ -91,6 +91,8 @@
     "quickNewAnnouncement": "Создать объявление",
     "attentionTitle": "Требует внимания",
     "attentionEmpty": "Ничего не требует внимания.",
+    "attentionIncomplete": "Часть данных не загрузилась. Список может быть неполным.",
+    "dataUnavailable": "Данные недоступны",
     "attentionContractLine": "Договор № {number} - {name}",
     "attentionDebtorLine": "{name} - комн. {room}",
     "attentionUnreadChats": "Непрочитанных обращений: {count}",

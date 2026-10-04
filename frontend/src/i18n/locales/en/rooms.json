@@ -107,6 +107,9 @@
       "description": "Room number and floor - the rest of the characteristics can be added on the room's card afterwards",
       "number": "Number",
       "floor": "Floor",
+      "numberRequired": "Enter a room number",
+      "floorRequired": "Enter a floor",
+      "floorInteger": "Floor must be a whole number",
       "cancel": "Cancel",
       "create": "Create"
     }

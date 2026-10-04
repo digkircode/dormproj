@@ -560,7 +560,7 @@ async function submitCreate() {
             {{ t('contracts.createDialog.sectionContractInfo') }}
           </p>
           <div class="flex flex-col gap-4 rounded-md border p-4">
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div class="flex flex-col gap-2">
                 <Label>{{ t('contracts.createDialog.fieldNumber') }}</Label>
                 <Input v-model="number"  :class="[NO_SPINNER_CLASS, fieldErrors.number ? 'border-red-500' : '']" />
@@ -590,7 +590,7 @@ async function submitCreate() {
                 <p v-if="fieldErrors.residentIndividualUid" class="text-xs text-destructive">{{ fieldError(fieldErrors.residentIndividualUid) }}</p>
             </div>
 
-            <div class="grid grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div class="flex flex-col gap-2">
                 <Label>{{ t('contracts.createDialog.fieldRoom') }}</Label>
                 <SearchSelect
@@ -668,7 +668,7 @@ async function submitCreate() {
           <div class="flex flex-col gap-4 rounded-md border p-4">
             <!-- ФИО и телефон — всегда, остальное (паспорт, мат.капитал) только для
                  несовершеннолетних (см. isMinor). -->
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div class="flex flex-col gap-2">
                 <Label>{{ t('contracts.createDialog.fieldFullName') }}</Label>
                 <Input v-model="legalRepName"  :class="[NO_SPINNER_CLASS, fieldErrors.legalRepName ? 'border-red-500' : '']" />
@@ -683,7 +683,7 @@ async function submitCreate() {
 
             <Transition v-bind="REVEAL_TRANSITION">
               <div v-if="isMinor" class="flex flex-col gap-4">
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div class="flex flex-col gap-2">
                     <Label>{{ t('contracts.createDialog.fieldGender') }}</Label>
                     <!-- :value остаётся русским литералом ("Мужской"/"Женский") — так хранится
@@ -775,7 +775,7 @@ async function submitCreate() {
                       />
 <p v-if="fieldErrors.matCapitalCoveredFrom" class="text-xs text-destructive">{{ fieldError(fieldErrors.matCapitalCoveredFrom) }}</p>
                     </div>
-                    <div class="grid grid-cols-2 gap-5">
+                    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
                       <div class="flex flex-col gap-2">
                         <Label>{{ t('contracts.createDialog.fieldAmountRub') }}</Label>
                         <Input

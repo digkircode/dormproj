@@ -104,7 +104,7 @@ watch(
     </div>
 
     <div class="min-h-0 flex-1 overflow-y-auto p-2">
-      <p v-if="isLoading" class="px-2 py-1.5 text-sm text-muted-foreground">{{ t('rooms.tree.loading') }}</p>
+      <div v-if="isLoading" class="space-y-3 px-2 py-1.5" aria-hidden="true"><div v-for="n in 7" :key="n" class="h-8 animate-pulse rounded bg-muted motion-reduce:animate-none" /></div>
       <template v-else>
         <!-- Корень больше не сворачивается (по прямой просьбе) — обычная кнопка выбора,
              клик показывает компактную карточку с общежитскими полями в RoomDetailPanel

@@ -5,6 +5,7 @@ import { MessageSquarePlus, Search } from 'lucide-vue-next'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { avatarColorClasses, initials } from '@/lib/avatar-color'
 import { dateLocaleTag } from '@/lib/format-locale'
 import type { ChatConversationListItem } from '@/lib/chat-api'
@@ -44,10 +45,15 @@ function formatTime(iso: string): string {
         <Search class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input v-model="query" :placeholder="t('chat.list.searchPlaceholder')" class="pl-9" />
       </div>
-      <Button size="icon" :title="t('chat.list.newMessage')" @click="emit('new-message')">
-        <MessageSquarePlus class="size-4" />
-        <span class="sr-only">{{ t('chat.list.newMessage') }}</span>
-      </Button>
+      <Tooltip>
+        <TooltipTrigger as-child>
+          <Button size="icon" @click="emit('new-message')">
+            <MessageSquarePlus class="size-4" />
+            <span class="sr-only">{{ t('chat.list.newMessage') }}</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{{ t('chat.list.newMessage') }}</TooltipContent>
+      </Tooltip>
     </div>
     <div class="min-h-0 flex-1 overflow-auto">
       <p v-if="filtered.length === 0" class="p-4 text-center text-sm text-muted-foreground">{{ t('chat.list.noDialogsFound') }}</p>
@@ -73,7 +79,7 @@ function formatTime(iso: string): string {
                 class="truncate text-xs"
                 :class="conversation.unread ? 'font-medium text-foreground' : 'text-muted-foreground'"
               >{{ conversation.lastMessage ?? t('chat.list.noMessages') }}</span>
-              <span v-if="conversation.unread" class="size-2 shrink-0 animate-pulse rounded-full bg-primary" />
+              <span v-if="conversation.unread" class="size-2 shrink-0 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
             </div>
           </div>
         </button>

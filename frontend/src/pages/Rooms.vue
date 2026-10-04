@@ -62,24 +62,36 @@ const isCreateOpen = ref(false)
 const newRoomNumber = ref('')
 const newRoomFloor = ref('')
 const createError = ref('')
+const roomNumberError = ref('')
+const roomFloorError = ref('')
 const isCreating = ref(false)
 
 function openCreate() {
   newRoomNumber.value = ''
   newRoomFloor.value = ''
   createError.value = ''
+  roomNumberError.value = ''
+  roomFloorError.value = ''
   isCreateOpen.value = true
 }
 
 async function submitCreate() {
+  if (isCreating.value) return
   // v-model на <input type="number"> сам приводит значение к number на вводе (даже без
   // модификатора .number) — newRoomFloor.value бывает и строкой (пусто), и числом,
   // String(...) перед trim() нужен, чтобы не словить "x.trim is not a function".
   const floorRaw = String(newRoomFloor.value).trim()
   const floor = Number(floorRaw)
-  if (!newRoomNumber.value.trim() || floorRaw === '' || !Number.isFinite(floor)) return
-  isCreating.value = true
   createError.value = ''
+  roomNumberError.value = newRoomNumber.value.trim() ? '' : t('rooms.createDialog.numberRequired')
+  roomFloorError.value = floorRaw === ''
+    ? t('rooms.createDialog.floorRequired')
+    : Number.isInteger(floor) ? '' : t('rooms.createDialog.floorInteger')
+  if (roomNumberError.value || roomFloorError.value) {
+    document.getElementById(roomNumberError.value ? 'new-room-number' : 'new-room-floor')?.focus()
+    return
+  }
+  isCreating.value = true
   try {
     const created = await createRoom(newRoomNumber.value.trim(), floor)
     isCreateOpen.value = false
@@ -131,7 +143,16 @@ async function submitCreate() {
         </DialogHeader>
         <div class="flex flex-col gap-2">
           <Label for="new-room-number">{{ t('rooms.createDialog.number') }}</Label>
-          <Input id="new-room-number" v-model="newRoomNumber" @keyup.enter="submitCreate" />
+          <Input
+            id="new-room-number"
+            v-model="newRoomNumber"
+            :aria-invalid="!!roomNumberError"
+            :aria-describedby="roomNumberError ? 'new-room-number-error' : undefined"
+            :class="roomNumberError ? 'border-destructive' : ''"
+            @input="roomNumberError = ''"
+            @keyup.enter="submitCreate"
+          />
+          <p v-if="roomNumberError" id="new-room-number-error" class="text-xs text-destructive">{{ roomNumberError }}</p>
         </div>
         <div class="flex flex-col gap-2">
           <Label for="new-room-floor">{{ t('rooms.createDialog.floor') }}</Label>
@@ -142,19 +163,24 @@ async function submitCreate() {
             id="new-room-floor"
             v-model="newRoomFloor"
             type="number"
+            step="1"
+            :aria-invalid="!!roomFloorError"
+            :aria-describedby="roomFloorError ? 'new-room-floor-error' : undefined"
             :class="[
               'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground transition-shadow focus-visible:outline-none focus-visible:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/20 focus-visible:shadow-sm disabled:cursor-not-allowed disabled:opacity-50',
               NO_SPINNER_CLASS,
+              roomFloorError ? 'border-destructive' : '',
             ]"
+            @input="roomFloorError = ''"
             @keydown="blockScientificNotationKeys"
             @keyup.enter="submitCreate"
           />
+          <p v-if="roomFloorError" id="new-room-floor-error" class="text-xs text-destructive">{{ roomFloorError }}</p>
         </div>
         <p v-if="createError" class="text-sm text-red-500">{{ createError }}</p>
         <DialogFooter>
           <Button variant="outline" @click="isCreateOpen = false">{{ t('rooms.createDialog.cancel') }}</Button>
           <Button
-            :disabled="!newRoomNumber.trim() || String(newRoomFloor).trim() === ''"
             :loading="isCreating"
             @click="submitCreate"
           >
