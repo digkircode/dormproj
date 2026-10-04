@@ -193,6 +193,9 @@
       "passportIssuedAt": "Дата выдачи",
       "passportIssuedBy": "Кем выдан",
       "requiredFieldsError": "Заполните обязательные поля",
+      "fieldRequired": "Обязательное поле",
+      "emailInvalid": "Укажите корректный email",
+      "phoneInvalid": "Укажите корректный номер телефона",
       "cancel": "Отмена",
       "save": "Сохранить"
     },

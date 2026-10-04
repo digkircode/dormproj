@@ -89,6 +89,8 @@ const payerEmail = ref('')
 // пользователя ошибкой на ещё не тронутой форме.
 const submitAttempted = ref(false)
 const emailInvalid = computed(() => submitAttempted.value && !isValidEmailFormat(payerEmail.value.trim()))
+const representativeInvalid = computed(() => submitAttempted.value && !payerIsResident.value && !representativeFullName.value.trim())
+const amountInvalid = computed(() => submitAttempted.value && finalAmount.value <= 0 && (openAccruals.value.length > 0 || penaltyBalance.value > 0))
 
 const canSubmit = computed(() => {
   if (finalAmount.value <= 0) return false
@@ -136,6 +138,7 @@ async function loadPaymentsData(contractId: number | undefined, silent = false) 
 async function switchContract(id: number) {
   // Клик по уже выбранному договору — не перезагружать (та же логика, что в MyContract.vue).
   if (id === selectedContractId.value) return
+  submitAttempted.value = false
   await loadPaymentsData(id, true)
 }
 
@@ -162,6 +165,7 @@ async function open(contractId?: number) {
 defineExpose({ open })
 
 async function submit() {
+  if (isSubmitting.value) return
   submitAttempted.value = true
   if (!canSubmit.value) return
   isSubmitting.value = true
@@ -249,7 +253,8 @@ async function submit() {
                    защищает их от сжатия при этом. -->
               <button
                 type="button"
-                class="flex h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-md border px-3 text-sm hover:bg-accent"
+                :aria-invalid="amountInvalid"
+                :class="['flex h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-md border px-3 text-sm hover:bg-accent', amountInvalid ? 'border-destructive' : '']"
               >
                 <span class="min-w-0 truncate">{{ selectedAccrualsSummary }}</span>
                 <span class="flex shrink-0 items-center gap-1.5">
@@ -291,6 +296,7 @@ async function submit() {
               </label>
             </CollapsibleContent>
           </Collapsible>
+          <p v-if="amountInvalid" class="text-xs text-destructive">{{ t('payment.createDialog.selectAmount') }}</p>
         </div>
 
         <div class="flex flex-col gap-3 rounded-lg border p-3">
@@ -308,13 +314,16 @@ async function submit() {
             <Input
               id="representative-name"
               :model-value="representativeFullName"
+              :aria-invalid="representativeInvalid"
+              :aria-describedby="representativeInvalid ? 'representative-name-error' : undefined"
               @update:model-value="(v) => (representativeFullName = sanitizeLettersOnly(String(v)))"
             />
+            <p v-if="representativeInvalid" id="representative-name-error" class="text-xs text-destructive">{{ t('payment.createDialog.representativeRequired') }}</p>
           </div>
           <div class="flex flex-col gap-2">
             <Label for="payer-email">{{ t('payment.createDialog.payerEmail') }}</Label>
-            <Input id="payer-email" v-model="payerEmail" type="email" :class="emailInvalid ? 'border-red-500' : ''" />
-            <p v-if="emailInvalid" class="text-xs text-red-500">{{ t('payment.createDialog.invalidEmail') }}</p>
+            <Input id="payer-email" v-model="payerEmail" type="email" :aria-invalid="emailInvalid" :aria-describedby="emailInvalid ? 'payer-email-error' : undefined" />
+            <p v-if="emailInvalid" id="payer-email-error" class="text-xs text-destructive">{{ t('payment.createDialog.invalidEmail') }}</p>
           </div>
         </div>
 

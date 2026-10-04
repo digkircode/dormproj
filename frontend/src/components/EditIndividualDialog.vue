@@ -72,6 +72,7 @@ const citizenshipInvalid = computedInvalid(() => !citizenship.value.trim())
 // Email необязателен и без проверки формата (по прямой просьбе 2026-08-23) — только
 // серверные ошибки поля (если когда-нибудь появятся по другой причине) подсвечивают рамку.
 const emailInvalid = computedInvalid(() => serverFieldErrors.value.has('email'))
+const invalidClass = 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20'
 
 function onSnilsInput(event: Event) {
   const input = event.target as HTMLInputElement
@@ -143,6 +144,7 @@ const emit = defineEmits<{ saved: [] }>()
 defineExpose({ open })
 
 async function submitUpdate() {
+  if (isSaving.value) return
   dialogError.value = ''
   serverFieldErrors.value = new Set()
   submitAttempted.value = true
@@ -206,11 +208,13 @@ async function submitUpdate() {
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.surname') }}</Label>
-                <Input v-model="surname" :class="surnameInvalid ? 'border-red-500' : ''" />
+                <Input v-model="surname" :aria-invalid="surnameInvalid" :class="surnameInvalid ? invalidClass : ''" />
+                <p v-if="surnameInvalid" class="text-xs text-destructive">{{ t('individuals.editDialog.fieldRequired') }}</p>
               </div>
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.name') }}</Label>
-                <Input v-model="name" :class="nameInvalid ? 'border-red-500' : ''" />
+                <Input v-model="name" :aria-invalid="nameInvalid" :class="nameInvalid ? invalidClass : ''" />
+                <p v-if="nameInvalid" class="text-xs text-destructive">{{ t('individuals.editDialog.fieldRequired') }}</p>
               </div>
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.otchestvo') }}</Label>
@@ -219,11 +223,12 @@ async function submitUpdate() {
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.birthDate') }}</Label>
                 <DatePickerField v-model="birthDate" :invalid="birthDateInvalid" />
+                <p v-if="birthDateInvalid" class="text-xs text-destructive">{{ t('individuals.editDialog.fieldRequired') }}</p>
               </div>
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.gender') }}</Label>
                 <Select :model-value="gender || undefined" @update:model-value="(v) => (gender = v as 'Мужской' | 'Женский')">
-                  <SelectTrigger :class="genderInvalid ? 'border-red-500' : ''">
+                  <SelectTrigger :aria-invalid="genderInvalid" :class="genderInvalid ? 'border-destructive focus:border-destructive focus:ring-destructive/20' : ''">
                     <SelectValue :placeholder="t('individuals.editDialog.genderPlaceholder')" />
                   </SelectTrigger>
                   <SelectContent>
@@ -231,6 +236,7 @@ async function submitUpdate() {
                     <SelectItem value="Женский">{{ t('contracts.gender.female') }}</SelectItem>
                   </SelectContent>
                 </Select>
+                <p v-if="genderInvalid" class="text-xs text-destructive">{{ t('individuals.editDialog.fieldRequired') }}</p>
               </div>
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.citizenship') }}</Label>
@@ -244,6 +250,7 @@ async function submitUpdate() {
                   @search="onCitizenshipSearch"
                   @select="pickCitizenship"
                 />
+                <p v-if="citizenshipInvalid" class="text-xs text-destructive">{{ t('individuals.editDialog.fieldRequired') }}</p>
               </div>
               <div class="col-span-2 flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.birthPlace') }}</Label>
@@ -266,7 +273,8 @@ async function submitUpdate() {
               </div>
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.email') }}</Label>
-                <Input v-model="email" type="email" :class="emailInvalid ? 'border-red-500' : ''" />
+                <Input v-model="email" type="email" :aria-invalid="emailInvalid" :class="emailInvalid ? invalidClass : ''" />
+                <p v-if="emailInvalid" class="text-xs text-destructive">{{ t('individuals.editDialog.emailInvalid') }}</p>
               </div>
               <div class="col-span-2 flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.registrationAddress') }}</Label>

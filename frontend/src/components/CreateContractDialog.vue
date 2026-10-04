@@ -173,9 +173,7 @@ const isMinor = computed(() => {
 // например пустая "Стоимость" уходит как "" (см. известный баг v-model.number на
 // очищенном поле), а не undefined, и клиентская проверка это не ловит.
 const fieldErrors = ref<Record<string, string>>({})
-const formMessage = computed(() => Object.keys(fieldErrors.value).length > 1
-  ? t('contracts.createDialog.validation.checkFields')
-  : Object.keys(fieldErrors.value).length ? '' : dialogError.value)
+const formMessage = computed(() => Object.keys(fieldErrors.value).length ? '' : dialogError.value)
 const nonnegative = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0
 
 
@@ -466,6 +464,7 @@ watch(roomId, async (id) => {
 })
 
 async function submitCreate() {
+  if (isSaving.value) return
   dialogError.value = ''
 
 

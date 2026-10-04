@@ -145,7 +145,6 @@
       "requiredFieldsError": "Fill in the required fields",
       "submit": "Create contract",
       "validation": {
-        "checkFields": "Please check the entered data",
         "availabilityFailed": "Could not check available places",
         "availabilitySummary": "Available throughout the selected period: {available} of {capacity}.",
         "departureDayOccupied": "The move-out day counts as occupied.",

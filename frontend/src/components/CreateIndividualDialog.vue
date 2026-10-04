@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { UserRound, Contact, IdCard } from 'lucide-vue-next'
@@ -31,6 +31,7 @@ const isSaving = ref(false)
 const dialogError = ref('')
 const submitAttempted = ref(false)
 const serverFieldErrors = ref<Set<string>>(new Set())
+const phoneInvalid = ref(false)
 
 const surname = ref('')
 const name = ref('')
@@ -74,6 +75,8 @@ const passportIssuedAtInvalid = computedInvalid(() => !passportIssuedAt.value)
 const emailInvalid = computedInvalid(
   () => serverFieldErrors.value.has('email') || (!!email.value.trim() && !isValidEmailFormat(email.value.trim())),
 )
+const invalidClass = 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20'
+watch(phone, () => { phoneInvalid.value = false })
 
 // СНИЛС/код подразделения — цифровая маска с разделителями (formatSnils/
 // formatSubdivisionCode, см. lib/utils.ts), тот же приём, что и в CreateContractDialog.vue
@@ -106,6 +109,7 @@ async function open() {
   dialogError.value = ''
   submitAttempted.value = false
   serverFieldErrors.value = new Set()
+  phoneInvalid.value = false
   surname.value = ''
   name.value = ''
   otchestvo.value = ''
@@ -130,10 +134,12 @@ async function open() {
 defineExpose({ open })
 
 async function submitCreate() {
+  if (isSaving.value) return
   dialogError.value = ''
   serverFieldErrors.value = new Set()
   submitAttempted.value = true
   const phoneValid = phoneInputRef.value?.validate() ?? true
+  phoneInvalid.value = !phoneValid
   if (
     !surname.value.trim() ||
     !name.value.trim() ||
@@ -199,11 +205,13 @@ async function submitCreate() {
             <div class="grid grid-cols-2 gap-4">
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.surname') }}</Label>
-                <Input v-model="surname" :class="surnameInvalid ? 'border-red-500' : ''" />
+                <Input v-model="surname" :aria-invalid="surnameInvalid" :class="surnameInvalid ? invalidClass : ''" />
+                <p v-if="surnameInvalid" class="text-xs text-destructive">{{ t('individuals.editDialog.fieldRequired') }}</p>
               </div>
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.name') }}</Label>
-                <Input v-model="name" :class="nameInvalid ? 'border-red-500' : ''" />
+                <Input v-model="name" :aria-invalid="nameInvalid" :class="nameInvalid ? invalidClass : ''" />
+                <p v-if="nameInvalid" class="text-xs text-destructive">{{ t('individuals.editDialog.fieldRequired') }}</p>
               </div>
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.otchestvo') }}</Label>
@@ -212,11 +220,12 @@ async function submitCreate() {
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.birthDate') }}</Label>
                 <DatePickerField v-model="birthDate" :invalid="birthDateInvalid" />
+                <p v-if="birthDateInvalid" class="text-xs text-destructive">{{ t('individuals.editDialog.fieldRequired') }}</p>
               </div>
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.gender') }}</Label>
                 <Select :model-value="gender || undefined" @update:model-value="(v) => (gender = v as 'Мужской' | 'Женский')">
-                  <SelectTrigger :class="genderInvalid ? 'border-red-500' : ''">
+                  <SelectTrigger :aria-invalid="genderInvalid" :class="genderInvalid ? 'border-destructive focus:border-destructive focus:ring-destructive/20' : ''">
                     <SelectValue :placeholder="t('individuals.editDialog.genderPlaceholder')" />
                   </SelectTrigger>
                   <SelectContent>
@@ -224,6 +233,7 @@ async function submitCreate() {
                     <SelectItem value="Женский">{{ t('contracts.gender.female') }}</SelectItem>
                   </SelectContent>
                 </Select>
+                <p v-if="genderInvalid" class="text-xs text-destructive">{{ t('individuals.editDialog.fieldRequired') }}</p>
               </div>
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.citizenship') }}</Label>
@@ -237,6 +247,7 @@ async function submitCreate() {
                   @search="onCitizenshipSearch"
                   @select="pickCitizenship"
                 />
+                <p v-if="citizenshipInvalid" class="text-xs text-destructive">{{ t('individuals.editDialog.fieldRequired') }}</p>
               </div>
             </div>
           </div>
@@ -252,14 +263,17 @@ async function submitCreate() {
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.createDialog.phone') }}</Label>
                 <PhoneInput :key="locale" ref="phoneInputRef" v-model="phone" required />
+                <p v-if="phoneInvalid" class="text-xs text-destructive">{{ t('individuals.editDialog.phoneInvalid') }}</p>
               </div>
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.email') }}</Label>
-                <Input v-model="email" type="email" :class="emailInvalid ? 'border-red-500' : ''" />
+                <Input v-model="email" type="email" :aria-invalid="emailInvalid" :class="emailInvalid ? invalidClass : ''" />
+                <p v-if="emailInvalid" class="text-xs text-destructive">{{ t('individuals.editDialog.emailInvalid') }}</p>
               </div>
               <div class="col-span-2 flex flex-col gap-2">
                 <Label>{{ t('individuals.createDialog.address') }}</Label>
-                <Input v-model="address" :class="addressInvalid ? 'border-red-500' : ''" />
+                <Input v-model="address" :aria-invalid="addressInvalid" :class="addressInvalid ? invalidClass : ''" />
+                <p v-if="addressInvalid" class="text-xs text-destructive">{{ t('individuals.editDialog.fieldRequired') }}</p>
               </div>
             </div>
           </div>
@@ -290,7 +304,8 @@ async function submitCreate() {
               </div>
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.passportNumber') }}</Label>
-                <Input v-model="passportNumber" :class="passportNumberInvalid ? 'border-red-500' : ''" />
+                <Input v-model="passportNumber" :aria-invalid="passportNumberInvalid" :class="passportNumberInvalid ? invalidClass : ''" />
+                <p v-if="passportNumberInvalid" class="text-xs text-destructive">{{ t('individuals.editDialog.fieldRequired') }}</p>
               </div>
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.passportIssuedCode') }}</Label>
@@ -305,6 +320,7 @@ async function submitCreate() {
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.passportIssuedAt') }}</Label>
                 <DatePickerField v-model="passportIssuedAt" :invalid="passportIssuedAtInvalid" />
+                <p v-if="passportIssuedAtInvalid" class="text-xs text-destructive">{{ t('individuals.editDialog.fieldRequired') }}</p>
               </div>
               <div class="col-span-2 flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.passportIssuedBy') }}</Label>

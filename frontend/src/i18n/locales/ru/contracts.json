@@ -145,7 +145,6 @@
       "requiredFieldsError": "Заполните обязательные поля",
       "submit": "Создать договор",
       "validation": {
-        "checkFields": "Проверьте корректность введённых данных",
         "availabilityFailed": "Не удалось проверить свободные места",
         "availabilitySummary": "Свободно на весь выбранный период: {available} из {capacity}.",
         "departureDayOccupied": "День выезда считается занятым.",

@@ -41,6 +41,8 @@
       "representativeName": "Payer's full name",
       "payerEmail": "Email for the receipt",
       "invalidEmail": "Invalid email",
+      "representativeRequired": "Enter the payer's full name",
+      "selectAmount": "Select an accrual or penalty to pay",
       "certificateNotice": "The site uses certificates from the Russian Ministry of Digital Development - to avoid payment errors, use Yandex Browser or install the ministry's certificates on your device.",
       "taxDeductionNotice": "For a tax deduction, the payment must be made by the person who intends to claim it.",
       "amountDue": "Amount due",

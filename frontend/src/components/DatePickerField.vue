@@ -106,7 +106,8 @@ function onSelect(value: DateValue | undefined) {
     <input
       :value="text"
       :placeholder="placeholder ?? t('datePicker.placeholder')"
-      :class="cn(INPUT_CLASS, 'pr-9', invalid ? 'border-red-500' : '')"
+      :aria-invalid="!!invalid"
+      :class="cn(INPUT_CLASS, 'pr-9', invalid ? 'border-destructive aria-invalid:focus-visible:border-destructive aria-invalid:focus-visible:ring-destructive/20' : '')"
       @input="onTextInput"
       @blur="commitText"
       @keydown.enter="commitText"

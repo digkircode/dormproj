@@ -48,10 +48,7 @@ async function submit() {
   dialogError.value = ''
   titleError.value = title.value.trim() ? '' : t('announcements.dialog.titleRequired')
   bodyError.value = body.value.trim() ? '' : t('announcements.dialog.bodyRequired')
-  if (titleError.value || bodyError.value) {
-    document.getElementById(titleError.value ? 'announcement-title' : 'announcement-body')?.focus()
-    return
-  }
+  if (titleError.value || bodyError.value) return
 
   isSaving.value = true
   try {
@@ -87,7 +84,7 @@ async function submit() {
             :placeholder="t('announcements.dialog.titlePlaceholder')"
             :aria-invalid="!!titleError"
             :aria-describedby="titleError ? 'announcement-title-error' : undefined"
-            :class="titleError ? 'border-destructive' : ''"
+            :class="titleError ? 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20' : ''"
             maxlength="200"
             @input="titleError = ''"
           />
@@ -103,7 +100,7 @@ async function submit() {
             :placeholder="t('announcements.dialog.bodyPlaceholder')"
             :aria-invalid="!!bodyError"
             :aria-describedby="bodyError ? 'announcement-body-error' : undefined"
-            :class="['flex w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground transition-shadow focus-visible:outline-none focus-visible:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/20 focus-visible:shadow-sm', bodyError ? 'border-destructive' : '']"
+            :class="['flex w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground transition-shadow focus-visible:outline-none focus-visible:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/20 focus-visible:shadow-sm', bodyError ? 'aria-invalid:border-destructive aria-invalid:focus-visible:border-destructive aria-invalid:focus-visible:ring-destructive/20' : '']"
             @input="bodyError = ''"
           />
           <p v-if="bodyError" id="announcement-body-error" class="text-xs text-destructive">{{ bodyError }}</p>

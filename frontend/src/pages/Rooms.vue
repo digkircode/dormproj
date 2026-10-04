@@ -87,10 +87,7 @@ async function submitCreate() {
   roomFloorError.value = floorRaw === ''
     ? t('rooms.createDialog.floorRequired')
     : Number.isInteger(floor) ? '' : t('rooms.createDialog.floorInteger')
-  if (roomNumberError.value || roomFloorError.value) {
-    document.getElementById(roomNumberError.value ? 'new-room-number' : 'new-room-floor')?.focus()
-    return
-  }
+  if (roomNumberError.value || roomFloorError.value) return
   isCreating.value = true
   try {
     const created = await createRoom(newRoomNumber.value.trim(), floor)
@@ -148,7 +145,7 @@ async function submitCreate() {
             v-model="newRoomNumber"
             :aria-invalid="!!roomNumberError"
             :aria-describedby="roomNumberError ? 'new-room-number-error' : undefined"
-            :class="roomNumberError ? 'border-destructive' : ''"
+            :class="roomNumberError ? 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20' : ''"
             @input="roomNumberError = ''"
             @keyup.enter="submitCreate"
           />
@@ -169,7 +166,7 @@ async function submitCreate() {
             :class="[
               'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground transition-shadow focus-visible:outline-none focus-visible:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/20 focus-visible:shadow-sm disabled:cursor-not-allowed disabled:opacity-50',
               NO_SPINNER_CLASS,
-              roomFloorError ? 'border-destructive' : '',
+              roomFloorError ? 'aria-invalid:border-destructive aria-invalid:focus-visible:border-destructive aria-invalid:focus-visible:ring-destructive/20' : '',
             ]"
             @input="roomFloorError = ''"
             @keydown="blockScientificNotationKeys"

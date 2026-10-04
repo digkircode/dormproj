@@ -96,6 +96,7 @@ function formatValue(value: unknown): string {
     const pad = (n: number) => n.toString().padStart(2, '0')
     return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
   }
+  if (typeof value === 'object') return JSON.stringify(value, null, 2)
   return String(value)
 }
 </script>
@@ -144,8 +145,8 @@ function formatValue(value: unknown): string {
             <TableBody>
               <TableRow v-for="(change, field) in entry.changes" :key="field">
                 <TableCell class="font-medium">{{ FIELD_LABELS[field] ?? field }}</TableCell>
-                <TableCell class="text-muted-foreground">{{ formatValue(change.before) }}</TableCell>
-                <TableCell>{{ formatValue(change.after) }}</TableCell>
+                <TableCell class="whitespace-pre-wrap break-words text-muted-foreground">{{ formatValue(change.before) }}</TableCell>
+                <TableCell class="whitespace-pre-wrap break-words">{{ formatValue(change.after) }}</TableCell>
               </TableRow>
             </TableBody>
           </Table>

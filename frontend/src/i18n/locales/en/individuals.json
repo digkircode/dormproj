@@ -193,6 +193,9 @@
       "passportIssuedAt": "Date issued",
       "passportIssuedBy": "Issued by",
       "requiredFieldsError": "Fill in the required fields",
+      "fieldRequired": "Required field",
+      "emailInvalid": "Enter a valid email address",
+      "phoneInvalid": "Enter a valid phone number",
       "cancel": "Cancel",
       "save": "Save"
     },
