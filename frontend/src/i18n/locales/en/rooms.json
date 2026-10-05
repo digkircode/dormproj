@@ -47,6 +47,7 @@
       "newTitle": "New characteristic",
       "editTitle": "Edit characteristic",
       "name": "Name",
+      "nameRequired": "Enter a characteristic name",
       "valueType": "Value type",
       "valueTypeLocked": "The value type cannot be changed after creation",
       "unit": "Unit",

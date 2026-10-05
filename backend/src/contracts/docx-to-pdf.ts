@@ -2,6 +2,9 @@ import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Logger } from '@nestjs/common';
+
+const logger = new Logger('DocxToPdf');
 
 // soffice — тяжёлый процесс (сотни МБ RAM на конвертацию), а сервер и так впритык по
 // памяти (см. промпт проекта, "RAM — 1.9 ГБ всего"). Поэтому все конвертации идут строго
@@ -104,7 +107,15 @@ async function convertOnce(buffer: Buffer): Promise<Buffer> {
 // Единственная точка входа — ставит конвертацию в общую очередь, гарантируя, что
 // одновременно выполняется не больше одного процесса soffice (см. комментарий выше).
 export function convertDocxToPdf(buffer: Buffer): Promise<Buffer> {
-  const result = queue.then(() => convertOnce(buffer));
+  const queuedAt = Date.now();
+  const result = queue.then(async () => {
+    const startedAt = Date.now();
+    try {
+      return await convertOnce(buffer);
+    } finally {
+      logger.log(`PDF conversion timing: queueMs=${startedAt - queuedAt} convertMs=${Date.now() - startedAt}`);
+    }
+  });
   // Следующий в очереди не должен ждать УСПЕХА этой конвертации, только её завершения —
   // иначе одна упавшая конвертация подвесит очередь навсегда.
   queue = result.catch(() => undefined);

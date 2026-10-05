@@ -10,7 +10,7 @@ import { dateLocaleTag } from '@/lib/format-locale'
 
 const props = defineProps<{ value: unknown; row: AuditLogRow }>()
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 
 const isOpen = ref(false)
 const FIELD_LABELS = computed<Record<string, string>>(() => ({
@@ -103,6 +103,21 @@ function fieldLabel(field: string): string {
 function formatValue(value: unknown, field: string): string {
   if (value === null || value === undefined || value === '') return '-'
   if (typeof value === 'boolean') return value ? t('boolean.yes') : t('boolean.no')
+  if (typeof value === 'string') {
+    const enumKey = field === 'status' ? `contracts.status.${value}`
+      : field === 'method' ? `payment.method.${value}`
+      : field === 'source' ? `audit.source.${value}`
+      : field === 'accounting1cSyncStatus' ? `paymentImports.statusWebsite.${value}` : ''
+    if (enumKey && te(enumKey)) return t(enumKey)
+    if (field === '_operation') {
+      const separator = value.indexOf(': {')
+      if (separator >= 0) {
+        try {
+          return `${value.slice(0, separator)}:\n${JSON.stringify(JSON.parse(value.slice(separator + 2)), null, 2)}`
+        } catch { /* Keep historical text if its details are not JSON. */ }
+      }
+    }
+  }
   if (field === '_penaltyTotal' && typeof value === 'number') {
     return `${new Intl.NumberFormat(dateLocaleTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)} ₽`
   }

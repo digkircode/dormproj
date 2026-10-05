@@ -33,6 +33,7 @@
       "colUsersCount": "Пользователей",
       "newRoleTitle": "Новая роль",
       "name": "Название",
+      "nameRequired": "Укажите название роли",
       "cancel": "Отмена",
       "create": "Создать"
     },
@@ -118,6 +119,11 @@
     "fieldAccounting1cDocumentUid": "UID документа в 1С",
     "fieldAccounting1cSyncError": "Ошибка отправки в 1С",
     "fieldMergedIntoUid": "Объединено с физлицом UID",
+    "source": {
+      "MANUAL": "Внесён вручную",
+      "IMPORTED_1C": "Импортирован из 1С",
+      "WEBSITE": "Оплата на сайте"
+    },
     "colCreatedAt": "Дата и время",
     "colUser": "Пользователь",
     "colAction": "Действие",

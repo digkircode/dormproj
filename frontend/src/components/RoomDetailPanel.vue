@@ -362,6 +362,7 @@ const valueDialogNumberValue = ref('')
 const valueDialogTextValue = ref('')
 const valueDialogError = ref('')
 const isSavingValue = ref(false)
+const valueSubmitAttempted = ref(false)
 const historyError = ref('')
 const deletingValueId = ref<number | null>(null)
 
@@ -381,6 +382,7 @@ function openAddValue(definitionId?: number) {
   valueDialogNumberValue.value = ''
   valueDialogTextValue.value = ''
   valueDialogError.value = ''
+  valueSubmitAttempted.value = false
   valueFormOpen.value = true
 }
 
@@ -394,6 +396,7 @@ function openEditValue(entry: { id: number; definitionId: number; period: string
   valueDialogNumberValue.value = entry.valueType === 'NUMBER' && entry.value !== null ? String(entry.value) : ''
   valueDialogTextValue.value = entry.valueType === 'TEXT' && entry.value !== null ? String(entry.value) : ''
   valueDialogError.value = ''
+  valueSubmitAttempted.value = false
   valueFormOpen.value = true
 }
 
@@ -430,17 +433,14 @@ function buildValue(): boolean | number | string | null {
   return null
 }
 
+const valueMissing = computed(() => valueSubmitAttempted.value && buildValue() === null)
+const periodMissing = computed(() => valueSubmitAttempted.value && !valueDialogPeriod.value)
+
 async function submitValueForm() {
-  if (!detail.value || !selectedDefinition.value) return
+  if (isSavingValue.value || !detail.value || !selectedDefinition.value) return
+  valueSubmitAttempted.value = true
   const value = buildValue()
-  if (value === null) {
-    valueDialogError.value = t('rooms.detail.fillValue')
-    return
-  }
-  if (!valueDialogPeriod.value) {
-    valueDialogError.value = t('rooms.detail.specifyDate')
-    return
-  }
+  if (value === null || !valueDialogPeriod.value) return
   isSavingValue.value = true
   valueDialogError.value = ''
   try {
@@ -759,7 +759,7 @@ async function confirmDeleteValue() {
             <Label>{{ t('rooms.detail.dateLabel') }}</Label>
             <Popover :open="isCalendarOpen" @update:open="(v) => (isCalendarOpen = v)">
               <PopoverTrigger as-child>
-                <Button variant="outline" class="w-full justify-start text-left font-normal">
+                <Button variant="outline" :aria-invalid="periodMissing" :class="['w-full justify-start text-left font-normal', periodMissing ? 'border-destructive' : '']">
                   <CalendarIcon class="mr-2 size-4 text-primary" />
                   {{ valueDialogPeriod ? formatDate(valueDialogPeriod) : t('rooms.detail.selectDatePlaceholder') }}
                 </Button>
@@ -768,11 +768,12 @@ async function confirmDeleteValue() {
                 <Calendar :locale="locale" :model-value="calendarValue" @update:model-value="onCalendarSelect" />
               </PopoverContent>
             </Popover>
+            <p v-if="periodMissing" class="text-xs text-destructive">{{ t('rooms.detail.specifyDate') }}</p>
           </div>
 
           <div class="flex flex-col gap-2">
             <Label>{{ t('rooms.detail.valueLabel') }}</Label>
-            <div v-if="selectedDefinition?.valueType === 'BOOLEAN'" class="flex items-center gap-4">
+            <div v-if="selectedDefinition?.valueType === 'BOOLEAN'" :class="['flex items-center gap-4', valueMissing ? 'rounded-md border border-destructive p-2' : '']">
               <label class="flex items-center gap-2 text-sm">
                 <Checkbox
                   :model-value="valueDialogBoolValue === true"
@@ -796,9 +797,11 @@ async function confirmDeleteValue() {
               v-model="valueDialogNumberValue"
               type="number"
               step="any"
+              :aria-invalid="valueMissing"
               :class="[
                 'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground transition-shadow focus-visible:outline-none focus-visible:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/20 focus-visible:shadow-sm disabled:cursor-not-allowed disabled:opacity-50',
                 NO_SPINNER_CLASS,
+                valueMissing ? 'aria-invalid:border-destructive aria-invalid:focus-visible:border-destructive aria-invalid:focus-visible:ring-destructive/20' : '',
               ]"
               @keydown="blockScientificNotationKeys"
             />
@@ -810,14 +813,15 @@ async function confirmDeleteValue() {
               :model-value="valueDialogTextValue || undefined"
               @update:model-value="(v) => (valueDialogTextValue = (v as string) ?? '')"
             >
-              <SelectTrigger>
+              <SelectTrigger :aria-invalid="valueMissing" :class="valueMissing ? 'border-destructive focus:border-destructive focus:ring-destructive/20' : ''">
                 <SelectValue :placeholder="t('rooms.detail.selectValuePlaceholder')" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem v-for="option in selectedDefinition.options" :key="option" :value="option">{{ option }}</SelectItem>
               </SelectContent>
             </Select>
-            <Input v-else v-model="valueDialogTextValue" type="text" />
+            <Input v-else v-model="valueDialogTextValue" type="text" :aria-invalid="valueMissing" />
+            <p v-if="valueMissing" class="text-xs text-destructive">{{ t('rooms.detail.fillValue') }}</p>
           </div>
 
           <p v-if="valueDialogError" class="text-sm text-red-500">{{ valueDialogError }}</p>

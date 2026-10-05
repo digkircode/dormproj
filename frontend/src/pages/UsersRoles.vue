@@ -38,15 +38,19 @@ onMounted(load)
 const isCreateOpen = ref(false)
 const newRoleName = ref('')
 const createError = ref('')
+const roleNameError = ref('')
 const isCreating = ref(false)
 
 function openCreate() {
   newRoleName.value = ''
   createError.value = ''
+  roleNameError.value = ''
   isCreateOpen.value = true
 }
 async function submitCreate() {
-  if (!newRoleName.value.trim()) return
+  if (isCreating.value) return
+  roleNameError.value = newRoleName.value.trim() ? '' : t('users.roles.nameRequired')
+  if (roleNameError.value) return
   isCreating.value = true
   createError.value = ''
   try {
@@ -109,13 +113,14 @@ async function submitCreate() {
              проверяет конкретные строковые ключи (ADMIN/STAFF/RESIDENT), незнакомое
              имя просто ляжет в справочник без единой проверки на него в коде. -->
         <div class="flex flex-col gap-2">
-          <Label>{{ t('users.roles.name') }}</Label>
-          <Input v-model="newRoleName" @keyup.enter="submitCreate" />
+          <Label for="new-role-name">{{ t('users.roles.name') }}</Label>
+          <Input id="new-role-name" v-model="newRoleName" :aria-invalid="!!roleNameError" :aria-describedby="roleNameError ? 'new-role-name-error' : undefined" @input="roleNameError = ''" @keyup.enter="submitCreate" />
+          <p v-if="roleNameError" id="new-role-name-error" class="text-xs text-destructive">{{ roleNameError }}</p>
         </div>
         <p v-if="createError" class="text-sm text-red-500">{{ createError }}</p>
         <DialogFooter>
           <Button variant="outline" @click="isCreateOpen = false">{{ t('users.roles.cancel') }}</Button>
-          <Button :disabled="!newRoleName.trim()" :loading="isCreating" @click="submitCreate">{{ t('users.roles.create') }}</Button>
+          <Button :loading="isCreating" @click="submitCreate">{{ t('users.roles.create') }}</Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>

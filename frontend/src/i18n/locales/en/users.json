@@ -33,6 +33,7 @@
       "colUsersCount": "Users",
       "newRoleTitle": "New role",
       "name": "Name",
+      "nameRequired": "Enter a role name",
       "cancel": "Cancel",
       "create": "Create"
     },
@@ -118,6 +119,11 @@
     "fieldAccounting1cDocumentUid": "1C document UID",
     "fieldAccounting1cSyncError": "1C sync error",
     "fieldMergedIntoUid": "Merged into individual UID",
+    "source": {
+      "MANUAL": "Entered manually",
+      "IMPORTED_1C": "Imported from 1C",
+      "WEBSITE": "Website payment"
+    },
     "colCreatedAt": "Date and time",
     "colUser": "User",
     "colAction": "Action",

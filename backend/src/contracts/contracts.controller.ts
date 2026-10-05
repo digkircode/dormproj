@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  Logger,
   NotFoundException,
   Param,
   Patch,
@@ -178,6 +179,7 @@ function parseIdParam(idParam: string): number {
 @UseGuards(AuthGuard, RolesGuard)
 @Roles('STAFF', 'ADMIN')
 export class ContractsController {
+  private readonly logger = new Logger(ContractsController.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
@@ -850,8 +852,11 @@ export class ContractsController {
   @Get(':id/document/pdf')
   async documentPdf(@Param('id') idParam: string, @Res() res: Response) {
     const id = parseIdParam(idParam);
+    const startedAt = Date.now();
     const { buffer, number } = await this.renderContractDocumentBuffer(id);
+    const docxMs = Date.now() - startedAt;
     const pdfBuffer = await convertDocxToPdf(buffer);
+    this.logger.log(`Single contract print timing: docxMs=${docxMs} pdfMs=${Date.now() - startedAt - docxMs} totalMs=${Date.now() - startedAt}`);
 
     const asciiFallback = `contract-${number}.pdf`.replace(/[^\x20-\x7E]/g, '_');
     const utf8Name = encodeURIComponent(`Договор № ${number}.pdf`);
@@ -910,6 +915,9 @@ export class ContractsController {
   @Post('print-batch/pdf')
   async printBatchPdf(@Body() body: unknown, @Res() res: Response) {
     const { ids } = z.object({ ids: z.array(z.number().int().positive()).min(1).max(50) }).parse(body);
+    const startedAt = Date.now();
+    let docxMs = 0;
+    let pdfMs = 0;
 
     const existingCount = await this.prisma.contract.count({ where: { id: { in: ids } } });
     if (existingCount !== ids.length) {
@@ -918,13 +926,18 @@ export class ContractsController {
 
     const merged = await PDFDocument.create();
     for (const id of ids) {
+      const docxStartedAt = Date.now();
       const { buffer } = await this.renderContractDocumentBuffer(id);
+      docxMs += Date.now() - docxStartedAt;
+      const pdfStartedAt = Date.now();
       const pdfBuffer = await convertDocxToPdf(buffer);
+      pdfMs += Date.now() - pdfStartedAt;
       const doc = await PDFDocument.load(pdfBuffer);
       const pages = await merged.copyPages(doc, doc.getPageIndices());
       for (const page of pages) merged.addPage(page);
     }
     const mergedBytes = await merged.save();
+    this.logger.log(`Batch contract print timing: count=${ids.length} docxMs=${docxMs} pdfMs=${pdfMs} otherMs=${Date.now() - startedAt - docxMs - pdfMs} totalMs=${Date.now() - startedAt}`);
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'inline; filename="contracts.pdf"');

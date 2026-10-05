@@ -133,6 +133,14 @@ const formUnit = ref('')
 const formOptions = ref('')
 const dialogError = ref('')
 const isSaving = ref(false)
+const submitAttempted = ref(false)
+const nameError = computed(() => {
+  if (!submitAttempted.value) return ''
+  const name = formName.value.trim()
+  if (!name) return t('rooms.definitions.nameRequired')
+  if (DORMITORY_INFO_FIELDS.some((field) => field.name === name)) return t('rooms.definitions.dormitoryFieldError')
+  return ''
+})
 
 function parseOptions(raw: string): string[] {
   return raw
@@ -149,6 +157,7 @@ function openCreate() {
   formUnit.value = ''
   formOptions.value = ''
   dialogError.value = ''
+  submitAttempted.value = false
   isDialogOpen.value = true
 }
 
@@ -160,19 +169,14 @@ function openEdit(definition: RoomCharacteristicDefinition) {
   formUnit.value = definition.unit ?? ''
   formOptions.value = definition.options.join(', ')
   dialogError.value = ''
+  submitAttempted.value = false
   isDialogOpen.value = true
 }
 
 async function submitDialog() {
-  const trimmedName = formName.value.trim()
-  if (!trimmedName) return
-  // Эти 3 названия — учёт по общежитию в целом (см. RoomTree.vue), не per-room
-  // характеристика, заводить их в этом каталоге нельзя — ни созданием, ни переименованием
-  // существующей характеристики в одно из этих названий.
-  if (DORMITORY_INFO_FIELDS.some((f) => f.name === trimmedName)) {
-    dialogError.value = t('rooms.definitions.dormitoryFieldError')
-    return
-  }
+  if (isSaving.value) return
+  submitAttempted.value = true
+  if (nameError.value) return
   isSaving.value = true
   dialogError.value = ''
   try {
@@ -334,7 +338,8 @@ async function confirmDelete() {
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-2">
             <Label for="def-name">{{ t('rooms.definitions.name') }}</Label>
-            <Input id="def-name" v-model="formName" />
+            <Input id="def-name" v-model="formName" :aria-invalid="!!nameError" :aria-describedby="nameError ? 'def-name-error' : undefined" />
+            <p v-if="nameError" id="def-name-error" class="text-xs text-destructive">{{ nameError }}</p>
           </div>
           <div class="flex flex-col gap-2">
             <Label>{{ t('rooms.definitions.valueType') }}</Label>
@@ -365,7 +370,7 @@ async function confirmDelete() {
         </div>
         <DialogFooter>
           <Button variant="outline" @click="isDialogOpen = false">{{ t('rooms.definitions.cancel') }}</Button>
-          <Button :disabled="!formName.trim()" :loading="isSaving" @click="submitDialog">{{ t('rooms.definitions.save') }}</Button>
+          <Button :loading="isSaving" @click="submitDialog">{{ t('rooms.definitions.save') }}</Button>
         </DialogFooter>
       </DialogScrollContent>
     </Dialog>
