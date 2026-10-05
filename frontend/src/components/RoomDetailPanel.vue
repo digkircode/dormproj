@@ -651,17 +651,10 @@ async function confirmDeleteValue() {
         <!-- min-h-0 обязателен — иначе flex-элемент с overflow-y-auto не сжимается
              внутри родителя и скролл не работает. -->
         <div class="min-h-0 flex-1 overflow-y-auto rounded-md border">
-          <!-- Смена фильтра (клик по характеристике) переключает таблицу целиком тем же
-               fade-swap, что и смена комнаты выше (Transition mode="out-in", те же классы
-               fade-in-0/fade-out-0 duration-200/150) — не поэлементная анимация строк.
-               Ключ на фильтре пересоздаёт tbody целиком, поэтому внутри уже не нужен
-               TransitionGroup — старая таблица уходит и приходит новая одним блоком. -->
-          <Transition
-            mode="out-in"
-            enter-active-class="animate-in fade-in-0 duration-200"
-            leave-active-class="animate-out fade-out-0 duration-150"
-          >
-            <table :key="selectedCharacteristicFilter ?? 'all'" class="w-full table-fixed text-sm">
+          <!-- Шапка и ширины колонок остаются на месте при выборе характеристики.
+               Обновляется только tbody: исчезает пауза между уходом старой таблицы
+               и появлением новой, из-за которой история заметно дёргалась. -->
+          <table class="w-full table-fixed text-sm">
               <thead class="sticky top-0 z-10 bg-muted">
                 <tr>
                   <th class="w-[30%] px-3 py-2 text-left font-medium">{{ t('rooms.detail.colCharacteristic') }}</th>
@@ -670,7 +663,7 @@ async function confirmDeleteValue() {
                   <th class="w-[20%] px-3 py-2" />
                 </tr>
               </thead>
-              <tbody>
+              <tbody :key="selectedCharacteristicFilter ?? 'all'" class="data-reveal">
                 <tr v-for="entry in filteredHistory" :key="entry.id" class="border-t">
                   <td class="px-3 py-2">{{ entry.name }}</td>
                   <td class="px-3 py-2">{{ entry.hasValue ? formatValue(entry) : '-' }}</td>
@@ -697,8 +690,7 @@ async function confirmDeleteValue() {
                   </td>
                 </tr>
               </tbody>
-            </table>
-          </Transition>
+          </table>
         </div>
       </div>
     </Transition>

@@ -277,7 +277,7 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
          (было друг под другом), тот же grid-паттерн, что у пар карточек на
          ResidentHomeDashboard.vue (Мой договор/Оплата, Чат/Контакты). -->
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Card class="h-64 min-w-0 overflow-x-hidden overflow-y-auto p-4 [scrollbar-gutter:stable]">
+      <Card class="min-w-0 p-4">
         <div class="mb-3 flex items-center gap-1.5 text-sm font-medium">
           <AlertTriangle class="size-4 text-primary" />
           {{ t('home.attentionTitle') }}
@@ -306,7 +306,7 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
            хэшу id (iconBadgeColorClasses, тот же приём, что у аватарок в чате), не путать с
            фиксированной фиолетовой иконкой на резидентской карточке (ResidentHomeDashboard.vue) —
            там весь БЛОК один, тут список из МНОГИХ объявлений. -->
-      <Card class="h-64 min-w-0 overflow-x-hidden overflow-y-auto p-4 [scrollbar-gutter:stable]">
+      <Card class="min-w-0 p-4">
         <div class="mb-3 flex items-center gap-1.5 text-sm font-medium">
           <Megaphone class="size-4 text-primary" />
           {{ t('home.staffAnnouncementsTitle') }}

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogDescription, DialogFooter, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import EntityTable from '@/components/EntityTable.vue'
+import TableSkeleton from '@/components/TableSkeleton.vue'
 import WebsitePaymentStatusPillCell from '@/components/WebsitePaymentStatusPillCell.vue'
 import ServiceProvisionPeriodCell from '@/components/ServiceProvisionPeriodCell.vue'
 import { createAppColumnHelper } from '@/lib/table'
@@ -65,6 +66,7 @@ const selectedDocs = ref<TableRow[]>([])
 const loadError = ref('')
 const actionMessage = ref('')
 const tableRef = ref<{ refresh: () => void | Promise<void> } | null>(null)
+const isInitialLoading = ref(true)
 const currentUnmatchedCount = computed(() =>
   docs.value.filter((row) => row.isCurrent).reduce((total, row) => total + row.unmatchedContractCount, 0),
 )
@@ -93,6 +95,8 @@ async function loadDocs() {
     await tableRef.value?.refresh()
   } catch (error) {
     loadError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isInitialLoading.value = false
   }
 }
 loadDocs()
@@ -193,10 +197,15 @@ const detailLoading = ref(false)
 const detailError = ref('')
 const detailDoc = ref<ServiceProvisionDocumentDetail | null>(null)
 const detailSearch = ref('')
+const detailRequestTitle = ref('')
 
 async function openDetail(row: TableRow) {
   detailOpen.value = true
   detailLoading.value = true
+  detailRequestTitle.value = t('serviceProvisionDocuments.detailDialogTitle', {
+    type: TYPE_LABELS.value[row.type],
+    period: formatPeriod(row.periodStart),
+  })
   detailError.value = ''
   detailDoc.value = null
   detailSearch.value = ''
@@ -209,7 +218,7 @@ async function openDetail(row: TableRow) {
   }
 }
 const detailTitle = computed(() => {
-  if (!detailDoc.value) return ''
+  if (!detailDoc.value) return detailRequestTitle.value
   return t('serviceProvisionDocuments.detailDialogTitle', {
     type: TYPE_LABELS.value[detailDoc.value.type],
     period: formatPeriod(detailDoc.value.periodStart),
@@ -249,7 +258,9 @@ function matchLabel(missingMappings: ('CONTRACTOR' | 'CONTRACT')[]): string {
       {{ t('serviceProvisionDocuments.unmatchedWarning', { count: currentUnmatchedCount }) }}
     </p>
 
+    <TableSkeleton v-if="isInitialLoading" :columns="8" :rows="10" toolbar class="h-[60vh] md:flex-1" />
     <EntityTable
+      v-else
       ref="tableRef"
       v-model:selected="selectedDocs"
       selectable
@@ -294,7 +305,7 @@ function matchLabel(missingMappings: ('CONTRACTOR' | 'CONTRACT')[]): string {
           <DialogTitle>{{ detailTitle }}</DialogTitle>
         </DialogHeader>
 
-        <p v-if="detailLoading" class="text-sm text-muted-foreground">…</p>
+        <TableSkeleton v-if="detailLoading" :columns="4" :rows="6" class="min-h-72" />
         <p v-else-if="detailError" class="text-sm text-red-500">{{ detailError }}</p>
         <div v-else-if="detailDoc" class="flex flex-col gap-2">
           <div class="relative">

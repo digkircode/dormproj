@@ -3,7 +3,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { ArrowDown, Check, CheckCheck, FileVideo, Loader, Paperclip, SendHorizontal, X } from 'lucide-vue-next'
+import { ArrowDown, Check, CheckCheck, FileVideo, Paperclip, SendHorizontal, X } from 'lucide-vue-next'
+import { Skeleton } from '@/components/ui/skeleton'
 import { avatarColorClasses, initials, shortName } from '@/lib/avatar-color'
 import { currentUser } from '@/lib/auth-state'
 import {
@@ -437,8 +438,10 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
            muted/accent/background (см. известную ловушку проекта — они почти неотличимы), а
            работает и в тёмной теме без отдельного dark:-варианта. -->
       <div ref="scrollEl" class="flex min-h-0 flex-1 flex-col gap-1 overflow-auto bg-primary/5 p-4" @scroll="onScroll">
-        <div v-if="isLoadingOlder" class="flex justify-center py-2">
-          <Loader class="size-4 animate-spin text-muted-foreground" />
+        <div v-if="isLoadingOlder" class="flex items-center gap-2 py-2" role="status" :aria-label="t('entityTable.loading')">
+          <Skeleton class="size-10 shrink-0 rounded-full" />
+          <div class="w-48 space-y-2"><Skeleton class="h-3 w-2/3" /><Skeleton class="h-8 w-full rounded-2xl" /></div>
+          <span class="sr-only">{{ t('entityTable.loading') }}</span>
         </div>
         <p v-if="renderable.length === 0" class="m-auto text-sm text-muted-foreground">{{ t('chat.thread.noMessagesYet') }}</p>
 

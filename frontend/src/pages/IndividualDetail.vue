@@ -19,7 +19,7 @@ import {
   TriangleAlert,
 } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
-import LoadingState from '@/components/LoadingState.vue'
+import TableSkeleton from '@/components/TableSkeleton.vue'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -290,7 +290,7 @@ onUnmounted(() => {
       <h1 class="text-lg font-medium">{{ t('individuals.detail.title') }}</h1>
     </div>
 
-    <LoadingState v-if="isLoading" class="min-h-[60vh]" />
+    <TableSkeleton v-if="isLoading" :columns="6" :rows="8" class="min-h-[60vh]" />
     <p v-else-if="notFound" class="text-sm text-red-500">{{ t('individuals.detail.notFound') }}</p>
 
     <template v-else-if="detail">

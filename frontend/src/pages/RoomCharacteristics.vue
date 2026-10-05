@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import { ArrowLeft, GripVertical, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-vue-next'
 import { VueDraggable, type DraggableEvent } from 'vue-draggable-plus'
 import { Card } from '@/components/ui/card'
+import TableSkeleton from '@/components/TableSkeleton.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -254,7 +255,7 @@ async function confirmDelete() {
            position: fixed, поэтому вместе с overflow-hidden это визуально не даёт вынести его
            за границы таблицы вверх/вниз, куда бы ни укатилась мышь. -->
       <div class="overflow-hidden rounded-lg border [transform:translateZ(0)]">
-        <p v-if="isLoading" class="p-6 text-sm text-muted-foreground">{{ t('rooms.definitions.loading') }}</p>
+        <TableSkeleton v-if="isLoading" :columns="4" :rows="7" :bordered="false" class="min-h-80" />
         <p v-else-if="!definitions.length" class="p-6 text-sm text-muted-foreground">{{ t('rooms.definitions.noneYet') }}</p>
         <div v-else class="[&>div]:max-h-[65vh]">
         <Table class="table-fixed">

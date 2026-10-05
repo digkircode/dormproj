@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Skeleton } from '@/components/ui/skeleton'
 import { avatarColorClasses, initials } from '@/lib/avatar-color'
 import { dateLocaleTag } from '@/lib/format-locale'
 import type { ChatConversationListItem } from '@/lib/chat-api'
@@ -13,6 +14,8 @@ import type { ChatConversationListItem } from '@/lib/chat-api'
 const props = defineProps<{
   conversations: ChatConversationListItem[]
   selectedId: number | null
+  isLoading?: boolean
+  error?: string
 }>()
 
 const emit = defineEmits<{ select: [id: number]; 'new-message': [] }>()
@@ -56,8 +59,16 @@ function formatTime(iso: string): string {
       </Tooltip>
     </div>
     <div class="min-h-0 flex-1 overflow-auto">
-      <p v-if="filtered.length === 0" class="p-4 text-center text-sm text-muted-foreground">{{ t('chat.list.noDialogsFound') }}</p>
-      <TransitionGroup name="conversation-row" tag="div">
+      <div v-if="isLoading" role="status" :aria-label="t('entityTable.loading')">
+        <div v-for="row in 7" :key="row" class="flex items-center gap-3 border-b p-3" aria-hidden="true">
+          <Skeleton class="size-10 shrink-0 rounded-full" />
+          <div class="min-w-0 flex-1 space-y-2"><Skeleton class="h-4 w-3/4" /><Skeleton class="h-3 w-full" /></div>
+        </div>
+        <span class="sr-only">{{ t('entityTable.loading') }}</span>
+      </div>
+      <p v-else-if="error && !conversations.length" class="p-4 text-center text-sm text-destructive">{{ error }}</p>
+      <p v-else-if="filtered.length === 0" class="p-4 text-center text-sm text-muted-foreground">{{ t('chat.list.noDialogsFound') }}</p>
+      <TransitionGroup v-if="!isLoading" name="conversation-row" tag="div">
         <button
           v-for="conversation in filtered"
           :key="conversation.id"

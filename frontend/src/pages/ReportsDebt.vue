@@ -16,7 +16,7 @@ import PenaltyBalanceCell from '@/components/PenaltyBalanceCell.vue'
 import ContractStatusCell from '@/components/ContractStatusCell.vue'
 import ReportKpiTile from '@/components/ReportKpiTile.vue'
 import DatePickerField from '@/components/DatePickerField.vue'
-import LoadingState from '@/components/LoadingState.vue'
+import TableSkeleton from '@/components/TableSkeleton.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import {
   fetchDebtorsPage,
@@ -303,7 +303,7 @@ async function onExport() {
         </DialogHeader>
 
         <p v-if="breakdownError" class="text-sm text-red-500">{{ breakdownError }}</p>
-        <LoadingState v-if="breakdownLoading" class="min-h-56" />
+        <TableSkeleton v-if="breakdownLoading" :columns="4" :rows="5" class="min-h-56" />
 
         <div v-if="breakdown" class="flex flex-col gap-3">
           <div class="overflow-hidden rounded-md border">
@@ -379,7 +379,7 @@ async function onExport() {
         </DialogHeader>
 
         <p v-if="penaltyLogError" class="text-sm text-red-500">{{ penaltyLogError }}</p>
-        <LoadingState v-if="penaltyLogLoading" class="min-h-56" />
+        <TableSkeleton v-if="penaltyLogLoading" :columns="3" :rows="5" class="min-h-56" />
 
         <div v-if="penaltyLog" class="flex flex-col gap-3">
           <!-- Максимум ~12 строк видно сразу, дальше — свой скролл (не растягивает

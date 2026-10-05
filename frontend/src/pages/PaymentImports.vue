@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import EntityTable from '@/components/EntityTable.vue'
+import TableSkeleton from '@/components/TableSkeleton.vue'
 import PaymentImportStatusPillCell from '@/components/PaymentImportStatusPillCell.vue'
 import WebsitePaymentStatusPillCell from '@/components/WebsitePaymentStatusPillCell.vue'
 import PaymentReceiptCell from '@/components/PaymentReceiptCell.vue'
@@ -226,6 +227,7 @@ const WEBSITE_STATUS_LABELS: Record<WebsitePaymentRow['accounting1cSyncStatus'],
 }
 
 const websitePayments = ref<WebsitePaymentRow[]>([])
+const websiteInitialLoading = ref(true)
 const websiteLoadError = ref('')
 async function loadWebsitePayments() {
   websiteLoadError.value = ''
@@ -233,6 +235,8 @@ async function loadWebsitePayments() {
     websitePayments.value = await fetchWebsitePayments()
   } catch (error) {
     websiteLoadError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    websiteInitialLoading.value = false
   }
 }
 loadWebsitePayments()
@@ -415,7 +419,9 @@ async function submitBulkRetry() {
 
       <TabsContent value="website" class="flex min-h-0 flex-1 flex-col">
         <p v-if="websiteLoadError" class="text-sm text-red-500">{{ websiteLoadError }}</p>
+        <TableSkeleton v-if="websiteInitialLoading" :columns="7" :rows="10" toolbar class="flex-1" />
         <EntityTable
+          v-else
           ref="websiteTableRef"
           v-model:selected="selectedWebsiteRows"
           :columns="websiteColumns"

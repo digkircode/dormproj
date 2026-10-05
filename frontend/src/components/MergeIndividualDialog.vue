@@ -5,6 +5,7 @@ import { UserCheck } from 'lucide-vue-next'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import SearchSelect from '@/components/SearchSelect.vue'
 import {
   fetchIndividuals,
@@ -121,7 +122,12 @@ function formatDate(iso: string | null): string {
         <DialogDescription>{{ t('individuals.merge.description') }}</DialogDescription>
       </DialogHeader>
 
-      <div v-if="isLoadingCandidates" class="text-sm text-muted-foreground">{{ t('individuals.merge.loadingCandidates') }}</div>
+      <div v-if="isLoadingCandidates" class="space-y-2" role="status" :aria-label="t('individuals.merge.loadingCandidates')">
+        <div v-for="row in 3" :key="row" class="space-y-2 rounded-md border px-3 py-2" aria-hidden="true">
+          <Skeleton class="h-4 w-2/3" /><Skeleton class="h-3 w-1/2" />
+        </div>
+        <span class="sr-only">{{ t('individuals.merge.loadingCandidates') }}</span>
+      </div>
 
       <div v-else-if="candidates.length > 0" class="flex flex-col gap-2">
         <Label>{{ t('individuals.merge.candidatesLabel') }}</Label>

@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { ChevronRight, CirclePlus, Pencil, Trash2 } from 'lucide-vue-next'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { Skeleton } from '@/components/ui/skeleton'
 import { fetchIndividualAuditLog, type IndividualAuditLogEntry } from '@/lib/individuals-api'
 
 const { t } = useI18n()
@@ -109,7 +110,12 @@ function formatValue(value: unknown): string {
       </DialogHeader>
 
       <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-      <p v-else-if="isLoading" class="text-sm text-muted-foreground">{{ t('individuals.history.loading') }}</p>
+      <div v-else-if="isLoading" class="space-y-3" role="status" :aria-label="t('individuals.history.loading')">
+        <div v-for="row in 3" :key="row" class="space-y-2 rounded-md border p-3" aria-hidden="true">
+          <Skeleton class="h-4 w-2/3" /><Skeleton class="h-3 w-1/3" />
+        </div>
+        <span class="sr-only">{{ t('individuals.history.loading') }}</span>
+      </div>
       <p v-else-if="entries.length === 0" class="text-sm text-muted-foreground">{{ t('individuals.history.noChanges') }}</p>
 
       <div v-for="entry in entries" :key="entry.id" class="flex flex-col gap-2 rounded-md border p-3">

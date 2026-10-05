@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, Plus } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
+import TableSkeleton from '@/components/TableSkeleton.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -82,7 +83,7 @@ async function submitCreate() {
     </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-    <p v-if="isLoading" class="text-sm text-muted-foreground">{{ t('users.roles.loading') }}</p>
+    <TableSkeleton v-if="isLoading" :columns="2" :rows="6" />
 
     <Card v-else class="gap-0 py-0">
       <Table>

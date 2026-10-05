@@ -9,7 +9,8 @@ import { goBack } from '@/lib/utils'
 import ConversationList from '@/components/chat/ConversationList.vue'
 import ChatThread from '@/components/chat/ChatThread.vue'
 import BroadcastDialog from '@/components/chat/BroadcastDialog.vue'
-import LoadingState from '@/components/LoadingState.vue'
+import ChatThreadSkeleton from '@/components/chat/ChatThreadSkeleton.vue'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useChatStream, type ChatStreamEvent } from '@/lib/chat-stream'
 import { hasUnreadStaffChats } from '@/lib/chat-unread-state'
 import { appendNewMessages, prependOlderMessages } from '@/lib/chat-message-list'
@@ -27,6 +28,8 @@ import {
 const router = useRouter()
 const { t } = useI18n()
 const conversations = ref<ChatConversationListItem[]>([])
+const isLoadingConversations = ref(true)
+const conversationsError = ref('')
 const selectedId = ref<number | null>(null)
 const messages = ref<ChatMessage[]>([])
 const hasMoreOlder = ref(false)
@@ -47,10 +50,17 @@ const pendingStreamRefresh = new Set<number>()
 
 async function loadConversations() {
   const version = ++conversationsVersion
-  const list = await fetchConversations()
-  if (version !== conversationsVersion) return
-  conversations.value = list
-  hasUnreadStaffChats.value = conversations.value.some((c) => c.unread)
+  try {
+    const list = await fetchConversations()
+    if (version !== conversationsVersion) return
+    conversations.value = list
+    conversationsError.value = ''
+    hasUnreadStaffChats.value = list.some((c) => c.unread)
+  } catch (error) {
+    if (version === conversationsVersion) conversationsError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    if (version === conversationsVersion) isLoadingConversations.value = false
+  }
 }
 
 async function selectConversation(id: number) {
@@ -180,15 +190,16 @@ onMounted(loadConversations)
     </div>
 
     <Card class="flex min-h-0 flex-1 flex-row gap-0 overflow-hidden py-0">
-      <ConversationList :conversations="conversations" :selected-id="selectedId" @select="selectConversation" @new-message="openBroadcast" />
+      <ConversationList :conversations="conversations" :selected-id="selectedId" :is-loading="isLoadingConversations" :error="conversationsError" @select="selectConversation" @new-message="openBroadcast" />
 
       <div class="flex min-h-0 flex-1 flex-col">
         <!-- Та же "рецептура" высоты, что у строки поиска слева (ConversationList.vue —
              p-3 снаружи + h-10 содержимое), чтобы шапка выровнялась по высоте с ней
              пиксель в пиксель, а не подгонялась на глаз константой. -->
         <div v-if="selectedId" class="flex shrink-0 items-center gap-4 border-b p-3 text-sm text-muted-foreground">
+          <Skeleton v-if="messagesLoadedFor !== selectedId" class="h-10 w-64" />
           <RouterLink
-            v-if="residentInfo?.contractId"
+            v-else-if="residentInfo?.contractId"
             :to="{ name: 'contract-detail', params: { id: residentInfo.contractId } }"
             class="-mx-1.5 flex h-10 items-center gap-1.5 rounded-md px-1.5 transition-colors hover:bg-accent hover:text-accent-foreground"
           >
@@ -217,7 +228,7 @@ onMounted(loadConversations)
           :on-send="onSend"
         />
         <p v-else-if="conversationError" class="m-auto p-4 text-sm text-destructive">{{ conversationError }}</p>
-        <LoadingState v-else-if="selectedId" class="m-auto" />
+        <ChatThreadSkeleton v-else-if="selectedId" />
         <p v-else class="m-auto text-sm text-muted-foreground">{{ t('chat.selectDialogHint') }}</p>
       </div>
     </Card>

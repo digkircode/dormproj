@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import ReportKpiTile from '@/components/ReportKpiTile.vue'
 import LoadingState from '@/components/LoadingState.vue'
+import { Skeleton } from '@/components/ui/skeleton'
 import { fetchOccupancy, type OccupancyReport, type OccupancyRoom } from '@/lib/reports-api'
 import { fetchRoomDetail, type RoomDetail } from '@/lib/rooms-api'
 import { goBack } from '@/lib/utils'
@@ -152,7 +153,18 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
     </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-    <LoadingState v-if="isLoading" class="min-h-[60vh]" />
+    <div v-if="isLoading" class="flex min-h-[60vh] flex-col gap-4" role="status" :aria-label="t('entityTable.loading')">
+      <Card class="grid grid-cols-2 gap-4 p-4 lg:grid-cols-4" aria-hidden="true">
+        <div v-for="item in 4" :key="item" class="space-y-3"><Skeleton class="h-4 w-24" /><Skeleton class="h-8 w-20" /></div>
+      </Card>
+      <Skeleton class="h-9 w-64" aria-hidden="true" />
+      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6" aria-hidden="true">
+        <div v-for="room in 12" :key="room" class="space-y-3 rounded-md border p-3">
+          <Skeleton class="h-4 w-1/2" /><Skeleton class="h-2 w-full" /><Skeleton class="h-3 w-2/3" />
+        </div>
+      </div>
+      <span class="sr-only">{{ t('entityTable.loading') }}</span>
+    </div>
 
     <template v-else-if="report">
       <Card class="data-reveal grid grid-cols-4 gap-4 p-4">
