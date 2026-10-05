@@ -14,7 +14,7 @@
     },
     "receipt": {
       "open": "Open",
-      "stubTitle": "Placeholder - once the till is connected, this will link to the receipt from the OFD"
+      "unavailable": "Receipt not available yet"
     },
     "accounting1c": {
       "linked": "Matched",

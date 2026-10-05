@@ -227,10 +227,15 @@ onUnmounted(() => clearTimeout(pollTimeout))
                   <span v-if="stats.updated !== undefined">{{ t('sync.logs.updated') }}: {{ stats.updated }}</span>
                   <span v-if="stats.removed !== undefined">{{ t('sync.logs.removed') }}: {{ stats.removed }}</span>
                 </span>
-                <pre
-                  v-if="stats.records?.length"
-                  class="overflow-auto rounded-md bg-muted p-2 text-xs whitespace-pre-wrap break-words"
-                >{{ JSON.stringify(stats.records, null, 2) }}</pre>
+                <Collapsible v-if="stats.records?.length" v-slot="{ open: recordsOpen }">
+                  <CollapsibleTrigger class="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                    <ChevronRight class="size-3.5 shrink-0 transition-transform" :class="{ 'rotate-90': recordsOpen }" />
+                    {{ t('sync.logs.showMoreData') }}
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <pre class="mt-2 max-h-64 overflow-auto rounded-md bg-muted p-2 text-xs whitespace-pre-wrap break-words">{{ JSON.stringify(stats.records, null, 2) }}</pre>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
             </div>
           </CollapsibleContent>
@@ -261,10 +266,10 @@ onUnmounted(() => clearTimeout(pollTimeout))
             </div>
           </CollapsibleContent>
         </Collapsible>
-        <Collapsible v-else-if="selectedLog.details" default-open v-slot="{ open }">
+        <Collapsible v-else-if="selectedLog.details" v-slot="{ open }">
           <CollapsibleTrigger class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ChevronRight class="size-4 shrink-0 text-primary transition-transform" :class="{ 'rotate-90': open }" />
-            {{ t('sync.logs.moreByTables') }}
+            {{ t('sync.logs.showMoreData') }}
           </CollapsibleTrigger>
           <CollapsibleContent>
             <pre class="mt-2 max-h-80 overflow-auto rounded-md bg-muted p-3 text-xs whitespace-pre-wrap break-words">{{ JSON.stringify(selectedLog.details, null, 2) }}</pre>

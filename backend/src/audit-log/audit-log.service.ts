@@ -4,7 +4,7 @@ import { Prisma } from '../../generated/prisma/client.js';
 export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE';
 
 interface LogParams {
-  userId: number;
+  userId: number | null;
   action: AuditAction;
   entityType: string;
   entityId: string | number;

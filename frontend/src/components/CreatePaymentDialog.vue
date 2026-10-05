@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AlertTriangle, ChevronDown, CreditCard, DoorOpen, Info, Loader } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
+import LoadingState from '@/components/LoadingState.vue'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -199,7 +200,7 @@ async function submit() {
       </DialogHeader>
 
       <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-      <p v-if="isLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
+      <LoadingState v-if="isLoading" />
 
       <div v-if="!isLoading && !loadError && data?.contract" class="flex flex-col gap-5 transition-opacity duration-200" :class="isSwitching ? 'opacity-50' : ''">
         <div class="flex flex-col gap-2 rounded-lg border bg-muted/30 p-3">

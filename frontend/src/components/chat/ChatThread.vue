@@ -593,7 +593,7 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
       <button
         v-if="!isNearBottom"
         type="button"
-        :title="t('chat.thread.scrollDown')"
+        :aria-label="t('chat.thread.scrollDown')"
         class="absolute right-4 bottom-4 z-20 flex size-10 items-center justify-center rounded-full border bg-card text-foreground shadow-md transition-colors hover:bg-accent"
         @click="scrollToBottomClicked"
       >
@@ -603,7 +603,8 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
     </div>
 
     <div v-if="pendingFiles.length" class="flex flex-wrap gap-2 border-t px-3 pt-3">
-      <div v-for="file in pendingFiles" :key="keyFor(file)" class="relative" :title="`${file.name} (${formatSize(file.size)})`">
+      <div v-for="file in pendingFiles" :key="keyFor(file)" class="relative">
+        <span class="sr-only">{{ file.name }} ({{ formatSize(file.size) }})</span>
         <img v-if="file.type.startsWith('image/')" :src="previewUrlFor(file)" class="size-16 rounded-md border object-cover" />
         <div v-else class="flex size-16 flex-col items-center justify-center gap-1 rounded-md border bg-muted text-muted-foreground">
           <FileVideo class="size-5" />
@@ -630,7 +631,7 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
         <button
           type="button"
           :disabled="disabled"
-          :title="t('chat.thread.attachFile')"
+          :aria-label="t('chat.thread.attachFile')"
           class="absolute bottom-1.5 left-1.5 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-50"
           @click="openFilePicker"
         >

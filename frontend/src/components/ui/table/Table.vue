@@ -13,11 +13,12 @@ defineOptions({ inheritAttrs: false })
 
 const props = defineProps<{
   class?: HTMLAttributes["class"]
+  scrollClass?: HTMLAttributes["class"]
 }>()
 </script>
 
 <template>
-  <div class="relative min-h-0 w-full flex-1 overflow-auto">
+  <div :class="cn('relative min-h-0 min-w-0 w-full flex-1 overflow-auto', props.scrollClass)">
     <table v-bind="$attrs" :class="cn('w-full caption-bottom text-sm', props.class)">
       <slot />
     </table>

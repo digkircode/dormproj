@@ -298,16 +298,16 @@ model UserSession {
   @@map("user_sessions")
 }
 
-// История изменений (кто/что/где поменял) — только действия живых пользователей через UI,
-// не автоматические перезаписи ночным синхроном 1С (у того свой SyncLog, см. sync/). Пишется
+// История изменений (кто/что/где поменял) — действия пользователей и автоматические
+// переходы статуса договора. Ночной синхрон 1С ведёт свой SyncLog (см. sync/). Пишется
 // явными вызовами AuditLogService.log() из контроллеров (не общий Prisma-хук — иначе не
 // вышло бы отличить "человек нажал кнопку" от синхрона, и сообщения были бы менее читаемыми).
 // changes — diff только по интересующим полям на момент действия (не весь объект целиком) —
 // { fieldName: { before, after } }, для CREATE/DELETE одна из сторон всегда null.
 model AuditLog {
   id          Int      @id @default(autoincrement())
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
+  userId      Int?
+  user        User?    @relation(fields: [userId], references: [id])
   action      String
   // Тип сущности — своё короткое имя ('Individual'/'Contract'/'Room' и т.п.), не Prisma
   // model name напрямую, чтобы не сломаться при переименовании модели в схеме.

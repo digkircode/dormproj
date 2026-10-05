@@ -27,6 +27,7 @@ import {
 } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import LoadingState from '@/components/LoadingState.vue'
 import { Label } from '@/components/ui/label'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import ContractStatusPill from '@/components/ContractStatusPill.vue'
@@ -353,7 +354,7 @@ async function confirmReversePayment() {
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
     <p v-if="downloadError" class="text-sm text-red-500">{{ downloadError }}</p>
-    <p v-if="isLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
+    <LoadingState v-if="isLoading" />
 
     <template v-if="contract">
       <div class="flex flex-col gap-3">

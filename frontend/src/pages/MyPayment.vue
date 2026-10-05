@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Check, Clock, ExternalLink, Loader, Wallet, X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import LoadingState from '@/components/LoadingState.vue'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { fetchMyPayments, fetchPaymentIntent, type MyPaymentsData, type PaymentIntentRow, type PaymentIntentStatus } from '@/lib/my-payments-api'
 import { dateLocaleTag } from '@/lib/format-locale'
@@ -108,7 +109,7 @@ onMounted(async () => {
     </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-    <p v-if="isLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
+    <LoadingState v-if="isLoading" />
 
     <Card
       v-if="returningIntent"

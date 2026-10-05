@@ -23,17 +23,11 @@ defineProps<{ value: unknown; row: { fiscalReceiptUrl: string | null; showReceip
     {{ t('payment.receipt.open') }}
     <ExternalLink class="size-3.5" />
   </a>
-  <!-- Заглушка: реального чека ещё нет (касса не подключена), но кнопка уже на месте —
-       по прямой просьбе 2026-08-25 (реальный PDF отдаст сам ОФД/platformaofd.ru после
-       подключения, свой макет не делаем). -->
-  <button
+  <span
     v-else-if="row.showReceiptButton"
-    type="button"
-    class="flex items-center gap-1 text-primary hover:underline"
-    :title="t('payment.receipt.stubTitle')"
+    class="text-muted-foreground"
   >
-    {{ t('payment.receipt.open') }}
-    <ExternalLink class="size-3.5" />
-  </button>
+    {{ t('payment.receipt.unavailable') }}
+  </span>
   <span v-else class="text-muted-foreground">-</span>
 </template>

@@ -115,7 +115,7 @@ export class AuditLogController {
     return {
       data: data.map((row) => ({
         id: row.id,
-        userFullName: row.user.fullName,
+        userFullName: row.user?.fullName ?? null,
         action: row.action,
         entityType: row.entityType,
         entityId: row.entityId,

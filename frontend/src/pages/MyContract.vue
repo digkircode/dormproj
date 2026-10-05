@@ -18,6 +18,7 @@ import {
   Wallet,
 } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
+import LoadingState from '@/components/LoadingState.vue'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
@@ -324,7 +325,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
     </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-    <p v-if="isLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
+    <LoadingState v-if="isLoading" />
 
     <Card v-if="!isLoading && !loadError && !contract" class="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
       <FileX class="size-8 text-muted-foreground" />

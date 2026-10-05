@@ -833,7 +833,7 @@ export class IndividualsController {
     });
     return rows.map((row) => ({
       id: row.id,
-      userFullName: row.user.fullName,
+      userFullName: row.user?.fullName ?? null,
       action: row.action,
       changes: row.changes,
       createdAt: row.createdAt,

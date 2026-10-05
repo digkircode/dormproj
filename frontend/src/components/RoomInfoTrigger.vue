@@ -5,6 +5,7 @@ import { DoorOpen } from 'lucide-vue-next'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import RoomCharacteristicsGrid from '@/components/RoomCharacteristicsGrid.vue'
+import LoadingState from '@/components/LoadingState.vue'
 import { fetchRoomDetail, type RoomDetail } from '@/lib/rooms-api'
 
 const DIALOG_ANIMATE_CLASS =
@@ -64,7 +65,7 @@ async function openDialog() {
         </DialogTitle>
       </DialogHeader>
       <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-      <p v-if="isLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
+      <LoadingState v-if="isLoading" />
       <!-- Только просмотр — не кликабельная (см. RoomCharacteristicsGrid.vue), без кнопок
            добавления/редактирования/истории: здесь нужна быстрая справка по комнате прямо
            из карточки договора, а не полноценное управление ей. -->

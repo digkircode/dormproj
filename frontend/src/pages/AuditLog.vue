@@ -48,6 +48,7 @@ function cellText(columnId: string, value: unknown): string {
   if (columnId === 'createdAt' && typeof value === 'string') return formatDateTime(value)
   if (columnId === 'action' && typeof value === 'string') return ACTION_LABELS.value[value] ?? value
   if (columnId === 'entityType' && typeof value === 'string') return ENTITY_TYPE_LABELS.value[value] ?? value
+  if (columnId === 'userFullName' && !value) return t('audit.systemUser')
   return String(value ?? '')
 }
 

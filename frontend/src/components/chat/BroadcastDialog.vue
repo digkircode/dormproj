@@ -485,7 +485,8 @@ async function submit() {
             <span class="text-xs text-muted-foreground">{{ t('chat.broadcast.attachHint') }}</span>
           </div>
           <div v-if="pendingFiles.length" class="flex flex-wrap gap-2">
-            <div v-for="file in pendingFiles" :key="keyFor(file)" class="relative" :title="`${file.name} (${formatSize(file.size)})`">
+            <div v-for="file in pendingFiles" :key="keyFor(file)" class="relative">
+              <span class="sr-only">{{ file.name }} ({{ formatSize(file.size) }})</span>
               <img v-if="file.type.startsWith('image/')" :src="previewUrlFor(file)" class="size-16 rounded-md border object-cover" />
               <div v-else class="flex size-16 flex-col items-center justify-center gap-1 rounded-md border bg-muted text-muted-foreground">
                 <FileVideo class="size-5" />

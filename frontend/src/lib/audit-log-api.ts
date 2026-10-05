@@ -9,7 +9,7 @@ export interface AuditLogChange {
 
 export interface AuditLogRow {
   id: number
-  userFullName: string
+  userFullName: string | null
   action: AuditAction
   entityType: string
   entityId: string

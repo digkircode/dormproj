@@ -9,6 +9,7 @@ import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/compon
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import ReportKpiTile from '@/components/ReportKpiTile.vue'
+import LoadingState from '@/components/LoadingState.vue'
 import { fetchOccupancy, type OccupancyReport, type OccupancyRoom } from '@/lib/reports-api'
 import { fetchRoomDetail, type RoomDetail } from '@/lib/rooms-api'
 import { goBack } from '@/lib/utils'
@@ -151,7 +152,7 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
     </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-    <p v-if="isLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
+    <LoadingState v-if="isLoading" />
 
     <template v-else-if="report">
       <Card class="grid grid-cols-4 gap-4 p-4">
@@ -194,21 +195,24 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
           </TabsList>
         </Tabs>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger as-child>
-            <Button variant="outline" size="icon" :title="t('reports.occupancy.filterTooltip')">
-              <ListFilter class="text-primary" />
-              <span class="sr-only">{{ t('reports.occupancy.filterTooltip') }}</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" class="w-48">
-            <DropdownMenuRadioGroup v-model="occupancyFilter">
-              <DropdownMenuRadioItem value="all">{{ t('reports.occupancy.filterAll') }}</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="free">{{ t('reports.occupancy.filterFree') }}</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="occupied">{{ t('reports.occupancy.filterOccupied') }}</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div class="group relative">
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button variant="outline" size="icon">
+                <ListFilter class="text-primary" />
+                <span class="sr-only">{{ t('reports.occupancy.filterTooltip') }}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" class="w-48">
+              <DropdownMenuRadioGroup v-model="occupancyFilter">
+                <DropdownMenuRadioItem value="all">{{ t('reports.occupancy.filterAll') }}</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="free">{{ t('reports.occupancy.filterFree') }}</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="occupied">{{ t('reports.occupancy.filterOccupied') }}</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <span aria-hidden="true" class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100">{{ t('reports.occupancy.filterTooltip') }}</span>
+        </div>
       </div>
 
       <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
@@ -280,7 +284,7 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
               {{ t('reports.occupancy.characteristics') }}
             </div>
             <p v-if="roomDetailError" class="text-sm text-red-500">{{ roomDetailError }}</p>
-            <p v-else-if="roomDetailLoading" class="text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
+            <LoadingState v-else-if="roomDetailLoading" />
             <!-- Та же сетка характеристик и тот же приём линий, что в RoomDetailPanel.vue/
                  RoomInfoTrigger.vue (вертикальный разделитель по чётности индекса,
                  горизонтальный — border-t от второй строки). Нечётное количество —

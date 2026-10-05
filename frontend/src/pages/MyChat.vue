@@ -6,6 +6,7 @@ import { ArrowLeft, Clock, DoorClosed, FileText } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import ChatThread from '@/components/chat/ChatThread.vue'
+import LoadingState from '@/components/LoadingState.vue'
 import { useChatStream, type ChatStreamEvent } from '@/lib/chat-stream'
 import { hasUnreadResidentChat, residentUnreadCount } from '@/lib/chat-unread-state'
 import { appendNewMessages, prependOlderMessages } from '@/lib/chat-message-list'
@@ -118,7 +119,7 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisible))
       <h1 class="text-lg font-medium">{{ t('chat.resident.title') }}</h1>
     </div>
     <Card class="flex min-h-0 flex-1 flex-col overflow-hidden py-0">
-      <p v-if="isLoading" class="m-auto text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
+      <LoadingState v-if="isLoading" class="m-auto" />
       <p v-else-if="loadError" class="m-auto max-w-md text-center text-sm text-red-500">{{ loadError }}</p>
       <template v-else>
         <!-- Та же строка/ширина, что в шапке диалога у сотрудника (Chats.vue) — плюс

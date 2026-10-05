@@ -23,6 +23,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Dialog,
   DialogDescription,
@@ -431,7 +432,7 @@ defineExpose({ refresh: loadPage })
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-1 flex-col gap-4">
+  <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
     <p v-if="errorText" class="text-sm text-red-500">{{ errorText }}</p>
 
     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -568,7 +569,7 @@ defineExpose({ refresh: loadPage })
     <Card class="flex h-[60vh] min-w-0 flex-col gap-0 py-0 md:h-auto md:min-h-0 md:flex-1">
       <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
         <div class="flex min-h-0 flex-1 flex-col transition-opacity" :class="{ 'opacity-60': isLoading }">
-          <Table class="table-fixed" :style="columnSizeVars">
+          <Table class="table-fixed" scroll-class="overflow-x-hidden" :style="columnSizeVars">
             <!-- table-layout: fixed по спецификации должен брать ширины колонок из первой
                  строки, но во время загрузки тело — один <td colspan> без индивидуальных
                  ширин, и часть браузеров в этот момент пересчитывает ширины иначе, чем когда
@@ -684,7 +685,12 @@ defineExpose({ refresh: loadPage })
                   :colspan="columns.length + (selectable ? 1 : 0) + (rowAction ? 1 : 0)"
                   class="h-24 text-center text-muted-foreground"
                 >
-                  {{ isLoading ? t('entityTable.loading') : t('entityTable.nothingFound') }}
+                  <div v-if="isLoading" class="flex flex-col items-center gap-3" role="status" :aria-label="t('entityTable.loading')">
+                    <Skeleton class="h-3 w-2/3 max-w-64" />
+                    <Skeleton class="h-3 w-1/2 max-w-48" />
+                    <span class="sr-only">{{ t('entityTable.loading') }}</span>
+                  </div>
+                  <template v-else>{{ t('entityTable.nothingFound') }}</template>
                 </TableCell>
               </TableRow>
             </TableBody>

@@ -21,6 +21,7 @@ import {
   ArrowLeft,
 } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
+import LoadingState from '@/components/LoadingState.vue'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -309,7 +310,7 @@ onMounted(async () => {
                 {{ t('student.cost.heading') }}
               </div>
               <p v-if="hostelInfoError" class="mt-3 text-sm text-red-500">{{ hostelInfoError }}</p>
-              <p v-else-if="isHostelInfoLoading" class="mt-3 text-sm text-muted-foreground">{{ t('entityTable.loading') }}</p>
+              <LoadingState v-else-if="isHostelInfoLoading" class="mt-3" />
               <!-- Разбивка по центру (2026-08-27, по прямой просьбе) — было label слева/
                    цена справа в одну строку, стало карточками label сверху/цена крупно
                    снизу, выровненными по центру колонки, а не растянутыми на всю ширину. -->

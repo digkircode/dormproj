@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { Prisma } from '../../generated/prisma/client.js';
+import { Prisma, type ContractStatus } from '../../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { computePenaltyBalance } from './penalty-balance';
 import { dateOnly } from './period-utils';
 
@@ -21,7 +22,25 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 export class ContractStatusScheduler {
   private readonly logger = new Logger(ContractStatusScheduler.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly auditLog: AuditLogService) {}
+
+  private async transition(contract: { id: number; number: string; status: ContractStatus }, status: 'EXPIRING' | 'OVERDUE' | 'COMPLETED'): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const result = await tx.contract.updateMany({ where: { id: contract.id, status: contract.status }, data: { status } });
+      if (!result.count) return false;
+      await this.auditLog.log(tx, {
+        userId: null,
+        action: 'UPDATE',
+        entityType: 'Contract',
+        entityId: contract.id,
+        entityLabel: contract.number,
+        before: { status: contract.status },
+        after: { status },
+        fields: ['status'],
+      });
+      return true;
+    });
+  }
 
   // Между синком 1С (01:00) и начислением пени (02:00, см. billing/penalty.scheduler.ts) —
   // сам расчёт пени от статуса договора не зависит, порядок не критичен, просто держим
@@ -57,16 +76,16 @@ export class ContractStatusScheduler {
         const { penaltyBalance } = computePenaltyBalance({ asOf: today, penaltyLogs: contract.penaltyLogs, payments: contract.payments });
         const nextStatus = principalDebt.plus(penaltyBalance).greaterThan(0) ? 'OVERDUE' : 'COMPLETED';
         if (contract.status !== nextStatus) {
-          await this.prisma.contract.update({ where: { id: contract.id }, data: { status: nextStatus } });
-          if (nextStatus === 'OVERDUE') toOverdue++;
-          else toCompleted++;
+          if (await this.transition(contract, nextStatus)) {
+            if (nextStatus === 'OVERDUE') toOverdue++;
+            else toCompleted++;
+          }
         }
         continue;
       }
 
       if (contract.status === 'ACTIVE' && contract.endDate <= expiringThreshold) {
-        await this.prisma.contract.update({ where: { id: contract.id }, data: { status: 'EXPIRING' } });
-        toExpiring++;
+        if (await this.transition(contract, 'EXPIRING')) toExpiring++;
       }
     }
 

@@ -9,6 +9,7 @@ import { goBack } from '@/lib/utils'
 import ConversationList from '@/components/chat/ConversationList.vue'
 import ChatThread from '@/components/chat/ChatThread.vue'
 import BroadcastDialog from '@/components/chat/BroadcastDialog.vue'
+import LoadingState from '@/components/LoadingState.vue'
 import { useChatStream, type ChatStreamEvent } from '@/lib/chat-stream'
 import { hasUnreadStaffChats } from '@/lib/chat-unread-state'
 import { appendNewMessages, prependOlderMessages } from '@/lib/chat-message-list'
@@ -216,7 +217,8 @@ onMounted(loadConversations)
           :on-send="onSend"
         />
         <p v-else-if="conversationError" class="m-auto p-4 text-sm text-destructive">{{ conversationError }}</p>
-        <p v-else class="m-auto text-sm text-muted-foreground">{{ selectedId ? t('entityTable.loading') : t('chat.selectDialogHint') }}</p>
+        <LoadingState v-else-if="selectedId" class="m-auto" />
+        <p v-else class="m-auto text-sm text-muted-foreground">{{ t('chat.selectDialogHint') }}</p>
       </div>
     </Card>
 
