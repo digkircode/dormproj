@@ -165,6 +165,16 @@ export class PaymentImportsController {
     const paidAt = candidate.paidAt ?? record.importedAt;
 
     const result = await this.prisma.$transaction(async (tx) => {
+      // Захватываем запись внутри транзакции до создания Payment: при двух
+      // одновременных подтверждениях только один запрос сможет сменить статус.
+      const claimed = await tx.paymentImportRecord.updateMany({
+        where: { id, status: 'NEEDS_REVIEW' },
+        data: { status: 'MATCHED' },
+      });
+      if (claimed.count === 0) {
+        throw new BadRequestException('paymentImports.errors.alreadyReviewed');
+      }
+
       const userId = await ensureUserRecord(tx, req.user!);
       const payment = await tx.payment.create({
         data: {

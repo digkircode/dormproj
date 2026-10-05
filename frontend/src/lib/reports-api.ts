@@ -224,17 +224,17 @@ export function exportContingentExcel(asOf: string): Promise<void> {
 }
 
 // --- Реестр договоров ---
-export function fetchContractsRegistryPage(options: ListOptions, signal?: AbortSignal): Promise<ListPage<ContractRegistryRow>> {
-  return fetchListPage<ContractRegistryRow>('/reports/contracts-registry', options, undefined, signal)
+export function fetchContractsRegistryPage(options: ListOptions, asOf?: string, signal?: AbortSignal): Promise<ListPage<ContractRegistryRow>> {
+  return fetchListPage<ContractRegistryRow>('/reports/contracts-registry', options, asOf ? { asOf } : undefined, signal)
 }
 export function fetchContractsRegistryFacets(field: string): Promise<FacetOption[]> {
   return fetchListFacets('/reports/contracts-registry', field)
 }
-export function fetchContractsRegistrySummary(): Promise<ContractsRegistrySummary> {
-  return getJson('/reports/contracts-registry/summary')
+export function fetchContractsRegistrySummary(asOf?: string): Promise<ContractsRegistrySummary> {
+  return getJson(`/reports/contracts-registry/summary${asOf ? `?asOf=${asOf}` : ''}`)
 }
-export function exportContractsRegistryExcel(): Promise<void> {
-  return downloadFile('/reports/contracts-registry/export', 'Реестр договоров.xlsx')
+export function exportContractsRegistryExcel(asOf?: string): Promise<void> {
+  return downloadFile(`/reports/contracts-registry/export${asOf ? `?asOf=${asOf}` : ''}`, asOf ? `Реестр договоров на ${asOf}.xlsx` : 'Реестр договоров.xlsx')
 }
 
 // --- Заселение / выселение ---

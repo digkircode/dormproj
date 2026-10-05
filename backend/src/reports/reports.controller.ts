@@ -16,6 +16,7 @@ import { roomAssignmentAtDate } from './room-assignment-at-date';
 import { CONTRACT_STATUS_LABELS } from '../contracts/contract-display-status';
 import { currentResidentAssignments } from '../contracts/resident-assignments';
 import { buildMovementEvents, type MovementEvent, type MovementOperationType } from './movement-events';
+import { contractRegistryStatusAtDate } from './contract-registry-status';
 
 const { Decimal } = Prisma;
 
@@ -570,12 +571,13 @@ export class ReportsController {
   }
 
   // ===== Отчёт "Реестр договоров" =====
-  // bucket — реальный ContractStatus (с 2026-08-31, переходы считает
-  // billing/contract-status.scheduler.ts), не вычисляемая на лету классификация — раньше
-  // тут была date-math копия того же порога, что и на фронте/в Финансовом отчёте.
-  // daysUntilEnd остаётся своим отдельным информационным полем (справочная колонка),
-  // от него больше ничего не зависит.
+  // Сегодня показываем сохранённый ContractStatus. Для прошлой даты восстанавливаем
+  // статус по сроку договора и долгу на эту дату тем же расчётом, что в финансовом отчёте.
+  // daysUntilEnd остаётся отдельной справочной колонкой.
   private async buildContractRegistryRows(asOf: Date): Promise<ContractRegistryRow[]> {
+    const historicalBalances = asOf < dateOnly(new Date())
+      ? new Map((await buildDebtorRows(this.prisma, asOf)).map((row) => [row.contractId, row.totalBalance]))
+      : null;
     const contracts = await this.prisma.contract.findMany({
       include: {
         resident: { select: { fullName: true } },
@@ -586,7 +588,10 @@ export class ReportsController {
     const MS_PER_DAY = 24 * 60 * 60 * 1000;
     return contracts.map((c) => {
       const daysUntilEnd = Math.round((c.endDate.getTime() - asOf.getTime()) / MS_PER_DAY);
-      const bucket: ContractRegistryBucket = c.status;
+      const balance = historicalBalances?.get(c.id);
+      const bucket: ContractRegistryBucket = balance === undefined
+        ? c.status
+        : contractRegistryStatusAtDate(c, asOf, balance);
 
       return {
         contractId: c.id,

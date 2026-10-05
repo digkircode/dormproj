@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { AlertTriangle, ArrowLeft, CircleCheck, CircleX, Clock, Download } from 'lucide-vue-next'
@@ -11,6 +11,7 @@ import ContractLinkCell from '@/components/ContractLinkCell.vue'
 import ResidentLinkCell from '@/components/ResidentLinkCell.vue'
 import ContractRegistryStatusCell from '@/components/ContractRegistryStatusCell.vue'
 import ReportKpiTile from '@/components/ReportKpiTile.vue'
+import DatePickerField from '@/components/DatePickerField.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import {
   fetchContractsRegistryPage,
@@ -19,8 +20,10 @@ import {
   exportContractsRegistryExcel,
   type ContractRegistryRow,
   type ContractsRegistrySummary,
+  type ListOptions,
 } from '@/lib/reports-api'
 import { goBack } from '@/lib/utils'
+import { todayIso } from '@/lib/format-locale'
 
 const router = useRouter()
 const route = useRoute()
@@ -73,10 +76,25 @@ const columns = computed(() =>
   ]),
 )
 
+const asOf = ref(todayIso())
+const entityTable = ref<{ refresh: () => void } | null>(null)
+function fetchPage(options: ListOptions, signal?: AbortSignal) {
+  return fetchContractsRegistryPage(options, asOf.value, signal)
+}
+
 const summary = ref<ContractsRegistrySummary | null>(null)
-onMounted(async () => {
-  summary.value = await fetchContractsRegistrySummary()
+let summaryRequest = 0
+async function loadSummary() {
+  const request = ++summaryRequest
+  const result = await fetchContractsRegistrySummary(asOf.value)
+  if (request === summaryRequest) summary.value = result
+}
+watch(asOf, () => {
+  summary.value = null
+  void loadSummary()
+  entityTable.value?.refresh()
 })
+onMounted(loadSummary)
 
 const isExporting = ref(false)
 const exportError = ref('')
@@ -84,7 +102,7 @@ async function onExport() {
   exportError.value = ''
   isExporting.value = true
   try {
-    await exportContractsRegistryExcel()
+    await exportContractsRegistryExcel(asOf.value)
   } catch (error) {
     exportError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -134,12 +152,18 @@ async function onExport() {
       />
     </Card>
 
+    <div class="flex items-center gap-2">
+      <span class="text-sm text-muted-foreground">{{ t('reports.common.asOf') }}</span>
+      <DatePickerField v-model="asOf" />
+    </div>
+
     <EntityTable
+      ref="entityTable"
       :columns="columns"
       :column-labels="columnLabels"
       :filterable-fields="filterableFields"
       :default-sort="{ id: 'endDate', desc: false }"
-      :fetch-page="fetchContractsRegistryPage"
+      :fetch-page="fetchPage"
       :fetch-facet-values="fetchContractsRegistryFacets"
       :get-row-id="(c: ContractRegistryRow) => String(c.contractId)"
       :total-label="t('reports.common.totalContracts')"
