@@ -18,8 +18,8 @@ const props = defineProps<{
 </script>
 
 <template>
-  <div :class="cn('relative min-h-0 min-w-0 w-full flex-1 overflow-auto', props.scrollClass)">
-    <table v-bind="$attrs" :class="cn('w-full caption-bottom text-sm', props.class)">
+  <div :class="cn('relative min-h-0 min-w-0 w-full flex-1 overflow-auto [scrollbar-gutter:stable]', props.scrollClass)">
+    <table v-bind="$attrs" :class="cn('data-reveal w-full caption-bottom text-sm', props.class)">
       <slot />
     </table>
   </div>

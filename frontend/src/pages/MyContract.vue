@@ -325,7 +325,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
     </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-    <LoadingState v-if="isLoading" />
+    <LoadingState v-if="isLoading" class="min-h-[60vh]" />
 
     <Card v-if="!isLoading && !loadError && !contract" class="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
       <FileX class="size-8 text-muted-foreground" />
@@ -338,7 +338,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
     <template v-if="contract">
       <!-- opacity/transition — та же смена договора, что и переключатель выше, но резче
            бросается в глаза именно тут (весь блок цифр), поэтому приглушаем отдельно. -->
-      <div class="flex flex-1 flex-col gap-4 transition-opacity duration-200 md:min-h-0" :class="isSwitching ? 'opacity-50' : ''">
+      <div class="data-reveal flex flex-1 flex-col gap-4 transition-opacity duration-200 md:min-h-0" :class="isSwitching ? 'opacity-50' : ''">
       <Card class="flex flex-col gap-4 p-4">
         <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           <span v-if="contract.currentRoom" class="flex items-center gap-1.5">

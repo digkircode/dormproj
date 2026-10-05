@@ -136,3 +136,16 @@
     @apply font-sans;
     }
 }
+
+@keyframes data-reveal {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.data-reveal {
+  animation: data-reveal 240ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .data-reveal { animation: none; }
+}

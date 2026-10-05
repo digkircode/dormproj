@@ -65,7 +65,7 @@ async function openDialog() {
         </DialogTitle>
       </DialogHeader>
       <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-      <LoadingState v-if="isLoading" />
+      <LoadingState v-if="isLoading" class="min-h-40" />
       <!-- Только просмотр — не кликабельная (см. RoomCharacteristicsGrid.vue), без кнопок
            добавления/редактирования/истории: здесь нужна быстрая справка по комнате прямо
            из карточки договора, а не полноценное управление ей. -->

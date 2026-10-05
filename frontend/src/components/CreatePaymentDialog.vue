@@ -200,7 +200,7 @@ async function submit() {
       </DialogHeader>
 
       <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-      <LoadingState v-if="isLoading" />
+      <LoadingState v-if="isLoading" class="min-h-64" />
 
       <div v-if="!isLoading && !loadError && data?.contract" class="flex flex-col gap-5 transition-opacity duration-200" :class="isSwitching ? 'opacity-50' : ''">
         <div class="flex flex-col gap-2 rounded-lg border bg-muted/30 p-3">

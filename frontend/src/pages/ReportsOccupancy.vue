@@ -152,10 +152,10 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
     </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-    <LoadingState v-if="isLoading" />
+    <LoadingState v-if="isLoading" class="min-h-[60vh]" />
 
     <template v-else-if="report">
-      <Card class="grid grid-cols-4 gap-4 p-4">
+      <Card class="data-reveal grid grid-cols-4 gap-4 p-4">
         <ReportKpiTile
           :icon="Home"
           bg-class="bg-blue-100 dark:bg-blue-500/15"

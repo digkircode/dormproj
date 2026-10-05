@@ -19,6 +19,7 @@ import {
   TriangleAlert,
 } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
+import LoadingState from '@/components/LoadingState.vue'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -289,7 +290,7 @@ onUnmounted(() => {
       <h1 class="text-lg font-medium">{{ t('individuals.detail.title') }}</h1>
     </div>
 
-    <p v-if="isLoading" class="text-sm text-muted-foreground">{{ t('individuals.detail.loading') }}</p>
+    <LoadingState v-if="isLoading" class="min-h-[60vh]" />
     <p v-else-if="notFound" class="text-sm text-red-500">{{ t('individuals.detail.notFound') }}</p>
 
     <template v-else-if="detail">
@@ -343,7 +344,7 @@ onUnmounted(() => {
            (не отдельные Card рядом) — по просьбе пользователя: слева личность+кнопки,
            посередине атрибуты физлица, справа — контактная информация (без даты,
            та осталась только у документов/обучения). -->
-      <Card class="flex flex-col divide-y divide-border p-6 lg:flex-row lg:divide-x lg:divide-y-0">
+      <Card class="data-reveal flex flex-col divide-y divide-border p-6 lg:flex-row lg:divide-x lg:divide-y-0">
         <div class="flex flex-col gap-4 pb-4 lg:w-96 lg:shrink-0 lg:pb-0 lg:pr-6">
           <!-- items-center для ручных физлиц — у них под ФИО нет строк копирования
                uid/кода (см. v-if ниже), значение единственное в колонке, и ФИО должно
@@ -503,7 +504,7 @@ onUnmounted(() => {
            внутрь Card рядом с вкладками — тот же размер шрифта, что у ФИО (text-lg). -->
       <div class="text-lg font-medium">{{ t('individuals.detail.documentsTitle') }}</div>
 
-      <Card class="p-6">
+      <Card class="data-reveal p-6">
         <Tabs default-value="latest">
           <TabsList>
             <TabsTrigger value="latest">{{ t('individuals.detail.tabLatest') }}</TabsTrigger>
@@ -525,7 +526,7 @@ onUnmounted(() => {
 
       <div class="text-lg font-medium">{{ t('individuals.detail.educationTitle') }}</div>
 
-      <Card class="p-6">
+      <Card class="data-reveal p-6">
         <p v-if="!detail.students.length" class="text-sm text-muted-foreground">{{ t('individuals.detail.noData') }}</p>
 
         <!-- Вкладка с номером зачётки — всегда, даже если зачётка одна, а не StudentFields

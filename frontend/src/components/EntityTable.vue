@@ -466,7 +466,7 @@ defineExpose({ refresh: loadPage })
               <div v-else class="px-2 py-1.5 text-sm text-muted-foreground">{{ t('entityTable.allFieldsAdded') }}</div>
             </DropdownMenuContent>
           </DropdownMenu>
-          <span aria-hidden="true" class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100">{{ t('entityTable.addFilter') }}</span>
+          <span aria-hidden="true" class="pointer-events-none absolute right-0 bottom-full z-50 mb-1 whitespace-nowrap rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100">{{ t('entityTable.addFilter') }}</span>
         </div>
 
         <div class="group relative">
@@ -488,7 +488,7 @@ defineExpose({ refresh: loadPage })
               </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <span aria-hidden="true" class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100">{{ t('entityTable.tableSettings') }}</span>
+          <span aria-hidden="true" class="pointer-events-none absolute right-0 bottom-full z-50 mb-1 whitespace-nowrap rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100">{{ t('entityTable.tableSettings') }}</span>
         </div>
       </div>
     </div>
@@ -570,6 +570,7 @@ defineExpose({ refresh: loadPage })
       <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
         <div class="flex min-h-0 flex-1 flex-col transition-opacity" :class="{ 'opacity-60': isLoading }">
           <Table class="table-fixed" scroll-class="overflow-x-hidden" :style="columnSizeVars">
+            <caption v-if="isLoading" class="sr-only">{{ t('entityTable.loading') }}</caption>
             <!-- table-layout: fixed по спецификации должен брать ширины колонок из первой
                  строки, но во время загрузки тело — один <td colspan> без индивидуальных
                  ширин, и часть браузеров в этот момент пересчитывает ширины иначе, чем когда
@@ -637,9 +638,9 @@ defineExpose({ refresh: loadPage })
                 <TableHead v-if="rowAction" :style="{ width: 'var(--col-row-action-size)' }" />
               </TableRow>
             </TableHeader>
-            <TableBody>
+            <TableBody :aria-busy="isLoading">
               <template v-if="table.getRowModel().rows.length">
-                <TableRow v-for="row in table.getRowModel().rows" :key="row.id">
+                <TableRow v-for="row in table.getRowModel().rows" :key="row.id" class="data-reveal">
                   <TableCell v-if="selectable" class="py-2 pr-2 pl-3 text-center" :style="{ width: 'var(--col-select-size)' }">
                     <Checkbox
                       :model-value="isRowSelected(row.original)"
@@ -680,17 +681,21 @@ defineExpose({ refresh: loadPage })
                   </TableCell>
                 </TableRow>
               </template>
+              <template v-else-if="isLoading">
+                <TableRow v-for="skeletonRow in 10" :key="`loading-${skeletonRow}`" aria-hidden="true">
+                  <TableCell v-if="selectable" class="py-2 pr-2 pl-3"><Skeleton class="mx-auto size-4" /></TableCell>
+                  <TableCell v-for="header in table.getFlatHeaders()" :key="header.id">
+                    <Skeleton class="h-4 w-3/4" />
+                  </TableCell>
+                  <TableCell v-if="rowAction" class="py-2"><Skeleton class="mx-auto size-4" /></TableCell>
+                </TableRow>
+              </template>
               <TableRow v-else>
                 <TableCell
                   :colspan="columns.length + (selectable ? 1 : 0) + (rowAction ? 1 : 0)"
                   class="h-24 text-center text-muted-foreground"
                 >
-                  <div v-if="isLoading" class="flex flex-col items-center gap-3" role="status" :aria-label="t('entityTable.loading')">
-                    <Skeleton class="h-3 w-2/3 max-w-64" />
-                    <Skeleton class="h-3 w-1/2 max-w-48" />
-                    <span class="sr-only">{{ t('entityTable.loading') }}</span>
-                  </div>
-                  <template v-else>{{ t('entityTable.nothingFound') }}</template>
+                  {{ t('entityTable.nothingFound') }}
                 </TableCell>
               </TableRow>
             </TableBody>

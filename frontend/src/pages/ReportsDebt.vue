@@ -303,7 +303,7 @@ async function onExport() {
         </DialogHeader>
 
         <p v-if="breakdownError" class="text-sm text-red-500">{{ breakdownError }}</p>
-        <LoadingState v-if="breakdownLoading" />
+        <LoadingState v-if="breakdownLoading" class="min-h-56" />
 
         <div v-if="breakdown" class="flex flex-col gap-3">
           <div class="overflow-hidden rounded-md border">
@@ -379,7 +379,7 @@ async function onExport() {
         </DialogHeader>
 
         <p v-if="penaltyLogError" class="text-sm text-red-500">{{ penaltyLogError }}</p>
-        <LoadingState v-if="penaltyLogLoading" />
+        <LoadingState v-if="penaltyLogLoading" class="min-h-56" />
 
         <div v-if="penaltyLog" class="flex flex-col gap-3">
           <!-- Максимум ~12 строк видно сразу, дальше — свой скролл (не растягивает

@@ -75,7 +75,7 @@ function goToLogin() {
            которым не нужен собственный внутренний скролл (списки с пагинацией и т.п.), это
            выглядит как раньше. Страницы вроде Rooms.vue сами заполняют это место (h-full)
            и внутри управляют скроллом по блокам — тогда здесь скроллить нечему. -->
-      <div class="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]">
         <RouterView />
         <AppFooter />
       </div>

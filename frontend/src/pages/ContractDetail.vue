@@ -354,10 +354,10 @@ async function confirmReversePayment() {
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
     <p v-if="downloadError" class="text-sm text-red-500">{{ downloadError }}</p>
-    <LoadingState v-if="isLoading" />
+    <LoadingState v-if="isLoading" class="min-h-[60vh]" />
 
     <template v-if="contract">
-      <div class="flex flex-col gap-3">
+      <div class="data-reveal flex flex-col gap-3">
         <Card class="flex flex-col gap-4 p-4">
           <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
             <RouterLink

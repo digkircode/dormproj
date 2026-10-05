@@ -109,7 +109,7 @@ onMounted(async () => {
     </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-    <LoadingState v-if="isLoading" />
+    <LoadingState v-if="isLoading" class="min-h-[60vh]" />
 
     <Card
       v-if="returningIntent"
@@ -135,7 +135,7 @@ onMounted(async () => {
 
     <!-- h-[60vh] на мобильном — см. EntityTable.vue: явная гарантированная высота вместо
          хрупкой пропагации min-h-0 через цепочку flex-родителей. -->
-    <Card v-if="data?.contract" class="flex h-[60vh] flex-col gap-0 overflow-hidden py-0 md:h-auto md:min-h-0 md:flex-1">
+    <Card v-if="data?.contract" class="data-reveal flex h-[60vh] flex-col gap-0 overflow-hidden py-0 md:h-auto md:min-h-0 md:flex-1">
       <p class="flex shrink-0 items-center gap-1.5 border-b p-4 text-sm font-medium">
         <Wallet class="size-4 text-primary" />
         {{ t('payment.myPayment.paymentHistory') }}

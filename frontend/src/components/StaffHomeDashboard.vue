@@ -194,9 +194,9 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
           <DoorOpen class="size-4 shrink-0 text-blue-600 dark:text-blue-400" />
           {{ t('home.kpiRooms') }}
         </div>
-        <div v-if="sourceState.occupancy === 'loading'" class="mt-2 h-8 w-28 animate-pulse rounded bg-muted motion-reduce:animate-none" aria-hidden="true" />
-        <p v-else-if="sourceState.occupancy === 'error'" class="mt-1 text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
-        <p v-else class="mt-1 text-2xl font-semibold tabular-nums">{{ t('home.kpiRoomsValue', { occupied: occupancy!.occupied, total: occupancy!.totalPlaces }) }}</p>
+        <div v-if="sourceState.occupancy === 'loading'" class="mt-1 h-8 w-28 animate-pulse rounded bg-muted motion-reduce:animate-none" aria-hidden="true" />
+        <p v-else-if="sourceState.occupancy === 'error'" class="mt-1 flex min-h-8 items-center text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
+        <p v-else class="data-reveal mt-1 min-h-8 text-2xl font-semibold tabular-nums">{{ t('home.kpiRoomsValue', { occupied: occupancy!.occupied, total: occupancy!.totalPlaces }) }}</p>
       </RouterLink>
 
       <RouterLink
@@ -207,9 +207,9 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
           <AlertTriangle class="size-4 shrink-0 text-red-600 dark:text-red-400" />
           {{ t('home.kpiDebtors') }}
         </div>
-        <div v-if="sourceState.debtSummary === 'loading'" class="mt-2 h-8 w-20 animate-pulse rounded bg-muted motion-reduce:animate-none" aria-hidden="true" />
-        <p v-else-if="sourceState.debtSummary === 'error'" class="mt-1 text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
-        <p v-else class="mt-1 text-2xl font-semibold tabular-nums">{{ debtorsSummary!.debtorsCount }}</p>
+        <div v-if="sourceState.debtSummary === 'loading'" class="mt-1 h-8 w-20 animate-pulse rounded bg-muted motion-reduce:animate-none" aria-hidden="true" />
+        <p v-else-if="sourceState.debtSummary === 'error'" class="mt-1 flex min-h-8 items-center text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
+        <p v-else class="data-reveal mt-1 min-h-8 text-2xl font-semibold tabular-nums">{{ debtorsSummary!.debtorsCount }}</p>
         <p class="min-h-4 text-xs text-muted-foreground">{{ sourceState.debtSummary === 'success' ? formatMoney(debtorsSummary!.totalDebt) : '' }}</p>
       </RouterLink>
 
@@ -221,9 +221,9 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
           <CalendarX class="size-4 shrink-0 text-rose-600 dark:text-rose-400" />
           {{ t('home.kpiOverdue') }}
         </div>
-        <div v-if="sourceState.contractsSummary === 'loading'" class="mt-2 h-8 w-20 animate-pulse rounded bg-muted motion-reduce:animate-none" aria-hidden="true" />
-        <p v-else-if="sourceState.contractsSummary === 'error'" class="mt-1 text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
-        <p v-else class="mt-1 text-2xl font-semibold tabular-nums">{{ contractsSummary!.overdue }}</p>
+        <div v-if="sourceState.contractsSummary === 'loading'" class="mt-1 h-8 w-20 animate-pulse rounded bg-muted motion-reduce:animate-none" aria-hidden="true" />
+        <p v-else-if="sourceState.contractsSummary === 'error'" class="mt-1 flex min-h-8 items-center text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
+        <p v-else class="data-reveal mt-1 min-h-8 text-2xl font-semibold tabular-nums">{{ contractsSummary!.overdue }}</p>
       </RouterLink>
 
       <RouterLink
@@ -234,9 +234,9 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
           <Clock class="size-4 shrink-0 text-orange-600 dark:text-orange-400" />
           {{ t('home.kpiExpiring') }}
         </div>
-        <div v-if="sourceState.contractsSummary === 'loading'" class="mt-2 h-8 w-20 animate-pulse rounded bg-muted motion-reduce:animate-none" aria-hidden="true" />
-        <p v-else-if="sourceState.contractsSummary === 'error'" class="mt-1 text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
-        <p v-else class="mt-1 text-2xl font-semibold tabular-nums">{{ contractsSummary!.expiring30 }}</p>
+        <div v-if="sourceState.contractsSummary === 'loading'" class="mt-1 h-8 w-20 animate-pulse rounded bg-muted motion-reduce:animate-none" aria-hidden="true" />
+        <p v-else-if="sourceState.contractsSummary === 'error'" class="mt-1 flex min-h-8 items-center text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
+        <p v-else class="data-reveal mt-1 min-h-8 text-2xl font-semibold tabular-nums">{{ contractsSummary!.expiring30 }}</p>
       </RouterLink>
 
       <RouterLink
@@ -247,9 +247,9 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
           <MessageCircle class="size-4 shrink-0 text-violet-600 dark:text-violet-400" />
           {{ t('home.kpiUnread') }}
         </div>
-        <div v-if="sourceState.conversations === 'loading'" class="mt-2 h-8 w-20 animate-pulse rounded bg-muted motion-reduce:animate-none" aria-hidden="true" />
-        <p v-else-if="sourceState.conversations === 'error'" class="mt-1 text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
-        <p v-else class="mt-1 text-2xl font-semibold tabular-nums">{{ unreadChatsCount }}</p>
+        <div v-if="sourceState.conversations === 'loading'" class="mt-1 h-8 w-20 animate-pulse rounded bg-muted motion-reduce:animate-none" aria-hidden="true" />
+        <p v-else-if="sourceState.conversations === 'error'" class="mt-1 flex min-h-8 items-center text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
+        <p v-else class="data-reveal mt-1 min-h-8 text-2xl font-semibold tabular-nums">{{ unreadChatsCount }}</p>
       </RouterLink>
     </div>
 
@@ -277,7 +277,7 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
          (было друг под другом), тот же grid-паттерн, что у пар карточек на
          ResidentHomeDashboard.vue (Мой договор/Оплата, Чат/Контакты). -->
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Card class="p-4">
+      <Card class="h-64 min-w-0 overflow-x-hidden overflow-y-auto p-4 [scrollbar-gutter:stable]">
         <div class="mb-3 flex items-center gap-1.5 text-sm font-medium">
           <AlertTriangle class="size-4 text-primary" />
           {{ t('home.attentionTitle') }}
@@ -285,7 +285,7 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
         <div v-if="attentionLoading" class="space-y-3" aria-hidden="true"><div v-for="n in 3" :key="n" class="h-10 animate-pulse rounded bg-muted motion-reduce:animate-none" /></div>
         <p v-else-if="!attentionRows.length && attentionIncomplete" class="text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
         <p v-else-if="!attentionRows.length" class="text-sm text-muted-foreground">{{ t('home.attentionEmpty') }}</p>
-        <div v-else class="flex flex-col divide-y divide-border">
+        <div v-else class="data-reveal flex flex-col divide-y divide-border">
           <RouterLink
             v-for="row in attentionRows"
             :key="row.key"
@@ -306,7 +306,7 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
            хэшу id (iconBadgeColorClasses, тот же приём, что у аватарок в чате), не путать с
            фиксированной фиолетовой иконкой на резидентской карточке (ResidentHomeDashboard.vue) —
            там весь БЛОК один, тут список из МНОГИХ объявлений. -->
-      <Card class="p-4">
+      <Card class="h-64 min-w-0 overflow-x-hidden overflow-y-auto p-4 [scrollbar-gutter:stable]">
         <div class="mb-3 flex items-center gap-1.5 text-sm font-medium">
           <Megaphone class="size-4 text-primary" />
           {{ t('home.staffAnnouncementsTitle') }}
@@ -314,7 +314,7 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
         <div v-if="announcementsState === 'loading'" class="space-y-3" aria-hidden="true"><div v-for="n in 3" :key="n" class="h-10 animate-pulse rounded bg-muted motion-reduce:animate-none" /></div>
         <p v-else-if="announcementsState === 'error'" class="text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
         <p v-else-if="!announcements.length" class="text-sm text-muted-foreground">{{ t('home.staffAnnouncementsEmpty') }}</p>
-        <div v-else class="flex flex-col divide-y divide-border">
+        <div v-else class="data-reveal flex flex-col divide-y divide-border">
           <!-- pb-6 + relative — освобождает место под ФИО/дату, притянутые в правый нижний
                угол абсолютным позиционированием (по прямой просьбе 2026-08-30, было третьей
                строкой в текстовом столбце). Кебаб-меню остаётся в потоке (верх строки), с
