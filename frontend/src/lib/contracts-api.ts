@@ -14,6 +14,7 @@ export interface ContractListItem {
   startDate: string
   endDate: string
   actualEndDate: string | null
+  residentIndividualUid: string
   residentFullName: string
   room: string | null
   roomId: number | null

@@ -12,6 +12,7 @@ import ResidentLinkCell from '@/components/ResidentLinkCell.vue'
 import MovementOperationCell from '@/components/MovementOperationCell.vue'
 import DateRangePickerField from '@/components/DateRangePickerField.vue'
 import ReportKpiTile from '@/components/ReportKpiTile.vue'
+import ReportKpiSkeleton from '@/components/ReportKpiSkeleton.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import {
   fetchMovementsPage,
@@ -72,14 +73,24 @@ function fetchPage(options: ListOptions, signal?: AbortSignal) {
 }
 
 const summary = ref<MovementsSummary | null>(null)
+const summaryError = ref('')
+let summaryRequest = 0
 async function loadSummary() {
   if (!to.value) return
-  summary.value = await fetchMovementsSummary(from.value, to.value)
+  const request = ++summaryRequest
+  summary.value = null
+  summaryError.value = ''
+  try {
+    const result = await fetchMovementsSummary(from.value, to.value)
+    if (request === summaryRequest) summary.value = result
+  } catch (error) {
+    if (request === summaryRequest) summaryError.value = error instanceof Error ? error.message : String(error)
+  }
 }
 
 const entityTable = ref<{ refresh: () => void } | null>(null)
 watch([from, to], () => {
-  loadSummary()
+  void loadSummary()
   entityTable.value?.refresh()
 })
 onMounted(loadSummary)
@@ -109,7 +120,10 @@ async function onExport() {
       <h1 class="text-lg font-medium">{{ t('reports.movements.title') }}</h1>
     </div>
 
-    <Card v-if="summary" class="grid grid-cols-4 gap-4 p-4">
+    <Card class="grid grid-cols-2 gap-4 p-4 sm:grid-cols-4" :aria-busy="!summary && !summaryError">
+      <ReportKpiSkeleton v-if="!summary && !summaryError" :count="4" />
+      <p v-else-if="summaryError" class="col-span-full flex min-h-10 items-center text-sm text-destructive">{{ summaryError }}</p>
+      <template v-else-if="summary">
       <ReportKpiTile
         :icon="LogIn"
         bg-class="bg-emerald-100 dark:bg-emerald-500/15"
@@ -138,6 +152,7 @@ async function onExport() {
         :label="t('reports.movements.kpiRenewed')"
         :value="String(summary.renewed)"
       />
+      </template>
     </Card>
 
     <EntityTable

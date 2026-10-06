@@ -11,6 +11,7 @@ import ContractLinkCell from '@/components/ContractLinkCell.vue'
 import ResidentLinkCell from '@/components/ResidentLinkCell.vue'
 import ContractRegistryStatusCell from '@/components/ContractRegistryStatusCell.vue'
 import ReportKpiTile from '@/components/ReportKpiTile.vue'
+import ReportKpiSkeleton from '@/components/ReportKpiSkeleton.vue'
 import DatePickerField from '@/components/DatePickerField.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import {
@@ -83,14 +84,20 @@ function fetchPage(options: ListOptions, signal?: AbortSignal) {
 }
 
 const summary = ref<ContractsRegistrySummary | null>(null)
+const summaryError = ref('')
 let summaryRequest = 0
 async function loadSummary() {
   const request = ++summaryRequest
-  const result = await fetchContractsRegistrySummary(asOf.value)
-  if (request === summaryRequest) summary.value = result
+  summary.value = null
+  summaryError.value = ''
+  try {
+    const result = await fetchContractsRegistrySummary(asOf.value)
+    if (request === summaryRequest) summary.value = result
+  } catch (error) {
+    if (request === summaryRequest) summaryError.value = error instanceof Error ? error.message : String(error)
+  }
 }
 watch(asOf, () => {
-  summary.value = null
   void loadSummary()
   entityTable.value?.refresh()
 })
@@ -121,7 +128,10 @@ async function onExport() {
       <h1 class="text-lg font-medium">{{ t('reports.registry.title') }}</h1>
     </div>
 
-    <Card v-if="summary" class="grid grid-cols-2 gap-4 p-4 sm:grid-cols-4">
+    <Card class="grid grid-cols-2 gap-4 p-4 sm:grid-cols-4" :aria-busy="!summary && !summaryError">
+      <ReportKpiSkeleton v-if="!summary && !summaryError" :count="4" />
+      <p v-else-if="summaryError" class="col-span-full flex min-h-10 items-center text-sm text-destructive">{{ summaryError }}</p>
+      <template v-else-if="summary">
       <ReportKpiTile
         :icon="CircleCheck"
         bg-class="bg-emerald-100 dark:bg-emerald-500/15"
@@ -150,12 +160,8 @@ async function onExport() {
         :label="t('reports.registry.kpiEnded')"
         :value="String(summary.ended)"
       />
+      </template>
     </Card>
-
-    <div class="flex items-center gap-2">
-      <span class="text-sm text-muted-foreground">{{ t('reports.common.asOf') }}</span>
-      <DatePickerField v-model="asOf" />
-    </div>
 
     <EntityTable
       ref="entityTable"
@@ -174,6 +180,8 @@ async function onExport() {
       accent-icons
     >
       <template #actions>
+        <span class="text-sm text-muted-foreground">{{ t('reports.common.asOf') }}</span>
+        <DatePickerField v-model="asOf" />
         <Tooltip>
           <TooltipTrigger as-child>
             <Button size="icon" :loading="isExporting" @click="onExport">

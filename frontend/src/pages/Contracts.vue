@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import EntityTable from '@/components/EntityTable.vue'
 import ContractStatusCell from '@/components/ContractStatusCell.vue'
+import ResidentLinkCell from '@/components/ResidentLinkCell.vue'
 import RoomCell from '@/components/RoomCell.vue'
 import Accounting1cMatchCell from '@/components/Accounting1cMatchCell.vue'
 import CreateContractDialog from '@/components/CreateContractDialog.vue'
@@ -76,7 +77,7 @@ const columnLabels = computed<Record<string, string>>(() => ({
 }))
 const filterableFields = ['status']
 const hiddenByDefault = ['accounting1cMatched']
-const cellRenderers = { status: ContractStatusCell, room: RoomCell, accounting1cMatched: Accounting1cMatchCell }
+const cellRenderers = { residentFullName: ResidentLinkCell, status: ContractStatusCell, room: RoomCell, accounting1cMatched: Accounting1cMatchCell }
 
 function cellText(columnId: string, value: unknown): string {
   if ((columnId === 'contractDate' || columnId === 'startDate' || columnId === 'endDate') && typeof value === 'string') {

@@ -15,6 +15,7 @@ import DebtBalanceCell from '@/components/DebtBalanceCell.vue'
 import PenaltyBalanceCell from '@/components/PenaltyBalanceCell.vue'
 import ContractStatusCell from '@/components/ContractStatusCell.vue'
 import ReportKpiTile from '@/components/ReportKpiTile.vue'
+import ReportKpiSkeleton from '@/components/ReportKpiSkeleton.vue'
 import DatePickerField from '@/components/DatePickerField.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
 import { createAppColumnHelper } from '@/lib/table'
@@ -127,14 +128,24 @@ function fetchPage(options: ListOptions, signal?: AbortSignal) {
 }
 
 const summary = ref<DebtorsSummary | null>(null)
+const summaryError = ref('')
+let summaryRequest = 0
 async function loadSummary() {
   if (!asOf.value) return
-  summary.value = await fetchDebtorsSummary(asOf.value)
+  const request = ++summaryRequest
+  summary.value = null
+  summaryError.value = ''
+  try {
+    const result = await fetchDebtorsSummary(asOf.value)
+    if (request === summaryRequest) summary.value = result
+  } catch (error) {
+    if (request === summaryRequest) summaryError.value = error instanceof Error ? error.message : String(error)
+  }
 }
 
 const entityTable = ref<{ refresh: () => void } | null>(null)
 watch(asOf, () => {
-  loadSummary()
+  void loadSummary()
   entityTable.value?.refresh()
 })
 onMounted(loadSummary)
@@ -219,7 +230,10 @@ async function onExport() {
       <h1 class="text-lg font-medium">{{ t('reports.debt.title') }}</h1>
     </div>
 
-    <Card v-if="summary" class="grid grid-cols-5 gap-4 p-4">
+    <Card class="grid grid-cols-2 gap-4 p-4 lg:grid-cols-5" :aria-busy="!summary && !summaryError">
+      <ReportKpiSkeleton v-if="!summary && !summaryError" :count="5" />
+      <p v-else-if="summaryError" class="col-span-full flex min-h-10 items-center text-sm text-destructive">{{ summaryError }}</p>
+      <template v-else-if="summary">
       <ReportKpiTile
         :icon="Users"
         bg-class="bg-blue-100 dark:bg-blue-500/15"
@@ -255,6 +269,7 @@ async function onExport() {
         :label="t('reports.debt.kpiPaid')"
         :value="formatMoney(summary.totalPaid)"
       />
+      </template>
     </Card>
 
     <EntityTable

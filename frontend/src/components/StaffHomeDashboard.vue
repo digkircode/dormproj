@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AlertTriangle, CalendarX, Clock, DoorOpen, FileSignature, Megaphone, MessageCircle, MoreVertical, Newspaper, Pencil, Trash2, UserPlus } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
@@ -55,6 +55,20 @@ const attentionSources: DashboardSource[] = ['debtRows', 'expiring', 'overdue', 
 const attentionLoading = computed(() => attentionSources.some((key) => sourceState.value[key] === 'loading'))
 const attentionIncomplete = computed(() => attentionSources.some((key) => sourceState.value[key] === 'error'))
 
+function rememberedRowCount(key: string, fallback: number): number {
+  try {
+    const stored = Number(localStorage.getItem(key))
+    return Number.isInteger(stored) && stored > 0 ? Math.min(stored, 100) : fallback
+  } catch {
+    return fallback
+  }
+}
+function rememberRowCount(key: string, count: number) {
+  try { localStorage.setItem(key, String(Math.max(1, count))) } catch { /* Storage can be disabled. */ }
+}
+const attentionSkeletonRows = ref(rememberedRowCount('home-attention-rows', 6))
+const announcementsSkeletonRows = ref(rememberedRowCount('home-announcement-rows', 3))
+
 async function loadSource<T>(key: DashboardSource, request: Promise<T>, assign: (value: T) => void) {
   try {
     assign(await request)
@@ -95,6 +109,8 @@ async function loadAnnouncements() {
   try {
     announcements.value = await fetchAnnouncements()
     announcementsState.value = 'success'
+    announcementsSkeletonRows.value = Math.max(1, announcements.value.length)
+    rememberRowCount('home-announcement-rows', announcements.value.length)
   } catch {
     announcementsState.value = 'error'
   }
@@ -172,6 +188,12 @@ const attentionRows = computed<AttentionRow[]>(() => {
     })
   }
   return rows
+})
+
+watch(attentionLoading, (loading) => {
+  if (loading || attentionIncomplete.value) return
+  attentionSkeletonRows.value = Math.max(1, attentionRows.value.length)
+  rememberRowCount('home-attention-rows', attentionRows.value.length)
 })
 
 const individualDialogRef = ref<InstanceType<typeof CreateIndividualDialog> | null>(null)
@@ -282,9 +304,14 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
           <AlertTriangle class="size-4 text-primary" />
           {{ t('home.attentionTitle') }}
         </div>
-        <div v-if="attentionLoading" class="space-y-3" aria-hidden="true"><div v-for="n in 3" :key="n" class="h-10 animate-pulse rounded bg-muted motion-reduce:animate-none" /></div>
-        <p v-else-if="!attentionRows.length && attentionIncomplete" class="text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
-        <p v-else-if="!attentionRows.length" class="text-sm text-muted-foreground">{{ t('home.attentionEmpty') }}</p>
+        <div v-if="attentionLoading" class="flex flex-col divide-y divide-border" aria-hidden="true">
+          <div v-for="n in attentionSkeletonRows" :key="n" class="flex min-h-[52px] items-center gap-3 px-2 py-2">
+            <div class="size-4 shrink-0 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+            <div class="min-w-0 flex-1 space-y-1"><div class="h-5 w-3/4 animate-pulse rounded bg-muted motion-reduce:animate-none" /><div class="h-3 w-1/3 animate-pulse rounded bg-muted motion-reduce:animate-none" /></div>
+          </div>
+        </div>
+        <p v-else-if="!attentionRows.length && attentionIncomplete" class="flex min-h-[52px] items-center text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
+        <p v-else-if="!attentionRows.length" class="flex min-h-[52px] items-center text-sm text-muted-foreground">{{ t('home.attentionEmpty') }}</p>
         <div v-else class="data-reveal flex flex-col divide-y divide-border">
           <RouterLink
             v-for="row in attentionRows"
@@ -311,9 +338,15 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
           <Megaphone class="size-4 text-primary" />
           {{ t('home.staffAnnouncementsTitle') }}
         </div>
-        <div v-if="announcementsState === 'loading'" class="space-y-3" aria-hidden="true"><div v-for="n in 3" :key="n" class="h-10 animate-pulse rounded bg-muted motion-reduce:animate-none" /></div>
-        <p v-else-if="announcementsState === 'error'" class="text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
-        <p v-else-if="!announcements.length" class="text-sm text-muted-foreground">{{ t('home.staffAnnouncementsEmpty') }}</p>
+        <div v-if="announcementsState === 'loading'" class="flex flex-col divide-y divide-border" aria-hidden="true">
+          <div v-for="n in announcementsSkeletonRows" :key="n" class="relative flex min-h-[68px] items-start gap-3 px-2 py-2 pb-6">
+            <div class="size-8 shrink-0 animate-pulse rounded-lg bg-muted motion-reduce:animate-none" />
+            <div class="min-w-0 flex-1 space-y-1"><div class="h-5 w-2/3 animate-pulse rounded bg-muted motion-reduce:animate-none" /><div class="h-3 w-full animate-pulse rounded bg-muted motion-reduce:animate-none" /></div>
+            <div class="absolute right-2 bottom-1 h-3 w-24 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+          </div>
+        </div>
+        <p v-else-if="announcementsState === 'error'" class="flex min-h-[68px] items-center text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
+        <p v-else-if="!announcements.length" class="flex min-h-[68px] items-center text-sm text-muted-foreground">{{ t('home.staffAnnouncementsEmpty') }}</p>
         <div v-else class="data-reveal flex flex-col divide-y divide-border">
           <!-- pb-6 + relative — освобождает место под ФИО/дату, притянутые в правый нижний
                угол абсолютным позиционированием (по прямой просьбе 2026-08-30, было третьей

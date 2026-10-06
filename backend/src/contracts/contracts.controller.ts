@@ -267,6 +267,7 @@ export class ContractsController {
         startDate: c.startDate,
         endDate: c.endDate,
         actualEndDate: c.actualEndDate,
+        residentIndividualUid: c.residentIndividualUid,
         residentFullName: c.resident.fullName,
         room: c.roomAssignments[0]?.room.room ?? null,
         roomId: c.roomAssignments[0]?.room.id ?? null,
