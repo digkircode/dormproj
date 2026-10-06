@@ -102,6 +102,9 @@ function fieldLabel(field: string): string {
 
 function formatValue(value: unknown, field: string): string {
   if (value === null || value === undefined || value === '') return '-'
+  if (field === 'order' && Array.isArray(value)) {
+    return value.map((item, index) => `${index + 1}. ${String(item)}`).join('\n')
+  }
   if (typeof value === 'boolean') return value ? t('boolean.yes') : t('boolean.no')
   if (typeof value === 'string') {
     const enumKey = field === 'status' ? `contracts.status.${value}`

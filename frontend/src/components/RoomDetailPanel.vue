@@ -626,25 +626,22 @@ async function confirmDeleteValue() {
           @select="toggleCharacteristicFilter"
         />
 
-        <div class="flex shrink-0 items-center gap-2">
-          <div class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <History class="size-4 text-primary" />
-            {{ selectedCharacteristicName ? t('rooms.detail.historyTitleFiltered', { name: selectedCharacteristicName }) : t('rooms.detail.historyTitle') }}
+        <div class="flex h-7 min-w-0 shrink-0 items-center gap-2">
+          <div class="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium text-muted-foreground">
+            <History class="size-4 shrink-0 text-primary" />
+            <span class="truncate">{{ selectedCharacteristicName ? t('rooms.detail.historyTitleFiltered', { name: selectedCharacteristicName }) : t('rooms.detail.historyTitle') }}</span>
           </div>
-          <Tooltip v-if="selectedCharacteristicFilter !== null">
-            <TooltipTrigger as-child>
-              <Button
-                variant="ghost"
-                size="icon"
-                class="size-6"
-                @click="selectedCharacteristicFilter = null"
-              >
-                <X class="size-3.5 text-red-500" />
-                <span class="sr-only">{{ t('rooms.detail.showFullHistory') }}</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{{ t('rooms.detail.showFullHistory') }}</TooltipContent>
-          </Tooltip>
+          <div class="size-6 shrink-0">
+            <Tooltip v-if="selectedCharacteristicFilter !== null">
+              <TooltipTrigger as-child>
+                <Button variant="ghost" size="icon" class="size-6" @click="selectedCharacteristicFilter = null">
+                  <X class="size-3.5 text-red-500" />
+                  <span class="sr-only">{{ t('rooms.detail.showFullHistory') }}</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{{ t('rooms.detail.showFullHistory') }}</TooltipContent>
+            </Tooltip>
+          </div>
         </div>
         <p v-if="historyError" class="shrink-0 text-sm text-red-500">{{ historyError }}</p>
 
@@ -663,7 +660,7 @@ async function confirmDeleteValue() {
                   <th class="w-[20%] px-3 py-2" />
                 </tr>
               </thead>
-              <tbody :key="selectedCharacteristicFilter ?? 'all'" class="data-reveal">
+              <tbody :key="selectedCharacteristicFilter ?? 'all'" class="room-history-reveal">
                 <tr v-for="entry in filteredHistory" :key="entry.id" class="border-t">
                   <td class="px-3 py-2">{{ entry.name }}</td>
                   <td class="px-3 py-2">{{ entry.hasValue ? formatValue(entry) : '-' }}</td>

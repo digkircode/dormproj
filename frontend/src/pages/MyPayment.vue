@@ -99,7 +99,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
+  <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/student/contract')">
         <ArrowLeft class="text-primary" />
@@ -133,16 +133,34 @@ onMounted(async () => {
       <p class="text-sm font-medium">{{ t('contracts.myContract.noContractFound') }}</p>
     </Card>
 
-    <!-- h-[60vh] на мобильном — см. EntityTable.vue: явная гарантированная высота вместо
-         хрупкой пропагации min-h-0 через цепочку flex-родителей. -->
-    <Card v-if="data?.contract" class="data-reveal flex h-[60vh] flex-col gap-0 overflow-hidden py-0 md:h-auto md:min-h-0 md:flex-1">
+    <!-- На телефоне платежи показаны карточками; с sm остаётся полная таблица. -->
+    <Card v-if="data?.contract" class="data-reveal flex min-w-0 flex-col gap-0 overflow-hidden py-0 md:min-h-0 md:flex-1">
       <p class="flex shrink-0 items-center gap-1.5 border-b p-4 text-sm font-medium">
         <Wallet class="size-4 text-primary" />
         {{ t('payment.myPayment.paymentHistory') }}
       </p>
       <p v-if="!data.history.length" class="p-6 text-sm text-muted-foreground">{{ t('contracts.detail.noPaymentsYet') }}</p>
       <div v-else class="min-h-0 flex-1 overflow-y-auto">
-        <Table>
+        <div class="space-y-2 p-3 sm:hidden">
+          <div v-for="row in data.history" :key="row.id" class="min-w-0 rounded-lg border p-3 text-sm">
+            <div class="flex flex-wrap items-start justify-between gap-2">
+              <span class="font-semibold">{{ formatMoney(row.amount) }}</span>
+              <span class="flex items-center gap-1.5 text-xs">
+                <component :is="STATUS_ICON[row.status]" class="size-3.5" :class="STATUS_ICON_CLASS[row.status]" />
+                {{ STATUS_LABELS[row.status] }}
+              </span>
+            </div>
+            <p class="mt-2 break-words">{{ row.description }}</p>
+            <div class="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span>{{ formatDate(row.createdAt) }}</span>
+              <a v-if="row.fiscalReceiptUrl" :href="row.fiscalReceiptUrl" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-primary hover:underline">
+                {{ t('payment.receipt.open') }}
+                <ExternalLink class="size-3.5" />
+              </a>
+            </div>
+          </div>
+        </div>
+        <Table scroll-class="hidden sm:block">
           <TableHeader class="sticky top-0 z-10 bg-muted">
             <TableRow>
               <TableHead>{{ t('contracts.detail.colDate') }}</TableHead>

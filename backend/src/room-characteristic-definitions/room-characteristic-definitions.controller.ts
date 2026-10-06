@@ -136,6 +136,7 @@ export class RoomCharacteristicDefinitionsController {
     }
     const sessionUser = requireUser(req);
     const before = await this.prisma.roomCharacteristicDefinition.findMany({ orderBy: { sortOrder: 'asc' }, select: { id: true, name: true } });
+    const namesById = new Map(before.map(({ id, name }) => [id, name]));
 
     await this.prisma.$transaction(async (tx) => {
       await Promise.all(
@@ -149,7 +150,7 @@ export class RoomCharacteristicDefinitionsController {
         entityId: 'order',
         entityLabel: 'Порядок характеристик комнат',
         before: { order: before.map((d) => d.name) },
-        after: { order: parsed.data.ids },
+        after: { order: parsed.data.ids.map((id) => namesById.get(id) ?? String(id)) },
         fields: ['order'],
       });
     });

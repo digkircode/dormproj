@@ -316,8 +316,8 @@ function toggleAllRows(checked: boolean) {
 // Общий кусок "догрузить варианты для поля, если их ещё нет" — раньше жил только
 // внутри openFilterField (см. ниже), из-за чего чип фильтра, применённого через
 // defaultFilters (до первого клика по нему), показывал сырое значение поля
-// ("IMPORTED"/"NEEDS_REVIEW" и т.п.) вместо человекочитаемого лейбла — facetLabel()
-// ниже подставляет значение как есть, если facetOptions[field] ещё не заполнен.
+// ("IMPORTED"/"NEEDS_REVIEW" и т.п.) вместо человекочитаемого лейбла. До ответа
+// facets используем cellText страницы, затем точную подпись из вариантов.
 async function ensureFacetOptions(field: string) {
   if (facetOptions.value[field]) return
   const version = facetVersion
@@ -382,7 +382,7 @@ function clearAllFilters() {
 }
 
 function facetLabel(field: string, value: string): string {
-  return facetOptions.value[field]?.find((o) => o.value === value)?.label ?? value
+  return facetOptions.value[field]?.find((o) => o.value === value)?.label ?? props.cellText(field, value)
 }
 
 const filteredModalOptions = computed(() => {

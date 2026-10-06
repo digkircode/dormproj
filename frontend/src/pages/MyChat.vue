@@ -110,7 +110,7 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisible))
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
+  <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-4 p-3 sm:p-4 md:p-6">
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
@@ -118,13 +118,13 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisible))
       </Button>
       <h1 class="text-lg font-medium">{{ t('chat.resident.title') }}</h1>
     </div>
-    <Card class="flex min-h-0 flex-1 flex-col overflow-hidden py-0">
+    <Card class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden py-0">
       <ChatThreadSkeleton v-if="isLoading" header />
       <p v-else-if="loadError" class="m-auto max-w-md text-center text-sm text-red-500">{{ loadError }}</p>
       <template v-else>
         <!-- Та же строка/ширина, что в шапке диалога у сотрудника (Chats.vue) — плюс
              часы работы администрации (по прямой просьбе). -->
-        <div class="flex shrink-0 flex-wrap items-center gap-4 border-b p-3 text-sm text-muted-foreground">
+        <div class="flex shrink-0 flex-wrap items-center gap-2 border-b p-3 text-sm text-muted-foreground sm:gap-4">
           <!-- Кликабельно только когда договор есть — ведёт на свою же страницу
                "Информация о договоре" (см. router/index.ts: /student/contract, доступна
                той же роли RESIDENT, что и сам чат, без :id — "чужой по ссылке" не

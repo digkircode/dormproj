@@ -101,8 +101,8 @@ function formatDate(value: string): string {
 </script>
 
 <template>
-  <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
-    <Card class="relative flex flex-col items-start gap-6 overflow-hidden px-5 pt-6 sm:px-10 lg:flex-row lg:items-center lg:gap-8 lg:px-[80px]">
+  <div class="flex min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">
+    <Card class="relative flex flex-col items-start gap-4 overflow-hidden px-5 pt-6 sm:px-10 lg:flex-row lg:items-center lg:gap-8 lg:px-[80px]">
       <!-- "Облачка" — девятый заход 2026-08-28, по прямой просьбе отказались от попытки
            воспроизвести точный силуэт — просто россыпь кружков разного размера по всей
            шапке (не только в углу), тот же самый мягкий цвет (bg-sky-100/dark:bg-sky-400/15),
@@ -156,18 +156,18 @@ function formatDate(value: string): string {
           {{ t('home.resident.mascotBubble') }}
           <span class="absolute top-1/2 -right-1.5 size-3 -translate-y-1/2 rotate-45 border-t border-r bg-background" />
         </div>
-        <div class="relative h-[218px] -translate-x-2 overflow-hidden sm:h-[326px] sm:-translate-x-3">
-          <img :src="mascotSrc" alt="" class="h-[241px] w-auto sm:h-[363px]" />
+        <div class="relative h-[150px] -translate-x-2 overflow-hidden sm:h-[240px] sm:-translate-x-3 lg:h-[326px]">
+          <img :src="mascotSrc" alt="" class="h-[166px] w-auto sm:h-[267px] lg:h-[363px]" />
         </div>
       </div>
       <CreatePaymentDialog ref="paymentDialog" />
     </Card>
 
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div class="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
       <!-- "Моя комната" — по прямой просьбе 2026-08-28: слева комната/этаж, через
            вертикальную черту справа номер договора/дата создания, "Подробнее" под
            горизонтальной чертой снизу (не 2x2 корпус/этаж/комната/тип, как раньше). -->
-      <Card class="flex flex-col gap-3 rounded-2xl border-0 p-4">
+      <Card class="flex min-w-0 flex-col gap-3 rounded-2xl border-0 p-4">
         <div class="flex items-start gap-3">
           <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-500/20">
             <DoorOpen class="size-4 text-sky-600 dark:text-sky-400" />
@@ -180,11 +180,11 @@ function formatDate(value: string): string {
         <div v-if="contractState === 'loading'" class="space-y-3" aria-hidden="true"><div v-for="n in 3" :key="n" class="h-8 animate-pulse rounded bg-muted motion-reduce:animate-none" /></div>
         <p v-else-if="contractState === 'error'" class="text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
         <template v-else-if="contract?.currentRoom">
-          <div class="flex divide-x text-sm">
-            <div class="flex flex-1 flex-col gap-3 pr-4">
+          <div class="flex min-w-0 divide-x text-sm max-[359px]:flex-col max-[359px]:gap-3 max-[359px]:divide-x-0">
+            <div class="flex min-w-0 flex-1 flex-col gap-3 pr-4 max-[359px]:pr-0">
               <div>
                 <p class="text-xs text-muted-foreground">{{ t('home.resident.roomNumberLabel') }}</p>
-                <p class="font-medium">{{ contract.currentRoom.room }}</p>
+                <p class="break-all font-medium">{{ contract.currentRoom.room }}</p>
               </div>
               <div>
                 <p class="text-xs text-muted-foreground">{{ t('home.resident.floorLabel') }}</p>
@@ -193,10 +193,10 @@ function formatDate(value: string): string {
                 </p>
               </div>
             </div>
-            <div class="flex flex-1 flex-col gap-3 pl-4">
+            <div class="flex min-w-0 flex-1 flex-col gap-3 pl-4 max-[359px]:border-t max-[359px]:pl-0 max-[359px]:pt-3">
               <div>
                 <p class="text-xs text-muted-foreground">{{ t('home.resident.contractNumberLabel') }}</p>
-                <p class="font-medium">{{ contract.number }}</p>
+                <p class="break-all font-medium">{{ contract.number }}</p>
               </div>
               <div>
                 <p class="text-xs text-muted-foreground">{{ t('home.resident.contractCreatedLabel') }}</p>
@@ -204,7 +204,7 @@ function formatDate(value: string): string {
               </div>
             </div>
           </div>
-          <!-- mt-auto на ОБЁРТКЕ (не на самой ссылке) — карточка стоит в sm:grid-cols-2
+          <!-- mt-auto на ОБЁРТКЕ (не на самой ссылке) — карточка стоит в md:grid-cols-2
                рядом с "Оплатой" (см. grid ниже), grid тянет оба айтема на равную высоту
                (align-items: stretch), без mt-auto блок остался бы сразу под контентом, а
                не у нижнего края более высокой карточки-соседа. Черта (border-t) — на этой
@@ -230,7 +230,7 @@ function formatDate(value: string): string {
       <!-- "Оплата" (была "Общий баланс") — задолженность в цветной плашке + пилюля
            "Просрочен платёж", следующий платёж, "Перейти к оплате" ссылкой (не кнопкой)
            под чертой, открывает модалку оплаты — всё по прямой просьбе 2026-08-28. -->
-      <Card class="flex flex-col gap-3 rounded-2xl border-0 p-4">
+      <Card class="flex min-w-0 flex-col gap-3 rounded-2xl border-0 p-4">
         <div class="flex items-start gap-3">
           <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-green-100 dark:bg-green-500/20">
             <Wallet class="size-4 text-green-600 dark:text-green-400" />
@@ -244,7 +244,7 @@ function formatDate(value: string): string {
         <p v-else-if="contractState === 'error'" class="text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
         <template v-else-if="contract">
           <div
-            class="flex items-center justify-between gap-2 rounded-lg px-3 py-2"
+            class="flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-2"
             :class="totalBalance > 0 ? 'bg-red-50 dark:bg-red-500/10' : 'bg-green-50 dark:bg-green-500/10'"
           >
             <div>
@@ -268,7 +268,7 @@ function formatDate(value: string): string {
                просто gap-3 родительской Card, без border-t. -->
           <div>
             <p class="text-xs text-muted-foreground">{{ t('home.resident.nextPaymentHeading') }}</p>
-            <div v-if="nextAccrual" class="mt-1 flex items-center justify-between gap-2 text-sm">
+            <div v-if="nextAccrual" class="mt-1 flex flex-wrap items-center justify-between gap-1.5 text-sm">
               <span :class="isNextPaymentOverdue ? 'font-medium text-red-500' : ''">
                 {{ t('home.resident.nextPaymentDue', { date: formatDate(nextAccrual.dueDate) }) }}
               </span>
@@ -299,7 +299,7 @@ function formatDate(value: string): string {
            остальных карточек, у каждой свой фиксированный цвет — sky/green/amber/blue выше),
            показывает последние ANNOUNCEMENTS_PREVIEW_COUNT штук, полный список — в модалке
            "Все объявления" ниже (та же кнопка-ссылка под чертой, что и у остальных карточек). -->
-      <Card class="flex flex-col gap-3 rounded-2xl border-0 p-4">
+      <Card class="flex min-w-0 flex-col gap-3 rounded-2xl border-0 p-4">
         <div class="flex items-start gap-3">
           <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-violet-100 dark:bg-violet-500/20">
             <Megaphone class="size-4 text-violet-600 dark:text-violet-400" />
@@ -323,7 +323,7 @@ function formatDate(value: string): string {
             v-for="a in announcementsPreview"
             :key="a.id"
             type="button"
-            class="flex items-center gap-3 rounded-lg bg-muted/50 p-3 text-left transition-colors hover:bg-blue-50 dark:bg-muted/20 dark:hover:bg-blue-500/10"
+            class="flex min-w-0 flex-wrap items-center gap-3 rounded-lg bg-muted/50 p-3 text-left transition-colors hover:bg-blue-50 dark:bg-muted/20 dark:hover:bg-blue-500/10"
             @click="announcementReadDialog?.open(a)"
           >
             <div class="flex size-8 shrink-0 items-center justify-center rounded-lg" :class="iconBadgeColorClasses(a.id).container">
@@ -338,7 +338,7 @@ function formatDate(value: string): string {
                  исчезает после прочтения (было v-if="a.unread") — становится серой
                  (text-muted-foreground/40), а не пропадает, чтобы место оставалось стабильным
                  и был виден сам факт "уже открывали". -->
-            <div class="flex shrink-0 items-center gap-1.5">
+            <div class="ml-auto flex shrink-0 items-center gap-1.5">
               <span class="text-xs text-muted-foreground">{{ formatDate(a.createdAt) }}</span>
               <span class="size-2 shrink-0 rounded-full" :class="a.unread ? 'bg-blue-500' : 'bg-muted-foreground/40'" />
             </div>

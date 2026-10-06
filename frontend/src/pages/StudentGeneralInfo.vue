@@ -176,7 +176,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
+  <div class="flex min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">
     <div class="flex items-center gap-2">
       <Button v-if="!isHome" variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
@@ -218,7 +218,7 @@ onMounted(async () => {
            (по прямой просьбе) Доступность — перенесена сюда с левой колонки, чтобы
            текста в обеих колонках было примерно поровну; "Как добраться" — внизу вкладки. -->
       <TabsContent value="general" class="mt-4 flex flex-col gap-4">
-        <Card class="p-6">
+        <Card class="p-4 sm:p-6">
           <div class="flex flex-col gap-6 lg:flex-row lg:divide-x lg:divide-border">
             <div class="flex flex-col lg:w-1/2 lg:pr-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
@@ -251,7 +251,7 @@ onMounted(async () => {
           </div>
         </Card>
 
-        <Card class="p-6">
+        <Card class="p-4 sm:p-6">
           <div class="flex flex-col gap-6 lg:flex-row lg:divide-x lg:divide-border">
             <div class="flex flex-col lg:w-1/2 lg:pr-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
@@ -286,7 +286,7 @@ onMounted(async () => {
       <!-- Вкладка 2 — Оплата и Стоимость проживания через вертикальный разделитель,
            плюс Временная регистрация и Поликлиники ниже отдельной карточкой. -->
       <TabsContent value="payment" class="mt-4 flex flex-col gap-4">
-        <Card class="p-6">
+        <Card class="p-4 sm:p-6">
           <div class="flex flex-col gap-6 lg:flex-row lg:divide-x lg:divide-border">
             <div class="flex flex-col lg:w-1/2 lg:pr-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
@@ -314,35 +314,35 @@ onMounted(async () => {
               <!-- Разбивка по центру (2026-08-27, по прямой просьбе) — было label слева/
                    цена справа в одну строку, стало карточками label сверху/цена крупно
                    снизу, выровненными по центру колонки, а не растянутыми на всю ширину. -->
-              <div v-else class="mt-3 grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-2">
+              <div v-else class="mt-3 grid w-full grid-cols-1 gap-3 min-[390px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-2">
                 <div
                   v-for="p in hostelInfo?.priceRanges ?? []"
                   :key="p.capacity"
-                  class="flex flex-col items-center gap-1 rounded-lg border bg-muted/30 px-2 py-3"
+                  class="flex min-w-0 flex-col items-center gap-1 rounded-lg border bg-muted/30 px-2 py-3 text-center"
                 >
                   <span class="text-xs text-muted-foreground">{{ roomLabel(p.capacity) }}</span>
-                  <span class="text-base font-semibold">{{ priceRange(p.min, p.max) }}</span>
+                  <span class="break-words text-base font-semibold">{{ priceRange(p.min, p.max) }}</span>
                 </div>
                 <div
                   v-if="hostelInfo?.guestRoomDailyRate != null"
-                  class="flex flex-col items-center gap-1 rounded-lg border bg-muted/30 px-2 py-3"
+                  class="flex min-w-0 flex-col items-center gap-1 rounded-lg border bg-muted/30 px-2 py-3 text-center"
                 >
                   <span class="text-xs text-muted-foreground">{{ t('student.cost.guestRoom') }}</span>
-                  <span class="text-base font-semibold">{{ t('student.cost.perDay', { amount: hostelInfo.guestRoomDailyRate.toLocaleString(dateLocaleTag()) }) }}</span>
+                  <span class="break-words text-base font-semibold">{{ t('student.cost.perDay', { amount: hostelInfo.guestRoomDailyRate.toLocaleString(dateLocaleTag()) }) }}</span>
                 </div>
                 <div
                   v-if="hostelInfo?.passRestorationCost != null"
-                  class="flex flex-col items-center gap-1 rounded-lg border bg-muted/30 px-2 py-3"
+                  class="flex min-w-0 flex-col items-center gap-1 rounded-lg border bg-muted/30 px-2 py-3 text-center"
                 >
                   <span class="text-xs text-muted-foreground">{{ t('student.cost.passRestoration') }}</span>
-                  <span class="text-base font-semibold">{{ t('student.cost.amountRub', { amount: hostelInfo.passRestorationCost.toLocaleString(dateLocaleTag()) }) }}</span>
+                  <span class="break-words text-base font-semibold">{{ t('student.cost.amountRub', { amount: hostelInfo.passRestorationCost.toLocaleString(dateLocaleTag()) }) }}</span>
                 </div>
               </div>
             </div>
           </div>
         </Card>
 
-        <Card class="p-6">
+        <Card class="p-4 sm:p-6">
           <div class="flex flex-col gap-6 lg:flex-row lg:divide-x lg:divide-border">
             <div class="flex flex-col lg:w-1/2 lg:pr-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
@@ -398,7 +398,7 @@ onMounted(async () => {
 
       <!-- Вкладка 3 — Контакты, фото крупнее и круглые (лицо+плечи, object-top). -->
       <TabsContent value="contacts" class="mt-4 flex flex-col gap-4">
-        <Card class="p-6">
+        <Card class="p-4 sm:p-6">
           <div class="flex flex-col gap-6 lg:flex-row lg:divide-x lg:divide-border">
             <div class="flex flex-col gap-3 lg:w-2/3 lg:pr-6">
               <div class="flex items-center gap-1.5 text-sm font-medium">
@@ -408,7 +408,7 @@ onMounted(async () => {
               <div class="flex flex-col gap-2">
                 <div v-for="c in contacts" :key="c.label" class="flex items-start gap-2 text-sm">
                   <component :is="c.icon" class="size-4 shrink-0 text-primary" />
-                  <span class="w-32 shrink-0 text-muted-foreground">{{ c.label }}</span>
+                  <span class="w-24 shrink-0 text-muted-foreground sm:w-32">{{ c.label }}</span>
                   <!-- min-w-0 + break-words — email/адрес без пробелов иначе не переносится
                        внутри flex-строки и растягивает её (и всю страницу) по горизонтали
                        на узком экране. -->
@@ -442,7 +442,7 @@ onMounted(async () => {
               <div class="flex flex-col gap-2">
                 <div v-for="d in ddm" :key="d.label" class="flex items-start gap-2 text-sm">
                   <component :is="d.icon" class="size-4 shrink-0 text-primary" />
-                  <span class="w-32 shrink-0 text-muted-foreground">{{ d.label }}</span>
+                  <span class="w-24 shrink-0 text-muted-foreground sm:w-32">{{ d.label }}</span>
                   <span class="min-w-0 break-words">{{ d.value }}</span>
                 </div>
               </div>

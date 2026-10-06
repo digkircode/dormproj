@@ -39,6 +39,25 @@ function localizeEntityLabel(entityType: string, label: string): string {
   return normalized.replace(' - RENT - ', ' - Найм - ').replace(' - UTILITIES - ', ' - Коммуналка - ').replace(' - PENALTY - ', ' - Пени - ');
 }
 
+function legacyRoomOrderIds(changes: unknown): number[] {
+  if (!changes || typeof changes !== 'object' || Array.isArray(changes)) return [];
+  const order = (changes as Record<string, unknown>).order;
+  if (!order || typeof order !== 'object' || Array.isArray(order)) return [];
+  const after = (order as Record<string, unknown>).after;
+  return Array.isArray(after) ? after.filter((value): value is number => typeof value === 'number') : [];
+}
+
+function displayRoomOrder(changes: Prisma.JsonValue, namesById: Map<number, string>): Prisma.JsonValue {
+  const ids = legacyRoomOrderIds(changes);
+  if (!ids.length) return changes;
+  const fields = changes as Record<string, unknown>;
+  const order = fields.order as Record<string, unknown>;
+  return {
+    ...fields,
+    order: { ...order, after: (order.after as unknown[]).map((value) => typeof value === 'number' ? namesById.get(value) ?? `#${value}` : value) },
+  } as Prisma.JsonValue;
+}
+
 const SORTABLE_FIELDS: Record<string, string> = {
   createdAt: 'createdAt',
   action: 'action',
@@ -112,6 +131,14 @@ export class AuditLogController {
       this.prisma.auditLog.count({ where }),
     ]);
 
+    const orderIds = [...new Set(data
+      .filter((row) => row.entityType === 'RoomCharacteristicDefinition' && row.entityId === 'order')
+      .flatMap((row) => legacyRoomOrderIds(row.changes)))];
+    const definitions = orderIds.length
+      ? await this.prisma.roomCharacteristicDefinition.findMany({ where: { id: { in: orderIds } }, select: { id: true, name: true } })
+      : [];
+    const namesById = new Map(definitions.map(({ id, name }) => [id, name]));
+
     return {
       data: data.map((row) => ({
         id: row.id,
@@ -120,7 +147,9 @@ export class AuditLogController {
         entityType: row.entityType,
         entityId: row.entityId,
         entityLabel: localizeEntityLabel(row.entityType, row.entityLabel),
-        changes: row.changes,
+        changes: row.entityType === 'RoomCharacteristicDefinition' && row.entityId === 'order'
+          ? displayRoomOrder(row.changes, namesById)
+          : row.changes,
         createdAt: row.createdAt,
       })),
       total,

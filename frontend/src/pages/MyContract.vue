@@ -282,7 +282,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
        свою ЕСТЕСТВЕННУЮ высоту по контенту, дальше эта высота корректно учитывается
        overflow-y-auto на уровне App.vue — скроллится вся страница целиком, футер идёт
        строго после всего контента, без наложения. -->
-  <div class="flex flex-1 flex-col gap-4 p-4 md:min-h-0 md:p-6">
+  <div class="flex min-w-0 flex-1 flex-col gap-4 p-4 md:min-h-0 md:p-6">
     <!-- flex-wrap — на узком экране дропдаун договора + пилюля статуса + кнопка "Оплатить"
          (ml-auto) не помещаются в одну строку без переноса (особенно с длинным номером
          договора вроде VIP27-27/01) — без wrap строка вылезала бы за ширину экрана. -->
@@ -298,9 +298,9 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
         <DropdownMenuTrigger as-child>
           <button
             type="button"
-            class="flex items-center gap-1.5 rounded-md border bg-background px-2.5 py-1 text-lg font-medium hover:bg-accent"
+            class="flex max-w-full min-w-0 items-center gap-1.5 rounded-md border bg-background px-2.5 py-1 text-lg font-medium hover:bg-accent"
           >
-            {{ t('contracts.detail.titleWithNumber', { number: contract.number }) }}
+            <span class="truncate">{{ t('contracts.detail.titleWithNumber', { number: contract.number }) }}</span>
             <ChevronDown class="size-4 shrink-0 text-muted-foreground" />
           </button>
         </DropdownMenuTrigger>
@@ -310,7 +310,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <h1 v-else class="text-lg font-medium">
+      <h1 v-else class="min-w-0 break-all text-lg font-medium">
         {{ contract ? t('contracts.detail.titleWithNumber', { number: contract.number }) : t('nav.studentContract') }}
       </h1>
       <ContractStatusPill v-if="contract" :status="contract.status" />
@@ -357,32 +357,32 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
           </span>
         </div>
 
-        <div class="grid grid-cols-2 gap-4 border-t pt-4 sm:grid-cols-4">
-          <div class="flex items-center gap-3">
+        <div class="grid grid-cols-1 gap-4 border-t pt-4 min-[390px]:grid-cols-2 xl:grid-cols-4">
+          <div class="flex min-w-0 items-center gap-3">
             <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-green-100 dark:bg-green-500/15">
               <Wallet class="size-5 text-green-600 dark:text-green-400" />
             </div>
-            <div>
+            <div class="min-w-0">
               <p class="text-xs text-muted-foreground">{{ t('contracts.detail.totalBalance') }}</p>
               <p class="text-lg font-semibold" :class="totalBalance > 0 ? 'text-red-500' : 'text-green-600'">
                 {{ formatMoney(totalBalance) }}
               </p>
             </div>
           </div>
-          <div class="flex items-center gap-3">
+          <div class="flex min-w-0 items-center gap-3">
             <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-500/15">
               <DoorOpen class="size-5 text-sky-600 dark:text-sky-400" />
             </div>
-            <div>
+            <div class="min-w-0">
               <p class="text-xs text-muted-foreground">{{ t('contracts.detail.roomCost') }}</p>
               <p class="text-lg font-medium">{{ isDailyOnlyContract ? t('contracts.detail.dailyRateOnly') : formatMoney(roomCost) }}</p>
             </div>
           </div>
-          <div class="flex items-center gap-3">
+          <div class="flex min-w-0 items-center gap-3">
             <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-500/15">
               <CalendarClock class="size-5 text-violet-600 dark:text-violet-400" />
             </div>
-            <div>
+            <div class="min-w-0">
               <p class="text-xs text-muted-foreground">{{ t('contracts.detail.dailyRate') }}</p>
               <p class="text-lg font-medium">{{ formatMoney(contract.terms[0]?.dailyRateAmount ?? 0) }}</p>
             </div>
@@ -393,11 +393,11 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
                тайлов рядом; теперь тот же приём, что у PenaltyBalanceCell.vue в Финансовом
                отчёте — подчёркнутая сумма без общего hover-фона (по прямой просьбе
                2026-08-28). -->
-          <div class="flex items-center gap-3">
+          <div class="flex min-w-0 items-center gap-3">
             <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-500/15">
               <Percent class="size-5 text-orange-600 dark:text-orange-400" />
             </div>
-            <div>
+            <div class="min-w-0">
               <p class="text-xs text-muted-foreground">{{ t('contracts.detail.penalty') }}</p>
               <button
                 type="button"
@@ -412,8 +412,8 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
         </div>
       </Card>
 
-      <Tabs default-value="accruals" class="flex flex-1 flex-col md:min-h-0">
-        <TabsList class="w-fit self-start">
+      <Tabs default-value="accruals" class="flex min-w-0 flex-1 flex-col md:min-h-0">
+        <TabsList class="max-w-full self-start overflow-x-auto">
           <TabsTrigger value="accruals">
             <span class="flex items-center gap-1.5">
               <Receipt class="size-4 text-primary" />

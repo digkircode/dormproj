@@ -427,7 +427,7 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-1 flex-col">
+  <div class="flex min-h-0 min-w-0 flex-1 flex-col">
     <!-- relative — якорь для абсолютно спозиционированной кнопки "вниз" внутри именно
          области сообщений (не всего композера/подвала). -->
     <div class="relative flex min-h-0 flex-1 flex-col">
@@ -437,7 +437,7 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
            подложке слил бы их с фоном. Оттенок primary/5 — не соревнуется с серой парой
            muted/accent/background (см. известную ловушку проекта — они почти неотличимы), а
            работает и в тёмной теме без отдельного dark:-варианта. -->
-      <div ref="scrollEl" class="flex min-h-0 flex-1 flex-col gap-1 overflow-auto bg-primary/5 p-4" @scroll="onScroll">
+      <div ref="scrollEl" class="flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-auto bg-primary/5 p-2 sm:p-4" @scroll="onScroll">
         <div v-if="isLoadingOlder" class="flex items-center gap-2 py-2" role="status" :aria-label="t('entityTable.loading')">
           <Skeleton class="size-10 shrink-0 rounded-full" />
           <div class="w-48 space-y-2"><Skeleton class="h-3 w-2/3" /><Skeleton class="h-8 w-full rounded-2xl" /></div>
@@ -562,7 +562,7 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
 
                   <div
                     v-else-if="message.body"
-                    class="rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap"
+                    class="min-w-0 break-words rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap"
                     :class="
                       message.senderRole === viewerRole
                         ? 'rounded-tr-sm bg-primary text-primary-foreground'
