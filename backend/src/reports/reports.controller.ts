@@ -117,8 +117,8 @@ function resolveAsOf(asOfParam?: string): Date {
 // DebtorRow нет, только YES/NO по знаку totalBalance/penaltyBalance) — по прямой просьбе
 // 2026-08-27, фильтры "Только должники"/"Есть пеня" на Финансовом отчёте. status —
 // реальное поле ContractStatus (с 2026-08-31 включает EXPIRING/OVERDUE/COMPLETED, см.
-// contracts/contract-display-status.ts) — до этой даты тут был отдельный вычисляемый
-// displayStatus и подмена ключа фильтра, теперь не нужны, фильтруем/сортируем прямо по status.
+// contracts/contract-display-status.ts). Для прошлой даты status восстанавливается
+// из срока договора и долга на эту дату, поэтому фильтруем/сортируем прямо по status.
 type DebtorRowWithFlags = DebtorRow & { hasDebt: 'YES' | 'NO'; hasPenalty: 'YES' | 'NO' };
 function withDebtFlags(rows: DebtorRow[]): DebtorRowWithFlags[] {
   return rows.map((r) => ({
@@ -218,9 +218,7 @@ export class ReportsController {
       { header: t('reports.excel.colContractNumber', '№ договора'), value: (r) => r.contractNumber, width: 16 },
       { header: t('reports.excel.colFullName', 'ФИО'), value: (r) => r.residentFullName, width: 32 },
       { header: t('reports.excel.colRoom', 'Комната'), value: (r) => r.room ?? '', width: 12 },
-      { header: asOf < dateOnly(new Date())
-        ? t('reports.debt.colStatusCurrent', 'Статус (текущий)')
-        : t('reports.excel.colStatus', 'Статус'), value: (r) => CONTRACT_STATUS_LABELS[r.status], width: 22 },
+      { header: t('reports.excel.colStatus', 'Статус'), value: (r) => CONTRACT_STATUS_LABELS[r.status], width: 22 },
       { header: t('reports.excel.colCreatedAt', 'Дата создания'), value: (r) => r.createdAt, format: 'date', width: 14 },
       { header: t('reports.excel.colAccrued', 'Начислено'), value: (r) => r.totalAccrued, format: 'money', width: 16 },
       { header: t('reports.excel.colPaid', 'Оплачено'), value: (r) => r.totalPaid, format: 'money', width: 16 },
@@ -567,10 +565,10 @@ export class ReportsController {
       { header: t('reports.excel.colResident', 'Проживающий'), value: (r) => r.residentFullName, width: 32 },
       { header: t('reports.excel.colContractNumber', '№ договора'), value: (r) => r.contractNumber, width: 16 },
       { header: t('reports.excel.colRoom', 'Комната'), value: (r) => r.room, width: 12 },
-      { header: t('reports.contingent.colFacultetCurrent', 'Факультет (текущий)'), value: (r) => r.facultet ?? '', width: 24 },
-      { header: t('reports.contingent.colKursCurrent', 'Курс (текущий)'), value: (r) => r.kursNumber ?? '', width: 16 },
+      { header: t('reports.excel.colFacultet', 'Факультет'), value: (r) => r.facultet ?? '', width: 24 },
+      { header: t('reports.excel.colKurs', 'Курс'), value: (r) => r.kursNumber ?? '', width: 16 },
       { header: t('reports.excel.colBirthDate', 'Дата рождения'), value: (r) => r.birthDate, format: 'date', width: 14 },
-      { header: t('reports.contingent.colCitizenshipCurrent', 'Гражданство (текущее)'), value: (r) => r.citizenship ?? '', width: 24 },
+      { header: t('reports.excel.colCitizenship', 'Гражданство'), value: (r) => r.citizenship ?? '', width: 24 },
     ];
     await sendExcelReport(res, 'residents-registry', t('reports.excel.sheetContingent', 'Реестр проживающих'), columns, sorted);
   }
@@ -584,6 +582,7 @@ export class ReportsController {
       ? new Map((await buildDebtorRows(this.prisma, asOf)).map((row) => [row.contractId, row.totalBalance]))
       : null;
     const contracts = await this.prisma.contract.findMany({
+      where: { createdAt: { lt: addDays(asOf, 1) } },
       include: {
         resident: { select: { fullName: true } },
         roomAssignments: { ...roomAssignmentAtDate(asOf), include: { room: { select: { room: true } } } },
@@ -593,10 +592,9 @@ export class ReportsController {
     const MS_PER_DAY = 24 * 60 * 60 * 1000;
     return contracts.map((c) => {
       const daysUntilEnd = Math.round((c.endDate.getTime() - asOf.getTime()) / MS_PER_DAY);
-      const balance = historicalBalances?.get(c.id);
-      const bucket: ContractRegistryBucket = balance === undefined
+      const bucket: ContractRegistryBucket = historicalBalances === null
         ? c.status
-        : contractRegistryStatusAtDate(c, asOf, balance);
+        : contractRegistryStatusAtDate(c, asOf, historicalBalances.get(c.id) ?? 0);
 
       return {
         contractId: c.id,
@@ -675,9 +673,7 @@ export class ReportsController {
       { header: t('reports.excel.colContractNumber', '№ договора'), value: (r) => r.contractNumber, width: 16 },
       { header: t('reports.excel.colFullName', 'ФИО'), value: (r) => r.residentFullName, width: 32 },
       { header: t('reports.excel.colRoom', 'Комната'), value: (r) => r.room ?? '', width: 12 },
-      { header: asOf < dateOnly(new Date())
-        ? t('reports.registry.colStatusCalculated', 'Статус (расчётный)')
-        : t('reports.excel.colStatus', 'Статус'), value: (r) => BUCKET_LABELS[r.bucket], width: 22 },
+      { header: t('reports.excel.colStatus', 'Статус'), value: (r) => BUCKET_LABELS[r.bucket], width: 22 },
       { header: t('reports.excel.colCreatedAt', 'Дата создания'), value: (r) => r.createdAt, format: 'date', width: 14 },
       { header: t('reports.excel.colStartDate', 'Дата начала'), value: (r) => r.startDate, format: 'date', width: 14 },
       { header: t('reports.excel.colEndDate', 'Дата окончания'), value: (r) => r.endDate, format: 'date', width: 14 },

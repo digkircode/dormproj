@@ -2,6 +2,8 @@ import { Prisma, ContractStatus } from '../../generated/prisma/client.js';
 import { Logger } from '@nestjs/common';
 import type { PrismaService } from '../prisma/prisma.service';
 import { roomAssignmentAtDate } from './room-assignment-at-date';
+import { addDays, dateOnly } from '../billing/period-utils';
+import { contractRegistryStatusAtDate } from './contract-registry-status';
 
 const { Decimal } = Prisma;
 const logger = new Logger('DebtorRows');
@@ -16,6 +18,7 @@ export interface DebtorRow {
   // фильтров рассылки чата (см. chats/chat-recipients.ts), сам отчёт "Финансовый" его
   // не использует.
   roomId: number | null;
+  // Для прошлой даты статус определяется по сроку и долгу на эту дату.
   status: ContractStatus;
   createdAt: Date;
   // endDate — только для отображения статуса "Истекает" на фронте (ContractStatusCell.vue,
@@ -34,7 +37,7 @@ export interface DebtorRow {
   totalBalance: number;
 }
 
-// Показывает ВСЕ договоры (по прямой просьбе 2026-08-22, не только должников), на дату
+// Показывает все существовавшие на выбранную дату договоры (не только должников), на дату
 // asOf (по умолчанию сегодня): "Долг" — тело долга только по уже НАСТУПИВШИМ начислениям
 // (dueDate<=asOf), погашённое только платежами ДО asOf (позже — не считается, иначе
 // "долг на дату X" включал бы деньги, внесённые уже после X), плюс пеня на asOf (сумма
@@ -46,7 +49,10 @@ export async function buildDebtorRows(prisma: PrismaService, asOf: Date, contrac
   const startedAt = Date.now();
   if (contractIds?.length === 0) return [];
   const contracts = await prisma.contract.findMany({
-    where: contractIds ? { id: { in: contractIds } } : undefined,
+    where: {
+      ...(contractIds ? { id: { in: contractIds } } : {}),
+      createdAt: { lt: addDays(asOf, 1) },
+    },
     include: {
       resident: { select: { fullName: true, fizicheskoyeLitsoUid: true } },
       roomAssignments: { ...roomAssignmentAtDate(asOf), include: { room: { select: { id: true, room: true } } } },
@@ -102,6 +108,7 @@ export async function buildDebtorRows(prisma: PrismaService, asOf: Date, contrac
       .minus(paidPenaltyByContract.get(contract.id) ?? new Decimal(0));
     const totalPaid = paidByContract.get(contract.id) ?? new Decimal(0);
 
+    const totalBalance = Number(principalDebtAsOf.plus(penaltyBalance));
     rows.push({
       contractId: contract.id,
       contractNumber: contract.number,
@@ -109,14 +116,16 @@ export async function buildDebtorRows(prisma: PrismaService, asOf: Date, contrac
       residentFullName: contract.resident.fullName,
       room: contract.roomAssignments[0]?.room.room ?? null,
       roomId: contract.roomAssignments[0]?.room.id ?? null,
-      status: contract.status,
+      status: asOf < dateOnly(new Date())
+        ? contractRegistryStatusAtDate(contract, asOf, totalBalance)
+        : contract.status,
       createdAt: contract.createdAt,
       endDate: contract.endDate,
       totalAccrued: Number(totalAccrued),
       totalPaid: Number(totalPaid),
       principalDebt: Number(principalDebtAsOf),
       penaltyBalance: Number(penaltyBalance),
-      totalBalance: Number(principalDebtAsOf.plus(penaltyBalance)),
+      totalBalance,
     });
   }
 

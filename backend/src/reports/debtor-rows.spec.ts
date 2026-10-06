@@ -72,12 +72,40 @@ describe('financial report room on a historical date', () => {
     const [row] = await buildDebtorRows(prisma, date(3), [1]);
     expect([row.totalAccrued, row.totalPaid, row.principalDebt, row.penaltyBalance, row.totalBalance])
       .toEqual([120, 80, 90, 7, 97]);
-    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: { in: [1] } } }));
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: { in: [1] }, createdAt: { lt: date(4) } },
+    }));
     expect(paymentGroupBy).toHaveBeenNthCalledWith(1, expect.objectContaining({
       where: { contractId: { in: [1] }, reversedAt: null },
     }));
     expect(paymentGroupBy).toHaveBeenNthCalledWith(2, expect.objectContaining({
       where: { contractId: { in: [1] }, reversedAt: null, paidAt: { lte: date(3) } },
+    }));
+  });
+
+  it('excludes contracts created after the selected day and restores a past status', async () => {
+    const contracts = [
+      { id: 1, number: '1', createdAt: date(1), status: ContractStatus.COMPLETED },
+      { id: 2, number: '2', createdAt: date(5), status: ContractStatus.ACTIVE },
+    ];
+    const findMany = jest.fn(async ({ where }: any) => contracts
+      .filter((contract) => contract.createdAt < where.createdAt.lt)
+      .map((contract) => ({
+        ...contract, residentIndividualUid: 'resident',
+        resident: { fullName: 'Resident', fizicheskoyeLitsoUid: 'resident' },
+        roomAssignments: [], endDate: date(10), actualEndDate: null,
+        accruals: [],
+      })));
+    const prisma = {
+      contract: { findMany },
+      penaltyAccrualLog: { groupBy: jest.fn().mockResolvedValue([]) },
+      payment: { groupBy: jest.fn().mockResolvedValue([]) },
+    } as unknown as PrismaService;
+
+    const rows = await buildDebtorRows(prisma, date(3));
+    expect(rows.map((row) => [row.contractId, row.status])).toEqual([[1, ContractStatus.EXPIRING]]);
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { createdAt: { lt: date(4) } },
     }));
   });
 });

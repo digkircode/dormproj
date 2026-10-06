@@ -22,12 +22,12 @@ const columnLabels = computed<Record<string, string>>(() => ({
   residentFullName: t('reports.contingent.colResident'),
   contractNumber: t('reports.contingent.colContractNumber'),
   room: t('reports.contingent.colRoom'),
-  facultet: t('reports.contingent.colFacultetCurrent'),
-  kursNumber: t('reports.contingent.colKursCurrent'),
+  facultet: t('reports.contingent.colFacultet'),
+  kursNumber: t('reports.contingent.colKurs'),
   birthDate: t('reports.contingent.colBirthDate'),
-  citizenship: t('reports.contingent.colCitizenshipCurrent'),
+  citizenship: t('reports.contingent.colCitizenship'),
   // Фильтры без собственной колонки — та же схема, что bucket в ReportsContractsRegistry.vue.
-  citizenshipGroup: t('reports.contingent.colCitizenshipCurrent'),
+  citizenshipGroup: t('reports.contingent.colCitizenship'),
   isOwnUniversity: t('reports.contingent.colOwnUniversity'),
 }))
 const filterableFields = ['facultet', 'kursNumber', 'citizenshipGroup', 'isOwnUniversity']
@@ -98,7 +98,6 @@ async function onExport() {
       </Button>
       <h1 class="text-lg font-medium">{{ t('reports.contingent.title') }}</h1>
     </div>
-    <p class="text-sm text-muted-foreground">{{ t('reports.contingent.dateScopeNotice') }}</p>
 
     <EntityTable
       ref="entityTable"
