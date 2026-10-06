@@ -107,7 +107,7 @@ onUnmounted(() => {
 // Пеня — единая сумма на договор (не входит в accrual.balance, см. penalty-balance.ts на
 // бэке) — добавляем её отдельно, иначе общий баланс не совпадал бы с реальным долгом.
 const totalBalance = computed(() =>
-  contract.value ? contract.value.accruals.reduce((sum, a) => sum + a.balance, 0) + contract.value.penaltyBalance - contract.value.creditBalance : 0,
+  contract.value ? contract.value.accruals.filter((a) => !a.voidedAt).reduce((sum, a) => sum + a.balance, 0) + contract.value.penaltyBalance - contract.value.creditBalance : 0,
 )
 
 // История начисления пени по дням — раскрывается кликом по тайлу "Пени" (тот же приём,
