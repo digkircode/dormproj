@@ -27,3 +27,16 @@ export function daysBetweenInclusive(from: Date, to: Date): number {
 export function dateOnly(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
+
+// Текущий календарный день для действий сотрудников задаётся московским временем.
+// Возвращаем UTC-полночь этого дня, как и у дат договора/платежей в БД.
+export function moscowDateOnly(now: Date): Date {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const value = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value);
+  return new Date(Date.UTC(value('year'), value('month') - 1, value('day')));
+}

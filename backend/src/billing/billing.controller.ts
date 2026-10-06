@@ -18,7 +18,7 @@ import { PENALTY_SYNC_TYPE } from './penalty.scheduler';
 import { listSyncLogs, syncLogFacetValues, type SyncLogsListQuery } from '../sync/sync-logs-list';
 import { SERVICE_PROVISION_SYNC_TYPE } from './service-provision-doc.service';
 import { availableAdjustmentRefund } from './refund-balance';
-import { dateOnly } from './period-utils';
+import { dateOnly, moscowDateOnly } from './period-utils';
 
 const createPaymentSchema = z.object({
   amount: z.number().finite().positive(),
@@ -83,7 +83,8 @@ export class BillingController {
     if (!parsed.success) throw new BadRequestException(zodErrorMessage(parsed.error));
     if (!req.user) throw new BadRequestException('contracts.errors.sessionUserNotFound');
     const refundedAt = dateOnly(parsed.data.refundedAt);
-    if (refundedAt > dateOnly(new Date())) throw new BadRequestException('billing.errors.refundFutureDate');
+    const today = moscowDateOnly(new Date());
+    if (refundedAt > today) throw new BadRequestException('billing.errors.refundFutureDate');
 
     return this.prisma.$transaction(async (tx) => {
       const contract = await tx.contract.findUnique({
@@ -96,7 +97,7 @@ export class BillingController {
         },
       });
       if (!contract) throw new NotFoundException('contracts.errors.contractNotFound');
-      if (refundedAt < dateOnly(contract.createdAt)) throw new BadRequestException('billing.errors.refundBeforeContract');
+      if (refundedAt < moscowDateOnly(contract.createdAt)) throw new BadRequestException('billing.errors.refundBeforeContract');
       const available = availableAdjustmentRefund({
         accruals: contract.accruals,
         penaltyLogs: contract.penaltyLogs,
@@ -109,7 +110,7 @@ export class BillingController {
         penaltyLogs: contract.penaltyLogs,
         payments: contract.payments,
         refunds: contract.refunds,
-        asOf: dateOnly(new Date()),
+        asOf: today,
       });
       const amount = new Prisma.Decimal(parsed.data.amount);
       if (!available || !availableNow || available.accrualId !== availableNow.accrualId

@@ -301,7 +301,10 @@ const terminateError = ref('')
 const isTerminating = ref(false)
 
 function openTerminate() {
-  actualEndDate.value = new Date().toISOString().slice(0, 10)
+  const now = new Date()
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const contractEndDate = contract.value?.endDate.slice(0, 10)
+  actualEndDate.value = contractEndDate && contractEndDate < today ? contractEndDate : today
   terminateError.value = ''
   isTerminateOpen.value = true
 }
@@ -432,7 +435,7 @@ async function confirmReversePayment() {
             <Download class="text-primary" />
             {{ t('contracts.detail.downloadContract') }}
           </DropdownMenuItem>
-          <DropdownMenuItem :disabled="contract.status !== 'ACTIVE'" @click="openTerminate">
+          <DropdownMenuItem :disabled="contract.status === 'TERMINATED'" @click="openTerminate">
             <Ban class="text-red-500" />
             {{ t('contracts.detail.terminateContract') }}
           </DropdownMenuItem>

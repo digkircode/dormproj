@@ -22,6 +22,8 @@
     "roomAlreadyOccupied": "The room is already occupied by another contract on these dates",
     "numberAlreadyExists": "A contract with this number already exists",
     "endDateBeforeStartDate": "The move-out date is earlier than the move-in date",
+    "endDateAfterContractEnd": "The move-out date is later than the contract end date",
+    "alreadyTerminated": "The contract has already been terminated",
     "hasPaymentsCannotDelete": "Payments have already been made on this contract — deletion is unavailable",
     "contractsNotFound": "One or more contracts not found",
     "checkFields": "Please check the entered data",

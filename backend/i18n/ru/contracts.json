@@ -22,6 +22,8 @@
     "roomAlreadyOccupied": "Комната уже занята по другому договору в эти даты",
     "numberAlreadyExists": "Договор с таким номером уже существует",
     "endDateBeforeStartDate": "Дата выезда раньше даты начала проживания",
+    "endDateAfterContractEnd": "Дата выезда позже даты окончания договора",
+    "alreadyTerminated": "Договор уже расторгнут",
     "hasPaymentsCannotDelete": "По договору уже проводились оплаты — удаление недоступно",
     "contractsNotFound": "Один или несколько договоров не найдены",
     "checkFields": "Проверьте корректность введённых данных",

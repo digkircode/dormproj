@@ -29,7 +29,7 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { buildAccrualsForContract } from '../billing/accrual-generation';
 import { recalcAccrualsForTermination } from '../billing/termination';
 import { computePenaltyBalance } from '../billing/penalty-balance';
-import { dateOnly } from '../billing/period-utils';
+import { dateOnly, moscowDateOnly } from '../billing/period-utils';
 import { serializeAccrual, serializePayment, serializeTerms } from './serializers';
 import { availableAdjustmentRefund } from '../billing/refund-balance';
 import { buildPaymentPurpose } from '../billing/payment-purpose';
@@ -360,7 +360,7 @@ export class ContractsController {
     }
 
     const { terms, roomAssignments, accruals, payments, penaltyLogs, refunds, resident, matCapitalAmount, ...contractFields } = contract;
-    const refundable = availableAdjustmentRefund({ accruals, penaltyLogs, payments, refunds, asOf: dateOnly(new Date()) });
+    const refundable = availableAdjustmentRefund({ accruals, penaltyLogs, payments, refunds, asOf: moscowDateOnly(new Date()) });
     // Пеня — производная от журнала (не хранимое поле, см. schema.prisma), сколько из неё
     // уже покрыто платежами — тоже выводим на чтении (см. penalty-balance.ts). "На сейчас",
     // а не на дату — карточка договора не поддерживает выбор даты (в отличие от финансового
@@ -715,15 +715,22 @@ export class ContractsController {
     if (!contract) {
       throw new NotFoundException('contracts.errors.contractNotFound');
     }
+    if (contract.status === 'TERMINATED') {
+      throw new BadRequestException('contracts.errors.alreadyTerminated');
+    }
     if (parsed.data.actualEndDate < contract.startDate) {
       throw new BadRequestException('contracts.errors.endDateBeforeStartDate');
     }
+    if (parsed.data.actualEndDate > contract.endDate) {
+      throw new BadRequestException('contracts.errors.endDateAfterContractEnd');
+    }
 
     return this.prisma.$transaction(async (tx) => {
-      await tx.contract.update({
-        where: { id },
+      const result = await tx.contract.updateMany({
+        where: { id, status: { not: 'TERMINATED' } },
         data: { status: 'TERMINATED', actualEndDate: parsed.data.actualEndDate },
       });
+      if (!result.count) throw new BadRequestException('contracts.errors.alreadyTerminated');
       await tx.roomAssignment.updateMany({
         where: { contractId: id, toDate: null },
         data: { toDate: parsed.data.actualEndDate },
