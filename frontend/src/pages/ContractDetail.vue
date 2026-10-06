@@ -14,12 +14,14 @@ import {
   DoorOpen,
   Download,
   Droplet,
+  HandCoins,
   History,
   MoreVertical,
   Percent,
   Printer,
   Receipt,
   RotateCw,
+  Search,
   Trash2,
   User,
   Users,
@@ -220,6 +222,37 @@ const { sort: paymentSort, sorted: sortedPayments, toggle: togglePaymentSort } =
   'paidAt' satisfies keyof PaymentRow,
 )
 
+const activeTableTab = ref('accruals')
+const accrualSearch = ref('')
+const paymentSearch = ref('')
+const activeSearch = computed({
+  get: () => activeTableTab.value === 'accruals' ? accrualSearch.value : paymentSearch.value,
+  set: (value: string | number) => {
+    if (activeTableTab.value === 'accruals') accrualSearch.value = String(value)
+    else paymentSearch.value = String(value)
+  },
+})
+const filteredAccruals = computed(() => {
+  const query = accrualSearch.value.trim().toLocaleLowerCase()
+  if (!query) return sortedAccruals.value
+  return sortedAccruals.value.filter((row) => [
+    formatDate(row.periodStart), formatDate(row.periodEnd), formatDate(row.dueDate),
+    formatMoney(row.total), formatMoney(row.adjustmentAmount), row.adjustmentReason ?? '',
+    formatMoney(row.paid), formatMoney(row.balance),
+    row.voidedAt ? t('contracts.detail.voided') : '',
+  ].join(' ').toLocaleLowerCase().includes(query))
+})
+const filteredPayments = computed(() => {
+  const query = paymentSearch.value.trim().toLocaleLowerCase()
+  if (!query) return sortedPayments.value
+  return sortedPayments.value.filter((row) => [
+    formatDate(row.paidAt), formatMoney(row.amount),
+    row.isRefund ? t('contracts.detail.refundMethod') : t(`payment.method.${row.method}`),
+    row.purpose ?? '', row.rawComment ?? '',
+    row.source === 'WEBSITE' ? t(`contracts.detail.accounting1c${row.accounting1cSyncStatus === 'SYNCED' ? 'Synced' : row.accounting1cSyncStatus === 'FAILED' ? 'Failed' : 'NotSynced'}`) : '',
+  ].join(' ').toLocaleLowerCase().includes(query))
+})
+
 const isRefundOpen = ref(false)
 const refundAmount = ref('')
 const refundDate = ref('')
@@ -235,7 +268,7 @@ function openRefund() {
   isRefundOpen.value = true
 }
 async function saveRefund() {
-  const amount = Number(refundAmount.value)
+  const amount = Number(refundAmount.value.replace(',', '.'))
   if (!refundDate.value || !/^\d+(?:[.,]\d{1,2})?$/.test(refundAmount.value) || !Number.isFinite(amount) || amount <= 0) {
     refundError.value = t('contracts.detail.amountAndDateRequired')
     return
@@ -530,7 +563,7 @@ async function confirmReversePayment() {
         </Card>
       </div>
 
-      <Tabs default-value="accruals" class="flex min-h-0 flex-1 flex-col">
+      <Tabs v-model="activeTableTab" class="flex min-h-0 flex-1 flex-col">
         <TabsList class="w-fit self-start">
           <TabsTrigger value="accruals">
             <span class="flex items-center gap-1.5">
@@ -545,6 +578,17 @@ async function confirmReversePayment() {
             </span>
           </TabsTrigger>
         </TabsList>
+
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-3">
+          <div class="relative w-full max-w-xs">
+            <Search class="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input v-model="activeSearch" :placeholder="t('entityTable.searchPlaceholder')" class="pl-8" />
+          </div>
+          <Button v-if="contract.refundableAmount > 0" size="sm" variant="outline" class="gap-1.5" @click="openRefund">
+            <HandCoins class="size-4 text-primary" />
+            {{ t('contracts.detail.recordRefund') }}
+          </Button>
+        </div>
 
         <TabsContent value="accruals" class="flex min-h-0 flex-1 flex-col">
           <Card class="flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden py-0">
@@ -573,19 +617,19 @@ async function confirmReversePayment() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow v-for="a in sortedAccruals" :key="a.id" :class="a.voidedAt ? 'opacity-40' : ''">
+                  <TableRow v-for="a in filteredAccruals" :key="a.id" :class="a.voidedAt ? 'opacity-40' : ''">
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.periodStart) }} - {{ formatDate(a.periodEnd) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.dueDate) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.total) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">
-                      <div class="flex min-w-0 flex-col gap-1">
-                        <span>{{ a.adjustmentAmount ? formatMoney(a.adjustmentAmount) : '-' }}</span>
-                        <span v-if="a.refundedAmount > 0" class="w-fit max-w-48 rounded-md bg-green-100 px-1.5 py-0.5 text-xs leading-tight text-green-800 dark:bg-green-500/15 dark:text-green-300">
+                      <div class="flex items-center justify-between gap-2 whitespace-nowrap">
+                        <span class="shrink-0">{{ a.adjustmentAmount ? formatMoney(a.adjustmentAmount) : '-' }}</span>
+                        <span v-if="a.refundedAmount > 0" class="shrink-0 rounded-md bg-green-100 px-1.5 py-0.5 text-xs leading-tight text-green-800 dark:bg-green-500/15 dark:text-green-300">
                           {{ a.refundedAmount < -a.adjustmentAmount
                             ? t('contracts.detail.partlyRefundedAdjustment', { amount: formatMoney(a.refundedAmount), total: formatMoney(-a.adjustmentAmount) })
                             : t('contracts.detail.refundedAdjustment', { amount: formatMoney(a.refundedAmount) }) }}
                         </span>
-                        <span v-else-if="paidOnlyAdjustedAmount(a, contract.refundableAmount)" class="w-fit max-w-48 rounded-md bg-sky-100 px-1.5 py-0.5 text-xs leading-tight text-sky-800 dark:bg-sky-500/15 dark:text-sky-300">
+                        <span v-else-if="paidOnlyAdjustedAmount(a, contract.refundableAmount)" class="shrink-0 rounded-md bg-sky-100 px-1.5 py-0.5 text-xs leading-tight text-sky-800 dark:bg-sky-500/15 dark:text-sky-300">
                           {{ t('contracts.detail.refundNotRequired') }}
                         </span>
                       </div>
@@ -595,6 +639,9 @@ async function confirmReversePayment() {
                       {{ a.voidedAt ? t('contracts.detail.voided') : formatMoney(a.balance) }}
                     </TableCell>
                   </TableRow>
+                  <TableRow v-if="!filteredAccruals.length">
+                    <TableCell :colspan="ACCRUAL_COLUMNS.length" class="py-8 text-center text-muted-foreground">{{ t('entityTable.nothingFound') }}</TableCell>
+                  </TableRow>
                 </TableBody>
               </Table>
             </div>
@@ -602,9 +649,6 @@ async function confirmReversePayment() {
         </TabsContent>
 
         <TabsContent value="payments" class="flex min-h-0 flex-1 flex-col">
-          <div v-if="contract.refundableAmount > 0" class="flex justify-end pb-2">
-            <Button size="sm" variant="outline" @click="openRefund">{{ t('contracts.detail.recordRefund') }}</Button>
-          </div>
           <Card class="flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden py-0">
             <p v-if="!paymentMovements.length" class="p-6 text-sm text-muted-foreground">{{ t('contracts.detail.noPaymentsYet') }}</p>
             <div v-else class="flex min-h-0 flex-1 flex-col">
@@ -629,7 +673,7 @@ async function confirmReversePayment() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow v-for="p in sortedPayments" :key="`${p.isRefund ? 'refund' : 'payment'}-${p.id}`" :class="p.reversedAt ? 'opacity-40' : ''">
+                  <TableRow v-for="p in filteredPayments" :key="`${p.isRefund ? 'refund' : 'payment'}-${p.id}`" :class="p.reversedAt ? 'opacity-40' : ''">
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(p.paidAt) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(p.amount) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ p.isRefund ? t('contracts.detail.refundMethod') : t(`payment.method.${p.method}`) }}</TableCell>
@@ -647,6 +691,9 @@ async function confirmReversePayment() {
                       <span v-else class="text-muted-foreground">-</span>
                     </TableCell>
                   </TableRow>
+                  <TableRow v-if="!filteredPayments.length">
+                    <TableCell :colspan="PAYMENT_COLUMNS.length + 1" class="py-8 text-center text-muted-foreground">{{ t('entityTable.nothingFound') }}</TableCell>
+                  </TableRow>
                 </TableBody>
               </Table>
             </div>
@@ -660,7 +707,7 @@ async function confirmReversePayment() {
         <DialogHeader><DialogTitle>{{ t('contracts.detail.recordRefund') }}</DialogTitle></DialogHeader>
         <div class="flex flex-col gap-2">
           <Label for="refund-amount">{{ t('contracts.detail.amount') }}</Label>
-          <Input id="refund-amount" v-model="refundAmount" type="number" min="0.01" step="0.01" :max="contract?.refundableAmount" />
+          <Input id="refund-amount" v-model="refundAmount" type="text" inputmode="decimal" />
         </div>
         <div class="flex flex-col gap-2">
           <Label>{{ t('contracts.detail.date') }}</Label>
