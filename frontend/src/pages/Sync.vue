@@ -52,6 +52,7 @@ const contactInfoSync = useSyncRow('nav.contactInfo', '/sync/contact-info')
 const individualManualSync = useSyncRow('sync.individualEntityName', '/sync/individual')
 const serviceProvisionSync = useSyncRow('sync.serviceProvisionDocumentsEntityName', '/sync/service-provision-documents')
 const penaltiesSync = useSyncRow('sync.penaltiesEntityName', '/sync/penalties')
+const contractStatusSync = useSyncRow('sync.contractStatusEntityName', '/sync/contract-status')
 
 const rows = computed<SyncOverviewRow[]>(() => [
   { ...studentSync.row.value, isRunning: studentSync.isRunning.value, run: wrapRun(studentSync.run), slug: 'students' },
@@ -80,6 +81,13 @@ const rows = computed<SyncOverviewRow[]>(() => [
     isRunning: false,
     run: wrapRun(penaltiesSync.run),
     slug: 'penalties',
+    isReal: false as const,
+  },
+  {
+    ...contractStatusSync.row.value,
+    isRunning: false,
+    run: wrapRun(contractStatusSync.run),
+    slug: 'contract-status',
     isReal: false as const,
   },
 ])
@@ -189,6 +197,7 @@ onMounted(async () => {
     individualManualSync.refresh(),
     serviceProvisionSync.refresh(),
     penaltiesSync.refresh(),
+    contractStatusSync.refresh(),
   ])
   await tableRef.value?.refresh()
 })

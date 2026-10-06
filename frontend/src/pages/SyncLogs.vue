@@ -27,6 +27,7 @@ const { t, locale } = useI18n()
 const entity = computed(() => SYNC_ENTITIES.find((e) => e.slug === route.params.slug))
 const isServiceProvision = computed(() => entity.value?.slug === 'service-provision-documents')
 const isPenalty = computed(() => entity.value?.slug === 'penalties')
+const isContractStatus = computed(() => entity.value?.slug === 'contract-status')
 const storageKey = computed(() => `sync-logs:${entity.value?.slug ?? 'unknown'}`)
 
 const selectedLog = ref<SyncLogEntry | null>(null)
@@ -63,6 +64,17 @@ const penaltyDetails = computed(() => {
     processedContracts: numberValue('processedContracts'),
     penaltyRowsCreated: numberValue('penaltyRowsCreated'),
     totalAdded: numberValue('totalAdded'),
+  }
+})
+
+const contractStatusDetails = computed(() => {
+  const details = selectedLog.value?.details as Record<string, unknown> | null
+  const numberValue = (key: string) => typeof details?.[key] === 'number' ? details[key] as number : null
+  return {
+    processedContracts: numberValue('processedContracts'),
+    toExpiring: numberValue('toExpiring'),
+    toCompleted: numberValue('toCompleted'),
+    toOverdue: numberValue('toOverdue'),
   }
 })
 
@@ -174,7 +186,7 @@ onUnmounted(() => clearTimeout(pollTimeout))
           <DialogDescription>{{ formatDateTimeWithSeconds(selectedLog.startedAt) }}</DialogDescription>
         </DialogHeader>
 
-        <div v-if="!isServiceProvision && !isPenalty" class="grid min-w-0 grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
+        <div v-if="!isServiceProvision && !isPenalty && !isContractStatus" class="grid min-w-0 grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
           <div>
             <div class="text-muted-foreground">{{ t('sync.logs.fetched') }}</div>
             <div>{{ selectedLog.fetchedCount ?? '-' }}</div>
@@ -208,7 +220,7 @@ onUnmounted(() => clearTimeout(pollTimeout))
         <!-- Разбивка по шагам — только у точечной синхронизации физлица (details
              заполняется лишь там, см. IndividualSyncService), раскрыта сразу при
              открытии модалки (default-open), в отличие от errorStack выше. -->
-        <Collapsible v-if="selectedLog.details && !isServiceProvision && !isPenalty" default-open v-slot="{ open }">
+        <Collapsible v-if="selectedLog.details && !isServiceProvision && !isPenalty && !isContractStatus" default-open v-slot="{ open }">
           <CollapsibleTrigger class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ChevronRight class="size-4 shrink-0 text-primary transition-transform" :class="{ 'rotate-90': open }" />
             {{ t('sync.logs.moreByTables') }}
@@ -263,6 +275,20 @@ onUnmounted(() => clearTimeout(pollTimeout))
                 <div class="text-muted-foreground">{{ t('sync.logs.penaltyTotalAdded') }}</div>
                 <div>{{ formatMoney(penaltyDetails.totalAdded) }}</div>
               </div>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+        <Collapsible v-else-if="selectedLog.details && isContractStatus" default-open v-slot="{ open }">
+          <CollapsibleTrigger class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+            <ChevronRight class="size-4 shrink-0 text-primary transition-transform" :class="{ 'rotate-90': open }" />
+            {{ t('sync.logs.statusResult') }}
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div class="mt-2 grid gap-3 rounded-md border p-3 text-sm sm:grid-cols-2">
+              <div><div class="text-muted-foreground">{{ t('sync.logs.penaltyProcessedContracts') }}</div>{{ contractStatusDetails.processedContracts ?? '-' }}</div>
+              <div><div class="text-muted-foreground">{{ t('sync.logs.statusToExpiring') }}</div>{{ contractStatusDetails.toExpiring ?? '-' }}</div>
+              <div><div class="text-muted-foreground">{{ t('sync.logs.statusToCompleted') }}</div>{{ contractStatusDetails.toCompleted ?? '-' }}</div>
+              <div><div class="text-muted-foreground">{{ t('sync.logs.statusToOverdue') }}</div>{{ contractStatusDetails.toOverdue ?? '-' }}</div>
             </div>
           </CollapsibleContent>
         </Collapsible>

@@ -59,7 +59,7 @@ export interface ChatRecipient {
   room: string | null
   floor: string | null
   corpus: string | null
-  balance: number
+  balance: number | null
 }
 
 export interface ChatRecipientFacets {

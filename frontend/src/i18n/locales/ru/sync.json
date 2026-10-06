@@ -14,6 +14,7 @@
     "individualEntityName": "Обновление данных физического лица",
     "serviceProvisionDocumentsEntityName": "Документы оказания услуг",
     "penaltiesEntityName": "Начисление пеней",
+    "contractStatusEntityName": "Обновление статусов договоров",
     "status": {
       "RUNNING": "В процессе",
       "SUCCESS": "Успешно",
@@ -55,7 +56,11 @@
       "penaltyOperationDailyAccrual": "Ежедневное начисление пеней",
       "penaltyProcessedContracts": "Обработано договоров",
       "penaltyRowsCreated": "Создано строк начислений",
-      "penaltyTotalAdded": "Начислено пеней"
+      "penaltyTotalAdded": "Начислено пеней",
+      "statusResult": "Результат обновления статусов",
+      "statusToExpiring": "Стали истекающими",
+      "statusToCompleted": "Стали завершёнными",
+      "statusToOverdue": "Стали просроченными"
     }
   }
 }

@@ -1,7 +1,7 @@
 import type { Prisma, RoomCharacteristicValueType } from '../../generated/prisma/client.js';
 import type { PrismaService } from '../prisma/prisma.service';
 import { dateOnly } from '../billing/period-utils';
-import { buildDebtorRows, type DebtorRow } from '../reports/debtor-rows';
+import { buildDebtorRows } from '../reports/debtor-rows';
 import { fromStoredValue } from '../rooms/characteristic-value';
 import { currentResidentAssignments } from '../contracts/resident-assignments';
 
@@ -19,7 +19,7 @@ export interface ChatRecipient {
   room: string | null;
   floor: string | null;
   corpus: string | null;
-  balance: number;
+  balance: number | null;
 }
 
 export interface ChatRecipientFilters {
@@ -70,18 +70,22 @@ function currentByRoom(rows: CharacteristicRow[], definitionName: string): Map<n
   return result;
 }
 
-// One chat per individual. Use the same current assignment as the residents
-// registry; buildDebtorRows supplies the balance for that assignment's contract.
-async function currentResidents(prisma: PrismaService): Promise<(DebtorRow & { roomId: number })[]> {
+// One chat per individual. Only debt filters and the debtors counter need a
+// financial calculation; ordinary recipient searches use the resident registry.
+async function currentResidents(prisma: PrismaService, includeBalance: boolean) {
   const asOf = dateOnly(new Date());
-  const [rows, assignments] = await Promise.all([
-    buildDebtorRows(prisma, asOf), currentResidentAssignments(prisma, asOf, true),
-  ]);
+  const assignments = await currentResidentAssignments(prisma, asOf, true);
+  const rows = includeBalance
+    ? await buildDebtorRows(prisma, asOf, [...new Set(assignments.map((a) => a.contract.id))])
+    : [];
   const byContract = new Map(rows.map((row) => [row.contractId, row]));
-  return assignments.flatMap((assignment) => {
-    const row = byContract.get(assignment.contract.id);
-    return row ? [{ ...row, room: assignment.room.room, roomId: assignment.roomId }] : [];
-  });
+  return assignments.map((assignment) => ({
+    residentIndividualUid: assignment.contract.residentIndividualUid,
+    residentFullName: assignment.contract.resident.fullName,
+    room: assignment.room.room,
+    roomId: assignment.roomId,
+    totalBalance: byContract.get(assignment.contract.id)?.totalBalance ?? null,
+  }));
 }
 
 async function loadCharacteristics(prisma: PrismaService, roomIds: number[]) {
@@ -118,7 +122,7 @@ function characteristicText(row: CharacteristicRow | undefined): string | null {
 }
 
 export async function chatRecipientFacets(prisma: PrismaService): Promise<ChatRecipientFacets> {
-  const residents = await currentResidents(prisma);
+  const residents = await currentResidents(prisma, true);
   const roomIds = [...new Set(residents.map((r) => r.roomId))];
   const { floorByRoom, corpusByRoom, corpusAvailable } = await loadCharacteristics(prisma, roomIds);
 
@@ -136,7 +140,7 @@ export async function chatRecipientFacets(prisma: PrismaService): Promise<ChatRe
     corpuses: [...corpuses].sort((a, b) => a.localeCompare(b, 'ru', { numeric: true })),
     corpusAvailable,
     totalCount: residents.length,
-    debtorsCount: residents.filter((r) => r.totalBalance > 0).length,
+    debtorsCount: residents.filter((r) => (r.totalBalance ?? 0) > 0).length,
   };
 }
 
@@ -145,7 +149,7 @@ export async function chatRecipientFacets(prisma: PrismaService): Promise<ChatRe
 // превью, и для реальной отправки вызывается одна и та же функция, чтобы список в
 // диалоге и фактические адресаты не могли разойтись.
 export async function chatRecipients(prisma: PrismaService, filters: ChatRecipientFilters): Promise<ChatRecipient[]> {
-  const residents = await currentResidents(prisma);
+  const residents = await currentResidents(prisma, filters.debtorsOnly === true && !filters.individualUids?.length);
   const roomIds = [...new Set(residents.map((r) => r.roomId))];
   const { floorByRoom, corpusByRoom } = await loadCharacteristics(prisma, roomIds);
 
@@ -169,7 +173,7 @@ export async function chatRecipients(prisma: PrismaService, filters: ChatRecipie
   return mapped
     .filter((r) => (floors ? r.floor !== null && floors.has(r.floor) : true))
     .filter((r) => (filters.corpus ? r.corpus === filters.corpus : true))
-    .filter((r) => (filters.debtorsOnly ? r.balance > 0 : true))
+    .filter((r) => (filters.debtorsOnly ? (r.balance ?? 0) > 0 : true))
     .filter((r) => (search ? r.fullName.toLowerCase().includes(search) : true))
     .sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru'));
 }

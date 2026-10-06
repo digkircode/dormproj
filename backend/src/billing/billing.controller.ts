@@ -401,4 +401,14 @@ export class BillingController {
   async penaltySyncLogFacets(@Param('field') field: string) {
     return syncLogFacetValues(this.prisma, PENALTY_SYNC_TYPE, field);
   }
+
+  @Get('sync/contract-status/logs')
+  async contractStatusSyncLogs(@Query() query: SyncLogsListQuery) {
+    return listSyncLogs(this.prisma, 'contract-status', query);
+  }
+
+  @Get('sync/contract-status/logs/facets/:field')
+  async contractStatusSyncLogFacets(@Param('field') field: string) {
+    return syncLogFacetValues(this.prisma, 'contract-status', field);
+  }
 }

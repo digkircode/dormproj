@@ -15,6 +15,7 @@
   "contingentFacets": {
     "citizenshipRu": "Россия",
     "citizenshipForeign": "Иностранный гражданин",
+    "citizenshipUnknown": "Не указано",
     "ownUniversity": "Студент РосНОУ",
     "otherUniversity": "Не студент РосНОУ"
   },

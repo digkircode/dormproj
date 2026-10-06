@@ -62,7 +62,7 @@ const columnLabels = computed<Record<string, string>>(() => ({
   contractNumber: t('reports.debt.colContractNumber'),
   residentFullName: t('reports.debt.colResident'),
   room: t('reports.debt.colRoom'),
-  status: t('reports.debt.colStatus'),
+  status: t(asOf.value < todayIso() ? 'reports.debt.colStatusCurrent' : 'reports.debt.colStatus'),
   createdAt: t('reports.debt.colCreatedAt'),
   totalAccrued: t('reports.debt.colAccrued'),
   totalPaid: t('reports.debt.colPaid'),
@@ -229,6 +229,7 @@ async function onExport() {
       </Button>
       <h1 class="text-lg font-medium">{{ t('reports.debt.title') }}</h1>
     </div>
+    <p v-if="asOf < todayIso()" class="text-sm text-muted-foreground">{{ t('reports.debt.historicalScopeNotice') }}</p>
 
     <Card class="grid grid-cols-2 gap-4 p-4 lg:grid-cols-5" :aria-busy="!summary && !summaryError">
       <ReportKpiSkeleton v-if="!summary && !summaryError" :count="5" />

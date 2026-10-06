@@ -30,12 +30,54 @@ describe('financial report room on a historical date', () => {
         payments: [], penaltyLogs: [],
       }];
     });
-    const prisma = { contract: { findMany } } as unknown as PrismaService;
+    const penaltyGroupBy = jest.fn().mockResolvedValue([]);
+    const paymentGroupBy = jest.fn().mockResolvedValue([]);
+    const prisma = {
+      contract: { findMany },
+      penaltyAccrualLog: { groupBy: penaltyGroupBy },
+      payment: { groupBy: paymentGroupBy },
+    } as unknown as PrismaService;
 
     const departureDay = (await buildDebtorRows(prisma, date(10)))[0];
     const nextDay = (await buildDebtorRows(prisma, date(11)))[0];
 
     expect([departureDay.room, departureDay.roomId, departureDay.totalBalance]).toEqual(['101', 101, 120]);
     expect([nextDay.room, nextDay.roomId, nextDay.totalBalance]).toEqual(['202', 202, 120]);
+    expect(penaltyGroupBy).toHaveBeenCalledWith(expect.objectContaining({
+      where: { contractId: { in: [1] }, date: { lte: date(10) } },
+    }));
+  });
+
+  it('uses database sums while preserving the historical debt and lifetime payment totals', async () => {
+    const findMany = jest.fn().mockResolvedValue([{
+      id: 1, number: '1', residentIndividualUid: 'resident',
+      resident: { fullName: 'Resident', fizicheskoyeLitsoUid: 'resident' },
+      roomAssignments: [], status: ContractStatus.ACTIVE,
+      createdAt: date(1), endDate: date(31),
+      accruals: [{
+        rentAmount: new Prisma.Decimal(100), utilitiesAmount: new Prisma.Decimal(20),
+        adjustmentAmount: new Prisma.Decimal(0), dueDate: date(1),
+        allocations: [{ amount: new Prisma.Decimal(30), payment: { paidAt: date(2), reversedAt: null } }],
+      }],
+    }]);
+    const paymentGroupBy = jest.fn()
+      .mockResolvedValueOnce([{ contractId: 1, _sum: { amount: new Prisma.Decimal(80) } }])
+      .mockResolvedValueOnce([{ contractId: 1, _sum: { penaltyAmount: new Prisma.Decimal(5) } }]);
+    const prisma = {
+      contract: { findMany },
+      penaltyAccrualLog: { groupBy: jest.fn().mockResolvedValue([{ contractId: 1, _sum: { amount: new Prisma.Decimal(12) } }]) },
+      payment: { groupBy: paymentGroupBy },
+    } as unknown as PrismaService;
+
+    const [row] = await buildDebtorRows(prisma, date(3), [1]);
+    expect([row.totalAccrued, row.totalPaid, row.principalDebt, row.penaltyBalance, row.totalBalance])
+      .toEqual([120, 80, 90, 7, 97]);
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: { in: [1] } } }));
+    expect(paymentGroupBy).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      where: { contractId: { in: [1] }, reversedAt: null },
+    }));
+    expect(paymentGroupBy).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      where: { contractId: { in: [1] }, reversedAt: null, paidAt: { lte: date(3) } },
+    }));
   });
 });

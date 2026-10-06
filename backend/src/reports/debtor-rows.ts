@@ -1,9 +1,10 @@
 import { Prisma, ContractStatus } from '../../generated/prisma/client.js';
+import { Logger } from '@nestjs/common';
 import type { PrismaService } from '../prisma/prisma.service';
-import { computePenaltyBalance } from '../billing/penalty-balance';
 import { roomAssignmentAtDate } from './room-assignment-at-date';
 
 const { Decimal } = Prisma;
+const logger = new Logger('DebtorRows');
 
 export interface DebtorRow {
   contractId: number;
@@ -41,8 +42,11 @@ export interface DebtorRow {
 // по ВСЕМУ сроку договора целиком (не зависят от asOf) — справочные итоги.
 // Вынесено из ReportsController (Финансовый отчёт) — та же выборка нужна фильтрам
 // рассылки чата (текущая комната + баланс проживающего), см. chats/chat-recipients.ts.
-export async function buildDebtorRows(prisma: PrismaService, asOf: Date): Promise<DebtorRow[]> {
+export async function buildDebtorRows(prisma: PrismaService, asOf: Date, contractIds?: number[]): Promise<DebtorRow[]> {
+  const startedAt = Date.now();
+  if (contractIds?.length === 0) return [];
   const contracts = await prisma.contract.findMany({
+    where: contractIds ? { id: { in: contractIds } } : undefined,
     include: {
       resident: { select: { fullName: true, fizicheskoyeLitsoUid: true } },
       roomAssignments: { ...roomAssignmentAtDate(asOf), include: { room: { select: { id: true, room: true } } } },
@@ -50,10 +54,30 @@ export async function buildDebtorRows(prisma: PrismaService, asOf: Date): Promis
         where: { voidedAt: null },
         include: { allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } } },
       },
-      payments: true,
-      penaltyLogs: true,
     },
   });
+  if (contracts.length === 0) return [];
+
+  const ids = contracts.map((contract) => contract.id);
+  // PostgreSQL sums the high-volume daily journal instead of transferring years
+  // of penalty rows to the application for every report or broadcast preview.
+  const [penaltyTotals, paymentTotals, paidPenaltyTotals] = await Promise.all([
+    prisma.penaltyAccrualLog.groupBy({
+      by: ['contractId'], where: { contractId: { in: ids }, date: { lte: asOf } },
+      _sum: { amount: true },
+    }),
+    prisma.payment.groupBy({
+      by: ['contractId'], where: { contractId: { in: ids }, reversedAt: null },
+      _sum: { amount: true },
+    }),
+    prisma.payment.groupBy({
+      by: ['contractId'], where: { contractId: { in: ids }, reversedAt: null, paidAt: { lte: asOf } },
+      _sum: { penaltyAmount: true },
+    }),
+  ]);
+  const penaltyByContract = new Map(penaltyTotals.map((row) => [row.contractId, row._sum.amount ?? new Decimal(0)]));
+  const paidByContract = new Map(paymentTotals.map((row) => [row.contractId, row._sum.amount ?? new Decimal(0)]));
+  const paidPenaltyByContract = new Map(paidPenaltyTotals.map((row) => [row.contractId, row._sum.penaltyAmount ?? new Decimal(0)]));
 
   const rows: DebtorRow[] = [];
   for (const contract of contracts) {
@@ -74,12 +98,9 @@ export async function buildDebtorRows(prisma: PrismaService, asOf: Date): Promis
       principalDebtAsOf = principalDebtAsOf.plus(principal.minus(paidAsOf));
     }
 
-    const { penaltyBalance } = computePenaltyBalance({
-      asOf,
-      penaltyLogs: contract.penaltyLogs,
-      payments: contract.payments,
-    });
-    const totalPaid = contract.payments.filter((p) => !p.reversedAt).reduce((sum, p) => sum.plus(p.amount), new Decimal(0));
+    const penaltyBalance = (penaltyByContract.get(contract.id) ?? new Decimal(0))
+      .minus(paidPenaltyByContract.get(contract.id) ?? new Decimal(0));
+    const totalPaid = paidByContract.get(contract.id) ?? new Decimal(0);
 
     rows.push({
       contractId: contract.id,
@@ -99,5 +120,7 @@ export async function buildDebtorRows(prisma: PrismaService, asOf: Date): Promis
     });
   }
 
+  const elapsedMs = Date.now() - startedAt;
+  if (elapsedMs >= 500) logger.log(`Финансовый отчёт: договоров ${rows.length}, длительность ${elapsedMs} мс`);
   return rows;
 }

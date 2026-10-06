@@ -72,7 +72,7 @@ interface ContingentRow {
   citizenship: string | null;
   // Производные поля для фиксированных фильтров (тот же принцип, что bucket/agingBucket/
   // operation в остальных отчётах) — не отдельные хранимые поля.
-  citizenshipGroup: 'RU' | 'FOREIGN';
+  citizenshipGroup: 'RU' | 'FOREIGN' | 'UNKNOWN';
   isOwnUniversity: 'OWN' | 'OTHER';
   movedInDate: Date;
 }
@@ -218,7 +218,9 @@ export class ReportsController {
       { header: t('reports.excel.colContractNumber', '№ договора'), value: (r) => r.contractNumber, width: 16 },
       { header: t('reports.excel.colFullName', 'ФИО'), value: (r) => r.residentFullName, width: 32 },
       { header: t('reports.excel.colRoom', 'Комната'), value: (r) => r.room ?? '', width: 12 },
-      { header: t('reports.excel.colStatus', 'Статус'), value: (r) => CONTRACT_STATUS_LABELS[r.status], width: 14 },
+      { header: asOf < dateOnly(new Date())
+        ? t('reports.debt.colStatusCurrent', 'Статус (текущий)')
+        : t('reports.excel.colStatus', 'Статус'), value: (r) => CONTRACT_STATUS_LABELS[r.status], width: 22 },
       { header: t('reports.excel.colCreatedAt', 'Дата создания'), value: (r) => r.createdAt, format: 'date', width: 14 },
       { header: t('reports.excel.colAccrued', 'Начислено'), value: (r) => r.totalAccrued, format: 'money', width: 16 },
       { header: t('reports.excel.colPaid', 'Оплачено'), value: (r) => r.totalPaid, format: 'money', width: 16 },
@@ -445,8 +447,9 @@ export class ReportsController {
 
   // ===== Отчёт "Реестр проживающих" =====
   // Кто проживает на дату asOf, с привязкой к Контингенту (факультет/курс) — если у
-  // физлица несколько зачёток (Student.fizicheskoyeLitsoUid не уникален), берём любую
-  // первую попавшуюся, отдельного правила выбора "главной" зачётки в проекте нет.
+  // физлица несколько зачёток (Student.fizicheskoyeLitsoUid не уникален), берём
+  // последнюю по period, при равенстве — по UID зачётки. История изменений
+  // факультета/курса в Student не хранится: это актуальные сведения, не снимок asOf.
   //
   // Один резидент — одна строка (по прямой просьбе 2026-09-05), даже если на asOf у него
   // одновременно больше одного договора/заселения (поддерживается в проекте, см. промпт —
@@ -459,7 +462,8 @@ export class ReportsController {
     const uids = [...new Set(assignments.map((a) => a.contract.residentIndividualUid))];
     const students = await this.prisma.student.findMany({
       where: { fizicheskoyeLitsoUid: { in: uids } },
-      select: { fizicheskoyeLitsoUid: true, facultet: true, kursNumber: true },
+      select: { fizicheskoyeLitsoUid: true, facultet: true, kursNumber: true, period: true },
+      orderBy: [{ period: 'desc' }, { zachetnayaKnigaUid: 'asc' }],
     });
     const studentByUid = new Map<string, { facultet: string; kursNumber: number }>();
     for (const s of students) {
@@ -495,7 +499,7 @@ export class ReportsController {
         citizenship,
         // В БД значение хранится капсом ("РОССИЯ", см. citizenships.country из 1С) —
         // сравнение регистронезависимое, чтобы не зависеть от регистра источника.
-        citizenshipGroup: citizenship?.toUpperCase() === 'РОССИЯ' ? 'RU' : 'FOREIGN',
+        citizenshipGroup: !citizenship ? 'UNKNOWN' : citizenship.toUpperCase() === 'РОССИЯ' ? 'RU' : 'FOREIGN',
         isOwnUniversity: student ? 'OWN' : 'OTHER',
         movedInDate: firstContractStartByUid.get(a.contract.residentIndividualUid) ?? a.fromDate,
       };
@@ -527,6 +531,7 @@ export class ReportsController {
       return [
         { value: 'RU', label: t('reports.contingentFacets.citizenshipRu', 'Россия') },
         { value: 'FOREIGN', label: t('reports.contingentFacets.citizenshipForeign', 'Иностранный гражданин') },
+        { value: 'UNKNOWN', label: t('reports.contingentFacets.citizenshipUnknown', 'Не указано') },
       ];
     }
     if (field === 'isOwnUniversity') {
@@ -562,10 +567,10 @@ export class ReportsController {
       { header: t('reports.excel.colResident', 'Проживающий'), value: (r) => r.residentFullName, width: 32 },
       { header: t('reports.excel.colContractNumber', '№ договора'), value: (r) => r.contractNumber, width: 16 },
       { header: t('reports.excel.colRoom', 'Комната'), value: (r) => r.room, width: 12 },
-      { header: t('reports.excel.colFacultet', 'Факультет'), value: (r) => r.facultet ?? '', width: 24 },
-      { header: t('reports.excel.colKurs', 'Курс'), value: (r) => r.kursNumber ?? '', width: 8 },
+      { header: t('reports.contingent.colFacultetCurrent', 'Факультет (текущий)'), value: (r) => r.facultet ?? '', width: 24 },
+      { header: t('reports.contingent.colKursCurrent', 'Курс (текущий)'), value: (r) => r.kursNumber ?? '', width: 16 },
       { header: t('reports.excel.colBirthDate', 'Дата рождения'), value: (r) => r.birthDate, format: 'date', width: 14 },
-      { header: t('reports.excel.colCitizenship', 'Гражданство'), value: (r) => r.citizenship ?? '', width: 18 },
+      { header: t('reports.contingent.colCitizenshipCurrent', 'Гражданство (текущее)'), value: (r) => r.citizenship ?? '', width: 24 },
     ];
     await sendExcelReport(res, 'residents-registry', t('reports.excel.sheetContingent', 'Реестр проживающих'), columns, sorted);
   }
@@ -657,7 +662,8 @@ export class ReportsController {
     @Query('filters') filtersParam?: string,
     @Query('asOf') asOfParam?: string,
   ) {
-    const rows = await this.buildContractRegistryRows(resolveAsOf(asOfParam));
+    const asOf = resolveAsOf(asOfParam);
+    const rows = await this.buildContractRegistryRows(asOf);
     const options = parseListOptions(undefined, undefined, searchParam, sortByParam, sortDirParam, filtersParam, 'endDate');
     const sorted = filterAndSortInMemory(rows, options, {
       searchFields: ['contractNumber', 'residentFullName', 'room'],
@@ -669,7 +675,9 @@ export class ReportsController {
       { header: t('reports.excel.colContractNumber', '№ договора'), value: (r) => r.contractNumber, width: 16 },
       { header: t('reports.excel.colFullName', 'ФИО'), value: (r) => r.residentFullName, width: 32 },
       { header: t('reports.excel.colRoom', 'Комната'), value: (r) => r.room ?? '', width: 12 },
-      { header: t('reports.excel.colStatus', 'Статус'), value: (r) => BUCKET_LABELS[r.bucket], width: 14 },
+      { header: asOf < dateOnly(new Date())
+        ? t('reports.registry.colStatusCalculated', 'Статус (расчётный)')
+        : t('reports.excel.colStatus', 'Статус'), value: (r) => BUCKET_LABELS[r.bucket], width: 22 },
       { header: t('reports.excel.colCreatedAt', 'Дата создания'), value: (r) => r.createdAt, format: 'date', width: 14 },
       { header: t('reports.excel.colStartDate', 'Дата начала'), value: (r) => r.startDate, format: 'date', width: 14 },
       { header: t('reports.excel.colEndDate', 'Дата окончания'), value: (r) => r.endDate, format: 'date', width: 14 },

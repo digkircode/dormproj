@@ -47,7 +47,7 @@ const columnLabels = computed<Record<string, string>>(() => ({
   createdAt: t('reports.registry.colCreatedAt'),
   startDate: t('reports.registry.colStart'),
   endDate: t('reports.registry.colEnd'),
-  bucket: t('reports.registry.colStatus'),
+  bucket: t(asOf.value < todayIso() ? 'reports.registry.colStatusCalculated' : 'reports.registry.colStatus'),
 }))
 const filterableFields = ['bucket']
 const cellRenderers = { contractNumber: ContractLinkCell, residentFullName: ResidentLinkCell, bucket: ContractRegistryStatusCell }
@@ -127,6 +127,7 @@ async function onExport() {
       </Button>
       <h1 class="text-lg font-medium">{{ t('reports.registry.title') }}</h1>
     </div>
+    <p v-if="asOf < todayIso()" class="text-sm text-muted-foreground">{{ t('reports.registry.historicalStatusNotice') }}</p>
 
     <Card class="grid grid-cols-2 gap-4 p-4 sm:grid-cols-4" :aria-busy="!summary && !summaryError">
       <ReportKpiSkeleton v-if="!summary && !summaryError" :count="4" />
