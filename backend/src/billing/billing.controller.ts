@@ -91,7 +91,8 @@ export class BillingController {
         include: {
           accruals: { include: { allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } }, refunds: true } },
           penaltyLogs: true,
-          payments: { select: { penaltyAmount: true, paidAt: true, reversedAt: true } },
+          payments: { select: { amount: true, penaltyAmount: true, paidAt: true, reversedAt: true } },
+          refunds: { select: { amount: true, refundedAt: true } },
         },
       });
       if (!contract) throw new NotFoundException('contracts.errors.contractNotFound');
@@ -100,12 +101,14 @@ export class BillingController {
         accruals: contract.accruals,
         penaltyLogs: contract.penaltyLogs,
         payments: contract.payments,
+        refunds: contract.refunds,
         asOf: refundedAt,
       });
       const availableNow = availableAdjustmentRefund({
         accruals: contract.accruals,
         penaltyLogs: contract.penaltyLogs,
         payments: contract.payments,
+        refunds: contract.refunds,
         asOf: dateOnly(new Date()),
       });
       const amount = new Prisma.Decimal(parsed.data.amount);
@@ -114,9 +117,13 @@ export class BillingController {
         throw new BadRequestException('billing.errors.refundExceedsOverpayment');
       }
       const createdByUserId = await ensureUserRecord(tx, req.user!);
+      const creditAmount = Prisma.Decimal.min(amount, contract.creditBalance);
       const refund = await tx.contractRefund.create({
-        data: { contractId, accrualId: available.accrualId, amount, refundedAt, comment: parsed.data.comment ?? null, createdByUserId },
+        data: { contractId, accrualId: available.accrualId, amount, creditAmount, refundedAt, comment: parsed.data.comment ?? null, createdByUserId },
       });
+      if (creditAmount.greaterThan(0)) {
+        await tx.contract.update({ where: { id: contractId }, data: { creditBalance: { decrement: creditAmount } } });
+      }
       await this.auditLog.log(tx, {
         userId: createdByUserId,
         action: 'CREATE',
@@ -125,7 +132,7 @@ export class BillingController {
         entityLabel: `Возврат по договору №${contract.number}`,
         before: null,
         after: refund,
-        fields: ['contractId', 'accrualId', 'amount', 'refundedAt', 'comment'],
+        fields: ['contractId', 'accrualId', 'amount', 'creditAmount', 'refundedAt', 'comment'],
       });
       return { id: refund.id, amount: Number(refund.amount), refundedAt: refund.refundedAt, comment: refund.comment, accrualId: refund.accrualId };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });

@@ -360,7 +360,7 @@ export class ContractsController {
     }
 
     const { terms, roomAssignments, accruals, payments, penaltyLogs, refunds, resident, matCapitalAmount, ...contractFields } = contract;
-    const refundable = availableAdjustmentRefund({ accruals, penaltyLogs, payments, asOf: dateOnly(new Date()) });
+    const refundable = availableAdjustmentRefund({ accruals, penaltyLogs, payments, refunds, asOf: dateOnly(new Date()) });
     // Пеня — производная от журнала (не хранимое поле, см. schema.prisma), сколько из неё
     // уже покрыто платежами — тоже выводим на чтении (см. penalty-balance.ts). "На сейчас",
     // а не на дату — карточка договора не поддерживает выбор даты (в отличие от финансового
@@ -375,6 +375,7 @@ export class ContractsController {
       // Decimal не сериализуется в JSON как обычное число сам по себе — тот же приём, что
       // и в serializeTerms/serializeAccrual, явный Number(...) вместо спреда как есть.
       matCapitalAmount: matCapitalAmount !== null ? Number(matCapitalAmount) : null,
+      creditBalance: Number(contractFields.creditBalance),
       penaltyAmount: Number(penaltyAmount),
       penaltyPaid: Number(penaltyPaid),
       penaltyBalance: Number(penaltyBalance),

@@ -110,9 +110,9 @@ export class ContractStatusScheduler {
             const paid = accrual.allocations
               .filter((al) => !al.payment.reversedAt && al.payment.paidAt <= today)
               .reduce((s, al) => s.plus(al.amount), new Decimal(0))
-              .minus(accrual.refunds.filter((refund) => refund.refundedAt <= today).reduce((s, refund) => s.plus(refund.amount), new Decimal(0)));
+              .minus(accrual.refunds.filter((refund) => refund.refundedAt <= today).reduce((s, refund) => s.plus(refund.amount.minus(refund.creditAmount)), new Decimal(0)));
             return sum.plus(total.minus(paid));
-          }, new Decimal(0));
+          }, new Decimal(0)).minus(contract.creditBalance);
           const penaltyBalance = (penaltyByContract.get(contract.id) ?? new Decimal(0))
             .minus(paidPenaltyByContract.get(contract.id) ?? new Decimal(0));
           const nextStatus = principalDebt.plus(penaltyBalance).greaterThan(0) ? 'OVERDUE' : 'COMPLETED';

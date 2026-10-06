@@ -252,6 +252,7 @@ export class ReportsController {
         },
         payments: true,
         penaltyLogs: true,
+        refunds: true,
       },
     });
     if (!contract) {
@@ -263,7 +264,7 @@ export class ReportsController {
       const paid = accrual.allocations
         .filter((al) => !al.payment.reversedAt && al.payment.paidAt <= asOf)
         .reduce((sum, al) => sum.plus(al.amount), new Decimal(0))
-        .minus(accrual.refunds.filter((refund) => refund.refundedAt <= asOf).reduce((sum, refund) => sum.plus(refund.amount), new Decimal(0)));
+        .minus(accrual.refunds.filter((refund) => refund.refundedAt <= asOf).reduce((sum, refund) => sum.plus(refund.amount.minus(refund.creditAmount)), new Decimal(0)));
       const balance = accrual.dueDate <= asOf ? total.minus(paid) : new Decimal(0);
       return {
         id: accrual.id,
@@ -283,7 +284,17 @@ export class ReportsController {
       penaltyLogs: contract.penaltyLogs,
       payments: contract.payments,
     });
-    const principalDebt = periods.reduce((sum, p) => sum + p.balance, 0);
+    const activePayments = contract.payments.filter((payment) => !payment.reversedAt && payment.paidAt <= asOf);
+    const cashAsOf = activePayments.reduce((sum, payment) => sum.plus(payment.amount), new Decimal(0));
+    const penaltyPaidAsOf = activePayments.reduce((sum, payment) => sum.plus(payment.penaltyAmount), new Decimal(0));
+    const allocatedAsOf = contract.accruals.flatMap((accrual) => accrual.allocations)
+      .filter((allocation) => !allocation.payment.reversedAt && allocation.payment.paidAt <= asOf)
+      .reduce((sum, allocation) => sum.plus(allocation.amount), new Decimal(0));
+    const returnedCreditAsOf = contract.refunds.filter((refund) => refund.refundedAt <= asOf)
+      .reduce((sum, refund) => sum.plus(refund.creditAmount), new Decimal(0));
+    const credit = cashAsOf.minus(penaltyPaidAsOf).minus(allocatedAsOf).minus(returnedCreditAsOf);
+    const unallocatedCredit = credit.greaterThan(0) ? credit : new Decimal(0);
+    const principalDebt = periods.reduce((sum, p) => sum + p.balance, 0) - Number(unallocatedCredit);
 
     return {
       contractId: contract.id,
@@ -291,8 +302,9 @@ export class ReportsController {
       residentFullName: contract.resident.fullName,
       room: contract.roomAssignments[0]?.room.room ?? null,
       periods,
+      unallocatedCredit: Number(unallocatedCredit),
       totalAccrued: periods.reduce((sum, p) => sum + p.total, 0),
-      totalPaid: periods.reduce((sum, p) => sum + p.paid, 0),
+      totalPaid: periods.reduce((sum, p) => sum + p.paid, 0) + Number(unallocatedCredit),
       penaltyBalance: Number(penaltyBalance),
       totalDebt: principalDebt + Number(penaltyBalance),
     };

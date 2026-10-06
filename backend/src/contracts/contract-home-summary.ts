@@ -32,11 +32,12 @@ export async function buildContractHomeSummary(
     select: {
       number: true,
       createdAt: true,
+      creditBalance: true,
       roomAssignments: { orderBy: { fromDate: 'desc' }, select: { toDate: true, room: { select: { id: true, room: true } } } },
       accruals: {
         where: { voidedAt: null },
         orderBy: { periodStart: 'asc' },
-        select: { dueDate: true, rentAmount: true, utilitiesAmount: true, adjustmentAmount: true, allocations: { select: { amount: true } }, refunds: { select: { amount: true } } },
+        select: { dueDate: true, rentAmount: true, utilitiesAmount: true, adjustmentAmount: true, allocations: { select: { amount: true } }, refunds: { select: { amount: true, creditAmount: true } } },
       },
       penaltyLogs: { select: { amount: true, date: true } },
       payments: { select: { penaltyAmount: true, paidAt: true, reversedAt: true } },
@@ -55,7 +56,7 @@ export async function buildContractHomeSummary(
   const accrualBalances = contract.accruals.map((a) => {
     const total = a.rentAmount.plus(a.utilitiesAmount).plus(a.adjustmentAmount);
     const paid = a.allocations.reduce((sum, alloc) => sum.plus(alloc.amount), new Prisma.Decimal(0))
-      .minus(a.refunds.reduce((sum, refund) => sum.plus(refund.amount), new Prisma.Decimal(0)));
+      .minus(a.refunds.reduce((sum, refund) => sum.plus(refund.amount.minus(refund.creditAmount)), new Prisma.Decimal(0)));
     return { dueDate: a.dueDate, balance: total.minus(paid) };
   });
   const totalDebt = accrualBalances.reduce((sum, a) => sum.plus(a.balance), new Prisma.Decimal(0));
@@ -90,7 +91,7 @@ export async function buildContractHomeSummary(
     number: contract.number,
     createdAt: contract.createdAt,
     currentRoom,
-    totalBalance: Number(totalDebt.plus(penaltyBalance)),
+    totalBalance: Number(totalDebt.plus(penaltyBalance).minus(contract.creditBalance)),
     nextAccrual: nextAccrual ? { dueDate: nextAccrual.dueDate, balance: Number(nextAccrualBalance) } : null,
   };
 }

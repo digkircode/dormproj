@@ -46,6 +46,7 @@
       "breakdownTitleFallback": "Debt breakdown",
       "colMonth": "Month",
       "noAccruals": "No accruals on this contract",
+      "unallocatedCredit": "Unallocated overpayment",
       "penaltyByContract": "Contract penalty: {amount}",
       "totalDebtLine": "Total debt: {amount}",
       "penaltyTitle": "Penalty - {name}, room {room}",

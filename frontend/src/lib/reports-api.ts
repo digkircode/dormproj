@@ -48,6 +48,7 @@ export interface DebtorBreakdown {
   residentFullName: string
   room: string | null
   periods: DebtorBreakdownPeriod[]
+  unallocatedCredit: number
   totalAccrued: number
   totalPaid: number
   // Пеня — единая сумма на договор, не по периодам (см. reports.controller.ts).

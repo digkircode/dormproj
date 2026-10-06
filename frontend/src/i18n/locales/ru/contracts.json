@@ -50,6 +50,7 @@
       "refundMethod": "Корректировка",
       "refundedAdjustment": "Возвращено {amount}",
       "partlyRefundedAdjustment": "Возвращено {amount} из {total}",
+      "refundNotRequired": "Возврат не требуется",
       "terminateContract": "Расторгнуть договор",
       "deleteContract": "Удалить договор",
       "totalBalance": "Общий баланс",

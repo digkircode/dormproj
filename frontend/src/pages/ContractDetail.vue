@@ -105,7 +105,7 @@ onUnmounted(() => {
 // Пеня — единая сумма на договор (не входит в accrual.balance, см. penalty-balance.ts на
 // бэке) — добавляем её отдельно, иначе общий баланс не совпадал бы с реальным долгом.
 const totalBalance = computed(() =>
-  contract.value ? contract.value.accruals.reduce((sum, a) => sum + a.balance, 0) + contract.value.penaltyBalance : 0,
+  contract.value ? contract.value.accruals.reduce((sum, a) => sum + a.balance, 0) + contract.value.penaltyBalance - contract.value.creditBalance : 0,
 )
 
 // История начисления пени по дням — раскрывается кликом по тайлу "Пени" (тот же приём,
@@ -180,6 +180,16 @@ const { sort: accrualSort, sorted: sortedAccruals, toggle: toggleAccrualSort } =
   () => contract.value?.accruals ?? [],
   'periodStart' satisfies keyof AccrualRow,
 )
+
+function paidOnlyAdjustedAmount(accrual: AccrualRow, refundableAmount: number): boolean {
+  return !accrual.voidedAt
+    && accrual.adjustmentAmount < 0
+    && accrual.refundedAmount === 0
+    && accrual.total > 0
+    && accrual.paid > 0
+    && Math.abs(accrual.paid - accrual.total) < 0.005
+    && refundableAmount <= 0
+}
 
 const PAYMENT_COLUMNS = computed<{ id: keyof PaymentRow; label: string }[]>(() => [
   { id: 'paidAt', label: t('contracts.detail.colDate') },
@@ -574,6 +584,9 @@ async function confirmReversePayment() {
                           {{ a.refundedAmount < -a.adjustmentAmount
                             ? t('contracts.detail.partlyRefundedAdjustment', { amount: formatMoney(a.refundedAmount), total: formatMoney(-a.adjustmentAmount) })
                             : t('contracts.detail.refundedAdjustment', { amount: formatMoney(a.refundedAmount) }) }}
+                        </span>
+                        <span v-else-if="paidOnlyAdjustedAmount(a, contract.refundableAmount)" class="w-fit max-w-48 rounded-md bg-sky-100 px-1.5 py-0.5 text-xs leading-tight text-sky-800 dark:bg-sky-500/15 dark:text-sky-300">
+                          {{ t('contracts.detail.refundNotRequired') }}
                         </span>
                       </div>
                     </TableCell>

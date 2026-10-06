@@ -64,7 +64,8 @@ describe('financial report room on a historical date', () => {
     }]);
     const paymentGroupBy = jest.fn()
       .mockResolvedValueOnce([{ contractId: 1, _sum: { amount: new Prisma.Decimal(80) } }])
-      .mockResolvedValueOnce([{ contractId: 1, _sum: { penaltyAmount: new Prisma.Decimal(5) } }]);
+      .mockResolvedValueOnce([{ contractId: 1, _sum: { penaltyAmount: new Prisma.Decimal(5) } }])
+      .mockResolvedValueOnce([{ contractId: 1, _sum: { amount: new Prisma.Decimal(30) } }]);
     const prisma = {
       contract: { findMany },
       penaltyAccrualLog: { groupBy: jest.fn().mockResolvedValue([{ contractId: 1, _sum: { amount: new Prisma.Decimal(12) } }]) },
@@ -96,9 +97,34 @@ describe('financial report room on a historical date', () => {
           rentAmount: new Prisma.Decimal(100), utilitiesAmount: new Prisma.Decimal(0),
           adjustmentAmount: new Prisma.Decimal(-50), dueDate: date(1),
           allocations: [{ amount: new Prisma.Decimal(100), payment: { paidAt: date(2), reversedAt: null } }],
-          refunds: [{ amount: new Prisma.Decimal(50), refundedAt: date(4) }],
+          refunds: [{ amount: new Prisma.Decimal(50), creditAmount: new Prisma.Decimal(0), refundedAt: date(4) }],
         }],
-        refunds: [{ amount: new Prisma.Decimal(50) }],
+        refunds: [{ amount: new Prisma.Decimal(50), creditAmount: new Prisma.Decimal(0), refundedAt: date(4) }],
+      }]) },
+      penaltyAccrualLog: { groupBy: jest.fn().mockResolvedValue([]) },
+      payment: { groupBy: jest.fn().mockImplementation(async (args: any) =>
+        args._sum.amount ? [{ contractId: 1, _sum: { amount: new Prisma.Decimal(100) } }] : []) },
+    } as unknown as PrismaService;
+
+    const before = (await buildDebtorRows(prisma, date(3)))[0];
+    const after = (await buildDebtorRows(prisma, date(5)))[0];
+    expect([before.totalPaid, before.principalDebt, after.totalPaid, after.principalDebt]).toEqual([50, -50, 50, 0]);
+  });
+
+  it('includes unallocated contract credit until that credit is returned', async () => {
+    const prisma = {
+      contract: { findMany: jest.fn().mockResolvedValue([{
+        id: 1, number: '1', residentIndividualUid: 'resident',
+        resident: { fullName: 'Resident', fizicheskoyeLitsoUid: 'resident' },
+        roomAssignments: [], status: ContractStatus.ACTIVE,
+        createdAt: date(1), endDate: date(31),
+        accruals: [{
+          rentAmount: new Prisma.Decimal(100), utilitiesAmount: new Prisma.Decimal(0),
+          adjustmentAmount: new Prisma.Decimal(-50), dueDate: date(1),
+          allocations: [{ amount: new Prisma.Decimal(50), payment: { paidAt: date(2), reversedAt: null } }],
+          refunds: [{ amount: new Prisma.Decimal(50), creditAmount: new Prisma.Decimal(50), refundedAt: date(4) }],
+        }],
+        refunds: [{ amount: new Prisma.Decimal(50), creditAmount: new Prisma.Decimal(50), refundedAt: date(4) }],
       }]) },
       penaltyAccrualLog: { groupBy: jest.fn().mockResolvedValue([]) },
       payment: { groupBy: jest.fn().mockImplementation(async (args: any) =>

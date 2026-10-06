@@ -332,7 +332,7 @@ async function onExport() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow v-if="!breakdown.periods.length">
+                <TableRow v-if="!breakdown.periods.length && !breakdown.unallocatedCredit">
                   <TableCell colspan="4" class="text-center text-muted-foreground">{{ t('reports.debt.noAccruals') }}</TableCell>
                 </TableRow>
                 <TableRow v-for="p in breakdown.periods" :key="p.id">
@@ -348,8 +348,14 @@ async function onExport() {
                     {{ formatMoney(p.balance) }}
                   </TableCell>
                 </TableRow>
+                <TableRow v-if="breakdown.unallocatedCredit > 0">
+                  <TableCell :class="CELL_BORDER_CLASS">{{ t('reports.debt.unallocatedCredit') }}</TableCell>
+                  <TableCell :class="CELL_BORDER_CLASS">-</TableCell>
+                  <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(breakdown.unallocatedCredit) }}</TableCell>
+                  <TableCell class="text-emerald-600 dark:text-emerald-400">{{ formatMoney(-breakdown.unallocatedCredit) }}</TableCell>
+                </TableRow>
               </TableBody>
-              <TableFooter v-if="breakdown.periods.length">
+              <TableFooter v-if="breakdown.periods.length || breakdown.unallocatedCredit">
                 <TableRow>
                   <TableCell :class="CELL_BORDER_CLASS">{{ t('reports.common.total') }}</TableCell>
                   <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(breakdown.totalAccrued) }}</TableCell>

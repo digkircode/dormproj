@@ -46,6 +46,7 @@
       "breakdownTitleFallback": "Структура долга",
       "colMonth": "Месяц",
       "noAccruals": "Нет начислений по договору",
+      "unallocatedCredit": "Неразнесённая переплата",
       "penaltyByContract": "Пеня по договору: {amount}",
       "totalDebtLine": "Итого долг: {amount}",
       "penaltyTitle": "Пеня - {name}, комн. {room}",

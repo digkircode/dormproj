@@ -14,11 +14,12 @@ export function serializeAccrual(accrual: {
   adjustmentReason: string | null;
   voidedAt: Date | null;
   allocations?: { amount: Prisma.Decimal }[];
-  refunds?: { amount: Prisma.Decimal }[];
+  refunds?: { amount: Prisma.Decimal; creditAmount: Prisma.Decimal }[];
 }) {
   const total = accrual.rentAmount.plus(accrual.utilitiesAmount).plus(accrual.adjustmentAmount);
   const refunded = (accrual.refunds ?? []).reduce((sum, row) => sum.plus(row.amount), new Prisma.Decimal(0));
-  const paid = (accrual.allocations ?? []).reduce((sum, a) => sum.plus(a.amount), new Prisma.Decimal(0)).minus(refunded);
+  const allocatedRefunded = (accrual.refunds ?? []).reduce((sum, row) => sum.plus(row.amount.minus(row.creditAmount)), new Prisma.Decimal(0));
+  const paid = (accrual.allocations ?? []).reduce((sum, a) => sum.plus(a.amount), new Prisma.Decimal(0)).minus(allocatedRefunded);
   return {
     id: accrual.id,
     periodStart: accrual.periodStart,

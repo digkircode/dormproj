@@ -50,6 +50,7 @@
       "refundMethod": "Adjustment",
       "refundedAdjustment": "Refunded {amount}",
       "partlyRefundedAdjustment": "Refunded {amount} of {total}",
+      "refundNotRequired": "No refund needed",
       "terminateContract": "Terminate contract",
       "deleteContract": "Delete contract",
       "totalBalance": "Total balance",

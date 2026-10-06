@@ -116,7 +116,7 @@ const isPenaltyDialogOpen = ref(false)
 const PENALTY_DAILY_RATE_PERCENT = '0,14%'
 
 const totalBalance = computed(() =>
-  contract.value ? contract.value.accruals.reduce((sum, a) => sum + a.balance, 0) + contract.value.penaltyBalance : 0,
+  contract.value ? contract.value.accruals.reduce((sum, a) => sum + a.balance, 0) + contract.value.penaltyBalance - contract.value.creditBalance : 0,
 )
 const rentAmount = computed(() => contract.value?.terms[0]?.rentAmount ?? 0)
 const utilitiesAmount = computed(() => contract.value?.terms[0]?.utilitiesAmount ?? 0)
