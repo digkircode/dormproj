@@ -50,6 +50,7 @@ function pickUser(user: UserRow) {
 }
 
 const allRoles = ref<Role[]>([])
+const isLoadingRoles = ref(false)
 const roleToGrant = ref<number | undefined>(undefined)
 const availableRoles = computed(() => allRoles.value.filter((r) => !selectedUser.value?.roles.some((ur) => ur.id === r.id)))
 
@@ -64,10 +65,17 @@ async function open(prefillUser?: UserRow) {
   userQuery.value = prefillUser?.fullName ?? ''
   userResults.value = []
   roleToGrant.value = undefined
-  if (allRoles.value.length === 0) {
-    allRoles.value = await fetchRoles()
-  }
   isOpen.value = true
+  if (allRoles.value.length === 0) {
+    isLoadingRoles.value = true
+    try {
+      allRoles.value = await fetchRoles()
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : String(e)
+    } finally {
+      isLoadingRoles.value = false
+    }
+  }
 }
 defineExpose({ open })
 
@@ -164,7 +172,7 @@ async function onRevoke(roleId: number) {
         <div class="flex flex-1 flex-col gap-2">
           <Label>{{ t('users.manageDialog.grantRoleLabel') }}</Label>
           <Select
-            :disabled="!selectedUser"
+            :disabled="!selectedUser || isLoadingRoles"
             :model-value="roleToGrant ? String(roleToGrant) : undefined"
             @update:model-value="(v) => (roleToGrant = Number(v))"
           >

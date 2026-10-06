@@ -101,6 +101,10 @@ export class PaymentImportsIngestService {
           suggestedContractId,
         },
       });
+      // AllPaymentDoc может вернуть один DocumentUID несколько раз в том же ответе.
+      // Учитываем только что созданную запись, чтобы второй экземпляр не оборвал батч
+      // конфликтом уникальности source + externalId.
+      knownIds.add(candidate.externalId);
       imported++;
     }
 

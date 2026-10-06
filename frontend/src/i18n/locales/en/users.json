@@ -97,6 +97,17 @@
     "fieldAccounting1cUid": "Contract UID",
     "fieldAccounting1cContractorUid": "Contractor UID",
     "fieldOperation": "Operation",
+    "operationRecalculation": "Manual recalculation",
+    "operationSend": "Manual send to 1C",
+    "operationResult": {
+      "requested": "Selected documents",
+      "recalculated": "Recalculated",
+      "pushed": "Sent to 1C",
+      "succeeded": "Succeeded",
+      "failed": "Failed",
+      "blocked": "Not sent",
+      "skipped": "Send skipped"
+    },
     "fieldPenaltyRowsCount": "Penalty accrual rows",
     "fieldPenaltyTotal": "Penalty total",
     "fieldPenaltyAccruedThrough": "Penalty calculated through",

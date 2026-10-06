@@ -36,11 +36,8 @@
       "totalLabel": "contracts",
       "openContract": "Open contract",
       "newContract": "New contract",
-      "printSelected": "Print selected contracts",
-      "printSelectedCount": "Print selected ({count})",
-      "printSelectedPdf": "Print selected (PDF preview)",
-      "printSelectedPdfCount": "Print selected, PDF preview ({count})",
-      "selectContractsHint": "Select contracts with the checkbox"
+      "printSelected": "Print selected",
+      "downloadSelected": "Download selected"
     },
     "detail": {
       "titleWithNumber": "Contract No. {number}",

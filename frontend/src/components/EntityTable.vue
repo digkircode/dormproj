@@ -652,6 +652,7 @@ defineExpose({ refresh: loadPage })
                     v-for="cell in row.getVisibleCells()"
                     :key="cell.id"
                     class="border-r border-border last:border-r-0"
+                    :class="{ 'p-0': cell.column.id === 'roles' && !!cellRenderers?.[cell.column.id] }"
                     :style="{ width: `var(--col-${cell.column.id}-size)` }"
                   >
                     <component

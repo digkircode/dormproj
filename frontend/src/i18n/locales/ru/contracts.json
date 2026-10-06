@@ -36,11 +36,8 @@
       "totalLabel": "договоров",
       "openContract": "Открыть договор",
       "newContract": "Новый договор",
-      "printSelected": "Распечатать выбранные договоры",
-      "printSelectedCount": "Распечатать выбранные ({count})",
-      "printSelectedPdf": "Печать выбранных (предпросмотр PDF)",
-      "printSelectedPdfCount": "Печать выбранных, предпросмотр PDF ({count})",
-      "selectContractsHint": "Выберите договоры чекбоксом"
+      "printSelected": "Распечатать выбранные",
+      "downloadSelected": "Скачать выбранные"
     },
     "detail": {
       "titleWithNumber": "Договор № {number}",

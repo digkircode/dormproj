@@ -100,6 +100,32 @@ function fieldLabel(field: string): string {
   return FIELD_LABELS.value[field] ?? field
 }
 
+function formatOperation(value: string): string {
+  const separator = value.indexOf(': {')
+  if (separator < 0) return value
+  try {
+    const details: unknown = JSON.parse(value.slice(separator + 2))
+    if (!details || typeof details !== 'object' || Array.isArray(details)) return value
+    const counters = details as Record<string, unknown>
+    const operation = value.slice(0, separator)
+    const isRecalculation = operation === 'Ручной пересчёт'
+    const keys = isRecalculation
+      ? ['requested', 'recalculated']
+      : operation === 'Ручная отправка в 1С'
+        ? ['pushed', 'succeeded', 'failed', 'blocked', 'skipped']
+        : []
+    if (!keys.length) return value
+    const lines = keys
+      .filter((key) => typeof counters[key] === 'number' || typeof counters[key] === 'boolean')
+      .map((key) => `${t(`audit.operationResult.${key}`)}: ${typeof counters[key] === 'boolean' ? (counters[key] ? t('boolean.yes') : t('boolean.no')) : counters[key]}`)
+    if (!lines.length) return value
+    const title = isRecalculation ? t('audit.operationRecalculation') : t('audit.operationSend')
+    return `${title}\n${lines.join('\n')}`
+  } catch {
+    return value
+  }
+}
+
 function formatValue(value: unknown, field: string): string {
   if (value === null || value === undefined || value === '') return '-'
   if (field === 'order' && Array.isArray(value)) {
@@ -113,12 +139,7 @@ function formatValue(value: unknown, field: string): string {
       : field === 'accounting1cSyncStatus' ? `paymentImports.statusWebsite.${value}` : ''
     if (enumKey && te(enumKey)) return t(enumKey)
     if (field === '_operation') {
-      const separator = value.indexOf(': {')
-      if (separator >= 0) {
-        try {
-          return `${value.slice(0, separator)}:\n${JSON.stringify(JSON.parse(value.slice(separator + 2)), null, 2)}`
-        } catch { /* Keep historical text if its details are not JSON. */ }
-      }
+      return formatOperation(value)
     }
   }
   if (field === '_penaltyTotal' && typeof value === 'number') {

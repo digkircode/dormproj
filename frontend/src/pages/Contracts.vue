@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, ExternalLink, Eye, Plus, Printer } from 'lucide-vue-next'
+import { ArrowLeft, Download, ExternalLink, Plus, Printer } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -153,16 +153,14 @@ const createDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(nu
               size="icon"
               variant="outline"
               :disabled="!selectedContracts.length"
-              :loading="isPrinting"
-              @click="onPrintSelected"
+              :loading="isPrintingPdf"
+              @click="onPrintSelectedPdf"
             >
               <Printer :class="{ 'text-primary': selectedContracts.length }" />
               <span class="sr-only">{{ t('contracts.list.printSelected') }}</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>
-            {{ selectedContracts.length ? t('contracts.list.printSelectedCount', { count: selectedContracts.length }) : t('contracts.list.selectContractsHint') }}
-          </TooltipContent>
+          <TooltipContent>{{ t('contracts.list.printSelected') }}</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger as-child>
@@ -170,16 +168,14 @@ const createDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(nu
               size="icon"
               variant="outline"
               :disabled="!selectedContracts.length"
-              :loading="isPrintingPdf"
-              @click="onPrintSelectedPdf"
+              :loading="isPrinting"
+              @click="onPrintSelected"
             >
-              <Eye :class="{ 'text-primary': selectedContracts.length }" />
-              <span class="sr-only">{{ t('contracts.list.printSelectedPdf') }}</span>
+              <Download :class="{ 'text-primary': selectedContracts.length }" />
+              <span class="sr-only">{{ t('contracts.list.downloadSelected') }}</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>
-            {{ selectedContracts.length ? t('contracts.list.printSelectedPdfCount', { count: selectedContracts.length }) : t('contracts.list.selectContractsHint') }}
-          </TooltipContent>
+          <TooltipContent>{{ t('contracts.list.downloadSelected') }}</TooltipContent>
         </Tooltip>
         <Separator orientation="vertical" class="h-6" />
       </template>

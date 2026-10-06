@@ -97,6 +97,17 @@
     "fieldAccounting1cUid": "UID договора",
     "fieldAccounting1cContractorUid": "UID контрагента",
     "fieldOperation": "Операция",
+    "operationRecalculation": "Ручной пересчёт",
+    "operationSend": "Ручная отправка в 1С",
+    "operationResult": {
+      "requested": "Выбрано документов",
+      "recalculated": "Пересчитано",
+      "pushed": "Отправлено в 1С",
+      "succeeded": "Успешно",
+      "failed": "С ошибкой",
+      "blocked": "Не отправлено",
+      "skipped": "Отправка пропущена"
+    },
     "fieldPenaltyRowsCount": "Строк начисления пени",
     "fieldPenaltyTotal": "Сумма пени",
     "fieldPenaltyAccruedThrough": "Пеня рассчитана по дату",
