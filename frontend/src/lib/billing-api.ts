@@ -1,5 +1,6 @@
 import { apiFetch } from './api-base'
 import type { PaymentMethod, PaymentRow } from './contracts-api'
+import type { ContractRefundRow } from './contracts-api'
 import { i18n } from '@/i18n'
 
 export interface CreatePaymentInput {
@@ -11,6 +12,19 @@ export interface CreatePaymentInput {
 
 export async function createPayment(contractId: number, input: CreatePaymentInput): Promise<PaymentRow> {
   const response = await apiFetch(`/contracts/${contractId}/payments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!response.ok) {
+    const body: { message?: string } = await response.json().catch(() => ({}))
+    throw new Error(body.message ?? i18n.global.t('contracts.errors.addPaymentFailed', { status: response.status }))
+  }
+  return response.json()
+}
+
+export async function recordContractRefund(contractId: number, input: { amount: number; refundedAt: string; comment?: string | null }): Promise<ContractRefundRow> {
+  const response = await apiFetch(`/contracts/${contractId}/refunds`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

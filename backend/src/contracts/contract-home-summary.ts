@@ -36,7 +36,7 @@ export async function buildContractHomeSummary(
       accruals: {
         where: { voidedAt: null },
         orderBy: { periodStart: 'asc' },
-        select: { dueDate: true, rentAmount: true, utilitiesAmount: true, adjustmentAmount: true, allocations: { select: { amount: true } } },
+        select: { dueDate: true, rentAmount: true, utilitiesAmount: true, adjustmentAmount: true, allocations: { select: { amount: true } }, refunds: { select: { amount: true } } },
       },
       penaltyLogs: { select: { amount: true, date: true } },
       payments: { select: { penaltyAmount: true, paidAt: true, reversedAt: true } },
@@ -54,7 +54,8 @@ export async function buildContractHomeSummary(
 
   const accrualBalances = contract.accruals.map((a) => {
     const total = a.rentAmount.plus(a.utilitiesAmount).plus(a.adjustmentAmount);
-    const paid = a.allocations.reduce((sum, alloc) => sum.plus(alloc.amount), new Prisma.Decimal(0));
+    const paid = a.allocations.reduce((sum, alloc) => sum.plus(alloc.amount), new Prisma.Decimal(0))
+      .minus(a.refunds.reduce((sum, refund) => sum.plus(refund.amount), new Prisma.Decimal(0)));
     return { dueDate: a.dueDate, balance: total.minus(paid) };
   });
   const totalDebt = accrualBalances.reduce((sum, a) => sum.plus(a.balance), new Prisma.Decimal(0));

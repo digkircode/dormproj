@@ -48,7 +48,17 @@ export interface AccrualRow {
   voidedAt: string | null
   total: number
   paid: number
+  refundedAmount: number
   balance: number
+}
+
+export interface ContractRefundRow {
+  id: number
+  amount: number
+  refundedAt: string
+  comment: string | null
+  accrualId: number
+  periodStart: string
 }
 
 export type Accounting1cSyncStatus = 'NOT_SYNCED' | 'SYNCED' | 'FAILED'
@@ -117,6 +127,8 @@ export interface ContractDetail {
   terms: ContractTerms[]
   accruals: AccrualRow[]
   payments: PaymentRow[]
+  refunds: ContractRefundRow[]
+  refundableAmount: number
   // Определяет доступность "Удалить договор" — после первой же оплаты (даже
   // сторнированной) удаление блокируется навсегда, см. contracts.controller.ts.
   hasPayments: boolean

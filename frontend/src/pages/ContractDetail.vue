@@ -29,6 +29,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import TableSkeleton from '@/components/TableSkeleton.vue'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import ContractStatusPill from '@/components/ContractStatusPill.vue'
 import Accounting1cLinkedBadge from '@/components/Accounting1cLinkedBadge.vue'
@@ -48,7 +49,7 @@ import {
   type ContractDetail,
   type PaymentRow,
 } from '@/lib/contracts-api'
-import { reversePayment, recalculatePenalty } from '@/lib/billing-api'
+import { reversePayment, recalculatePenalty, recordContractRefund } from '@/lib/billing-api'
 import Accounting1cStatusPill from '@/components/Accounting1cStatusPill.vue'
 import { goBack } from '@/lib/utils'
 import { breadcrumbOverride } from '@/lib/breadcrumb-state'
@@ -144,13 +145,13 @@ const showParentInfo = ref(false)
 // --- Сортировка таблиц (локальная, без похода на бэкенд — строк на договор мало) ---
 // Ключ сортировки — string, не keyof T: колонок мало и они описаны прямо тут же в
 // массиве ниже, полная дженерик-типизация была бы избыточна ради пары маленьких таблиц.
-function useLocalSort<T extends Record<string, unknown>>(rows: () => T[], initialId: string) {
+function useLocalSort<T extends object>(rows: () => T[], initialId: string) {
   const sort = ref({ id: initialId, desc: false })
   const sorted = computed(() => {
     const { id, desc } = sort.value
     return [...rows()].sort((a, b) => {
-      const av = a[id]
-      const bv = b[id]
+      const av = (a as Record<string, unknown>)[id]
+      const bv = (b as Record<string, unknown>)[id]
       if (av === bv) return 0
       const cmp = (av as string | number) > (bv as string | number) ? 1 : -1
       return desc ? -cmp : cmp
@@ -187,10 +188,60 @@ const PAYMENT_COLUMNS = computed<{ id: keyof PaymentRow; label: string }[]>(() =
   { id: 'purpose', label: t('contracts.detail.colPurpose') },
   { id: 'rawComment', label: t('contracts.detail.colComment') },
 ])
+type PaymentMovementRow = Omit<PaymentRow, 'method'> & { method: PaymentRow['method'] | 'CORRECTION'; isRefund?: boolean }
+const paymentMovements = computed<PaymentMovementRow[]>(() => [
+  ...(contract.value?.payments ?? []),
+  ...(contract.value?.refunds ?? []).map((refund) => ({
+    id: refund.id,
+    amount: refund.amount,
+    paidAt: refund.refundedAt,
+    method: 'CORRECTION' as const,
+    source: 'REFUND',
+    externalRef: null,
+    rawComment: refund.comment,
+    reversedAt: null,
+    createdAt: refund.refundedAt,
+    purpose: `1С: Бухгалтерия | Возврат | ${new Date(refund.periodStart).toLocaleDateString('ru-RU', { month: 'long', timeZone: 'UTC' })} ${new Date(refund.periodStart).getUTCFullYear()}`,
+    isRefund: true,
+  })),
+])
 const { sort: paymentSort, sorted: sortedPayments, toggle: togglePaymentSort } = useLocalSort(
-  () => contract.value?.payments ?? [],
+  () => paymentMovements.value,
   'paidAt' satisfies keyof PaymentRow,
 )
+
+const isRefundOpen = ref(false)
+const refundAmount = ref('')
+const refundDate = ref('')
+const refundComment = ref('')
+const refundError = ref('')
+const isSavingRefund = ref(false)
+function openRefund() {
+  const now = new Date()
+  refundDate.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  refundAmount.value = String(contract.value?.refundableAmount ?? '')
+  refundComment.value = ''
+  refundError.value = ''
+  isRefundOpen.value = true
+}
+async function saveRefund() {
+  const amount = Number(refundAmount.value)
+  if (!refundDate.value || !/^\d+(?:[.,]\d{1,2})?$/.test(refundAmount.value) || !Number.isFinite(amount) || amount <= 0) {
+    refundError.value = t('contracts.detail.amountAndDateRequired')
+    return
+  }
+  isSavingRefund.value = true
+  refundError.value = ''
+  try {
+    await recordContractRefund(contractId.value, { amount, refundedAt: refundDate.value, comment: refundComment.value.trim() || null })
+    isRefundOpen.value = false
+    await load()
+  } catch (error) {
+    refundError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isSavingRefund.value = false
+  }
+}
 
 function formatDate(value: string | null): string {
   if (!value) return '-'
@@ -307,12 +358,12 @@ async function confirmReversePayment() {
 
 <template>
   <div class="flex min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
-    <div class="flex items-center gap-2">
+    <div class="flex min-w-0 flex-wrap items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/contracts')">
         <ArrowLeft class="text-primary" />
         <span class="sr-only">{{ t('contracts.list.back') }}</span>
       </Button>
-      <h1 class="text-lg font-medium">
+      <h1 class="min-w-0 break-words text-lg font-medium">
         {{ contract ? t('contracts.detail.titleWithNumber', { number: contract.number }) : t('contracts.detail.titleFallback') }}
       </h1>
       <ContractStatusPill v-if="contract" :status="contract.status" />
@@ -380,7 +431,7 @@ async function confirmReversePayment() {
             </span>
           </div>
 
-          <div class="grid grid-cols-5 gap-4 border-t pt-4">
+          <div class="grid grid-cols-1 gap-4 border-t pt-4 sm:grid-cols-2 xl:grid-cols-5">
             <div class="flex items-center gap-3">
               <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-green-100 dark:bg-green-500/15">
                 <Wallet class="size-5 text-green-600 dark:text-green-400" />
@@ -516,7 +567,16 @@ async function confirmReversePayment() {
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.periodStart) }} - {{ formatDate(a.periodEnd) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.dueDate) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.total) }}</TableCell>
-                    <TableCell :class="CELL_BORDER_CLASS">{{ a.adjustmentAmount ? formatMoney(a.adjustmentAmount) : '-' }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">
+                      <div class="flex min-w-0 flex-col gap-1">
+                        <span>{{ a.adjustmentAmount ? formatMoney(a.adjustmentAmount) : '-' }}</span>
+                        <span v-if="a.refundedAmount > 0" class="w-fit max-w-48 rounded-md bg-green-100 px-1.5 py-0.5 text-xs leading-tight text-green-800 dark:bg-green-500/15 dark:text-green-300">
+                          {{ a.refundedAmount < -a.adjustmentAmount
+                            ? t('contracts.detail.partlyRefundedAdjustment', { amount: formatMoney(a.refundedAmount), total: formatMoney(-a.adjustmentAmount) })
+                            : t('contracts.detail.refundedAdjustment', { amount: formatMoney(a.refundedAmount) }) }}
+                        </span>
+                      </div>
+                    </TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.paid) }}</TableCell>
                     <TableCell :class="a.balance > 0 ? 'text-red-500' : ''">
                       {{ a.voidedAt ? t('contracts.detail.voided') : formatMoney(a.balance) }}
@@ -529,8 +589,11 @@ async function confirmReversePayment() {
         </TabsContent>
 
         <TabsContent value="payments" class="flex min-h-0 flex-1 flex-col">
+          <div v-if="contract.refundableAmount > 0" class="flex justify-end pb-2">
+            <Button size="sm" variant="outline" @click="openRefund">{{ t('contracts.detail.recordRefund') }}</Button>
+          </div>
           <Card class="flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden py-0">
-            <p v-if="!contract.payments.length" class="p-6 text-sm text-muted-foreground">{{ t('contracts.detail.noPaymentsYet') }}</p>
+            <p v-if="!paymentMovements.length" class="p-6 text-sm text-muted-foreground">{{ t('contracts.detail.noPaymentsYet') }}</p>
             <div v-else class="flex min-h-0 flex-1 flex-col">
               <Table>
                 <TableHeader class="sticky top-0 z-10 bg-muted">
@@ -553,11 +616,11 @@ async function confirmReversePayment() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow v-for="p in sortedPayments" :key="p.id" :class="p.reversedAt ? 'opacity-40' : ''">
+                  <TableRow v-for="p in sortedPayments" :key="`${p.isRefund ? 'refund' : 'payment'}-${p.id}`" :class="p.reversedAt ? 'opacity-40' : ''">
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(p.paidAt) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(p.amount) }}</TableCell>
-                    <TableCell :class="CELL_BORDER_CLASS">{{ t(`payment.method.${p.method}`) }}</TableCell>
-                    <TableCell :class="CELL_BORDER_CLASS">{{ p.purpose ?? '-' }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ p.isRefund ? t('contracts.detail.refundMethod') : t(`payment.method.${p.method}`) }}</TableCell>
+                    <TableCell :class="`${CELL_BORDER_CLASS} break-words`">{{ p.purpose ?? '-' }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ p.rawComment ?? '-' }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">
                       <!-- Только для платежей с сайта (эквайринг) — MANUAL/IMPORTED_1C
@@ -578,6 +641,29 @@ async function confirmReversePayment() {
         </TabsContent>
       </Tabs>
     </template>
+
+    <Dialog :open="isRefundOpen" @update:open="(open) => (isRefundOpen = open)">
+      <DialogScrollContent :class="['flex w-[calc(100vw-2rem)] flex-col gap-4', DIALOG_ANIMATE_CLASS]">
+        <DialogHeader><DialogTitle>{{ t('contracts.detail.recordRefund') }}</DialogTitle></DialogHeader>
+        <div class="flex flex-col gap-2">
+          <Label for="refund-amount">{{ t('contracts.detail.amount') }}</Label>
+          <Input id="refund-amount" v-model="refundAmount" type="number" min="0.01" step="0.01" :max="contract?.refundableAmount" />
+        </div>
+        <div class="flex flex-col gap-2">
+          <Label>{{ t('contracts.detail.date') }}</Label>
+          <DatePickerField v-model="refundDate" />
+        </div>
+        <div class="flex flex-col gap-2">
+          <Label for="refund-comment">{{ t('contracts.detail.comment') }}</Label>
+          <Input id="refund-comment" v-model="refundComment" maxlength="1000" />
+        </div>
+        <p v-if="refundError" class="text-sm text-red-500">{{ refundError }}</p>
+        <DialogFooter>
+          <Button variant="outline" @click="isRefundOpen = false">{{ t('contracts.detail.cancel') }}</Button>
+          <Button :loading="isSavingRefund" @click="saveRefund">{{ t('contracts.detail.save') }}</Button>
+        </DialogFooter>
+      </DialogScrollContent>
+    </Dialog>
 
     <Dialog :open="isTerminateOpen" @update:open="(open) => (isTerminateOpen = open)">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">

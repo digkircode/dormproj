@@ -31,6 +31,7 @@ import { recalcAccrualsForTermination } from '../billing/termination';
 import { computePenaltyBalance } from '../billing/penalty-balance';
 import { dateOnly } from '../billing/period-utils';
 import { serializeAccrual, serializePayment, serializeTerms } from './serializers';
+import { availableAdjustmentRefund } from '../billing/refund-balance';
 import { buildPaymentPurpose } from '../billing/payment-purpose';
 import { isMinorAt } from './minor';
 import { buildResidentSnapshot, fillManualFallbacks, type ResidentSnapshot } from './resident-snapshot';
@@ -341,7 +342,7 @@ export class ContractsController {
         roomAssignments: { orderBy: { fromDate: 'desc' }, include: { room: { select: { id: true, room: true } } } },
         accruals: {
           orderBy: { periodStart: 'asc' },
-          include: { allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } } },
+          include: { allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } }, refunds: true },
         },
         payments: {
           orderBy: { paidAt: 'desc' },
@@ -351,13 +352,15 @@ export class ContractsController {
           },
         },
         penaltyLogs: true,
+        refunds: { include: { accrual: { select: { periodStart: true } } }, orderBy: { refundedAt: 'desc' } },
       },
     });
     if (!contract) {
       throw new NotFoundException('contracts.errors.contractNotFound');
     }
 
-    const { terms, roomAssignments, accruals, payments, penaltyLogs, resident, matCapitalAmount, ...contractFields } = contract;
+    const { terms, roomAssignments, accruals, payments, penaltyLogs, refunds, resident, matCapitalAmount, ...contractFields } = contract;
+    const refundable = availableAdjustmentRefund({ accruals, penaltyLogs, payments, asOf: dateOnly(new Date()) });
     // Пеня — производная от журнала (не хранимое поле, см. schema.prisma), сколько из неё
     // уже покрыто платежами — тоже выводим на чтении (см. penalty-balance.ts). "На сейчас",
     // а не на дату — карточка договора не поддерживает выбор даты (в отличие от финансового
@@ -389,6 +392,8 @@ export class ContractsController {
       roomHistory: roomAssignments,
       terms: terms.map(serializeTerms),
       accruals: accruals.map(serializeAccrual),
+      refundableAmount: refundable ? Number(refundable.amount) : 0,
+      refunds: refunds.map((row) => ({ id: row.id, amount: Number(row.amount), refundedAt: row.refundedAt, comment: row.comment, accrualId: row.accrualId, periodStart: row.accrual.periodStart })),
       payments: payments.map((payment) =>
         serializePayment({
           ...payment,

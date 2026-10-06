@@ -248,7 +248,7 @@ export class ReportsController {
         accruals: {
           where: { voidedAt: null },
           orderBy: { periodStart: 'asc' },
-          include: { allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } } },
+          include: { allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } }, refunds: true },
         },
         payments: true,
         penaltyLogs: true,
@@ -262,7 +262,8 @@ export class ReportsController {
       const total = accrual.rentAmount.plus(accrual.utilitiesAmount).plus(accrual.adjustmentAmount);
       const paid = accrual.allocations
         .filter((al) => !al.payment.reversedAt && al.payment.paidAt <= asOf)
-        .reduce((sum, al) => sum.plus(al.amount), new Decimal(0));
+        .reduce((sum, al) => sum.plus(al.amount), new Decimal(0))
+        .minus(accrual.refunds.filter((refund) => refund.refundedAt <= asOf).reduce((sum, refund) => sum.plus(refund.amount), new Decimal(0)));
       const balance = accrual.dueDate <= asOf ? total.minus(paid) : new Decimal(0);
       return {
         id: accrual.id,

@@ -17,12 +17,20 @@ import { PenaltyRecalculateService } from './penalty-recalculate.service';
 import { PENALTY_SYNC_TYPE } from './penalty.scheduler';
 import { listSyncLogs, syncLogFacetValues, type SyncLogsListQuery } from '../sync/sync-logs-list';
 import { SERVICE_PROVISION_SYNC_TYPE } from './service-provision-doc.service';
+import { availableAdjustmentRefund } from './refund-balance';
+import { dateOnly } from './period-utils';
 
 const createPaymentSchema = z.object({
   amount: z.number().finite().positive(),
   paidAt: z.coerce.date(),
   method: z.enum(['CASH', 'CARD_ACQUIRING', 'BANK_TRANSFER', 'MAT_CAPITAL', 'WEBSITE']),
   rawComment: z.string().trim().min(1).nullish(),
+});
+
+const createRefundSchema = z.object({
+  amount: z.number().finite().positive().refine((value) => new Prisma.Decimal(value).decimalPlaces() <= 2),
+  refundedAt: z.coerce.date(),
+  comment: z.string().trim().max(1000).nullish(),
 });
 
 const serviceProvisionDocumentIdsSchema = z.object({
@@ -67,6 +75,61 @@ export class BillingController {
     private readonly serviceProvisionDoc: ServiceProvisionDocService,
     private readonly penaltyRecalculate: PenaltyRecalculateService,
   ) {}
+
+  @Post('contracts/:contractId/refunds')
+  async createRefund(@Param('contractId') contractIdParam: string, @Body() body: unknown, @Req() req: Request) {
+    const contractId = parseIdParam(contractIdParam);
+    const parsed = createRefundSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(zodErrorMessage(parsed.error));
+    if (!req.user) throw new BadRequestException('contracts.errors.sessionUserNotFound');
+    const refundedAt = dateOnly(parsed.data.refundedAt);
+    if (refundedAt > dateOnly(new Date())) throw new BadRequestException('billing.errors.refundFutureDate');
+
+    return this.prisma.$transaction(async (tx) => {
+      const contract = await tx.contract.findUnique({
+        where: { id: contractId },
+        include: {
+          accruals: { include: { allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } }, refunds: true } },
+          penaltyLogs: true,
+          payments: { select: { penaltyAmount: true, paidAt: true, reversedAt: true } },
+        },
+      });
+      if (!contract) throw new NotFoundException('contracts.errors.contractNotFound');
+      if (refundedAt < dateOnly(contract.createdAt)) throw new BadRequestException('billing.errors.refundBeforeContract');
+      const available = availableAdjustmentRefund({
+        accruals: contract.accruals,
+        penaltyLogs: contract.penaltyLogs,
+        payments: contract.payments,
+        asOf: refundedAt,
+      });
+      const availableNow = availableAdjustmentRefund({
+        accruals: contract.accruals,
+        penaltyLogs: contract.penaltyLogs,
+        payments: contract.payments,
+        asOf: dateOnly(new Date()),
+      });
+      const amount = new Prisma.Decimal(parsed.data.amount);
+      if (!available || !availableNow || available.accrualId !== availableNow.accrualId
+        || amount.greaterThan(available.amount) || amount.greaterThan(availableNow.amount)) {
+        throw new BadRequestException('billing.errors.refundExceedsOverpayment');
+      }
+      const createdByUserId = await ensureUserRecord(tx, req.user!);
+      const refund = await tx.contractRefund.create({
+        data: { contractId, accrualId: available.accrualId, amount, refundedAt, comment: parsed.data.comment ?? null, createdByUserId },
+      });
+      await this.auditLog.log(tx, {
+        userId: createdByUserId,
+        action: 'CREATE',
+        entityType: 'ContractRefund',
+        entityId: refund.id,
+        entityLabel: `Возврат по договору №${contract.number}`,
+        before: null,
+        after: refund,
+        fields: ['contractId', 'accrualId', 'amount', 'refundedAt', 'comment'],
+      });
+      return { id: refund.id, amount: Number(refund.amount), refundedAt: refund.refundedAt, comment: refund.comment, accrualId: refund.accrualId };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
 
   // Ручной платёж (сотрудник вносит) — сразу разносится по неоплаченным начислениям
   // (FIFO, самое старое первым, см. billing/payment-allocation.ts). Источник — всегда

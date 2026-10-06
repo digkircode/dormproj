@@ -58,8 +58,9 @@ export async function buildDebtorRows(prisma: PrismaService, asOf: Date, contrac
       roomAssignments: { ...roomAssignmentAtDate(asOf), include: { room: { select: { id: true, room: true } } } },
       accruals: {
         where: { voidedAt: null },
-        include: { allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } } },
+        include: { allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } }, refunds: true },
       },
+      refunds: { select: { amount: true } },
     },
   });
   if (contracts.length === 0) return [];
@@ -89,6 +90,7 @@ export async function buildDebtorRows(prisma: PrismaService, asOf: Date, contrac
   for (const contract of contracts) {
     let totalAccrued = new Decimal(0);
     let principalDebtAsOf = new Decimal(0);
+    const totalRefunded = contract.refunds.reduce((sum, refund) => sum.plus(refund.amount), new Decimal(0));
 
     for (const accrual of contract.accruals) {
       const principal = accrual.rentAmount.plus(accrual.utilitiesAmount).plus(accrual.adjustmentAmount);
@@ -97,7 +99,8 @@ export async function buildDebtorRows(prisma: PrismaService, asOf: Date, contrac
 
       const paidAsOf = accrual.allocations
         .filter((al) => !al.payment.reversedAt && al.payment.paidAt <= asOf)
-        .reduce((sum, al) => sum.plus(al.amount), new Decimal(0));
+        .reduce((sum, al) => sum.plus(al.amount), new Decimal(0))
+        .minus(accrual.refunds.filter((refund) => refund.refundedAt <= asOf).reduce((sum, refund) => sum.plus(refund.amount), new Decimal(0)));
       // НЕ ограничиваем снизу нулём — переплата по одному начислению должна гасить долг
       // по другому в сумме по договору (не просто исчезать), это и даёт отрицательный
       // "Долг" = переплата (см. DebtBalanceCell.vue на фронте, зелёная подсветка).
@@ -106,7 +109,7 @@ export async function buildDebtorRows(prisma: PrismaService, asOf: Date, contrac
 
     const penaltyBalance = (penaltyByContract.get(contract.id) ?? new Decimal(0))
       .minus(paidPenaltyByContract.get(contract.id) ?? new Decimal(0));
-    const totalPaid = paidByContract.get(contract.id) ?? new Decimal(0);
+    const totalPaid = (paidByContract.get(contract.id) ?? new Decimal(0)).minus(totalRefunded);
 
     const totalBalance = Number(principalDebtAsOf.plus(penaltyBalance));
     rows.push({

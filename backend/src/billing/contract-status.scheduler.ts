@@ -83,7 +83,7 @@ export class ContractStatusScheduler {
         where: { id: { gt: cursor }, status: { in: ['ACTIVE', 'EXPIRING', 'OVERDUE', 'COMPLETED'] } },
         orderBy: { id: 'asc' }, take: CONTRACT_BATCH_SIZE,
         include: {
-          accruals: { where: { voidedAt: null }, include: { allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } } } },
+          accruals: { where: { voidedAt: null }, include: { allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } }, refunds: true } },
         },
       });
       if (contracts.length === 0) break;
@@ -109,7 +109,8 @@ export class ContractStatusScheduler {
             const total = accrual.rentAmount.plus(accrual.utilitiesAmount).plus(accrual.adjustmentAmount);
             const paid = accrual.allocations
               .filter((al) => !al.payment.reversedAt && al.payment.paidAt <= today)
-              .reduce((s, al) => s.plus(al.amount), new Decimal(0));
+              .reduce((s, al) => s.plus(al.amount), new Decimal(0))
+              .minus(accrual.refunds.filter((refund) => refund.refundedAt <= today).reduce((s, refund) => s.plus(refund.amount), new Decimal(0)));
             return sum.plus(total.minus(paid));
           }, new Decimal(0));
           const penaltyBalance = (penaltyByContract.get(contract.id) ?? new Decimal(0))

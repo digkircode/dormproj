@@ -157,7 +157,7 @@ export class MyPaymentsController {
         resident: { select: { fullName: true } },
         accruals: {
           orderBy: { periodStart: 'asc' },
-          include: { allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } } },
+          include: { allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } }, refunds: true },
         },
         payments: true,
         penaltyLogs: true,

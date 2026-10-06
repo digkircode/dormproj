@@ -25,9 +25,9 @@ describe('financial report room on a historical date', () => {
         createdAt: date(1), endDate: date(31),
         accruals: [{
           rentAmount: new Prisma.Decimal(100), utilitiesAmount: new Prisma.Decimal(20),
-          adjustmentAmount: new Prisma.Decimal(0), dueDate: date(1), allocations: [],
+          adjustmentAmount: new Prisma.Decimal(0), dueDate: date(1), allocations: [], refunds: [],
         }],
-        payments: [], penaltyLogs: [],
+        refunds: [], payments: [], penaltyLogs: [],
       }];
     });
     const penaltyGroupBy = jest.fn().mockResolvedValue([]);
@@ -58,7 +58,9 @@ describe('financial report room on a historical date', () => {
         rentAmount: new Prisma.Decimal(100), utilitiesAmount: new Prisma.Decimal(20),
         adjustmentAmount: new Prisma.Decimal(0), dueDate: date(1),
         allocations: [{ amount: new Prisma.Decimal(30), payment: { paidAt: date(2), reversedAt: null } }],
+        refunds: [],
       }],
+      refunds: [],
     }]);
     const paymentGroupBy = jest.fn()
       .mockResolvedValueOnce([{ contractId: 1, _sum: { amount: new Prisma.Decimal(80) } }])
@@ -83,6 +85,31 @@ describe('financial report room on a historical date', () => {
     }));
   });
 
+  it('counts a recorded refund only from its date in historical debt and nets it from lifetime payments', async () => {
+    const prisma = {
+      contract: { findMany: jest.fn().mockResolvedValue([{
+        id: 1, number: '1', residentIndividualUid: 'resident',
+        resident: { fullName: 'Resident', fizicheskoyeLitsoUid: 'resident' },
+        roomAssignments: [], status: ContractStatus.ACTIVE,
+        createdAt: date(1), endDate: date(31),
+        accruals: [{
+          rentAmount: new Prisma.Decimal(100), utilitiesAmount: new Prisma.Decimal(0),
+          adjustmentAmount: new Prisma.Decimal(-50), dueDate: date(1),
+          allocations: [{ amount: new Prisma.Decimal(100), payment: { paidAt: date(2), reversedAt: null } }],
+          refunds: [{ amount: new Prisma.Decimal(50), refundedAt: date(4) }],
+        }],
+        refunds: [{ amount: new Prisma.Decimal(50) }],
+      }]) },
+      penaltyAccrualLog: { groupBy: jest.fn().mockResolvedValue([]) },
+      payment: { groupBy: jest.fn().mockImplementation(async (args: any) =>
+        args._sum.amount ? [{ contractId: 1, _sum: { amount: new Prisma.Decimal(100) } }] : []) },
+    } as unknown as PrismaService;
+
+    const before = (await buildDebtorRows(prisma, date(3)))[0];
+    const after = (await buildDebtorRows(prisma, date(5)))[0];
+    expect([before.totalPaid, before.principalDebt, after.totalPaid, after.principalDebt]).toEqual([50, -50, 50, 0]);
+  });
+
   it('excludes contracts created after the selected day and restores a past status', async () => {
     const contracts = [
       { id: 1, number: '1', createdAt: date(1), status: ContractStatus.COMPLETED },
@@ -94,7 +121,7 @@ describe('financial report room on a historical date', () => {
         ...contract, residentIndividualUid: 'resident',
         resident: { fullName: 'Resident', fizicheskoyeLitsoUid: 'resident' },
         roomAssignments: [], endDate: date(10), actualEndDate: null,
-        accruals: [],
+        accruals: [], refunds: [],
       })));
     const prisma = {
       contract: { findMany },

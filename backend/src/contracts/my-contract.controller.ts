@@ -87,7 +87,7 @@ export class MyContractController {
         roomAssignments: { orderBy: { fromDate: 'desc' }, include: { room: { select: { id: true, room: true } } } },
         accruals: {
           orderBy: { periodStart: 'asc' },
-          include: { allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } } },
+          include: { allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } }, refunds: true },
         },
         payments: {
           orderBy: { paidAt: 'desc' },
