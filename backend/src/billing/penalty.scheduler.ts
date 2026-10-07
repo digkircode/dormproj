@@ -3,7 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service';
 import { PENALTY_DAILY_RATE } from './accrual-generation';
-import { addDays, dateOnly, daysBetweenInclusive } from './period-utils';
+import { addDays, daysBetweenInclusive, moscowDateOnly } from './period-utils';
 import { buildAccrualPenaltyCalcs, earliestPenaltyStartsAt, overdueSumOnDay } from './penalty-calc';
 
 export const PENALTY_SYNC_TYPE = 'penalties';
@@ -75,7 +75,7 @@ export class PenaltyScheduler {
   }
 
   private async accruePenaltiesInternal(): Promise<Record<string, unknown>> {
-    const today = dateOnly(new Date());
+    const today = moscowDateOnly(new Date());
     // Грубый префильтр — пеня стартует не раньше 10 числа месяца, следующего за
     // periodStart, то есть минимум через ~10 дней после periodStart (periodStart в конце
     // длинного месяца, следующий короткий) — точная проверка (grace period, маткапитал,
@@ -88,7 +88,7 @@ export class PenaltyScheduler {
     let totalAdded = new Decimal(0);
     while (true) {
       const contracts = await this.prisma.contract.findMany({
-        where: { id: { gt: cursor }, accruals: { some: { voidedAt: null, periodStart: { lte: addDays(today, -10) } } } },
+        where: { id: { gt: cursor }, status: { not: 'TERMINATED' }, accruals: { some: { voidedAt: null, periodStart: { lte: addDays(today, -10) } } } },
         orderBy: { id: 'asc' }, take: CONTRACT_BATCH_SIZE,
         include: {
           accruals: {
@@ -150,20 +150,28 @@ export class PenaltyScheduler {
         // Journal rows and the progress marker commit together. A failed batch
         // remains available to the next run; completed batches are skipped.
         const inserted = await this.prisma.$transaction(async (tx) => {
+          // Обновление держит блокировку строки до коммита. Если договор уже расторгнут,
+          // он не попадёт в результат и рассчитанные заранее строки не сохранятся.
+          const eligible = await tx.contract.updateManyAndReturn({
+            where: { id: { in: updatedContractIds }, status: { not: 'TERMINATED' } },
+            data: { penaltyAccruedThrough: today },
+            select: { id: true },
+          });
+          const eligibleIds = new Set(eligible.map((contract) => contract.id));
+          const eligibleRows = logRows.filter((row) => eligibleIds.has(row.contractId));
           let count = 0;
           let added = new Decimal(0);
-          for (let offset = 0; offset < logRows.length; offset += PENALTY_INSERT_CHUNK_SIZE) {
+          for (let offset = 0; offset < eligibleRows.length; offset += PENALTY_INSERT_CHUNK_SIZE) {
             const rows = await tx.penaltyAccrualLog.createManyAndReturn({
-              data: logRows.slice(offset, offset + PENALTY_INSERT_CHUNK_SIZE), skipDuplicates: true,
+              data: eligibleRows.slice(offset, offset + PENALTY_INSERT_CHUNK_SIZE), skipDuplicates: true,
               select: { amount: true },
             });
             count += rows.length;
             added = rows.reduce((sum, row) => sum.plus(row.amount), added);
           }
-          await tx.contract.updateMany({ where: { id: { in: updatedContractIds } }, data: { penaltyAccruedThrough: today } });
-          return { count, added };
+          return { count, added, processed: eligibleIds.size };
         }, { timeout: 120_000 });
-        processedContracts += updatedContractIds.length;
+        processedContracts += inserted.processed;
         penaltyRowsCreated += inserted.count;
         totalAdded = totalAdded.plus(inserted.added);
       }

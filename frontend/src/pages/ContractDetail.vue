@@ -30,6 +30,7 @@ import {
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import TableSkeleton from '@/components/TableSkeleton.vue'
+import Skeleton from '@/components/ui/skeleton/Skeleton.vue'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -109,6 +110,16 @@ onUnmounted(() => {
 const totalBalance = computed(() =>
   contract.value ? contract.value.accruals.filter((a) => !a.voidedAt).reduce((sum, a) => sum + a.balance, 0) + contract.value.penaltyBalance - contract.value.creditBalance : 0,
 )
+const showRefundBreakdown = computed(() => contract.value?.status === 'TERMINATED'
+  && contract.value.accruals.some((accrual) => !accrual.voidedAt && accrual.adjustmentAmount < 0))
+const paymentReceived = computed(() => contract.value?.payments
+  .filter((payment) => !payment.reversedAt)
+  .reduce((sum, payment) => sum + payment.amount, 0) ?? 0)
+const activeCharges = computed(() => contract.value?.accruals
+  .filter((accrual) => !accrual.voidedAt)
+  .reduce((sum, accrual) => sum + accrual.total, 0) ?? 0)
+const refundedTotal = computed(() => contract.value?.refunds
+  .reduce((sum, refund) => sum + refund.amount, 0) ?? 0)
 
 // История начисления пени по дням — раскрывается кликом по тайлу "Пени" (тот же приём,
 // что и у резидента, см. MyContract.vue), плюс кнопка "Пересчитать" для сотрудника
@@ -451,7 +462,7 @@ async function confirmReversePayment() {
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
     <p v-if="downloadError" class="text-sm text-red-500">{{ downloadError }}</p>
-    <TableSkeleton v-if="isLoading" :columns="6" :rows="8" class="min-h-[60vh]" />
+    <TableSkeleton v-if="isLoading && !contract" :columns="6" :rows="8" class="min-h-[60vh]" />
 
     <template v-if="contract">
       <div class="data-reveal flex flex-col gap-3">
@@ -536,6 +547,15 @@ async function confirmReversePayment() {
                 </button>
               </div>
             </div>
+          </div>
+
+          <div v-if="showRefundBreakdown" class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t pt-3 text-xs text-muted-foreground">
+            <span class="whitespace-nowrap">{{ t('contracts.detail.receivedBreakdown') }} <span class="font-medium text-foreground">{{ formatMoney(paymentReceived) }}</span></span>
+            <span class="whitespace-nowrap">{{ t('contracts.detail.chargedBreakdown') }} <span class="font-medium text-foreground">{{ formatMoney(activeCharges) }}</span></span>
+            <span class="whitespace-nowrap">{{ t('contracts.detail.penaltyBreakdown') }} <span class="font-medium text-foreground">{{ formatMoney(contract.penaltyAmount) }}</span></span>
+            <span v-if="contract.penaltyPaid > 0" class="whitespace-nowrap">{{ t('contracts.detail.penaltyPaidBreakdown') }} <span class="font-medium text-foreground">{{ formatMoney(contract.penaltyPaid) }}</span></span>
+            <span v-if="refundedTotal > 0" class="whitespace-nowrap">{{ t('contracts.detail.refundedBreakdown') }} <span class="font-medium text-foreground">{{ formatMoney(refundedTotal) }}</span></span>
+            <span class="whitespace-nowrap">{{ t('contracts.detail.refundableBreakdown') }} <span class="font-semibold text-foreground">{{ formatMoney(contract.refundableAmount) }}</span></span>
           </div>
 
           <div class="flex items-center border-t pt-4">
@@ -814,7 +834,10 @@ async function confirmReversePayment() {
           </DialogDescription>
         </DialogHeader>
         <p v-if="recalculatePenaltyError" class="text-sm text-red-500">{{ recalculatePenaltyError }}</p>
-        <div v-if="contract?.penaltyLog.length" class="-mx-1 flex-1 space-y-1 overflow-y-auto px-1" style="max-height: 50vh">
+        <div v-if="isRecalculatingPenalty" class="space-y-2" aria-busy="true">
+          <Skeleton v-for="index in 3" :key="index" class="h-14 w-full" />
+        </div>
+        <div v-else-if="contract?.penaltyLog.length" class="-mx-1 flex-1 space-y-1 overflow-y-auto px-1" style="max-height: 50vh">
           <div
             v-for="row in contract.penaltyLog"
             :key="row.date"

@@ -28,6 +28,7 @@ import { ensureUserRecord } from '../users/ensure-user';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { buildAccrualsForContract } from '../billing/accrual-generation';
 import { recalcAccrualsForTermination } from '../billing/termination';
+import { recalculatePenaltyInTransaction } from '../billing/penalty-recalculate.service';
 import { computePenaltyBalance } from '../billing/penalty-balance';
 import { dateOnly, moscowDateOnly } from '../billing/period-utils';
 import { serializeAccrual, serializePayment, serializeTerms } from './serializers';
@@ -736,6 +737,8 @@ export class ContractsController {
         data: { toDate: parsed.data.actualEndDate },
       });
       await recalcAccrualsForTermination(tx, id, parsed.data.actualEndDate);
+      const previousPenalty = await tx.penaltyAccrualLog.aggregate({ where: { contractId: id }, _sum: { amount: true } });
+      const recalculatedPenalty = await recalculatePenaltyInTransaction(tx, id);
       const updated = await tx.contract.findUniqueOrThrow({ where: { id } });
 
       const userId = await ensureUserRecord(tx, req.user!);
@@ -749,9 +752,16 @@ export class ContractsController {
         after: updated,
         fields: AUDITED_CONTRACT_FIELDS,
       });
+      await this.auditLog.log(tx, {
+        userId, action: 'UPDATE', entityType: 'Contract', entityId: id,
+        entityLabel: `Пересчёт пени при расторжении - договор №${contract.number}`,
+        before: { _operation: null, _penaltyTotal: previousPenalty._sum.amount ?? new Prisma.Decimal(0) },
+        after: { _operation: 'Пересчёт пени при расторжении', _penaltyTotal: recalculatedPenalty.totalAdded },
+        fields: ['_operation', '_penaltyTotal'],
+      });
 
       return updated;
-    });
+    }, { timeout: 120_000 });
   }
 
   // Полное удаление договора со всеми связками (ContractTerms/RoomAssignment/Accrual —

@@ -1,5 +1,4 @@
 import { Prisma } from '../../generated/prisma/client.js';
-import type { PrismaService } from '../prisma/prisma.service';
 import { isFullMonthAccrualPeriod, penaltyStartsAt } from './accrual-generation';
 
 const { Decimal } = Prisma;
@@ -39,7 +38,7 @@ type ContractForPenalty = {
 // запрашивается отдельным findFirst на каждое начисление, тот же N+1, что был и раньше в
 // этом кроне, на текущем объёме не критично (см. известные проблемы в промпте проекта).
 export async function buildAccrualPenaltyCalcs(
-  prisma: PrismaService,
+  prisma: Pick<Prisma.TransactionClient, 'contractTerms'>,
   contract: ContractForPenalty,
   accruals: AccrualForPenalty[],
 ): Promise<AccrualPenaltyCalc[]> {
