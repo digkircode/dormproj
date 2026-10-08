@@ -156,7 +156,8 @@
     "placeholder": "dd.mm.yyyy"
   },
   "footer": {
-    "copyright": "© 1991-2026 Russian New University"
+    "copyright": "© 1991-2026 Russian New University",
+    "personalDataPolicy": "Personal data processing"
   },
   "session": {
     "expiredTitle": "Session expired",

@@ -9,7 +9,7 @@ import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/compon
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import ReportKpiTile from '@/components/ReportKpiTile.vue'
-import LoadingState from '@/components/LoadingState.vue'
+import RoomCharacteristicsSkeleton from '@/components/RoomCharacteristicsSkeleton.vue'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fetchOccupancy, type OccupancyReport, type OccupancyRoom } from '@/lib/reports-api'
 import { fetchRoomDetail, type RoomDetail } from '@/lib/rooms-api'
@@ -98,22 +98,27 @@ const roomDetailError = ref('')
 // Кнопки комнат блокируем на время загрузки — иначе повторный клик по другой комнате
 // во время ещё идущего запроса мог бы открыть диалог с чужими данными.
 const loadingRoomId = ref<number | null>(null)
+let roomRequest = 0
 
 async function openRoom(room: OccupancyRoom) {
+  const request = ++roomRequest
+  selectedRoom.value = room
+  roomDialogOpen.value = true
   loadingRoomId.value = room.id
   roomDetailLoading.value = true
   roomDetailError.value = ''
   roomDetail.value = null
   try {
-    roomDetail.value = await fetchRoomDetail(room.id)
+    const result = await fetchRoomDetail(room.id)
+    if (request === roomRequest && roomDialogOpen.value && selectedRoom.value?.id === room.id) roomDetail.value = result
   } catch (error) {
-    roomDetailError.value = error instanceof Error ? error.message : String(error)
+    if (request === roomRequest && roomDialogOpen.value) roomDetailError.value = error instanceof Error ? error.message : String(error)
   } finally {
-    roomDetailLoading.value = false
-    loadingRoomId.value = null
+    if (request === roomRequest) {
+      if (roomDialogOpen.value) roomDetailLoading.value = false
+      loadingRoomId.value = null
+    }
   }
-  selectedRoom.value = room
-  roomDialogOpen.value = true
 }
 function formatCharacteristicValue(entry: { valueType: string; value: boolean | number | string | null; unit: string | null }): string {
   if (entry.value === null || entry.value === undefined) return '-'
@@ -263,7 +268,7 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
     </template>
 
     <Dialog :open="roomDialogOpen" @update:open="(v) => (roomDialogOpen = v)">
-      <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
+      <DialogScrollContent :class="['flex h-[min(80vh,32rem)] flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
           <DialogTitle>{{ t('roomInfo.dialogTitle', { room: selectedRoom?.room }) }}</DialogTitle>
         </DialogHeader>
@@ -296,7 +301,7 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
               {{ t('reports.occupancy.characteristics') }}
             </div>
             <p v-if="roomDetailError" class="text-sm text-red-500">{{ roomDetailError }}</p>
-            <LoadingState v-else-if="roomDetailLoading" />
+            <RoomCharacteristicsSkeleton v-else-if="roomDetailLoading" />
             <!-- Та же сетка характеристик и тот же приём линий, что в RoomDetailPanel.vue/
                  RoomInfoTrigger.vue (вертикальный разделитель по чётности индекса,
                  горизонтальный — border-t от второй строки). Нечётное количество —

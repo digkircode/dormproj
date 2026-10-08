@@ -8,6 +8,7 @@ import { Dialog, DialogDescription, DialogFooter, DialogScrollContent, DialogHea
 import { Input } from '@/components/ui/input'
 import EntityTable from '@/components/EntityTable.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
+import { Skeleton } from '@/components/ui/skeleton'
 import WebsitePaymentStatusPillCell from '@/components/WebsitePaymentStatusPillCell.vue'
 import ServiceProvisionPeriodCell from '@/components/ServiceProvisionPeriodCell.vue'
 import { createAppColumnHelper } from '@/lib/table'
@@ -198,8 +199,10 @@ const detailError = ref('')
 const detailDoc = ref<ServiceProvisionDocumentDetail | null>(null)
 const detailSearch = ref('')
 const detailRequestTitle = ref('')
+let detailRequest = 0
 
 async function openDetail(row: TableRow) {
+  const request = ++detailRequest
   detailOpen.value = true
   detailLoading.value = true
   detailRequestTitle.value = t('serviceProvisionDocuments.detailDialogTitle', {
@@ -210,11 +213,12 @@ async function openDetail(row: TableRow) {
   detailDoc.value = null
   detailSearch.value = ''
   try {
-    detailDoc.value = await fetchServiceProvisionDocumentDetail(row.id)
+    const result = await fetchServiceProvisionDocumentDetail(row.id)
+    if (request === detailRequest && detailOpen.value) detailDoc.value = result
   } catch (error) {
-    detailError.value = error instanceof Error ? error.message : String(error)
+    if (request === detailRequest && detailOpen.value) detailError.value = error instanceof Error ? error.message : String(error)
   } finally {
-    detailLoading.value = false
+    if (request === detailRequest && detailOpen.value) detailLoading.value = false
   }
 }
 const detailTitle = computed(() => {
@@ -300,12 +304,16 @@ function matchLabel(missingMappings: ('CONTRACTOR' | 'CONTRACT')[]): string {
     </EntityTable>
 
     <Dialog :open="detailOpen" @update:open="(open) => (detailOpen = open)">
-      <DialogScrollContent class="flex max-h-[90vh] w-[calc(100vw-2rem)] max-w-6xl flex-col gap-4">
+      <DialogScrollContent class="flex h-[min(90vh,42rem)] w-[calc(100vw-2rem)] max-w-6xl flex-col gap-4">
         <DialogHeader>
           <DialogTitle>{{ detailTitle }}</DialogTitle>
         </DialogHeader>
 
-        <TableSkeleton v-if="detailLoading" :columns="4" :rows="6" class="min-h-72" />
+        <div v-if="detailLoading" class="flex min-h-0 flex-1 flex-col gap-2" role="status" :aria-label="t('entityTable.loading')">
+          <Skeleton class="h-10 w-full max-w-80" />
+          <TableSkeleton :columns="4" :rows="6" class="min-h-0 flex-1" />
+          <div class="flex justify-between"><Skeleton class="h-5 w-28" /><Skeleton class="h-5 w-24" /></div>
+        </div>
         <p v-else-if="detailError" class="text-sm text-red-500">{{ detailError }}</p>
         <div v-else-if="detailDoc" class="flex flex-col gap-2">
           <div class="relative">

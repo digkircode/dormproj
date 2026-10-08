@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Download, ExternalLink, Plus, Printer } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -18,6 +18,7 @@ import { fetchContractsPage, fetchContractFacets, printContractsBatch, fetchCont
 import { printPdfBlob } from '@/lib/print-pdf'
 
 const router = useRouter()
+const route = useRoute()
 const { t } = useI18n()
 
 // Выбор строк чекбоксами — только текущая страница списка (см. EntityTable.vue#selectable),
@@ -76,6 +77,12 @@ const columnLabels = computed<Record<string, string>>(() => ({
   accounting1cMatched: t('contracts.list.colMapping'),
 }))
 const filterableFields = ['status']
+const initialFilters = computed<Record<string, string[]>>(() => {
+  const status = route.query.status
+  const filters: Record<string, string[]> = {}
+  if (typeof status === 'string' && status) filters.status = [status]
+  return filters
+})
 const hiddenByDefault = ['accounting1cMatched']
 const cellRenderers = { residentFullName: ResidentLinkCell, status: ContractStatusCell, room: RoomCell, accounting1cMatched: Accounting1cMatchCell }
 
@@ -124,6 +131,7 @@ const createDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(nu
       :columns="columns"
       :column-labels="columnLabels"
       :filterable-fields="filterableFields"
+      :default-filters="initialFilters"
       :default-sort="{ id: 'contractDate', desc: true }"
       :fetch-page="fetchContractsPage"
       :fetch-facet-values="fetchContractFacets"

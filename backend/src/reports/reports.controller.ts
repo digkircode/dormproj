@@ -6,7 +6,7 @@ import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
-import { dateOnly, addDays } from '../billing/period-utils';
+import { dateOnly, addDays, moscowDateOnly } from '../billing/period-utils';
 import { computePenaltyBalance, sumPenaltyLog } from '../billing/penalty-balance';
 import { fromStoredValue } from '../rooms/characteristic-value';
 import { parseListOptions, paginateInMemory, filterAndSortInMemory, facetsFromValues, type FacetOption } from './list-helpers';
@@ -587,15 +587,19 @@ export class ReportsController {
   }
 
   // ===== Отчёт "Реестр договоров" =====
-  // Сегодня показываем сохранённый ContractStatus. Для прошлой даты восстанавливаем
-  // статус по сроку договора и долгу на эту дату тем же расчётом, что в финансовом отчёте.
-  // daysUntilEnd остаётся отдельной справочной колонкой.
+  // Сегодня показываем сохранённый ContractStatus. Для других дат восстанавливаем
+  // статус по сроку договора; долг не нужен, поскольку после окончания договор
+  // в выборку уже не попадает. daysUntilEnd остаётся справочной колонкой.
   private async buildContractRegistryRows(asOf: Date): Promise<ContractRegistryRow[]> {
-    const historicalBalances = asOf < dateOnly(new Date())
-      ? new Map((await buildDebtorRows(this.prisma, asOf)).map((row) => [row.contractId, row.totalBalance]))
-      : null;
+    const isToday = asOf.getTime() === moscowDateOnly(new Date()).getTime();
     const contracts = await this.prisma.contract.findMany({
-      where: { createdAt: { lt: addDays(asOf, 1) } },
+      // Реестр на дату отражает период действия договора, даже если запись внесли
+      // позже задним числом. Фактический выезд у расторгнутого ограничивает период.
+      where: {
+        startDate: { lte: asOf },
+        endDate: { gte: asOf },
+        OR: [{ status: { not: 'TERMINATED' } }, { actualEndDate: { gte: asOf } }],
+      },
       include: {
         resident: { select: { fullName: true } },
         roomAssignments: { ...roomAssignmentAtDate(asOf), include: { room: { select: { room: true } } } },
@@ -605,9 +609,9 @@ export class ReportsController {
     const MS_PER_DAY = 24 * 60 * 60 * 1000;
     return contracts.map((c) => {
       const daysUntilEnd = Math.round((c.endDate.getTime() - asOf.getTime()) / MS_PER_DAY);
-      const bucket: ContractRegistryBucket = historicalBalances === null
+      const bucket: ContractRegistryBucket = isToday
         ? c.status
-        : contractRegistryStatusAtDate(c, asOf, historicalBalances.get(c.id) ?? 0);
+        : contractRegistryStatusAtDate(c, asOf, 0);
 
       return {
         contractId: c.id,

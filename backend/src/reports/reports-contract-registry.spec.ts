@@ -1,55 +1,42 @@
-import { buildDebtorRows } from './debtor-rows';
 import { ReportsController } from './reports.controller';
 
-jest.mock('./debtor-rows', () => ({ buildDebtorRows: jest.fn() }));
+const day = (value: string) => new Date(`${value}T00:00:00.000Z`);
 
-describe('contracts registry on a historical date', () => {
-  it('uses the selected date for rows and summary while showing the stored status today', async () => {
-    const endDate = new Date('2026-09-10T00:00:00.000Z');
-    const findMany = jest.fn().mockResolvedValue([{
-      id: 1, number: '123', residentIndividualUid: 'resident-1',
-      resident: { fullName: 'Проживающий' }, roomAssignments: [],
-      status: 'COMPLETED', createdAt: new Date('2026-09-01T00:00:00.000Z'),
-      startDate: new Date('2026-09-01T00:00:00.000Z'), endDate, actualEndDate: null,
-    }]);
-    jest.mocked(buildDebtorRows).mockResolvedValue([{ contractId: 1, totalBalance: 100 }] as never);
-    const controller = new ReportsController({ contract: { findMany } } as never);
-
-    const historical = await controller.contractsRegistry(
-      undefined, undefined, undefined, undefined, undefined, undefined, '2026-09-11',
-    );
-    expect(historical.data[0]?.bucket).toBe('OVERDUE');
-    expect(await controller.contractsRegistrySummary('2026-09-11')).toMatchObject({ overdue: 1, ended: 0 });
-
-    const current = await controller.contractsRegistry();
-    expect(current.data[0]?.bucket).toBe('COMPLETED');
-    expect(buildDebtorRows).toHaveBeenCalledTimes(2);
-    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { createdAt: { lt: new Date('2026-09-12T00:00:00.000Z') } },
-    }));
-  });
-
-  it('excludes contracts created after the selected date', async () => {
-    const contracts = [
-      { id: 1, number: '1', createdAt: new Date('2026-09-01T12:00:00.000Z') },
-      { id: 2, number: '2', createdAt: new Date('2026-09-03T00:00:00.000Z') },
+describe('contracts registry on a selected date', () => {
+  it('uses the contract validity interval rather than the database creation date', async () => {
+    const records = [
+      { id: 1, number: 'BACKDATED', createdAt: day('2026-10-01'), startDate: day('2026-09-01'), endDate: day('2026-09-30'), actualEndDate: null, status: 'ACTIVE' },
+      { id: 2, number: 'NOT_STARTED', createdAt: day('2026-09-01'), startDate: day('2026-09-11'), endDate: day('2026-09-30'), actualEndDate: null, status: 'ACTIVE' },
+      { id: 3, number: 'COMPLETED', createdAt: day('2026-08-01'), startDate: day('2026-08-01'), endDate: day('2026-09-09'), actualEndDate: null, status: 'COMPLETED' },
+      { id: 4, number: 'DEPARTS_TODAY', createdAt: day('2026-08-01'), startDate: day('2026-08-01'), endDate: day('2026-09-30'), actualEndDate: day('2026-09-10'), status: 'TERMINATED' },
+      { id: 5, number: 'DEPARTED', createdAt: day('2026-08-01'), startDate: day('2026-08-01'), endDate: day('2026-09-30'), actualEndDate: day('2026-09-09'), status: 'TERMINATED' },
+      { id: 6, number: 'ONE_DAY', createdAt: day('2026-10-01'), startDate: day('2026-09-10'), endDate: day('2026-09-10'), actualEndDate: null, status: 'COMPLETED' },
     ];
-    const findMany = jest.fn(async ({ where }: any) => contracts
-      .filter((contract) => contract.createdAt < where.createdAt.lt)
+    const findMany = jest.fn(async ({ where }: { where: {
+      startDate: { lte: Date }; endDate: { gte: Date };
+      OR: [{ status: { not: string } }, { actualEndDate: { gte: Date } }];
+    } }) => records
+      .filter((contract) => contract.startDate <= where.startDate.lte
+        && contract.endDate >= where.endDate.gte
+        && (contract.status !== 'TERMINATED' || (!!contract.actualEndDate && contract.actualEndDate >= where.OR[1].actualEndDate.gte)))
       .map((contract) => ({
-        ...contract, residentIndividualUid: 'resident', resident: { fullName: 'Resident' },
-        roomAssignments: [], status: 'ACTIVE', startDate: contract.createdAt,
-        endDate: new Date('2026-12-01T00:00:00.000Z'), actualEndDate: null,
+        ...contract, residentIndividualUid: 'resident', resident: { fullName: 'Resident' }, roomAssignments: [],
       })));
-    jest.mocked(buildDebtorRows).mockResolvedValue([{ contractId: 1, totalBalance: 0 }] as never);
     const controller = new ReportsController({ contract: { findMany } } as never);
 
     const result = await controller.contractsRegistry(
-      undefined, undefined, undefined, undefined, undefined, undefined, '2026-09-01',
+      undefined, undefined, undefined, undefined, undefined, undefined, '2026-09-10',
     );
-    expect(result.data.map((row) => row.contractId)).toEqual([1]);
+
+    expect(result.data.map((row) => row.contractId)).toEqual([6, 1, 4]);
+    expect(result.data.find((row) => row.contractId === 4)?.bucket).toBe('TERMINATED');
+    expect(await controller.contractsRegistrySummary('2026-09-10')).toMatchObject({ expiring30: 2, overdue: 0, ended: 1 });
     expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { createdAt: { lt: new Date('2026-09-02T00:00:00.000Z') } },
+      where: {
+        startDate: { lte: day('2026-09-10') },
+        endDate: { gte: day('2026-09-10') },
+        OR: [{ status: { not: 'TERMINATED' } }, { actualEndDate: { gte: day('2026-09-10') } }],
+      },
     }));
   });
 });

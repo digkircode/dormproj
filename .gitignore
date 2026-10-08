@@ -21,3 +21,9 @@ backend/uploads/
 # local handoff notes (contains server access details)
 CONTEXT_HANDOFF.md
 DormProjPrompt.md
+# Local project notes and prompt archive; never commit these files.
+HISTORY.md
+PROJECT.md
+WORKFLOW.md
+DEPLOY.md
+KNOWN-ISSUES.md

@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { AlertTriangle, UserRound, X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import SearchSelect from '@/components/SearchSelect.vue'
@@ -171,7 +172,9 @@ async function onRevoke(roleId: number) {
       <div class="flex items-end gap-2">
         <div class="flex flex-1 flex-col gap-2">
           <Label>{{ t('users.manageDialog.grantRoleLabel') }}</Label>
+          <Skeleton v-if="isLoadingRoles" class="h-10 w-full" />
           <Select
+            v-else
             :disabled="!selectedUser || isLoadingRoles"
             :model-value="roleToGrant ? String(roleToGrant) : undefined"
             @update:model-value="(v) => (roleToGrant = Number(v))"

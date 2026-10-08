@@ -58,19 +58,22 @@ const entries = ref<IndividualAuditLogEntry[]>([])
 // Таблица изменений по умолчанию свёрнута (по прямой просьбе) — раскрывается по клику
 // на саму запись, id записи в наборе = раскрыта. Сбрасывается при каждом открытии диалога.
 const expandedIds = ref<Set<number>>(new Set())
+let historyRequest = 0
 
 async function open(uid: string) {
+  const request = ++historyRequest
   isOpen.value = true
   isLoading.value = true
   loadError.value = ''
   entries.value = []
   expandedIds.value = new Set()
   try {
-    entries.value = await fetchIndividualAuditLog(uid)
+    const result = await fetchIndividualAuditLog(uid)
+    if (request === historyRequest && isOpen.value) entries.value = result
   } catch (error) {
-    loadError.value = error instanceof Error ? error.message : String(error)
+    if (request === historyRequest && isOpen.value) loadError.value = error instanceof Error ? error.message : String(error)
   } finally {
-    isLoading.value = false
+    if (request === historyRequest && isOpen.value) isLoading.value = false
   }
 }
 
@@ -104,15 +107,15 @@ function formatValue(value: unknown): string {
 
 <template>
   <Dialog :open="isOpen" @update:open="(v) => (isOpen = v)">
-    <DialogScrollContent :class="['flex flex-col gap-4 sm:max-w-2xl', DIALOG_ANIMATE_CLASS]">
+    <DialogScrollContent :class="['flex h-[min(80vh,34rem)] flex-col gap-4 sm:max-w-2xl', DIALOG_ANIMATE_CLASS]">
       <DialogHeader>
         <DialogTitle>{{ t('individuals.history.title') }}</DialogTitle>
       </DialogHeader>
 
       <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
-      <div v-else-if="isLoading" class="space-y-3" role="status" :aria-label="t('individuals.history.loading')">
-        <div v-for="row in 3" :key="row" class="space-y-2 rounded-md border p-3" aria-hidden="true">
-          <Skeleton class="h-4 w-2/3" /><Skeleton class="h-3 w-1/3" />
+      <div v-else-if="isLoading" class="min-h-0 space-y-3 overflow-y-auto" role="status" :aria-label="t('individuals.history.loading')">
+        <div v-for="row in 4" :key="row" class="flex items-center gap-3 rounded-md border p-3" aria-hidden="true">
+          <Skeleton class="size-4 shrink-0" /><Skeleton class="h-4 w-1/3" /><Skeleton class="ml-auto h-4 w-2/5" />
         </div>
         <span class="sr-only">{{ t('individuals.history.loading') }}</span>
       </div>

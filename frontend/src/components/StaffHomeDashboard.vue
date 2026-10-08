@@ -23,6 +23,7 @@ import {
 } from '@/lib/reports-api'
 import { fetchConversations } from '@/lib/chat-api'
 import { fetchAnnouncements, deleteAnnouncement, type StaffAnnouncement } from '@/lib/announcements-api'
+import { fetchContractsPage, type ContractListItem } from '@/lib/contracts-api'
 import { dateLocaleTag, todayIso } from '@/lib/format-locale'
 import { iconBadgeColorClasses } from '@/lib/avatar-color'
 import { parseApiError } from '@/lib/utils'
@@ -41,7 +42,8 @@ const debtorsSummary = ref<DebtorsSummary | null>(null)
 const topDebtors = ref<DebtorRow[]>([])
 const contractsSummary = ref<ContractsRegistrySummary | null>(null)
 const topExpiring = ref<ContractRegistryRow[]>([])
-const topOverdue = ref<ContractRegistryRow[]>([])
+const topOverdue = ref<ContractListItem[]>([])
+const overdueCount = ref(0)
 const unreadChatsCount = ref(0)
 type DashboardSource = 'occupancy' | 'debtSummary' | 'debtRows' | 'contractsSummary' | 'expiring' | 'overdue' | 'conversations'
 type LoadState = 'loading' | 'success' | 'error'
@@ -95,9 +97,12 @@ onMounted(() => {
     loadSource('occupancy', fetchOccupancy(), (value) => { occupancy.value = value }),
     loadSource('debtSummary', fetchDebtorsSummary(asOf), (value) => { debtorsSummary.value = value }),
     loadSource('debtRows', fetchDebtorsPage({ ...baseListOptions, sortBy: 'totalBalance', sortDir: 'desc', filters: {} }, asOf), (value) => { topDebtors.value = value.data.filter((r) => r.totalBalance > 0) }),
-    loadSource('contractsSummary', fetchContractsRegistrySummary(), (value) => { contractsSummary.value = value }),
-    loadSource('expiring', fetchContractsRegistryPage({ ...baseListOptions, sortBy: 'endDate', sortDir: 'asc', filters: { bucket: ['EXPIRING'] } }), (value) => { topExpiring.value = value.data }),
-    loadSource('overdue', fetchContractsRegistryPage({ ...baseListOptions, sortBy: 'endDate', sortDir: 'asc', filters: { bucket: ['OVERDUE'] } }), (value) => { topOverdue.value = value.data }),
+    loadSource('contractsSummary', fetchContractsRegistrySummary(asOf), (value) => { contractsSummary.value = value }),
+    loadSource('expiring', fetchContractsRegistryPage({ ...baseListOptions, sortBy: 'endDate', sortDir: 'asc', filters: { bucket: ['EXPIRING'] } }, asOf), (value) => { topExpiring.value = value.data }),
+    loadSource('overdue', fetchContractsPage({ ...baseListOptions, sortBy: 'endDate', sortDir: 'asc', filters: { status: ['OVERDUE'] } }), (value) => {
+      topOverdue.value = value.data
+      overdueCount.value = value.total
+    }),
     loadSource('conversations', fetchConversations(), (value) => { unreadChatsCount.value = value.filter((c) => c.unread).length }),
   ])
 })
@@ -159,12 +164,12 @@ const attentionRows = computed<AttentionRow[]>(() => {
   }))
   rows.push(
     ...topOverdue.value.map((c) => ({
-      key: `overdue-${c.contractId}`,
+      key: `overdue-${c.id}`,
       icon: CalendarX,
       iconClass: 'text-rose-500',
-      title: t('home.attentionContractLine', { number: c.contractNumber, name: c.residentFullName }),
-      subtitle: t('reports.registry.overdueLabel', { days: Math.abs(c.daysUntilEnd) }),
-      to: `/contracts/${c.contractId}`,
+      title: t('home.attentionContractLine', { number: c.number, name: c.residentFullName }),
+      subtitle: t('reports.registry.overdueLabel', { days: Math.max(0, Math.round((new Date(todayIso()).getTime() - new Date(c.endDate).getTime()) / 86_400_000)) }),
+      to: `/contracts/${c.id}`,
     })),
   )
   rows.push(
@@ -205,8 +210,7 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
     <!-- Порядок — Комнаты, Должники, Просроченные, Истекающие, Непрочитанные (по прямой
          просьбе 2026-09-05, было Комнаты/Истекающие/Должники/Непрочитанные). Должники/
          Просроченные/Истекающие ведут на соответствующий отчёт уже с применённым фильтром
-         (?hasDebt=YES / ?bucket=OVERDUE / ?bucket=EXPIRING, см. ReportsDebt.vue/
-         ReportsContractsRegistry.vue), а не просто на пустой список. -->
+         (?hasDebt=YES / ?status=OVERDUE / ?bucket=EXPIRING), а не просто на пустой список. -->
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
       <RouterLink
         to="/reports/occupancy"
@@ -236,16 +240,16 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
       </RouterLink>
 
       <RouterLink
-        to="/reports/contracts?bucket=OVERDUE"
+        to="/contracts?status=OVERDUE"
         class="rounded-lg bg-rose-50 p-4 transition-colors hover:bg-rose-100 dark:bg-rose-500/10 dark:hover:bg-rose-500/15"
       >
         <div class="flex items-center gap-1.5 text-sm text-muted-foreground">
           <CalendarX class="size-4 shrink-0 text-rose-600 dark:text-rose-400" />
           {{ t('home.kpiOverdue') }}
         </div>
-        <div v-if="sourceState.contractsSummary === 'loading'" class="mt-1 h-8 w-20 animate-pulse rounded bg-muted motion-reduce:animate-none" aria-hidden="true" />
-        <p v-else-if="sourceState.contractsSummary === 'error'" class="mt-1 flex min-h-8 items-center text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
-        <p v-else class="data-reveal mt-1 min-h-8 text-2xl font-semibold tabular-nums">{{ contractsSummary!.overdue }}</p>
+        <div v-if="sourceState.overdue === 'loading'" class="mt-1 h-8 w-20 animate-pulse rounded bg-muted motion-reduce:animate-none" aria-hidden="true" />
+        <p v-else-if="sourceState.overdue === 'error'" class="mt-1 flex min-h-8 items-center text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
+        <p v-else class="data-reveal mt-1 min-h-8 text-2xl font-semibold tabular-nums">{{ overdueCount }}</p>
       </RouterLink>
 
       <RouterLink

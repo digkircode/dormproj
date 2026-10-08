@@ -62,6 +62,14 @@ const socialLinks = [
   <footer class="flex flex-col gap-3 border-t bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between md:px-6">
     <div class="flex flex-wrap items-center gap-3">
       <span class="text-xs text-muted-foreground">{{ t('footer.copyright') }}</span>
+      <a
+        href="https://rosnou.ru/download/file/sudpwzojh00cwk080k0wsccw/"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {{ t('footer.personalDataPolicy') }}
+      </a>
     </div>
 
     <div class="flex items-center gap-3">

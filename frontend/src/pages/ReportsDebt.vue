@@ -18,6 +18,7 @@ import ReportKpiTile from '@/components/ReportKpiTile.vue'
 import ReportKpiSkeleton from '@/components/ReportKpiSkeleton.vue'
 import DatePickerField from '@/components/DatePickerField.vue'
 import TableSkeleton from '@/components/TableSkeleton.vue'
+import { Skeleton } from '@/components/ui/skeleton'
 import { createAppColumnHelper } from '@/lib/table'
 import {
   fetchDebtorsPage,
@@ -167,18 +168,21 @@ const breakdownOpen = ref(false)
 const breakdown = ref<DebtorBreakdown | null>(null)
 const breakdownLoading = ref(false)
 const breakdownError = ref('')
+let breakdownRequest = 0
 
 async function openBreakdown(contractId: number) {
+  const request = ++breakdownRequest
   breakdownOpen.value = true
   breakdown.value = null
   breakdownError.value = ''
   breakdownLoading.value = true
   try {
-    breakdown.value = await fetchDebtorBreakdown(contractId, asOf.value)
+    const result = await fetchDebtorBreakdown(contractId, asOf.value)
+    if (request === breakdownRequest && breakdownOpen.value) breakdown.value = result
   } catch (error) {
-    breakdownError.value = error instanceof Error ? error.message : String(error)
+    if (request === breakdownRequest && breakdownOpen.value) breakdownError.value = error instanceof Error ? error.message : String(error)
   } finally {
-    breakdownLoading.value = false
+    if (request === breakdownRequest && breakdownOpen.value) breakdownLoading.value = false
   }
 }
 
@@ -187,18 +191,21 @@ const penaltyLogOpen = ref(false)
 const penaltyLog = ref<DebtorPenaltyLog | null>(null)
 const penaltyLogLoading = ref(false)
 const penaltyLogError = ref('')
+let penaltyLogRequest = 0
 
 async function openPenaltyLog(contractId: number) {
+  const request = ++penaltyLogRequest
   penaltyLogOpen.value = true
   penaltyLog.value = null
   penaltyLogError.value = ''
   penaltyLogLoading.value = true
   try {
-    penaltyLog.value = await fetchDebtorPenaltyLog(contractId, asOf.value)
+    const result = await fetchDebtorPenaltyLog(contractId, asOf.value)
+    if (request === penaltyLogRequest && penaltyLogOpen.value) penaltyLog.value = result
   } catch (error) {
-    penaltyLogError.value = error instanceof Error ? error.message : String(error)
+    if (request === penaltyLogRequest && penaltyLogOpen.value) penaltyLogError.value = error instanceof Error ? error.message : String(error)
   } finally {
-    penaltyLogLoading.value = false
+    if (request === penaltyLogRequest && penaltyLogOpen.value) penaltyLogLoading.value = false
   }
 }
 provide('openPenaltyLog', openPenaltyLog)
@@ -306,7 +313,7 @@ async function onExport() {
     <p v-if="exportError" class="text-sm text-red-500">{{ exportError }}</p>
 
     <Dialog :open="breakdownOpen" @update:open="(open) => (breakdownOpen = open)">
-      <DialogScrollContent :class="['flex flex-col gap-4 sm:max-w-3xl', DIALOG_ANIMATE_CLASS]">
+      <DialogScrollContent :class="['flex h-[min(80vh,38rem)] flex-col gap-4 sm:max-w-3xl', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
           <DialogTitle>
             {{
@@ -318,7 +325,10 @@ async function onExport() {
         </DialogHeader>
 
         <p v-if="breakdownError" class="text-sm text-red-500">{{ breakdownError }}</p>
-        <TableSkeleton v-if="breakdownLoading" :columns="4" :rows="5" class="min-h-56" />
+        <div v-if="breakdownLoading" class="flex min-h-0 flex-1 flex-col gap-3" role="status" :aria-label="t('entityTable.loading')">
+          <TableSkeleton :columns="4" :rows="5" class="min-h-0 flex-1" />
+          <div class="flex justify-end"><Skeleton class="h-5 w-44" /></div>
+        </div>
 
         <div v-if="breakdown" class="flex flex-col gap-3">
           <div class="overflow-hidden rounded-md border">
@@ -388,7 +398,7 @@ async function onExport() {
     </Dialog>
 
     <Dialog :open="penaltyLogOpen" @update:open="(open) => (penaltyLogOpen = open)">
-      <DialogScrollContent :class="['flex flex-col gap-4 sm:max-w-lg', DIALOG_ANIMATE_CLASS]">
+      <DialogScrollContent :class="['flex h-[min(80vh,36rem)] flex-col gap-4 sm:max-w-lg', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
           <DialogTitle>
             {{
@@ -400,7 +410,7 @@ async function onExport() {
         </DialogHeader>
 
         <p v-if="penaltyLogError" class="text-sm text-red-500">{{ penaltyLogError }}</p>
-        <TableSkeleton v-if="penaltyLogLoading" :columns="3" :rows="5" class="min-h-56" />
+        <TableSkeleton v-if="penaltyLogLoading" :columns="3" :rows="5" class="min-h-0 flex-1" />
 
         <div v-if="penaltyLog" class="flex flex-col gap-3">
           <!-- Максимум ~12 строк видно сразу, дальше — свой скролл (не растягивает
