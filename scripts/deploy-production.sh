@@ -38,6 +38,11 @@ previous_backend_image=''
 if [ -n "$previous_backend_container" ]; then
   previous_backend_image=$(docker inspect --format '{{.Config.Image}}' "$previous_backend_container")
 fi
+previous_frontend_container=$("${compose[@]}" ps -q frontend)
+previous_frontend_image=''
+if [ -n "$previous_frontend_container" ]; then
+  previous_frontend_image=$(docker inspect --format '{{.Config.Image}}' "$previous_frontend_container")
+fi
 if ! "${compose[@]}" up -d --no-build --pull never --no-deps --wait --wait-timeout 180 backend; then
   if [ -n "$previous_backend_image" ]; then
     BACKEND_IMAGE="$previous_backend_image" "${compose[@]}" up -d --no-build --pull never --no-deps --wait --wait-timeout 180 backend || true
@@ -46,3 +51,18 @@ if ! "${compose[@]}" up -d --no-build --pull never --no-deps --wait --wait-timeo
 fi
 "${compose[@]}" up -d --no-build --pull never --no-deps --wait --wait-timeout 90 frontend
 "${compose[@]}" ps
+
+# Retain the running release and the immediately preceding release for rollback.
+# Remove only this project's older image tags; never prune volumes or other services.
+backend_repository=${BACKEND_IMAGE%:*}
+frontend_repository=${FRONTEND_IMAGE%:*}
+docker image ls --format '{{.Repository}}:{{.Tag}}' | while IFS= read -r image; do
+  case "$image" in
+    "$backend_repository":*|"$frontend_repository":*) ;;
+    *) continue ;;
+  esac
+  case "$image" in
+    "$BACKEND_IMAGE"|"$FRONTEND_IMAGE"|"$previous_backend_image"|"$previous_frontend_image") continue ;;
+  esac
+  docker image rm "$image" || echo "Could not remove unused image $image" >&2
+done || echo 'Old image cleanup failed' >&2
