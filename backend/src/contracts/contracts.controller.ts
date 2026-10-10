@@ -32,7 +32,7 @@ import { recalculatePenaltyInTransaction } from '../billing/penalty-recalculate.
 import { computePenaltyBalance } from '../billing/penalty-balance';
 import { dateOnly, moscowDateOnly } from '../billing/period-utils';
 import { serializeAccrual, serializePayment, serializeTerms } from './serializers';
-import { availableContractRefund, contractOverpayment } from '../billing/refund-balance';
+import { availableContractRefund } from '../billing/refund-balance';
 import { buildPaymentPurpose } from '../billing/payment-purpose';
 import { isMinorAt } from './minor';
 import { buildResidentSnapshot, fillManualFallbacks, type ResidentSnapshot } from './resident-snapshot';
@@ -396,7 +396,6 @@ export class ContractsController {
       terms: terms.map(serializeTerms),
       accruals: accruals.map(serializeAccrual),
       refundableAmount: refundable ? Number(refundable.amount) : 0,
-      overpaymentAmount: Number(contractOverpayment(refundInput)),
       refunds: refunds.map((row) => ({ id: row.id, amount: Number(row.amount), refundedAt: row.refundedAt, comment: row.comment, accrualId: row.accrualId, periodStart: row.accrual?.periodStart ?? null })),
       payments: payments.map((payment) =>
         serializePayment({

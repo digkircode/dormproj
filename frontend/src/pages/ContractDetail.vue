@@ -185,22 +185,23 @@ const ACCRUAL_COLUMNS = computed<{ id: keyof AccrualRow; label: string }[]>(() =
   { id: 'paid', label: t('contracts.detail.colPaid') },
   { id: 'balance', label: t('contracts.detail.colBalance') },
 ])
+// Свободная часть платежей хранится на договоре, а не в строке начисления.
+// Для таблицы относим её к последней переплаченной строке (или к последней
+// активной строке), чтобы сумма «Остатков» совпадала с балансом без пени.
+const displayedAccruals = computed<AccrualRow[]>(() => {
+  const currentContract = contract.value
+  if (!currentContract?.creditBalance) return currentContract?.accruals ?? []
+  const active = currentContract.accruals.filter((a) => !a.voidedAt)
+  const latestFirst = [...active].sort((a, b) => b.periodStart.localeCompare(a.periodStart))
+  const targetId = (latestFirst.find((a) => a.balance < 0) ?? latestFirst[0])?.id
+  return currentContract.accruals.map((a) =>
+    a.id === targetId ? { ...a, balance: a.balance - currentContract.creditBalance } : a,
+  )
+})
 const { sort: accrualSort, sorted: sortedAccruals, toggle: toggleAccrualSort } = useLocalSort(
-  () => contract.value?.accruals ?? [],
+  () => displayedAccruals.value,
   'periodStart' satisfies keyof AccrualRow,
 )
-// Переплата относится ко всему договору. Показываем её один раз рядом с оплаченной
-// суммой: у скорректированного переплаченного периода, иначе у последнего оплаченного.
-const overpaymentAccrualId = computed(() => {
-  if (!contract.value || contract.value.overpaymentAmount <= 0) return null
-  const active = contract.value.accruals.filter((accrual) => !accrual.voidedAt)
-  const latestFirst = [...active].sort((a, b) => b.periodStart.localeCompare(a.periodStart))
-  return (latestFirst.find((accrual) => accrual.adjustmentAmount < 0 && accrual.paid > accrual.total)
-    ?? latestFirst.find((accrual) => accrual.paid > accrual.total)
-    ?? latestFirst.find((accrual) => accrual.paid > 0)
-    ?? latestFirst[0])?.id ?? null
-})
-
 function paidOnlyAdjustedAmount(accrual: AccrualRow): boolean {
   return !accrual.voidedAt
     && accrual.adjustmentAmount < 0
@@ -257,7 +258,6 @@ const filteredAccruals = computed(() => {
     formatMoney(row.total), formatMoney(row.adjustmentAmount), row.adjustmentReason ?? '',
     formatMoney(row.paid), formatMoney(row.balance),
     row.voidedAt ? t('contracts.detail.voided') : '',
-    row.id === overpaymentAccrualId.value ? `${t('contracts.detail.overpayment')} ${formatMoney(contract.value?.overpaymentAmount ?? 0)}` : '',
   ].join(' ').toLocaleLowerCase().includes(query))
 })
 const filteredPayments = computed(() => {
@@ -655,14 +655,7 @@ async function confirmReversePayment() {
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell :class="CELL_BORDER_CLASS">
-                      <div class="flex items-center justify-between gap-2 whitespace-nowrap">
-                        <span class="shrink-0">{{ formatMoney(a.paid) }}</span>
-                        <span v-if="a.id === overpaymentAccrualId" class="shrink-0 rounded-md bg-green-100 px-1.5 py-0.5 text-xs leading-tight text-green-800 dark:bg-green-500/15 dark:text-green-300">
-                          {{ t('contracts.detail.overpayment') }} {{ formatMoney(contract.overpaymentAmount) }}
-                        </span>
-                      </div>
-                    </TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.paid) }}</TableCell>
                     <TableCell :class="a.balance > 0 ? 'text-red-500' : ''">
                       {{ a.voidedAt ? t('contracts.detail.voided') : formatMoney(a.balance) }}
                     </TableCell>
