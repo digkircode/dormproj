@@ -855,21 +855,22 @@ model Payment {
   @@map("payments")
 }
 
-// Сотрудник фиксирует уже выполненный возврат переплаты после перерасчёта.
+// Сотрудник фиксирует уже выполненный возврат переплаты по договору.
 // Это расход денег, а не входящий Payment: платёж и корректировка начисления сохраняются.
 model ContractRefund {
-  id              Int      @id @default(autoincrement())
-  contractId      Int      @map("contract_id")
-  contract        Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  accrualId       Int      @map("accrual_id")
-  accrual         Accrual  @relation(fields: [accrualId], references: [id])
-  amount          Decimal  @db.Decimal(12, 2)
-  creditAmount    Decimal  @default(0) @map("credit_amount") @db.Decimal(12, 2)
-  refundedAt      DateTime @map("refunded_at")
-  comment         String?
-  createdByUserId Int      @map("created_by_user_id")
-  createdBy       User     @relation("RefundCreatedBy", fields: [createdByUserId], references: [id])
-  createdAt       DateTime @default(now()) @map("created_at")
+  id               Int      @id @default(autoincrement())
+  contractId       Int      @map("contract_id")
+  contract         Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  accrualId        Int?     @map("accrual_id")
+  accrual          Accrual? @relation(fields: [accrualId], references: [id])
+  amount           Decimal  @db.Decimal(12, 2)
+  creditAmount     Decimal  @default(0) @map("credit_amount") @db.Decimal(12, 2)
+  adjustmentAmount Decimal @default(0) @map("adjustment_amount") @db.Decimal(12, 2)
+  refundedAt       DateTime @map("refunded_at")
+  comment          String?
+  createdByUserId  Int      @map("created_by_user_id")
+  createdBy        User     @relation("RefundCreatedBy", fields: [createdByUserId], references: [id])
+  createdAt        DateTime @default(now()) @map("created_at")
 
   @@index([contractId, refundedAt])
   @@index([accrualId])

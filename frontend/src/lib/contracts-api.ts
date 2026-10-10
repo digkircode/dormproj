@@ -57,8 +57,8 @@ export interface ContractRefundRow {
   amount: number
   refundedAt: string
   comment: string | null
-  accrualId: number
-  periodStart: string
+  accrualId: number | null
+  periodStart: string | null
 }
 
 export type Accounting1cSyncStatus = 'NOT_SYNCED' | 'SYNCED' | 'FAILED'
@@ -122,6 +122,7 @@ export interface ContractDetail {
   penaltyPaid: number
   penaltyBalance: number
   creditBalance: number
+  overpaymentAmount: number
   // История начисления пени по дням — та же форма, что и у резидента (MyContractDetail
   // ниже), для клика по тайлу "Пени" на карточке (ContractDetail.vue), добавлено 2026-09-05.
   penaltyLog: PenaltyLogRow[]

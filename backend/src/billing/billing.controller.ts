@@ -17,7 +17,7 @@ import { PenaltyRecalculateService } from './penalty-recalculate.service';
 import { PENALTY_SYNC_TYPE } from './penalty.scheduler';
 import { listSyncLogs, syncLogFacetValues, type SyncLogsListQuery } from '../sync/sync-logs-list';
 import { SERVICE_PROVISION_SYNC_TYPE } from './service-provision-doc.service';
-import { availableAdjustmentRefund } from './refund-balance';
+import { availableContractRefund } from './refund-balance';
 import { dateOnly, moscowDateOnly } from './period-utils';
 
 const createPaymentSchema = z.object({
@@ -98,19 +98,21 @@ export class BillingController {
       });
       if (!contract) throw new NotFoundException('contracts.errors.contractNotFound');
       if (refundedAt < moscowDateOnly(contract.createdAt)) throw new BadRequestException('billing.errors.refundBeforeContract');
-      const available = availableAdjustmentRefund({
+      const available = availableContractRefund({
         accruals: contract.accruals,
         penaltyLogs: contract.penaltyLogs,
         payments: contract.payments,
         refunds: contract.refunds,
         asOf: refundedAt,
+        creditBalance: contract.creditBalance,
       });
-      const availableNow = availableAdjustmentRefund({
+      const availableNow = availableContractRefund({
         accruals: contract.accruals,
         penaltyLogs: contract.penaltyLogs,
         payments: contract.payments,
         refunds: contract.refunds,
         asOf: today,
+        creditBalance: contract.creditBalance,
       });
       const amount = new Prisma.Decimal(parsed.data.amount);
       if (!available || !availableNow || available.accrualId !== availableNow.accrualId
@@ -120,7 +122,11 @@ export class BillingController {
       const createdByUserId = await ensureUserRecord(tx, req.user!);
       const creditAmount = Prisma.Decimal.min(amount, contract.creditBalance);
       const refund = await tx.contractRefund.create({
-        data: { contractId, accrualId: available.accrualId, amount, creditAmount, refundedAt, comment: parsed.data.comment ?? null, createdByUserId },
+        data: {
+          contractId, accrualId: available.accrualId, amount, creditAmount,
+          adjustmentAmount: Prisma.Decimal.min(amount.minus(creditAmount), available.remainingCorrection, availableNow.remainingCorrection),
+          refundedAt, comment: parsed.data.comment ?? null, createdByUserId,
+        },
       });
       if (creditAmount.greaterThan(0)) {
         await tx.contract.update({ where: { id: contractId }, data: { creditBalance: { decrement: creditAmount } } });
@@ -133,7 +139,7 @@ export class BillingController {
         entityLabel: `Возврат по договору №${contract.number}`,
         before: null,
         after: refund,
-        fields: ['contractId', 'accrualId', 'amount', 'creditAmount', 'refundedAt', 'comment'],
+        fields: ['contractId', 'accrualId', 'amount', 'creditAmount', 'adjustmentAmount', 'refundedAt', 'comment'],
       });
       return { id: refund.id, amount: Number(refund.amount), refundedAt: refund.refundedAt, comment: refund.comment, accrualId: refund.accrualId };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });

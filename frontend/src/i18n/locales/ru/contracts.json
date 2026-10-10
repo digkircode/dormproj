@@ -73,6 +73,7 @@
       "colCost": "Стоимость",
       "colAdjustment": "Корректировка",
       "colPaid": "Оплачено",
+      "overpayment": "Переплата",
       "colBalance": "Остаток",
       "colDate": "Дата",
       "colAmount": "Сумма",

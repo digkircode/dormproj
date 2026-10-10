@@ -190,14 +190,13 @@ const { sort: accrualSort, sorted: sortedAccruals, toggle: toggleAccrualSort } =
   'periodStart' satisfies keyof AccrualRow,
 )
 
-function paidOnlyAdjustedAmount(accrual: AccrualRow, refundableAmount: number): boolean {
+function paidOnlyAdjustedAmount(accrual: AccrualRow): boolean {
   return !accrual.voidedAt
     && accrual.adjustmentAmount < 0
     && accrual.refundedAmount === 0
     && accrual.total > 0
     && accrual.paid > 0
     && Math.abs(accrual.paid - accrual.total) < 0.005
-    && refundableAmount <= 0
 }
 
 const PAYMENT_COLUMNS = computed<{ id: keyof PaymentRow; label: string }[]>(() => [
@@ -220,7 +219,7 @@ const paymentMovements = computed<PaymentMovementRow[]>(() => [
     rawComment: refund.comment,
     reversedAt: null,
     createdAt: refund.refundedAt,
-    purpose: `1С: Бухгалтерия | Возврат | ${new Date(refund.periodStart).toLocaleDateString('ru-RU', { month: 'long', timeZone: 'UTC' })} ${new Date(refund.periodStart).getUTCFullYear()}`,
+    purpose: `1С: Бухгалтерия | Возврат | ${new Date(refund.periodStart ?? refund.refundedAt).toLocaleDateString('ru-RU', { month: 'long', timeZone: 'UTC' })} ${new Date(refund.periodStart ?? refund.refundedAt).getUTCFullYear()}`,
     isRefund: true,
   })),
 ])
@@ -248,6 +247,11 @@ const filteredAccruals = computed(() => {
     formatMoney(row.paid), formatMoney(row.balance),
     row.voidedAt ? t('contracts.detail.voided') : '',
   ].join(' ').toLocaleLowerCase().includes(query))
+})
+const showOverpaymentRow = computed(() => {
+  if (!contract.value || contract.value.overpaymentAmount <= 0) return false
+  const query = accrualSearch.value.trim().toLocaleLowerCase()
+  return !query || `${t('contracts.detail.overpayment')} ${formatMoney(contract.value.overpaymentAmount)}`.toLocaleLowerCase().includes(query)
 })
 const filteredPayments = computed(() => {
   const query = paymentSearch.value.trim().toLocaleLowerCase()
@@ -639,7 +643,7 @@ async function confirmReversePayment() {
                             ? t('contracts.detail.partlyRefundedAdjustment', { amount: formatMoney(a.refundedAmount), total: formatMoney(-a.adjustmentAmount) })
                             : t('contracts.detail.refundedAdjustment', { amount: formatMoney(a.refundedAmount) }) }}
                         </span>
-                        <span v-else-if="paidOnlyAdjustedAmount(a, contract.refundableAmount)" class="shrink-0 rounded-md bg-sky-100 px-1.5 py-0.5 text-xs leading-tight text-sky-800 dark:bg-sky-500/15 dark:text-sky-300">
+                        <span v-else-if="paidOnlyAdjustedAmount(a)" class="shrink-0 rounded-md bg-sky-100 px-1.5 py-0.5 text-xs leading-tight text-sky-800 dark:bg-sky-500/15 dark:text-sky-300">
                           {{ t('contracts.detail.refundNotRequired') }}
                         </span>
                       </div>
@@ -649,7 +653,17 @@ async function confirmReversePayment() {
                       {{ a.voidedAt ? t('contracts.detail.voided') : formatMoney(a.balance) }}
                     </TableCell>
                   </TableRow>
-                  <TableRow v-if="!filteredAccruals.length">
+                  <TableRow v-if="showOverpaymentRow" class="bg-green-50/40 dark:bg-green-500/5">
+                    <TableCell v-for="column in ACCRUAL_COLUMNS.slice(0, 4)" :key="column.id" :class="CELL_BORDER_CLASS">-</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">
+                      <div class="flex items-center gap-2 whitespace-nowrap">
+                        <span>{{ formatMoney(contract.overpaymentAmount) }}</span>
+                        <span class="rounded-md bg-green-100 px-1.5 py-0.5 text-xs leading-tight text-green-800 dark:bg-green-500/15 dark:text-green-300">{{ t('contracts.detail.overpayment') }}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>-</TableCell>
+                  </TableRow>
+                  <TableRow v-if="!filteredAccruals.length && !showOverpaymentRow">
                     <TableCell :colspan="ACCRUAL_COLUMNS.length" class="py-8 text-center text-muted-foreground">{{ t('entityTable.nothingFound') }}</TableCell>
                   </TableRow>
                 </TableBody>
