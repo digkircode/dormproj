@@ -30,9 +30,10 @@
       "triggerFailed": "Не удалось запустить синхронизацию ({status})"
     },
     "overview": {
-      "refresh": "Обновить",
-      "refreshHint": "Загрузить актуальные статусы и результаты запусков",
       "run": "Запустить",
+      "running": "Выполняется",
+      "universityFlow": "Ночью: студенты → физлица → гражданство → паспорта → контакты. Ручная кнопка запускает только выбранный блок.",
+      "resultUnavailable": "Результат не получен",
       "loadError": "Не удалось обновить сводку синхронизации. Попробуйте ещё раз.",
       "lastRun": "Последний запуск",
       "lastSuccess": "Последний успех",
@@ -57,6 +58,7 @@
         "FAILED": "Ошибка",
         "MISSED": "Пропущен запуск",
         "NOT_CONFIGURED": "Не настроено",
+        "BLOCKED": "Нет UID 1С",
         "NONE": "Нет запусков"
       },
       "jobs": {
@@ -74,13 +76,18 @@
         "contract-status": "Статусы договоров",
         "penalties": "Начисление пеней"
       },
+      "descriptions": {
+        "citizenship": "Загружает историю гражданства из 1С для уже известных физлиц.",
+        "passport": "Загружает историю паспортных данных из 1С для уже известных физлиц.",
+        "contact-info": "Загружает адреса, телефоны и другие контакты из 1С для уже известных физлиц."
+      },
       "results": {
         "push": "Отправлено {sent}, успешно {succeeded}, ошибок {failed}",
         "import": "Получено {fetched}, новых {imported}, договоров с UID {pairs}",
         "documentsPrepared": "Подготовлено документов: {count}",
-        "documentsSent": "Отправлено {pushed}, успешно {succeeded}, ошибок {failed}",
+        "documentsSent": "Отправлено {pushed}, успешно {succeeded}, ошибок {failed}, не готовы {blocked}",
         "nothingToSend": "Документов для отправки нет",
-        "recovery": "Проверены документы; отправлено {pushed}, успешно {succeeded}, ошибок {failed}",
+        "recovery": "Проверены документы; отправлено {pushed}, успешно {succeeded}, ошибок {failed}, не готовы {blocked}",
         "contracts": "Проверено договоров {processed}, сменили статус {changed}",
         "penalties": "Проверено договоров {processed}, новых начислений {rows}",
         "university": "Получено {fetched}, добавлено {added}, обновлено {updated}, удалено {removed}"

@@ -66,7 +66,7 @@ export class ServiceProvisionDocScheduler implements OnApplicationBootstrap {
       const sendOperation = operation === 'FINAL_RECALC_AND_SEND' || operation === 'RETRY_PREVIOUS_MONTH' || operation === 'STARTUP_RECOVERY';
       const incomplete = sendOperation && (failed > 0 || blocked > 0 || pushed > succeeded + failed);
       const errorMessage = incomplete
-        ? `Отправка документов завершилась с ошибками: ${failed} ошибок, ${blocked} заблокировано, ${pushed - succeeded - failed} без ответа 1С`
+        ? `Отправка документов не завершена: ${failed} ошибок 1С, ${blocked} не готовы (нет строк или UID контрагента/договора 1С), ${pushed - succeeded - failed} без ответа 1С`
         : null;
       await this.prisma.syncLog.update({
         where: { id: log.id },

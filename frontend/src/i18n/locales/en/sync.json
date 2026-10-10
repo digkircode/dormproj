@@ -30,9 +30,10 @@
       "triggerFailed": "Failed to start synchronization ({status})"
     },
     "overview": {
-      "refresh": "Refresh",
-      "refreshHint": "Load current run statuses and results",
       "run": "Run",
+      "running": "Running",
+      "universityFlow": "Nightly order: students → individuals → citizenship → passports → contacts. A manual run starts only the selected step.",
+      "resultUnavailable": "No result received",
       "loadError": "Could not refresh the synchronization overview. Please try again.",
       "lastRun": "Last run",
       "lastSuccess": "Last success",
@@ -57,6 +58,7 @@
         "FAILED": "Failed",
         "MISSED": "Scheduled run missed",
         "NOT_CONFIGURED": "Not configured",
+        "BLOCKED": "Missing 1C UIDs",
         "NONE": "No runs"
       },
       "jobs": {
@@ -74,13 +76,18 @@
         "contract-status": "Contract statuses",
         "penalties": "Penalty accrual"
       },
+      "descriptions": {
+        "citizenship": "Imports citizenship history from 1C for individuals already known to the site.",
+        "passport": "Imports passport history from 1C for individuals already known to the site.",
+        "contact-info": "Imports addresses, phone numbers, and other contacts from 1C for individuals already known to the site."
+      },
       "results": {
         "push": "Sent {sent}, succeeded {succeeded}, failed {failed}",
         "import": "Fetched {fetched}, new {imported}, contracts with UIDs {pairs}",
         "documentsPrepared": "Documents prepared: {count}",
-        "documentsSent": "Sent {pushed}, succeeded {succeeded}, failed {failed}",
+        "documentsSent": "Sent {pushed}, succeeded {succeeded}, failed {failed}, blocked {blocked}",
         "nothingToSend": "No documents to send",
-        "recovery": "Documents checked; sent {pushed}, succeeded {succeeded}, failed {failed}",
+        "recovery": "Documents checked; sent {pushed}, succeeded {succeeded}, failed {failed}, blocked {blocked}",
         "contracts": "Contracts checked {processed}, status changed {changed}",
         "penalties": "Contracts checked {processed}, new accruals {rows}",
         "university": "Fetched {fetched}, added {added}, updated {updated}, removed {removed}"
