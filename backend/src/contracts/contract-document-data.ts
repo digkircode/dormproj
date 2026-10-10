@@ -131,6 +131,7 @@ interface ContractLike {
   matCapitalCoveredFrom: Date | null;
   matCapitalCoveredTo: Date | null;
   matCapitalAmount: Prisma.Decimal | null;
+  matCapitalDeferredUntil: Date | null;
 }
 
 interface TermsLike {
@@ -155,15 +156,6 @@ export function buildDocumentData(
   room: { room: string } | null,
   communalServicesCost: Prisma.Decimal | null,
 ): Record<string, string | boolean> {
-  // Без данных — оставляем п.5.5 как в исходном макете (подчёркивания под заполнение от
-  // руки), а не тире: тире тут смотрелось чужеродно рядом с уже нетронутыми "________"
-  // в следующем абзаце того же пункта ("с возможностью отсрочки..." — отдельный статичный
-  // абзац бланка, {matCapitalText} его не касается, см. contract-minor.docx).
-  const matCapitalText =
-    contract.matCapitalCoveredFrom && contract.matCapitalCoveredTo && contract.matCapitalAmount !== null
-      ? `за период с ${formatDateShort(contract.matCapitalCoveredFrom)} по ${formatDateShort(contract.matCapitalCoveredTo)} в сумме ${formatMoney(contract.matCapitalAmount)}`
-      : 'за период с ______________ по ______________ в сумме _______________________';
-
   const isOwnUniversity = terms?.dailyRateCategory === 'OWN_UNIVERSITY';
   const residenceReasonText = isOwnUniversity
     ? 'обучением в АНО ВО «РосНОУ»'
@@ -259,6 +251,9 @@ export function buildDocumentData(
     legalRepAddressLine2: legalRepAddressSplit.line2,
     legalRepSnils: contract.legalRepSnils ?? '',
 
-    matCapitalText,
+    matCapitalCoveredFrom: formatDateShort(contract.matCapitalCoveredFrom),
+    matCapitalCoveredTo: formatDateShort(contract.matCapitalCoveredTo),
+    matCapitalAmount: formatMoney(contract.matCapitalAmount),
+    matCapitalDeferredUntil: formatDateShort(contract.matCapitalDeferredUntil),
   };
 }
