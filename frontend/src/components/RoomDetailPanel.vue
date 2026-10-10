@@ -554,17 +554,18 @@ async function confirmDeleteValue() {
           </div>
           <p v-if="dormitoryLoadError" class="text-sm text-red-500">{{ dormitoryLoadError }}</p>
           <div v-if="isDormitoryLoading" class="w-full max-w-md space-y-2" aria-hidden="true"><div v-for="n in 5" :key="n" class="h-10 animate-pulse rounded bg-muted motion-reduce:animate-none" /></div>
-          <!-- На узком экране метка и поле переносятся, не обрезая ввод. Галочка
+          <!-- Метка занимает свободную ширину и при необходимости переносит текст;
+               поле суммы остаётся в одном правом столбце у каждой строки. Галочка
                остаётся в DOM и меняет только opacity, чтобы ширина не прыгала. -->
           <div v-else-if="!dormitoryLoadError" class="w-full max-w-md rounded-md border">
             <div
               v-for="(field, index) in DORMITORY_INFO_FIELDS"
               :key="field.key"
-              class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
+              class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-2 text-sm"
               :class="index > 0 ? 'border-t border-border' : ''"
             >
               <span class="min-w-0 text-muted-foreground">{{ t(`rooms.detail.dormitoryFields.${field.key}`) }}</span>
-              <div class="flex items-center gap-1.5">
+              <div class="flex shrink-0 items-center gap-1.5">
                 <input
                   v-model="dormitoryEditValues[field.key]"
                   type="number"

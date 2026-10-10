@@ -112,17 +112,11 @@ function onRoomCostInput() {
   }
   rentAmount.value = roomCost.value - utilitiesAmount.value
 }
-// Категория определяет суточную ставку (см. watch ниже) — теперь не выбирается вручную,
-// а определяется автоматически по тому, есть ли физлицо в Контингенте (см. pickIndividual).
-const dailyRateCategory = ref<DailyRateCategory>('OTHER_UNIVERSITY')
-// Пока проживающий не выбран, категория не определена по-настоящему — значение выше
-// чисто техническое стартовое, не факт о человеке. "Причина проживания" в шаблоне
-// смотрит на этот флаг, а не только на dailyRateCategory, иначе поле появлялось бы
-// по умолчанию ещё до выбора проживающего.
-const dailyRateCategoryKnown = ref(false)
+// Выбор причины проживания задаёт категорию цены. Запись в Контингенте только
+// подставляет «Обучение в РосНОУ», а отсутствие записи не запрещает выбрать его вручную.
+const dailyRateCategory = ref<DailyRateCategory | null>(null)
 const dailyRateAmount = ref<number | undefined>(undefined)
-// Причина проживания — печатается в п.1.2 бланка вместо "обучением в АНО ВО «РосНОУ»",
-// нужна только когда проживающий не из своего вуза (см. dailyRateCategory).
+// Свободный текст печатается в п.1.2 бланка только для варианта «Другая».
 const residenceReason = ref('')
 // Срок оплаты в форме не показываем и не даём менять — всегда 5 число месяца.
 const paymentDueDay = ref(5)
@@ -188,9 +182,10 @@ function validateFields(phoneValid: boolean) {
   if (!startDate.value) errors.startDate = 'startDateRequired'
   if (!endDate.value) errors.endDate = 'endDateRequired'
   else if (startDate.value && endDate.value < startDate.value) errors.endDate = 'endDateBeforeStart'
-  if (roomId.value && !nonnegative(roomCost.value)) errors.roomCost = 'roomCostRequired'
-  else if (roomId.value && (!nonnegative(rentAmount.value) || utilitiesAmount.value === undefined)) errors.roomCost = 'roomCostBreakdownInvalid'
-  if (roomId.value && dailyRateAmount.value === undefined) errors.roomId = 'dailyRateMissing'
+  if (selectedIndividual.value && !dailyRateCategory.value) errors.residenceReasonChoice = 'residenceReasonChoiceRequired'
+  if (roomId.value && dailyRateCategory.value && !nonnegative(roomCost.value)) errors.roomCost = 'roomCostRequired'
+  else if (roomId.value && dailyRateCategory.value && (!nonnegative(rentAmount.value) || utilitiesAmount.value === undefined)) errors.roomCost = 'roomCostBreakdownInvalid'
+  if (roomId.value && dailyRateCategory.value && dailyRateAmount.value === undefined) errors.roomId = 'dailyRateMissing'
   if (!legalRepName.value.trim()) errors.legalRepName = 'parentNameRequired'
   if (!phoneValid) errors.legalRepPhone = 'phoneInvalid'
   if (isMinor.value) {
@@ -219,7 +214,7 @@ const individualResults = ref<Individual[]>([])
 const selectedIndividual = ref<Individual | null>(null)
 for (const [key, source] of Object.entries({ number, contractDate, roomId, startDate, endDate,
   residentIndividualUid: selectedIndividual, roomCost, legalRepName, legalRepPhone, legalRepBirthDate,
-  legalRepPassportNumber, legalRepPassportIssuedAt, residenceReason, matCapitalCoveredFrom,
+  legalRepPassportNumber, legalRepPassportIssuedAt, residenceReasonChoice: dailyRateCategory, residenceReason, matCapitalCoveredFrom,
   matCapitalCoveredTo, matCapitalAmount, matCapitalDeferredUntil })) {
   watch(source, () => {
     delete fieldErrors.value[key]
@@ -240,6 +235,8 @@ let individualSearchTimeout: ReturnType<typeof setTimeout> | undefined
 function onIndividualSearch(q: string) {
   clearTimeout(individualSearchTimeout)
   selectedIndividual.value = null
+  dailyRateCategory.value = null
+  residenceReason.value = ''
   if (!q.trim()) {
     individualResults.value = []
     individualSearching.value = false
@@ -257,24 +254,15 @@ async function pickIndividual(ind: Individual) {
   selectedIndividual.value = ind
   individualQuery.value = ind.fullName
   individualResults.value = []
-  // Категория проживающего — автоматически по наличию в Контингенте (таблица Student,
-  // синхронизируется из 1С только для студентов РосНОУ), а не ручным выбором.
-  // dailyRateCategoryKnown до этого момента false — иначе "Причина проживания" мелькала
-  // бы по умолчанию ещё до выбора проживающего (дефолт dailyRateCategory — OTHER_UNIVERSITY,
-  // см. ref ниже, чисто техническое стартовое значение, не факт о человеке).
+  dailyRateCategory.value = null
+  residenceReason.value = ''
+  // Известным студентам подставляем РосНОУ. Для остальных основание выбирают вручную:
+  // будущий студент мог ещё не появиться в 1С.
   try {
     const detail = await fetchIndividualDetail(ind.fizicheskoyeLitsoUid)
-    dailyRateCategory.value = detail.students.length > 0 ? 'OWN_UNIVERSITY' : 'OTHER_UNIVERSITY'
-  } catch {
-    dailyRateCategory.value = 'OTHER_UNIVERSITY'
-  } finally {
-    dailyRateCategoryKnown.value = true
-    // Не полагаться на watch(dailyRateCategory, ...) ниже — он не сработает, если значение
-    // категории не изменилось (например дефолт формы и определённая категория совпали:
-    // 'OTHER_UNIVERSITY' → 'OTHER_UNIVERSITY'), из-за чего суточная ставка оставалась
-    // dailyPaymentInternal, подставленной в open(), даже для проживающих не из вуза.
-    updateDailyRateAmount()
-  }
+    if (selectedIndividual.value?.fizicheskoyeLitsoUid === ind.fizicheskoyeLitsoUid &&
+      dailyRateCategory.value === null && detail.students.length > 0) dailyRateCategory.value = 'OWN_UNIVERSITY'
+  } catch { /* Если 1С недоступна, сотрудник всё равно может указать основание. */ }
 }
 
 // Автоподстановка родителя — если у ЭТОГО проживающего родитель уже вводился на
@@ -364,7 +352,7 @@ async function open(prefillIndividual?: Individual) {
   roomCharacteristics.value = []
   isDailyOnlyRoom.value = false
   residenceReason.value = ''
-  dailyRateCategoryKnown.value = false
+  dailyRateCategory.value = null
   legalRepName.value = ''
   legalRepPhone.value = ''
   legalRepGender.value = ''
@@ -407,13 +395,20 @@ defineExpose({ open })
 // смене категории обновляем подстановку (поле не показывается, но участвует в расчёте пени).
 function updateDailyRateAmount() {
   dailyRateAmount.value =
-    (dailyRateCategory.value === 'OWN_UNIVERSITY' ? dormInfo.value.dailyPaymentInternal : dormInfo.value.dailyPaymentOther) ?? undefined
+    (dailyRateCategory.value === 'OWN_UNIVERSITY' ? dormInfo.value.dailyPaymentInternal
+      : dailyRateCategory.value === 'OTHER_UNIVERSITY' ? dormInfo.value.dailyPaymentOther : null) ?? undefined
 }
 watch(dailyRateCategory, updateDailyRateAmount)
 
 // Стоимость комнаты — полная сумма найма и коммунальных услуг. По умолчанию подставляем
 // характеристику комнаты, но оставляем поле редактируемым для цены конкретного договора.
 function applyRoomPrice() {
+  if (!dailyRateCategory.value) {
+    roomCost.value = undefined
+    rentAmount.value = undefined
+    isDailyOnlyRoom.value = false
+    return
+  }
   if (roomCharacteristics.value.length === 0) {
     isDailyOnlyRoom.value = false
     return
@@ -480,6 +475,7 @@ async function submitCreate() {
     !endDate.value ||
     !number.value.trim() ||
     !contractDate.value ||
+    !dailyRateCategory.value ||
     rentAmount.value === undefined ||
     rentAmount.value < 0 ||
     utilitiesAmount.value === undefined ||
@@ -589,6 +585,26 @@ async function submitCreate() {
                 <p v-if="fieldErrors.residentIndividualUid" class="text-xs text-destructive">{{ fieldError(fieldErrors.residentIndividualUid) }}</p>
             </div>
 
+            <div v-if="selectedIndividual" class="flex flex-col gap-2">
+              <Label>{{ t('contracts.createDialog.fieldResidenceReason') }}</Label>
+              <Select :model-value="dailyRateCategory ?? undefined" @update:model-value="(value) => (dailyRateCategory = value as DailyRateCategory)">
+                <SelectTrigger :class="fieldErrors.residenceReasonChoice ? 'border-red-500' : ''">
+                  <SelectValue :placeholder="t('contracts.createDialog.residenceReasonPlaceholder')" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="OWN_UNIVERSITY">{{ t('contracts.createDialog.residenceReasonOwnUniversity') }}</SelectItem>
+                  <SelectItem value="OTHER_UNIVERSITY">{{ t('contracts.createDialog.residenceReasonOther') }}</SelectItem>
+                </SelectContent>
+              </Select>
+              <p v-if="fieldErrors.residenceReasonChoice" class="text-xs text-destructive">{{ fieldError(fieldErrors.residenceReasonChoice) }}</p>
+              <Transition v-bind="REVEAL_TRANSITION">
+                <div v-if="dailyRateCategory === 'OTHER_UNIVERSITY'" class="flex flex-col gap-2">
+                  <Input v-model="residenceReason" :placeholder="t('contracts.createDialog.residenceReasonOtherPlaceholder')" :class="fieldErrors.residenceReason ? 'border-red-500' : ''" />
+                  <p v-if="fieldErrors.residenceReason" class="text-xs text-destructive">{{ fieldError(fieldErrors.residenceReason) }}</p>
+                </div>
+              </Transition>
+            </div>
+
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div class="flex flex-col gap-2">
                 <Label>{{ t('contracts.createDialog.fieldRoom') }}</Label>
@@ -647,15 +663,6 @@ async function submitCreate() {
               </p>
             </div>
 
-            <!-- Только для не-своего вуза — печатается в п.1.2 бланка вместо "обучением
-                 в АНО ВО «РосНОУ»" (см. dailyRateCategory, автоопределяется в pickIndividual). -->
-            <Transition v-bind="REVEAL_TRANSITION">
-              <div v-if="dailyRateCategoryKnown && dailyRateCategory === 'OTHER_UNIVERSITY'" class="flex flex-col gap-2">
-                <Label>{{ t('contracts.createDialog.fieldResidenceReason') }}</Label>
-                <Input v-model="residenceReason"  :class="[NO_SPINNER_CLASS, fieldErrors.residenceReason ? 'border-red-500' : '']" />
-                <p v-if="fieldErrors.residenceReason" class="text-xs text-destructive">{{ fieldError(fieldErrors.residenceReason) }}</p>
-              </div>
-            </Transition>
           </div>
         </div>
 

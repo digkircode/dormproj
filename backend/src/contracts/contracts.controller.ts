@@ -508,7 +508,7 @@ export class ContractsController {
         where: { roomId: data.roomId, definition: { name: { in: ['Стоимость (из вуза)', 'Стоимость (не из вуза)'] } } },
         select: { id: true },
       }),
-      this.prisma.dormitoryInfo.findUnique({ where: { id: 1 }, select: { communalServicesCost: true } }),
+      this.prisma.dormitoryInfo.findUnique({ where: { id: 1 }, select: { communalServicesCost: true, dailyPaymentInternal: true, dailyPaymentOther: true } }),
     ]);
     const isDailyOnlyRoom = !anyRoomPriceCharacteristic;
 
@@ -547,7 +547,14 @@ export class ContractsController {
       throw new BadRequestException({ message: 'contracts.errors.communalServicesCostExceedsRoomCost', fieldErrors: { roomCost: 'contracts.errors.roomCostBelowUtilities' } });
     }
     const rentAmount = isDailyOnlyRoom ? new Prisma.Decimal(0) : roomCost.minus(utilitiesAmount);
-    const dailyRateAmount = new Prisma.Decimal(data.dailyRateAmount);
+    // Основание проживания определяет категорию и для будущих студентов, которых
+    // ещё нет в 1С. Сохраняем настроенную ставку выбранной категории.
+    const dailyRateAmount = data.dailyRateCategory === 'OWN_UNIVERSITY'
+      ? dormitoryInfo?.dailyPaymentInternal
+      : dormitoryInfo?.dailyPaymentOther;
+    if (dailyRateAmount === null || dailyRateAmount === undefined) {
+      throw new BadRequestException('contracts.errors.dailyRateNotConfigured');
+    }
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -585,7 +592,7 @@ export class ContractsController {
             startDate: data.startDate,
             endDate: data.endDate,
             residentSnapshot: residentSnapshot as unknown as Prisma.InputJsonValue,
-            residenceReason: data.residenceReason ?? null,
+            residenceReason: data.dailyRateCategory === 'OTHER_UNIVERSITY' ? data.residenceReason : null,
             legalRepName: data.legalRepName ?? null,
             legalRepPhone: data.legalRepPhone ?? null,
             legalRepGender: data.legalRepGender ?? null,
