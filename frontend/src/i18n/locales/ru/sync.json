@@ -29,6 +29,62 @@
     "errors": {
       "triggerFailed": "Не удалось запустить синхронизацию ({status})"
     },
+    "overview": {
+      "refresh": "Обновить",
+      "run": "Запустить",
+      "loadError": "Не удалось обновить сводку синхронизации. Попробуйте ещё раз.",
+      "lastRun": "Последний запуск",
+      "lastSuccess": "Последний успех",
+      "nextRun": "Следующий запуск",
+      "lastResult": "Результат",
+      "noResult": "Запусков пока нет",
+      "manual": "Только вручную из карточки физлица",
+      "atStartup": "При запуске сервера",
+      "afterPrevious": "Ежедневно после предыдущего шага, с 01:00 МСК",
+      "afterStart": "после {date}",
+      "dailyAt": "Ежедневно в {time} МСК",
+      "preparationSchedule": "Ежедневно в 03:00; новый месяц — 1 числа в 00:00 МСК",
+      "sendSchedule": "Ежедневно в 23:55 МСК: в конце месяца — отправка, иначе — повтор",
+      "groups": {
+        "UNIVERSITY": "1С Университет",
+        "ACCOUNTING": "1С Бухгалтерия",
+        "HOSTEL": "HostelRosNOU"
+      },
+      "states": {
+        "RUNNING": "В процессе",
+        "SUCCESS": "Успешно",
+        "FAILED": "Ошибка",
+        "MISSED": "Пропущен запуск",
+        "NOT_CONFIGURED": "Не настроено",
+        "NONE": "Нет запусков"
+      },
+      "jobs": {
+        "students": "Студенты",
+        "individuals": "Физические лица",
+        "citizenship": "Гражданство",
+        "passport": "Паспортные данные",
+        "contact-info": "Контактная информация",
+        "individual": "Одно физическое лицо",
+        "accounting-payment-push": "Отправка платежей",
+        "accounting-payment-import": "Загрузка платежей",
+        "service-provision-preparation": "Подготовка документов оказания услуг",
+        "service-provision-send": "Отправка документов оказания услуг",
+        "service-provision-recovery": "Восстановление документов при запуске",
+        "contract-status": "Статусы договоров",
+        "penalties": "Начисление пеней"
+      },
+      "results": {
+        "push": "Отправлено {sent}, успешно {succeeded}, ошибок {failed}",
+        "import": "Получено {fetched}, новых {imported}, договоров с UID {pairs}",
+        "documentsPrepared": "Подготовлено документов: {count}",
+        "documentsSent": "Отправлено {pushed}, успешно {succeeded}, ошибок {failed}",
+        "nothingToSend": "Документов для отправки нет",
+        "recovery": "Проверены документы; отправлено {pushed}, успешно {succeeded}, ошибок {failed}",
+        "contracts": "Проверено договоров {processed}, сменили статус {changed}",
+        "penalties": "Проверено договоров {processed}, новых начислений {rows}",
+        "university": "Получено {fetched}, добавлено {added}, обновлено {updated}, удалено {removed}"
+      }
+    },
     "logs": {
       "title": "Логи: {name}",
       "colRowNumber": "№",
@@ -60,7 +116,34 @@
       "statusResult": "Результат обновления статусов",
       "statusToExpiring": "Стали истекающими",
       "statusToCompleted": "Стали завершёнными",
-      "statusToOverdue": "Стали просроченными"
+      "statusToOverdue": "Стали просроченными",
+      "operational": {
+        "yes": "Да",
+        "no": "Нет",
+        "fields": {
+          "operation": "Операция",
+          "period": "Период",
+          "previousMonthPeriod": "Предыдущий период",
+          "sent": "Платежей к отправке",
+          "pushed": "Документов к отправке",
+          "succeeded": "Успешно",
+          "failed": "С ошибкой",
+          "blocked": "Заблокировано",
+          "fetched": "Получено",
+          "imported": "Новых",
+          "skippedExisting": "Уже учтены",
+          "knownPairs": "Договоров с UID",
+          "documentIds": "Подготовлено документов",
+          "skipped": "Отправка пропущена"
+        },
+        "operations": {
+          "CREATE_CURRENT_MONTH": "Создание документов за новый месяц",
+          "DAILY_RECALCULATION": "Ежедневный пересчёт",
+          "FINAL_RECALC_AND_SEND": "Финальный пересчёт и отправка",
+          "RETRY_PREVIOUS_MONTH": "Повтор отправки прошлого месяца",
+          "STARTUP_RECOVERY": "Восстановление при запуске"
+        }
+      }
     }
   }
 }

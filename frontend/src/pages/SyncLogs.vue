@@ -25,9 +25,9 @@ const route = useRoute()
 const router = useRouter()
 const { t, locale } = useI18n()
 const entity = computed(() => SYNC_ENTITIES.find((e) => e.slug === route.params.slug))
-const isServiceProvision = computed(() => entity.value?.slug === 'service-provision-documents')
 const isPenalty = computed(() => entity.value?.slug === 'penalties')
 const isContractStatus = computed(() => entity.value?.slug === 'contract-status')
+const isOperational = computed(() => ['accounting-payment-push', 'accounting-payment-import', 'service-provision-preparation', 'service-provision-send', 'service-provision-recovery', 'service-provision-documents'].includes(entity.value?.slug ?? ''))
 const storageKey = computed(() => `sync-logs:${entity.value?.slug ?? 'unknown'}`)
 
 const selectedLog = ref<SyncLogEntry | null>(null)
@@ -76,6 +76,20 @@ const contractStatusDetails = computed(() => {
     toCompleted: numberValue('toCompleted'),
     toOverdue: numberValue('toOverdue'),
   }
+})
+
+const operationalDetails = computed(() => {
+  const details = selectedLog.value?.details as Record<string, unknown> | null
+  if (!details) return []
+  const keys = ['operation', 'period', 'previousMonthPeriod', 'sent', 'pushed', 'succeeded', 'failed', 'blocked', 'fetched', 'imported', 'skippedExisting', 'knownPairs', 'documentIds', 'skipped']
+  return keys.filter((key) => details[key] !== undefined).map((key) => {
+    const raw = details[key]
+    const value = key === 'documentIds' && Array.isArray(raw) ? String(raw.length)
+      : key === 'skipped' ? (raw ? t('sync.logs.operational.yes') : t('sync.logs.operational.no'))
+        : key === 'operation' ? t(`sync.logs.operational.operations.${String(raw)}`)
+          : String(raw)
+    return { key, label: t(`sync.logs.operational.fields.${key}`), value }
+  })
 })
 
 function formatMoney(value: number | null): string {
@@ -186,7 +200,7 @@ onUnmounted(() => clearTimeout(pollTimeout))
           <DialogDescription>{{ formatDateTimeWithSeconds(selectedLog.startedAt) }}</DialogDescription>
         </DialogHeader>
 
-        <div v-if="!isServiceProvision && !isPenalty && !isContractStatus" class="grid min-w-0 grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
+        <div v-if="!isOperational && !isPenalty && !isContractStatus" class="grid min-w-0 grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
           <div>
             <div class="text-muted-foreground">{{ t('sync.logs.fetched') }}</div>
             <div>{{ selectedLog.fetchedCount ?? '-' }}</div>
@@ -220,7 +234,7 @@ onUnmounted(() => clearTimeout(pollTimeout))
         <!-- Разбивка по шагам — только у точечной синхронизации физлица (details
              заполняется лишь там, см. IndividualSyncService), раскрыта сразу при
              открытии модалки (default-open), в отличие от errorStack выше. -->
-        <Collapsible v-if="selectedLog.details && !isServiceProvision && !isPenalty && !isContractStatus" default-open v-slot="{ open }">
+        <Collapsible v-if="selectedLog.details && !isOperational && !isPenalty && !isContractStatus" default-open v-slot="{ open }">
           <CollapsibleTrigger class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ChevronRight class="size-4 shrink-0 text-primary transition-transform" :class="{ 'rotate-90': open }" />
             {{ t('sync.logs.moreByTables') }}
@@ -292,6 +306,12 @@ onUnmounted(() => clearTimeout(pollTimeout))
             </div>
           </CollapsibleContent>
         </Collapsible>
+        <div v-else-if="selectedLog.details && isOperational" class="grid gap-3 rounded-md border p-3 text-sm sm:grid-cols-2">
+          <div v-for="item in operationalDetails" :key="item.key">
+            <div class="text-muted-foreground">{{ item.label }}</div>
+            <div>{{ item.value }}</div>
+          </div>
+        </div>
         <Collapsible v-else-if="selectedLog.details" v-slot="{ open }">
           <CollapsibleTrigger class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ChevronRight class="size-4 shrink-0 text-primary transition-transform" :class="{ 'rotate-90': open }" />

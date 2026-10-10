@@ -22,8 +22,8 @@ describe('PaymentImportsIngestService', () => {
     const provider = { isFetchConfigured: () => true, fetchPayments: jest.fn().mockResolvedValue([raw, { ...raw }]) };
     const service = new PaymentImportsIngestService(prisma as never, provider as never);
 
-    await expect(service.ingest()).resolves.toEqual({ fetched: 2, imported: 1, skippedExisting: 1 });
-    await expect(service.ingest()).resolves.toEqual({ fetched: 2, imported: 0, skippedExisting: 2 });
+    await expect(service.ingest()).resolves.toEqual({ fetched: 2, imported: 1, skippedExisting: 1, knownPairs: 1 });
+    await expect(service.ingest()).resolves.toEqual({ fetched: 2, imported: 0, skippedExisting: 2, knownPairs: 1 });
     expect(create).toHaveBeenCalledTimes(1);
     expect(stored).toEqual(new Set(['payment-1']));
   });

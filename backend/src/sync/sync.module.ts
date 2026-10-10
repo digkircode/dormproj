@@ -9,6 +9,8 @@ import { SyncController } from './sync.controller';
 import { ExternalStudentApiService } from './external-student-api.service';
 import { SyncScheduler } from './sync.scheduler';
 import { SyncService } from './sync.service';
+import { Accounting1cModule } from '../accounting-1c/accounting-1c.module';
+import { SyncOverviewController } from './sync-overview.controller';
 
 @Module({
   imports: [
@@ -18,8 +20,9 @@ import { SyncService } from './sync.service';
     CitizenshipSyncModule,
     PassportSyncModule,
     ContactInfoSyncModule,
+    Accounting1cModule,
   ],
-  controllers: [SyncController],
+  controllers: [SyncController, SyncOverviewController],
   providers: [ExternalStudentApiService, SyncService, SyncScheduler],
   exports: [SyncService],
 })

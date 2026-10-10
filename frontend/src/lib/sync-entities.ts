@@ -21,4 +21,9 @@ export const SYNC_ENTITIES: SyncEntity[] = [
   { slug: 'service-provision-documents', nameKey: 'sync.serviceProvisionDocumentsEntityName', basePath: '/sync/service-provision-documents' },
   { slug: 'penalties', nameKey: 'sync.penaltiesEntityName', basePath: '/sync/penalties' },
   { slug: 'contract-status', nameKey: 'sync.contractStatusEntityName', basePath: '/sync/contract-status' },
+  { slug: 'accounting-payment-push', nameKey: 'sync.overview.jobs.accounting-payment-push', basePath: '/sync/overview/jobs/accounting-payment-push' },
+  { slug: 'accounting-payment-import', nameKey: 'sync.overview.jobs.accounting-payment-import', basePath: '/sync/overview/jobs/accounting-payment-import' },
+  { slug: 'service-provision-preparation', nameKey: 'sync.overview.jobs.service-provision-preparation', basePath: '/sync/overview/jobs/service-provision-preparation' },
+  { slug: 'service-provision-send', nameKey: 'sync.overview.jobs.service-provision-send', basePath: '/sync/overview/jobs/service-provision-send' },
+  { slug: 'service-provision-recovery', nameKey: 'sync.overview.jobs.service-provision-recovery', basePath: '/sync/overview/jobs/service-provision-recovery' },
 ]

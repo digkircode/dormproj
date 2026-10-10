@@ -59,9 +59,18 @@ export class ServiceProvisionDocScheduler implements OnApplicationBootstrap {
     }
     try {
       const details = await task();
+      const pushed = Number(details.pushed ?? 0);
+      const succeeded = Number(details.succeeded ?? 0);
+      const failed = Number(details.failed ?? 0);
+      const blocked = Number(details.blocked ?? 0);
+      const sendOperation = operation === 'FINAL_RECALC_AND_SEND' || operation === 'RETRY_PREVIOUS_MONTH' || operation === 'STARTUP_RECOVERY';
+      const incomplete = sendOperation && (failed > 0 || blocked > 0 || pushed > succeeded + failed);
+      const errorMessage = incomplete
+        ? `Отправка документов завершилась с ошибками: ${failed} ошибок, ${blocked} заблокировано, ${pushed - succeeded - failed} без ответа 1С`
+        : null;
       await this.prisma.syncLog.update({
         where: { id: log.id },
-        data: { status: 'SUCCESS', finishedAt: new Date(), details: { operation, ...details } },
+        data: { status: errorMessage ? 'FAILED' : 'SUCCESS', finishedAt: new Date(), errorMessage, details: { operation, ...details } },
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -83,15 +92,23 @@ export class ServiceProvisionDocScheduler implements OnApplicationBootstrap {
       // пропущенную отправку. Отправляются только документы, которые ещё не SYNCED.
       const previousMonth = new Date(Date.UTC(currentMonth.getUTCFullYear(), currentMonth.getUTCMonth() - 1, 1));
       await this.service.computeAndSave(previousMonth);
-      await this.service.retryUnsyncedMonth(previousMonth);
+      const retry = await this.service.retryUnsyncedMonth(previousMonth);
 
       // Если сервер поднялся после 23:55 в последний день, cron уже прошёл — выполняем
       // тот же финальный прогон сразу при старте.
       if (isLastCalendarDay(currentMonth) && isAfterFinalSendTime(now)) {
         const result = await this.service.run(currentMonth);
-        return { period: currentMonth.toISOString().slice(0, 7), ...result };
+        return {
+          period: currentMonth.toISOString().slice(0, 7),
+          previousMonthPeriod: previousMonth.toISOString().slice(0, 7),
+          pushed: retry.pushed + result.pushed,
+          succeeded: retry.succeeded + result.succeeded,
+          failed: retry.failed + result.failed,
+          blocked: retry.blocked + result.blocked,
+          skipped: retry.skipped && result.skipped,
+        };
       }
-      return { period: previousMonth.toISOString().slice(0, 7), recovery: 'checked' };
+      return { period: previousMonth.toISOString().slice(0, 7), recovery: 'checked', ...retry };
     });
   }
 

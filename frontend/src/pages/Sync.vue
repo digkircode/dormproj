@@ -2,231 +2,179 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { ArrowLeft } from 'lucide-vue-next'
+import { ArrowLeft, ArrowUpRight, Play, RefreshCw } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
-import EntityTable from '@/components/EntityTable.vue'
-import SyncOverviewStatusCell from '@/components/SyncOverviewStatusCell.vue'
-import SyncOverviewActionsCell from '@/components/SyncOverviewActionsCell.vue'
-import { createAppColumnHelper } from '@/lib/table'
-import { useSyncRow } from '@/composables/useSyncRow'
-import { statusLabel, type SyncStatusKey } from '@/lib/sync-format'
-import type { FacetOption, ListOptions, ListPage } from '@/lib/list-api'
+import { apiFetch } from '@/lib/api-base'
+import { triggerSync } from '@/lib/sync-api'
+import { formatDateTime, formatDuration } from '@/lib/sync-format'
 import { goBack } from '@/lib/utils'
+
+type JobState = 'RUNNING' | 'SUCCESS' | 'FAILED' | 'MISSED' | 'NOT_CONFIGURED' | 'NONE'
+type JobGroup = 'UNIVERSITY' | 'ACCOUNTING' | 'HOSTEL'
+interface JobLog {
+  status: 'RUNNING' | 'SUCCESS' | 'FAILED'
+  startedAt: string
+  finishedAt: string | null
+  fetchedCount: number | null
+  added: number | null
+  updated: number | null
+  removed: number | null
+  errorMessage: string | null
+  details: Record<string, unknown> | null
+}
+interface OverviewJob {
+  id: string
+  group: JobGroup
+  state: JobState
+  schedule: { kind: 'DAILY' | 'CHAIN'; hour: number; minute: number } | { kind: 'MANUAL' | 'STARTUP' }
+  nextScheduledAt: string | null
+  lastRun: JobLog | null
+  lastSuccessAt: string | null
+  manualPath: string | null
+}
 
 const router = useRouter()
 const { t } = useI18n()
+const jobs = ref<OverviewJob[]>([])
+const loading = ref(true)
+const loadError = ref(false)
+const runningIds = ref<string[]>([])
+let timer: ReturnType<typeof setTimeout> | undefined
+let disposed = false
 
-interface SyncOverviewRow {
-  slug: string
-  name: string
-  status: SyncStatusKey
-  time: string
-  duration: string
-  isRunning: boolean
-  isReal: boolean
-  run: () => Promise<void>
-  startedAtRaw: string | null
-  durationMs: number | null
+const groups = computed(() => ([
+  { id: 'UNIVERSITY' as const, title: t('sync.overview.groups.UNIVERSITY'), jobs: jobs.value.filter((job) => job.group === 'UNIVERSITY') },
+  { id: 'ACCOUNTING' as const, title: t('sync.overview.groups.ACCOUNTING'), jobs: jobs.value.filter((job) => job.group === 'ACCOUNTING') },
+  { id: 'HOSTEL' as const, title: t('sync.overview.groups.HOSTEL'), jobs: jobs.value.filter((job) => job.group === 'HOSTEL') },
+]))
+
+function scheduleText(job: OverviewJob): string {
+  if (job.id === 'service-provision-preparation') return t('sync.overview.preparationSchedule')
+  if (job.id === 'service-provision-send') return t('sync.overview.sendSchedule')
+  const schedule = job.schedule
+  if (!('hour' in schedule)) return t(schedule.kind === 'STARTUP' ? 'sync.overview.atStartup' : 'sync.overview.manual')
+  if (schedule.kind === 'CHAIN') return t('sync.overview.afterPrevious')
+  const time = `${String(schedule.hour).padStart(2, '0')}:${String(schedule.minute).padStart(2, '0')}`
+  return t('sync.overview.dailyAt', { time })
+}
+function nextText(job: OverviewJob): string {
+  if (!job.nextScheduledAt) return '—'
+  return job.schedule.kind === 'CHAIN'
+    ? t('sync.overview.afterStart', { date: formatMoscowDateTime(job.nextScheduledAt) })
+    : formatMoscowDateTime(job.nextScheduledAt)
+}
+function formatMoscowDateTime(iso: string): string {
+  return new Intl.DateTimeFormat('ru-RU', {
+    timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).format(new Date(iso))
+}
+function number(details: Record<string, unknown> | null, key: string): number | null {
+  return typeof details?.[key] === 'number' ? details[key] as number : null
+}
+function resultText(job: OverviewJob): string {
+  const log = job.lastRun
+  if (!log) return t('sync.overview.noResult')
+  const d = log.details
+  if (job.id === 'accounting-payment-push') return t('sync.overview.results.push', { sent: number(d, 'sent') ?? 0, succeeded: number(d, 'succeeded') ?? 0, failed: number(d, 'failed') ?? 0 })
+  if (job.id === 'accounting-payment-import') return t('sync.overview.results.import', { fetched: number(d, 'fetched') ?? 0, imported: number(d, 'imported') ?? 0, pairs: number(d, 'knownPairs') ?? 0 })
+  if (job.id === 'service-provision-preparation') return t('sync.overview.results.documentsPrepared', { count: Array.isArray(d?.documentIds) ? d.documentIds.length : number(d, 'documentCount') ?? '—' })
+  if (job.id === 'service-provision-send') return d?.skipped === true
+    ? t('sync.overview.results.nothingToSend')
+    : t('sync.overview.results.documentsSent', { pushed: number(d, 'pushed') ?? 0, succeeded: number(d, 'succeeded') ?? 0, failed: number(d, 'failed') ?? 0 })
+  if (job.id === 'service-provision-recovery') return t('sync.overview.results.recovery', { pushed: number(d, 'pushed') ?? 0, succeeded: number(d, 'succeeded') ?? 0, failed: number(d, 'failed') ?? 0 })
+  if (job.id === 'contract-status') return t('sync.overview.results.contracts', { processed: number(d, 'processedContracts') ?? 0, changed: (number(d, 'toExpiring') ?? 0) + (number(d, 'toCompleted') ?? 0) + (number(d, 'toOverdue') ?? 0) })
+  if (job.id === 'penalties') return t('sync.overview.results.penalties', { processed: number(d, 'processedContracts') ?? 0, rows: number(d, 'penaltyRowsCreated') ?? 0 })
+  return t('sync.overview.results.university', { fetched: log.fetchedCount ?? 0, added: log.added ?? 0, updated: log.updated ?? 0, removed: log.removed ?? 0 })
 }
 
-const tableRef = ref<{ refresh: () => void | Promise<void> } | null>(null)
-
-// Кнопка "Запустить" внутри SyncOverviewActionsCell.vue дёргает run() через строку —
-// сама composable-реактивность (isRunning и т.п.) не долетает до уже отрисованной
-// EntityTable (та держит свой rows как снимок, не живую ссылку), поэтому run
-// оборачиваем так, чтобы сразу после запуска дёрнуть refresh() и подхватить
-// isRunning=true — дальше её же собственный поллинг (onRowsLoaded ниже) подхватит
-// момент завершения, тот же приём, что и в SyncLogs.vue.
-function wrapRun(run: () => Promise<void>): () => Promise<void> {
-  return async () => {
-    void run()
-    await tableRef.value?.refresh()
-  }
-}
-
-const studentSync = useSyncRow('nav.students', '/sync/students')
-const individualsSync = useSyncRow('nav.individuals', '/sync/individuals')
-const citizenshipSync = useSyncRow('nav.citizenship', '/sync/citizenship')
-const passportSync = useSyncRow('nav.passportData', '/sync/passport')
-const contactInfoSync = useSyncRow('nav.contactInfo', '/sync/contact-info')
-const individualManualSync = useSyncRow('sync.individualEntityName', '/sync/individual')
-const serviceProvisionSync = useSyncRow('sync.serviceProvisionDocumentsEntityName', '/sync/service-provision-documents')
-const penaltiesSync = useSyncRow('sync.penaltiesEntityName', '/sync/penalties')
-const contractStatusSync = useSyncRow('sync.contractStatusEntityName', '/sync/contract-status')
-
-const rows = computed<SyncOverviewRow[]>(() => [
-  { ...studentSync.row.value, isRunning: studentSync.isRunning.value, run: wrapRun(studentSync.run), slug: 'students' },
-  { ...individualsSync.row.value, isRunning: individualsSync.isRunning.value, run: wrapRun(individualsSync.run), slug: 'individuals' },
-  { ...citizenshipSync.row.value, isRunning: citizenshipSync.isRunning.value, run: wrapRun(citizenshipSync.run), slug: 'citizenship' },
-  { ...passportSync.row.value, isRunning: passportSync.isRunning.value, run: wrapRun(passportSync.run), slug: 'passport' },
-  { ...contactInfoSync.row.value, isRunning: contactInfoSync.isRunning.value, run: wrapRun(contactInfoSync.run), slug: 'contact-info' },
-  // Запускается только с карточки конкретного физлица — здесь только строка с логами,
-  // без кнопки "Запустить" (см. isReal ниже и SyncOverviewActionsCell.vue).
-  {
-    ...individualManualSync.row.value,
-    isRunning: false,
-    run: wrapRun(individualManualSync.run),
-    slug: 'individual',
-    isReal: false as const,
-  },
-  {
-    ...serviceProvisionSync.row.value,
-    isRunning: serviceProvisionSync.isRunning.value,
-    run: wrapRun(serviceProvisionSync.run),
-    slug: 'service-provision-documents',
-    isReal: false as const,
-  },
-  {
-    ...penaltiesSync.row.value,
-    isRunning: false,
-    run: wrapRun(penaltiesSync.run),
-    slug: 'penalties',
-    isReal: false as const,
-  },
-  {
-    ...contractStatusSync.row.value,
-    isRunning: false,
-    run: wrapRun(contractStatusSync.run),
-    slug: 'contract-status',
-    isReal: false as const,
-  },
-])
-
-const columnLabels = computed<Record<string, string>>(() => ({
-  name: t('sync.colName'),
-  status: t('sync.colStatus'),
-  time: t('sync.colTime'),
-  duration: t('sync.colDuration'),
-  actions: t('sync.colActions'),
-}))
-const filterableFields = ['status']
-const cellRenderers = { status: SyncOverviewStatusCell, actions: SyncOverviewActionsCell }
-
-const columnHelper = createAppColumnHelper<SyncOverviewRow>()
-const columns = computed(() =>
-  columnHelper.columns([
-    columnHelper.accessor('name', { header: columnLabels.value.name, enableHiding: false, size: 280, minSize: 200 }),
-    columnHelper.accessor('status', { header: columnLabels.value.status, size: 180, minSize: 150 }),
-    columnHelper.accessor('time', { header: columnLabels.value.time, size: 176, minSize: 140 }),
-    columnHelper.accessor('duration', { header: columnLabels.value.duration, size: 140, minSize: 110 }),
-    // Действия (Логи+Запустить в одной ячейке) — обычная колонка с cellRenderer, не
-    // встроенный rowAction у EntityTable: тот рассчитан ровно на одну кнопку, а тут их
-    // две (см. SyncOverviewActionsCell.vue). enableSorting:false — сортировка по пустой
-    // колонке без данных не имеет смысла.
-    columnHelper.display({ id: 'actions', header: columnLabels.value.actions, enableSorting: false, enableHiding: false, size: 110, minSize: 96 }),
-  ]),
-)
-
-// Статус — фиксированный список (тот же принцип, что bucket в ReportsContractsRegistry),
-// не запрос к бэкенду: вся таблица собирается на клиенте из 6 независимых composable,
-// у неё нет своего списочного эндпоинта. Собирается заново на каждый вызов (не константа
-// модуля) — иначе лейблы не подхватили бы смену языка (statusLabel — Proxy, читает
-// текущую локаль на каждое обращение, но массив из литералов, вычисленный один раз, всё
-// равно бы застыл на значениях языка на момент импорта).
-async function fetchStatusFacets(field: string): Promise<FacetOption[]> {
-  if (field !== 'status') return []
-  return [
-    { value: 'RUNNING', label: statusLabel.RUNNING },
-    { value: 'SUCCESS', label: statusLabel.SUCCESS },
-    { value: 'FAILED', label: statusLabel.FAILED },
-    { value: 'NONE', label: t('sync.notYetRun') },
-  ]
-}
-
-function compareRows(a: SyncOverviewRow, b: SyncOverviewRow, sortBy: string): number {
-  switch (sortBy) {
-    case 'time': {
-      const av = a.startedAtRaw ? new Date(a.startedAtRaw).getTime() : -Infinity
-      const bv = b.startedAtRaw ? new Date(b.startedAtRaw).getTime() : -Infinity
-      return av - bv
+async function refresh() {
+  try {
+    const response = await apiFetch('/sync/overview')
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const data = await response.json() as OverviewJob[]
+    if (disposed) return
+    jobs.value = data
+    loadError.value = false
+  } catch (error) {
+    console.error('Не удалось загрузить обзор синхронизации', error)
+    if (!disposed) loadError.value = true
+  } finally {
+    if (!disposed) {
+      loading.value = false
+      clearTimeout(timer)
+      timer = setTimeout(refresh, jobs.value.some((job) => job.state === 'RUNNING') ? 3000 : 30000)
     }
-    case 'duration': {
-      const av = a.durationMs ?? -Infinity
-      const bv = b.durationMs ?? -Infinity
-      return av - bv
-    }
-    case 'status':
-      return a.status.localeCompare(b.status, 'ru')
-    default:
-      return a.name.localeCompare(b.name, 'ru')
   }
 }
 
-// Ровно 6 строк, целиком в памяти на клиенте — тот же принцип in-memory пагинации/
-// фильтрации/сортировки, что и в отчётах (backend/src/reports/list-helpers.ts),
-// только на фронте, раз тут и бэкенд-списка своего нет (данные уже собраны по
-// composables выше).
-async function fetchSyncOverviewPage(options: ListOptions): Promise<ListPage<SyncOverviewRow>> {
-  let filtered = rows.value
-
-  const q = options.search.trim().toLowerCase()
-  if (q) filtered = filtered.filter((r) => r.name.toLowerCase().includes(q))
-
-  const statusFilter = options.filters.status
-  if (statusFilter?.length) filtered = filtered.filter((r) => statusFilter.includes(r.status))
-
-  const sorted = [...filtered].sort((a, b) => {
-    const cmp = compareRows(a, b, options.sortBy)
-    return options.sortDir === 'desc' ? -cmp : cmp
-  })
-
-  const start = (options.page - 1) * options.pageSize
-  return { data: sorted.slice(start, start + options.pageSize), total: sorted.length, page: options.page, pageSize: options.pageSize }
-}
-
-// Пока хотя бы одна строка "В процессе" — опрашиваем таблицу заново через её же
-// refresh() (тот же приём, что и в SyncLogs.vue), в том числе на случай запуска с
-// другого устройства, а не только по нашей кнопке.
-const POLL_INTERVAL_MS = 3000
-let pollTimeout: ReturnType<typeof setTimeout> | undefined
-function onRowsLoaded(loadedRows: SyncOverviewRow[]) {
-  clearTimeout(pollTimeout)
-  if (loadedRows.some((r) => r.isRunning)) {
-    pollTimeout = setTimeout(() => tableRef.value?.refresh(), POLL_INTERVAL_MS)
+async function run(job: OverviewJob) {
+  if (!job.manualPath || runningIds.value.includes(job.id)) return
+  runningIds.value = [...runningIds.value, job.id]
+  try {
+    const result = await triggerSync(job.manualPath)
+    if (!result.ok && !result.conflict) loadError.value = true
+  } finally {
+    runningIds.value = runningIds.value.filter((id) => id !== job.id)
+    await refresh()
   }
 }
-onUnmounted(() => clearTimeout(pollTimeout))
 
-onMounted(async () => {
-  await Promise.all([
-    studentSync.refresh(),
-    individualsSync.refresh(),
-    citizenshipSync.refresh(),
-    passportSync.refresh(),
-    contactInfoSync.refresh(),
-    individualManualSync.refresh(),
-    serviceProvisionSync.refresh(),
-    penaltiesSync.refresh(),
-    contractStatusSync.refresh(),
-  ])
-  await tableRef.value?.refresh()
-})
+onMounted(refresh)
+onUnmounted(() => { disposed = true; clearTimeout(timer) })
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
-    <div class="flex items-center gap-2">
-      <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
-        <ArrowLeft class="text-primary" />
-        <span class="sr-only">{{ t('sync.back') }}</span>
-      </Button>
-      <h1 class="text-lg font-medium">{{ t('sync.title') }}</h1>
+  <div class="flex min-h-0 flex-1 flex-col gap-5 p-4 md:p-6">
+    <div class="flex items-center justify-between gap-3">
+      <div class="flex items-center gap-2">
+        <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
+          <ArrowLeft class="text-primary" /><span class="sr-only">{{ t('sync.back') }}</span>
+        </Button>
+        <h1 class="text-lg font-medium">{{ t('sync.title') }}</h1>
+      </div>
+      <Button variant="outline" size="sm" :disabled="loading" @click="refresh"><RefreshCw class="mr-2 size-4" />{{ t('sync.overview.refresh') }}</Button>
     </div>
-
-    <EntityTable
-      ref="tableRef"
-      :columns="columns"
-      :column-labels="columnLabels"
-      :filterable-fields="filterableFields"
-      :default-sort="{ id: 'name', desc: false }"
-      :fetch-page="fetchSyncOverviewPage"
-      :fetch-facet-values="fetchStatusFacets"
-      :get-row-id="(r: SyncOverviewRow) => r.slug"
-      :total-label="t('sync.totalLabel')"
-      :cell-renderers="cellRenderers"
-      storage-key="sync-overview"
-      accent-icons
-      @loaded="onRowsLoaded"
-    />
+    <p v-if="loadError" class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{{ t('sync.overview.loadError') }}</p>
+    <div v-if="loading && !jobs.length" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div v-for="index in 6" :key="index" class="h-52 animate-pulse rounded-xl border bg-muted/40" />
+    </div>
+    <section v-for="group in groups" v-else :key="group.id" class="space-y-3">
+      <div class="flex items-baseline gap-2 border-b pb-2">
+        <h2 class="text-base font-semibold">{{ group.title }}</h2>
+        <span class="text-xs text-muted-foreground">{{ group.jobs.length }}</span>
+      </div>
+      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <article v-for="job in group.jobs" :key="job.id" class="flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 shadow-sm">
+          <div class="flex min-w-0 items-start justify-between gap-2">
+            <div class="min-w-0">
+              <h3 class="font-medium leading-5">{{ t(`sync.overview.jobs.${job.id}`) }}</h3>
+              <p class="mt-1 text-xs text-muted-foreground">{{ scheduleText(job) }}</p>
+            </div>
+            <span class="shrink-0 rounded-full px-2 py-1 text-[11px] font-medium" :class="{
+              'bg-emerald-100 text-emerald-800': job.state === 'SUCCESS',
+              'bg-red-100 text-red-800': job.state === 'FAILED' || job.state === 'MISSED',
+              'bg-amber-100 text-amber-800': job.state === 'NOT_CONFIGURED',
+              'bg-blue-100 text-blue-800': job.state === 'RUNNING',
+              'bg-muted text-muted-foreground': job.state === 'NONE',
+            }">{{ t(`sync.overview.states.${job.state}`) }}</span>
+          </div>
+          <dl class="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+            <div><dt class="text-muted-foreground">{{ t('sync.overview.lastRun') }}</dt><dd class="mt-0.5 font-medium">{{ job.lastRun ? formatDateTime(job.lastRun.startedAt) : '—' }}</dd></div>
+            <div><dt class="text-muted-foreground">{{ t('sync.overview.lastSuccess') }}</dt><dd class="mt-0.5 font-medium">{{ job.lastSuccessAt ? formatDateTime(job.lastSuccessAt) : '—' }}</dd></div>
+            <div><dt class="text-muted-foreground">{{ t('sync.overview.nextRun') }}</dt><dd class="mt-0.5 font-medium">{{ nextText(job) }}</dd></div>
+            <div><dt class="text-muted-foreground">{{ t('sync.colDuration') }}</dt><dd class="mt-0.5 font-medium">{{ job.lastRun ? formatDuration(job.lastRun.startedAt, job.lastRun.finishedAt) : '—' }}</dd></div>
+          </dl>
+          <div class="min-h-9 text-xs leading-5">
+            <span class="text-muted-foreground">{{ t('sync.overview.lastResult') }}: </span>{{ resultText(job) }}
+            <p v-if="job.lastRun?.errorMessage" class="mt-1 line-clamp-2 text-red-600" :title="job.lastRun.errorMessage">{{ job.lastRun.errorMessage }}</p>
+          </div>
+          <div class="mt-auto flex items-center justify-between border-t pt-3">
+            <Button variant="ghost" size="sm" @click="router.push(`/sync/${job.id}/logs`)">{{ t('sync.actionsLogs') }}<ArrowUpRight class="ml-1 size-3.5" /></Button>
+            <Button v-if="job.manualPath" variant="outline" size="sm" :disabled="job.state === 'RUNNING' || runningIds.includes(job.id)" @click="run(job)"><Play class="mr-1 size-3.5" />{{ t('sync.overview.run') }}</Button>
+          </div>
+        </article>
+      </div>
+    </section>
   </div>
 </template>

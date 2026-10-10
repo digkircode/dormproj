@@ -29,6 +29,62 @@
     "errors": {
       "triggerFailed": "Failed to start synchronization ({status})"
     },
+    "overview": {
+      "refresh": "Refresh",
+      "run": "Run",
+      "loadError": "Could not refresh the synchronization overview. Please try again.",
+      "lastRun": "Last run",
+      "lastSuccess": "Last success",
+      "nextRun": "Next run",
+      "lastResult": "Result",
+      "noResult": "No runs yet",
+      "manual": "Only manually from an individual profile",
+      "atStartup": "When the server starts",
+      "afterPrevious": "Daily after the previous step, from 01:00 Moscow time",
+      "afterStart": "after {date}",
+      "dailyAt": "Daily at {time} Moscow time",
+      "preparationSchedule": "Daily at 03:00; new month on the 1st at 00:00 Moscow time",
+      "sendSchedule": "Daily at 23:55 Moscow time: month-end send, otherwise retry",
+      "groups": {
+        "UNIVERSITY": "1C University",
+        "ACCOUNTING": "1C Accounting",
+        "HOSTEL": "HostelRosNOU"
+      },
+      "states": {
+        "RUNNING": "Running",
+        "SUCCESS": "Success",
+        "FAILED": "Failed",
+        "MISSED": "Scheduled run missed",
+        "NOT_CONFIGURED": "Not configured",
+        "NONE": "No runs"
+      },
+      "jobs": {
+        "students": "Students",
+        "individuals": "Individuals",
+        "citizenship": "Citizenship",
+        "passport": "Passport data",
+        "contact-info": "Contact information",
+        "individual": "Single individual",
+        "accounting-payment-push": "Send payments",
+        "accounting-payment-import": "Import payments",
+        "service-provision-preparation": "Prepare service documents",
+        "service-provision-send": "Send service documents",
+        "service-provision-recovery": "Recover service documents on startup",
+        "contract-status": "Contract statuses",
+        "penalties": "Penalty accrual"
+      },
+      "results": {
+        "push": "Sent {sent}, succeeded {succeeded}, failed {failed}",
+        "import": "Fetched {fetched}, new {imported}, contracts with UIDs {pairs}",
+        "documentsPrepared": "Documents prepared: {count}",
+        "documentsSent": "Sent {pushed}, succeeded {succeeded}, failed {failed}",
+        "nothingToSend": "No documents to send",
+        "recovery": "Documents checked; sent {pushed}, succeeded {succeeded}, failed {failed}",
+        "contracts": "Contracts checked {processed}, status changed {changed}",
+        "penalties": "Contracts checked {processed}, new accruals {rows}",
+        "university": "Fetched {fetched}, added {added}, updated {updated}, removed {removed}"
+      }
+    },
     "logs": {
       "title": "Logs: {name}",
       "colRowNumber": "#",
@@ -60,7 +116,34 @@
       "statusResult": "Contract status update result",
       "statusToExpiring": "Moved to expiring",
       "statusToCompleted": "Moved to completed",
-      "statusToOverdue": "Moved to overdue"
+      "statusToOverdue": "Moved to overdue",
+      "operational": {
+        "yes": "Yes",
+        "no": "No",
+        "fields": {
+          "operation": "Operation",
+          "period": "Period",
+          "previousMonthPeriod": "Previous period",
+          "sent": "Payments to send",
+          "pushed": "Documents to send",
+          "succeeded": "Succeeded",
+          "failed": "Failed",
+          "blocked": "Blocked",
+          "fetched": "Fetched",
+          "imported": "New",
+          "skippedExisting": "Already recorded",
+          "knownPairs": "Contracts with UIDs",
+          "documentIds": "Documents prepared",
+          "skipped": "Sending skipped"
+        },
+        "operations": {
+          "CREATE_CURRENT_MONTH": "Create new month documents",
+          "DAILY_RECALCULATION": "Daily recalculation",
+          "FINAL_RECALC_AND_SEND": "Final recalculation and send",
+          "RETRY_PREVIOUS_MONTH": "Retry previous month",
+          "STARTUP_RECOVERY": "Startup recovery"
+        }
+      }
     }
   }
 }

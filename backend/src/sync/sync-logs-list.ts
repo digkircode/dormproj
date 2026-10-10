@@ -42,7 +42,7 @@ export interface SyncLogsListQuery {
 // от текущей страницы/сортировки/фильтра/поиска, в отличие от id — тот сквозной по всей
 // таблице SyncLog сразу для всех 5 типов синхронов). id остаётся в ответе и показывается
 // только в модалке "Подробнее" на фронте.
-export async function listSyncLogs(prisma: PrismaService, syncType: string, query: SyncLogsListQuery) {
+export async function listSyncLogs(prisma: PrismaService, syncType: string, query: SyncLogsListQuery, scope: Prisma.SyncLogWhereInput = { type: syncType }) {
   const page = Math.max(1, Number.parseInt(query.page ?? '', 10) || 1);
   const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, Number.parseInt(query.pageSize ?? '', 10) || DEFAULT_PAGE_SIZE));
   const search = query.search?.trim();
@@ -71,8 +71,7 @@ export async function listSyncLogs(prisma: PrismaService, syncType: string, quer
     : undefined;
 
   const where: Prisma.SyncLogWhereInput = {
-    type: syncType,
-    ...(searchClause || filterClauses.length > 0 ? { AND: [...(searchClause ? [searchClause] : []), ...filterClauses] } : {}),
+    AND: [scope, ...(searchClause ? [searchClause] : []), ...filterClauses],
   };
 
   const [rows, total, allIdsOfType] = await Promise.all([
@@ -85,7 +84,7 @@ export async function listSyncLogs(prisma: PrismaService, syncType: string, quer
     prisma.syncLog.count({ where }),
     // Только id, без остальных полей — дёшево даже при тысячах строк, а порядковый
     // номер должен считаться по ВСЕМ логам типа, а не только по текущей отфильтрованной странице.
-    prisma.syncLog.findMany({ where: { type: syncType }, select: { id: true }, orderBy: { id: 'asc' } }),
+    prisma.syncLog.findMany({ where: scope, select: { id: true }, orderBy: { id: 'asc' } }),
   ]);
 
   const rowNumberById = new Map(allIdsOfType.map(({ id }, index) => [id, index + 1]));
@@ -104,7 +103,7 @@ function facetLabel(field: FilterableField, value: string): string {
   return I18nContext.current()?.t(`sync.${field}.${value}`) ?? FACET_LABELS_RU[field][value] ?? value;
 }
 
-export async function syncLogFacetValues(prisma: PrismaService, syncType: string, field: string) {
+export async function syncLogFacetValues(prisma: PrismaService, syncType: string, field: string, scope: Prisma.SyncLogWhereInput = { type: syncType }) {
   if (!isFilterableField(field)) {
     return [];
   }
@@ -114,7 +113,7 @@ export async function syncLogFacetValues(prisma: PrismaService, syncType: string
   // значений enum, Postgres валит запрос на invalid input value for enum → 500. У enum-полей
   // пустой строки в принципе не бывает (оба NOT NULL), фильтр тут просто не нужен.
   const rows = await prisma.syncLog.findMany({
-    where: { type: syncType },
+    where: scope,
     select: { [field]: true },
     distinct: [field as unknown as Prisma.SyncLogScalarFieldEnum],
     orderBy: { [field]: 'asc' },

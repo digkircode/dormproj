@@ -38,16 +38,16 @@ export class PaymentImportsIngestService {
     }));
   }
 
-  async ingest(): Promise<{ fetched: number; imported: number; skippedExisting: number }> {
+  async ingest(): Promise<{ fetched: number; imported: number; skippedExisting: number; errorMessage?: string; knownPairs?: number }> {
     if (!this.provider.isFetchConfigured()) {
       this.logger.warn('Получение платежей из 1С не настроено - пропуск импорта');
-      return { fetched: 0, imported: 0, skippedExisting: 0 };
+      return { fetched: 0, imported: 0, skippedExisting: 0, errorMessage: 'Получение платежей из 1С не настроено' };
     }
 
     const pairs = await this.collectKnownPairs();
     if (pairs.length === 0) {
       this.logger.log('Импорт платежей из 1С: нет ни одного договора с известной парой ContractorUID/ContractUID - нечего спрашивать');
-      return { fetched: 0, imported: 0, skippedExisting: 0 };
+      return { fetched: 0, imported: 0, skippedExisting: 0, knownPairs: 0 };
     }
 
     let rawItems: Awaited<ReturnType<Accounting1cProvider['fetchPayments']>>;
@@ -55,9 +55,9 @@ export class PaymentImportsIngestService {
       rawItems = await this.provider.fetchPayments(pairs);
     } catch (error) {
       this.logger.error(`Не удалось получить платежи из 1С: ${getErrorMessage(error)}`);
-      return { fetched: 0, imported: 0, skippedExisting: 0 };
+      return { fetched: 0, imported: 0, skippedExisting: 0, knownPairs: pairs.length, errorMessage: getErrorMessage(error) };
     }
-    if (rawItems.length === 0) return { fetched: 0, imported: 0, skippedExisting: 0 };
+    if (rawItems.length === 0) return { fetched: 0, imported: 0, skippedExisting: 0, knownPairs: pairs.length };
 
     // AllPaymentDoc отдаёт ПОЛНУЮ историю по каждой запрошенной паре, а не только новое
     // (см. комментарий выше) — значит в rawItems КАЖДЫЙ раз попадают и платежи, которые
@@ -109,6 +109,6 @@ export class PaymentImportsIngestService {
     }
 
     this.logger.log(`Импорт платежей из 1С: получено ${rawItems.length}, новых ${imported}, уже были ${skippedExisting}`);
-    return { fetched: rawItems.length, imported, skippedExisting };
+    return { fetched: rawItems.length, imported, skippedExisting, knownPairs: pairs.length };
   }
 }
