@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, ArrowUpRight, Play, RefreshCw } from 'lucide-vue-next'
+import {
+  ArrowDownToLine, ArrowLeft, ArrowUpRight, BookUser, Building2, CalendarClock,
+  CirclePercent, ClipboardCheck, ContactRound, FileOutput, Files, GraduationCap,
+  IdCard, Play, ReceiptText, RefreshCw, RotateCcw, UsersRound,
+} from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { apiFetch } from '@/lib/api-base'
 import { triggerSync } from '@/lib/sync-api'
@@ -39,13 +43,28 @@ const jobs = ref<OverviewJob[]>([])
 const loading = ref(true)
 const loadError = ref(false)
 const runningIds = ref<string[]>([])
+const jobIcons: Record<string, Component> = {
+  students: GraduationCap,
+  individuals: UsersRound,
+  citizenship: IdCard,
+  passport: ContactRound,
+  'contact-info': BookUser,
+  individual: ContactRound,
+  'accounting-payment-push': FileOutput,
+  'accounting-payment-import': ArrowDownToLine,
+  'service-provision-preparation': Files,
+  'service-provision-send': ArrowUpRight,
+  'service-provision-recovery': RotateCcw,
+  'contract-status': ClipboardCheck,
+  penalties: CirclePercent,
+}
 let timer: ReturnType<typeof setTimeout> | undefined
 let disposed = false
 
 const groups = computed(() => ([
-  { id: 'UNIVERSITY' as const, title: t('sync.overview.groups.UNIVERSITY'), jobs: jobs.value.filter((job) => job.group === 'UNIVERSITY') },
-  { id: 'ACCOUNTING' as const, title: t('sync.overview.groups.ACCOUNTING'), jobs: jobs.value.filter((job) => job.group === 'ACCOUNTING') },
-  { id: 'HOSTEL' as const, title: t('sync.overview.groups.HOSTEL'), jobs: jobs.value.filter((job) => job.group === 'HOSTEL') },
+  { id: 'UNIVERSITY' as const, title: t('sync.overview.groups.UNIVERSITY'), icon: GraduationCap, jobs: jobs.value.filter((job) => job.group === 'UNIVERSITY') },
+  { id: 'ACCOUNTING' as const, title: t('sync.overview.groups.ACCOUNTING'), icon: ReceiptText, jobs: jobs.value.filter((job) => job.group === 'ACCOUNTING') },
+  { id: 'HOSTEL' as const, title: t('sync.overview.groups.HOSTEL'), icon: Building2, jobs: jobs.value.filter((job) => job.group === 'HOSTEL') },
 ]))
 
 function scheduleText(job: OverviewJob): string {
@@ -125,7 +144,7 @@ onUnmounted(() => { disposed = true; clearTimeout(timer) })
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-1 flex-col gap-5 p-4 md:p-6">
+  <div class="flex min-h-full shrink-0 flex-col gap-5 p-4 md:p-6">
     <div class="flex items-center justify-between gap-3">
       <div class="flex items-center gap-2">
         <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
@@ -133,23 +152,29 @@ onUnmounted(() => { disposed = true; clearTimeout(timer) })
         </Button>
         <h1 class="text-lg font-medium">{{ t('sync.title') }}</h1>
       </div>
-      <Button variant="outline" size="sm" :disabled="loading" @click="refresh"><RefreshCw class="mr-2 size-4" />{{ t('sync.overview.refresh') }}</Button>
+      <Button variant="outline" size="sm" :title="t('sync.overview.refreshHint')" :disabled="loading" @click="refresh"><RefreshCw class="mr-2 size-4 text-primary" />{{ t('sync.overview.refresh') }}</Button>
     </div>
     <p v-if="loadError" class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{{ t('sync.overview.loadError') }}</p>
     <div v-if="loading && !jobs.length" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       <div v-for="index in 6" :key="index" class="h-52 animate-pulse rounded-xl border bg-muted/40" />
     </div>
     <section v-for="group in groups" v-else :key="group.id" class="space-y-3">
-      <div class="flex items-baseline gap-2 border-b pb-2">
+      <div class="flex items-center gap-2 border-b pb-2">
+        <component :is="group.icon" class="size-4 shrink-0 text-primary" />
         <h2 class="text-base font-semibold">{{ group.title }}</h2>
         <span class="text-xs text-muted-foreground">{{ group.jobs.length }}</span>
       </div>
       <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <article v-for="job in group.jobs" :key="job.id" class="flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 shadow-sm">
           <div class="flex min-w-0 items-start justify-between gap-2">
-            <div class="min-w-0">
-              <h3 class="font-medium leading-5">{{ t(`sync.overview.jobs.${job.id}`) }}</h3>
-              <p class="mt-1 text-xs text-muted-foreground">{{ scheduleText(job) }}</p>
+            <div class="flex min-w-0 items-start gap-2.5">
+              <span class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                <component :is="jobIcons[job.id] ?? CalendarClock" class="size-4 text-primary" />
+              </span>
+              <div class="min-w-0">
+                <h3 class="font-medium leading-5">{{ t(`sync.overview.jobs.${job.id}`) }}</h3>
+                <p class="mt-1 text-xs text-muted-foreground">{{ scheduleText(job) }}</p>
+              </div>
             </div>
             <span class="shrink-0 rounded-full px-2 py-1 text-[11px] font-medium" :class="{
               'bg-emerald-100 text-emerald-800': job.state === 'SUCCESS',
@@ -171,7 +196,7 @@ onUnmounted(() => { disposed = true; clearTimeout(timer) })
           </div>
           <div class="mt-auto flex items-center justify-between border-t pt-3">
             <Button variant="ghost" size="sm" @click="router.push(`/sync/${job.id}/logs`)">{{ t('sync.actionsLogs') }}<ArrowUpRight class="ml-1 size-3.5" /></Button>
-            <Button v-if="job.manualPath" variant="outline" size="sm" :disabled="job.state === 'RUNNING' || runningIds.includes(job.id)" @click="run(job)"><Play class="mr-1 size-3.5" />{{ t('sync.overview.run') }}</Button>
+            <Button v-if="job.manualPath" variant="outline" size="sm" :disabled="job.state === 'RUNNING' || runningIds.includes(job.id)" @click="run(job)"><Play class="mr-1 size-3.5 text-primary" />{{ t('sync.overview.run') }}</Button>
           </div>
         </article>
       </div>

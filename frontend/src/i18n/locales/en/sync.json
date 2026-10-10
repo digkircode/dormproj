@@ -31,6 +31,7 @@
     },
     "overview": {
       "refresh": "Refresh",
+      "refreshHint": "Load current run statuses and results",
       "run": "Run",
       "loadError": "Could not refresh the synchronization overview. Please try again.",
       "lastRun": "Last run",
