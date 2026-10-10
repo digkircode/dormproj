@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "link_source" TEXT NOT NULL DEFAULT 'UNSET';

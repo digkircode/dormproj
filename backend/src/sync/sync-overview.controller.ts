@@ -6,6 +6,7 @@ import { Roles } from '../auth/roles.decorator';
 import { ACCOUNTING_1C_PROVIDER, type Accounting1cProvider } from '../accounting-1c/accounting-1c.types';
 import { listSyncLogs, syncLogFacetValues, type SyncLogsListQuery } from './sync-logs-list';
 import { dailyScheduleWindow, nextMonthStartMoscow, SYNC_JOBS, syncJobWhere } from './sync-overview.jobs';
+import { PortalUsersSyncService } from './portal-users-sync.service';
 
 const overviewLogSelect = {
   status: true,
@@ -26,6 +27,7 @@ export class SyncOverviewController {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(ACCOUNTING_1C_PROVIDER) private readonly accounting: Accounting1cProvider,
+    private readonly portalUsers: PortalUsersSyncService,
   ) {}
 
   private job(id: string) {
@@ -46,7 +48,8 @@ export class SyncOverviewController {
       ]);
       const configured = job.configuration === 'PUSH' ? this.accounting.isConfigured()
         : job.configuration === 'FETCH' ? this.accounting.isFetchConfigured()
-          : job.configuration === 'DOCUMENTS' ? this.accounting.isServiceProvisionConfigured() : true;
+          : job.configuration === 'DOCUMENTS' ? this.accounting.isServiceProvisionConfigured()
+            : job.configuration === 'PORTAL' ? this.portalUsers.isConfigured() : true;
       const window = job.schedule.kind === 'MANUAL' || job.schedule.kind === 'STARTUP' ? null : dailyScheduleWindow(now, job.schedule.hour, job.schedule.minute);
       const nextScheduledAt = job.id === 'service-provision-preparation' && window
         ? new Date(Math.min(window.next.getTime(), nextMonthStartMoscow(now).getTime()))

@@ -57,6 +57,7 @@ export interface AllUsersRow {
   bindId: string | null
   azureId: string | null
   univerId: string | null
+  linkSource: 'UNSET' | 'PORTAL' | 'MANUAL'
   fullName: string
   email: string | null
   roles: Role[]

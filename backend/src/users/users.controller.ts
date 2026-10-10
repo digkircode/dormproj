@@ -27,6 +27,7 @@ const ALL_USERS_SORTABLE_FIELDS: Record<string, string> = {
   bindId: 'bindId',
   azureId: 'azureId',
   univerId: 'univerId',
+  linkSource: 'linkSource',
   createdAt: 'createdAt',
 };
 
@@ -198,6 +199,7 @@ export class UsersController {
       bindId: u.bindId,
       azureId: u.azureId,
       univerId: u.univerId,
+      linkSource: u.linkSource,
       fullName: u.fullName,
       email: u.email,
       roles: u.roles.map((r) => r.role),
@@ -231,7 +233,7 @@ export class UsersController {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const updated = await tx.user.update({ where: { id }, data: { azureId, univerId } });
+        const updated = await tx.user.update({ where: { id }, data: { azureId, univerId, linkSource: 'MANUAL' } });
         const actorId = await ensureUserRecord(tx, req.user!);
         await this.auditLog.log(tx, {
           userId: actorId,
@@ -239,9 +241,9 @@ export class UsersController {
           entityType: 'User',
           entityId: id,
           entityLabel: updated.fullName,
-          before: { azureId: existing.azureId, univerId: existing.univerId },
-          after: { azureId: updated.azureId, univerId: updated.univerId },
-          fields: ['azureId', 'univerId'],
+          before: { azureId: existing.azureId, univerId: existing.univerId, linkSource: existing.linkSource },
+          after: { azureId: updated.azureId, univerId: updated.univerId, linkSource: updated.linkSource },
+          fields: ['azureId', 'univerId', 'linkSource'],
         });
         return updated;
       });

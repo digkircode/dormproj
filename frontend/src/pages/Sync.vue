@@ -14,7 +14,7 @@ import { formatDateTime, formatDuration } from '@/lib/sync-format'
 import { goBack } from '@/lib/utils'
 
 type JobState = 'RUNNING' | 'SUCCESS' | 'FAILED' | 'MISSED' | 'NOT_CONFIGURED' | 'NONE' | 'BLOCKED'
-type JobGroup = 'UNIVERSITY' | 'ACCOUNTING' | 'HOSTEL'
+type JobGroup = 'UNIVERSITY' | 'PORTAL' | 'ACCOUNTING' | 'HOSTEL'
 interface JobLog {
   status: 'RUNNING' | 'SUCCESS' | 'FAILED'
   startedAt: string
@@ -30,6 +30,7 @@ interface OverviewJob {
   id: string
   group: JobGroup
   state: JobState
+  configured: boolean
   schedule: { kind: 'DAILY' | 'CHAIN'; hour: number; minute: number } | { kind: 'MANUAL' | 'STARTUP' }
   nextScheduledAt: string | null
   lastRun: JobLog | null
@@ -44,13 +45,14 @@ const loading = ref(true)
 const loadError = ref(false)
 const runningIds = ref<string[]>([])
 const runErrors = ref<Record<string, string>>({})
-const describedJobs = new Set(['citizenship', 'passport', 'contact-info'])
+const describedJobs = new Set(['portal-users'])
 const jobIcons: Record<string, Component> = {
   students: GraduationCap,
   individuals: UsersRound,
   citizenship: IdCard,
   passport: ContactRound,
   'contact-info': BookUser,
+  'portal-users': UsersRound,
   individual: ContactRound,
   'accounting-payment-push': FileOutput,
   'accounting-payment-import': ArrowDownToLine,
@@ -65,6 +67,7 @@ let disposed = false
 
 const groups = computed(() => ([
   { id: 'UNIVERSITY' as const, title: t('sync.overview.groups.UNIVERSITY'), icon: GraduationCap, jobs: jobs.value.filter((job) => job.group === 'UNIVERSITY') },
+  { id: 'PORTAL' as const, title: t('sync.overview.groups.PORTAL'), icon: UsersRound, jobs: jobs.value.filter((job) => job.group === 'PORTAL') },
   { id: 'ACCOUNTING' as const, title: t('sync.overview.groups.ACCOUNTING'), icon: ReceiptText, jobs: jobs.value.filter((job) => job.group === 'ACCOUNTING') },
   { id: 'HOSTEL' as const, title: t('sync.overview.groups.HOSTEL'), icon: Building2, jobs: jobs.value.filter((job) => job.group === 'HOSTEL') },
 ]))
@@ -116,6 +119,7 @@ function resultText(job: OverviewJob): string {
   if (job.id === 'service-provision-recovery') return t('sync.overview.results.recovery', { pushed: number(d, 'pushed') ?? 0, succeeded: number(d, 'succeeded') ?? 0, failed: number(d, 'failed') ?? 0, blocked: number(d, 'blocked') ?? 0 })
   if (job.id === 'contract-status') return t('sync.overview.results.contracts', { processed: number(d, 'processedContracts') ?? 0, changed: (number(d, 'toExpiring') ?? 0) + (number(d, 'toCompleted') ?? 0) + (number(d, 'toOverdue') ?? 0) })
   if (job.id === 'penalties') return t('sync.overview.results.penalties', { processed: number(d, 'processedContracts') ?? 0, rows: number(d, 'penaltyRowsCreated') ?? 0 })
+  if (job.id === 'portal-users') return t('sync.overview.results.portalUsers', { fetched: log.fetchedCount ?? 0, added: log.added ?? 0, updated: log.updated ?? 0, skipped: number(d, 'skipped') ?? 0 })
   return t('sync.overview.results.university', { fetched: log.fetchedCount ?? 0, added: log.added ?? 0, updated: log.updated ?? 0, removed: log.removed ?? 0 })
 }
 
@@ -140,7 +144,7 @@ async function refresh() {
 }
 
 async function run(job: OverviewJob) {
-  if (!job.manualPath || runningIds.value.includes(job.id)) return
+  if (!job.manualPath || !job.configured || runningIds.value.includes(job.id)) return
   runningIds.value = [...runningIds.value, job.id]
   const nextErrors = { ...runErrors.value }
   delete nextErrors[job.id]
@@ -218,7 +222,7 @@ onUnmounted(() => { disposed = true; clearTimeout(timer) })
           </div>
           <div class="mt-auto flex items-center justify-between border-t pt-3">
             <Button variant="ghost" size="sm" @click="router.push(`/sync/${job.id}/logs`)">{{ t('sync.actionsLogs') }}<ArrowUpRight class="ml-1 size-3.5" /></Button>
-            <Button v-if="job.manualPath" variant="outline" size="sm" :disabled="isRunning(job)" @click="run(job)">
+            <Button v-if="job.manualPath" variant="outline" size="sm" :disabled="isRunning(job) || !job.configured" @click="run(job)">
               <LoaderCircle v-if="isRunning(job)" class="mr-1 size-3.5 animate-spin text-primary" />
               <Play v-else class="mr-1 size-3.5 text-primary" />
               {{ isRunning(job) ? t('sync.overview.running') : t('sync.overview.run') }}

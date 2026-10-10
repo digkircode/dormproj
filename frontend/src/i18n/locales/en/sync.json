@@ -32,7 +32,7 @@
     "overview": {
       "run": "Run",
       "running": "Running",
-      "universityFlow": "Nightly order: students → individuals → citizenship → passports → contacts. A manual run starts only the selected step.",
+      "universityFlow": "Nightly order: students → individuals → citizenship → passports → contacts → portal users. A manual run starts only the selected step.",
       "resultUnavailable": "No result received",
       "loadError": "Could not refresh the synchronization overview. Please try again.",
       "lastRun": "Last run",
@@ -49,6 +49,7 @@
       "sendSchedule": "Daily at 23:55 Moscow time: month-end send, otherwise retry",
       "groups": {
         "UNIVERSITY": "1C University",
+        "PORTAL": "RosNOU portal",
         "ACCOUNTING": "1C Accounting",
         "HOSTEL": "HostelRosNOU"
       },
@@ -67,6 +68,7 @@
         "citizenship": "Citizenship",
         "passport": "Passport data",
         "contact-info": "Contact information",
+        "portal-users": "Users and links",
         "individual": "Single individual",
         "accounting-payment-push": "Send payments",
         "accounting-payment-import": "Import payments",
@@ -77,9 +79,7 @@
         "penalties": "Penalty accrual"
       },
       "descriptions": {
-        "citizenship": "Imports citizenship history from 1C for individuals already known to the site.",
-        "passport": "Imports passport history from 1C for individuals already known to the site.",
-        "contact-info": "Imports addresses, phone numbers, and other contacts from 1C for individuals already known to the site."
+        "portal-users": "Links portal accounts to individuals by unambiguous IDs and preserves manual changes."
       },
       "results": {
         "push": "Sent {sent}, succeeded {succeeded}, failed {failed}",
@@ -90,6 +90,7 @@
         "recovery": "Documents checked; sent {pushed}, succeeded {succeeded}, failed {failed}, blocked {blocked}",
         "contracts": "Contracts checked {processed}, status changed {changed}",
         "penalties": "Contracts checked {processed}, new accruals {rows}",
+        "portalUsers": "Fetched {fetched}, added {added}, updated {updated}, skipped {skipped}",
         "university": "Fetched {fetched}, added {added}, updated {updated}, removed {removed}"
       }
     },
@@ -109,6 +110,19 @@
       "updated": "Updated",
       "removed": "Removed",
       "showMoreData": "Show additional data",
+      "portalReasons": {
+        "title": "Why links were not applied",
+        "noUniversityLink": "No university ID",
+        "individualNotFound": "Individual is absent from DormProj",
+        "duplicateUniversityLink": "University ID is duplicated in the portal",
+        "duplicateAzureLink": "Azure ID is duplicated in the portal",
+        "claimedByAnotherUser": "Individual is linked to another account",
+        "azureClaimedByAnotherUser": "Azure ID is linked to another account",
+        "manuallyManaged": "Link was edited manually",
+        "legacyLink": "Existing link was preserved",
+        "unchanged": "Already synchronized",
+        "writeConflict": "Conflict while saving"
+      },
       "moreByTables": "Details by table",
       "stepStudents": "Student (records)",
       "stepIndividuals": "Individual",

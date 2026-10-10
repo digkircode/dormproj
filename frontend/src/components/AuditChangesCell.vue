@@ -82,6 +82,7 @@ const FIELD_LABELS = computed<Record<string, string>>(() => ({
   order: t('audit.fieldOrder'),
   azureId: t('audit.fieldAzureId'),
   univerId: t('audit.fieldUniverId'),
+  linkSource: t('audit.fieldLinkSource'),
   communalServicesCost: t('rooms.detail.dormitoryFields.communalServicesCost'),
   dailyPaymentInternal: t('rooms.detail.dormitoryFields.dailyPaymentInternal'),
   dailyPaymentOther: t('rooms.detail.dormitoryFields.dailyPaymentOther'),

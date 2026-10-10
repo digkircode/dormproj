@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+const portalHttpsUrl = z.url().refine((value) => new URL(value).protocol === 'https:', 'Требуется HTTPS');
+
 export const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   EXTERNAL_API_URL: z.url(),
@@ -13,6 +15,10 @@ export const envSchema = z.object({
   ROSNOU_ID_CLIENT_ID: z.string().min(1),
   ROSNOU_ID_CLIENT_SECRET: z.string().min(1),
   ROSNOU_ID_REDIRECT_URI: z.url(),
+  PORTAL_API_BASE_URL: z.preprocess((value) => value === '' ? undefined : value, portalHttpsUrl.optional()),
+  PORTAL_API_CLIENT_ID: z.preprocess((value) => value === '' ? undefined : value, z.string().min(1).optional()),
+  PORTAL_API_CLIENT_SECRET: z.preprocess((value) => value === '' ? undefined : value, z.string().min(1).optional()),
+  PORTAL_API_USERS_URL: z.preprocess((value) => value === '' ? undefined : value, portalHttpsUrl.optional()),
   FRONTEND_URL: z.url(),
   SESSION_SECRET: z.string().min(32),
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),

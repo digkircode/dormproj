@@ -8,6 +8,7 @@ import { ContactInfoSyncService } from '../contact-info-sync/contact-info-sync.s
 import { SyncService } from './sync.service';
 import { getErrorMessage, SyncAlreadyRunningError } from './sync.errors';
 import { MISSED_RUN_THRESHOLD_MS, SYNC_TYPE_STUDENTS } from './sync.constants';
+import { PortalUsersSyncService } from './portal-users-sync.service';
 
 @Injectable()
 export class SyncScheduler {
@@ -19,15 +20,19 @@ export class SyncScheduler {
     private readonly citizenshipSyncService: CitizenshipSyncService,
     private readonly passportSyncService: PassportSyncService,
     private readonly contactInfoSyncService: ContactInfoSyncService,
+    private readonly portalUsersSyncService: PortalUsersSyncService,
     private readonly prisma: PrismaService,
   ) {}
 
   @Cron('0 1 * * *', { timeZone: 'Europe/Moscow' })
   async handleDailySync(): Promise<void> {
     await this.warnIfPreviousRunMissed();
+    let studentsReady = false;
+    let individualsReady = false;
 
     try {
       await this.syncService.runSync('CRON');
+      studentsReady = true;
     } catch (error) {
       if (error instanceof SyncAlreadyRunningError) {
         this.logger.log(
@@ -43,7 +48,8 @@ export class SyncScheduler {
     // Физлица синхронизируются сразу следом на свежем списке UID из только что
     // обновлённой таблицы студентов — независимо от того, как прошёл шаг выше.
     try {
-      await this.individualsSyncService.runSync('CRON');
+      const result = await this.individualsSyncService.runSync('CRON');
+      individualsReady = result.fetchedCount > 0;
     } catch (error) {
       if (error instanceof SyncAlreadyRunningError) {
         this.logger.log(
@@ -94,11 +100,25 @@ export class SyncScheduler {
         this.logger.log(
           'Плановая синхронизация контактной информации пропущена: уже выполняется другая синхронизация (скорее всего, ручной запуск)',
         );
-        return;
+      } else {
+        this.logger.error(
+          `Плановая синхронизация контактной информации завершилась с ошибкой: ${getErrorMessage(error)}`,
+        );
       }
-      this.logger.error(
-        `Плановая синхронизация контактной информации завершилась с ошибкой: ${getErrorMessage(error)}`,
-      );
+    }
+
+    // Портал содержит только связи аккаунтов; FK на физлицо требует успешного
+    // обновления физических лиц из 1С в этой же ночной цепочке.
+    if (studentsReady && individualsReady && this.portalUsersSyncService.isConfigured()) {
+      try {
+        await this.portalUsersSyncService.runSync('CRON');
+      } catch (error) {
+        if (error instanceof SyncAlreadyRunningError) {
+          this.logger.log('Плановая синхронизация пользователей портала пропущена: уже выполняется');
+        } else {
+          this.logger.error(`Плановая синхронизация пользователей портала завершилась с ошибкой: ${getErrorMessage(error)}`);
+        }
+      }
     }
   }
 

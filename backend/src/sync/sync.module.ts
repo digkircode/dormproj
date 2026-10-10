@@ -11,6 +11,9 @@ import { SyncScheduler } from './sync.scheduler';
 import { SyncService } from './sync.service';
 import { Accounting1cModule } from '../accounting-1c/accounting-1c.module';
 import { SyncOverviewController } from './sync-overview.controller';
+import { PortalUsersApiService } from './portal-users-api.service';
+import { PortalUsersSyncService } from './portal-users-sync.service';
+import { PortalUsersSyncController } from './portal-users-sync.controller';
 
 @Module({
   imports: [
@@ -22,8 +25,8 @@ import { SyncOverviewController } from './sync-overview.controller';
     ContactInfoSyncModule,
     Accounting1cModule,
   ],
-  controllers: [SyncController, SyncOverviewController],
-  providers: [ExternalStudentApiService, SyncService, SyncScheduler],
+  controllers: [SyncController, SyncOverviewController, PortalUsersSyncController],
+  providers: [ExternalStudentApiService, SyncService, SyncScheduler, PortalUsersApiService, PortalUsersSyncService],
   exports: [SyncService],
 })
 export class SyncModule {}

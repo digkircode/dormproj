@@ -258,6 +258,9 @@ model User {
   bindId   String? @map("bind_id")
   azureId  String? @map("azure_id")
   univerId String? @map("univer_id")
+  // PORTAL: связи обновляются синхроном; MANUAL: ручная правка имеет приоритет.
+  // UNSET сохраняет ранее импортированные связи и допускает автозаполнение пустых.
+  linkSource String @default("UNSET") @map("link_source")
   fullName String  @map("full_name")
   // Заполняется/обновляется автоматически при каждом логине из фолбека rosnou-id
   // (SessionUser.email, см. auth.controller.ts) — не из формы, своего UI на это поле нет.

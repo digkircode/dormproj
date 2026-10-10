@@ -27,10 +27,15 @@ const { t, locale } = useI18n()
 const entity = computed(() => SYNC_ENTITIES.find((e) => e.slug === route.params.slug))
 const isPenalty = computed(() => entity.value?.slug === 'penalties')
 const isContractStatus = computed(() => entity.value?.slug === 'contract-status')
+const isPortal = computed(() => entity.value?.slug === 'portal-users')
 const isOperational = computed(() => ['accounting-payment-push', 'accounting-payment-import', 'service-provision-preparation', 'service-provision-send', 'service-provision-recovery', 'service-provision-documents'].includes(entity.value?.slug ?? ''))
 const storageKey = computed(() => `sync-logs:${entity.value?.slug ?? 'unknown'}`)
 
 const selectedLog = ref<SyncLogEntry | null>(null)
+const portalSkippedReasons = computed<Record<string, number>>(() => {
+  const details = selectedLog.value?.details as unknown as { skippedReasons?: Record<string, number> } | null
+  return details?.skippedReasons ?? {}
+})
 const tableRef = ref<{ refresh: () => void | Promise<void> } | null>(null)
 
 const columnLabels = computed<Record<string, string>>(() => ({
@@ -234,7 +239,7 @@ onUnmounted(() => clearTimeout(pollTimeout))
         <!-- Разбивка по шагам — только у точечной синхронизации физлица (details
              заполняется лишь там, см. IndividualSyncService), раскрыта сразу при
              открытии модалки (default-open), в отличие от errorStack выше. -->
-        <Collapsible v-if="selectedLog.details && !isOperational && !isPenalty && !isContractStatus" default-open v-slot="{ open }">
+        <Collapsible v-if="selectedLog.details && !isOperational && !isPenalty && !isContractStatus && !isPortal" default-open v-slot="{ open }">
           <CollapsibleTrigger class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ChevronRight class="size-4 shrink-0 text-primary transition-transform" :class="{ 'rotate-90': open }" />
             {{ t('sync.logs.moreByTables') }}
@@ -312,6 +317,19 @@ onUnmounted(() => clearTimeout(pollTimeout))
             <div>{{ item.value }}</div>
           </div>
         </div>
+        <Collapsible v-else-if="selectedLog.details && isPortal" default-open v-slot="{ open }">
+          <CollapsibleTrigger class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+            <ChevronRight class="size-4 shrink-0 text-primary transition-transform" :class="{ 'rotate-90': open }" />
+            {{ t('sync.logs.portalReasons.title') }}
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div class="mt-2 grid gap-2 rounded-md border p-3 text-sm sm:grid-cols-2">
+              <div v-for="(count, reason) in portalSkippedReasons" :key="reason">
+                <span class="text-muted-foreground">{{ t(`sync.logs.portalReasons.${reason}`) }}:</span> {{ count }}
+              </div>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
         <Collapsible v-else-if="selectedLog.details" v-slot="{ open }">
           <CollapsibleTrigger class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ChevronRight class="size-4 shrink-0 text-primary transition-transform" :class="{ 'rotate-90': open }" />

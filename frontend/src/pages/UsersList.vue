@@ -36,6 +36,7 @@ const columnLabels = computed<Record<string, string>>(() => ({
   bindId: t('users.list.colBindId'),
   azureId: t('users.list.colAzureId'),
   univerId: t('users.list.colUniverId'),
+  linkSource: t('users.list.colLinkSource'),
   roles: t('users.list.colRoles'),
   createdAt: t('users.list.colCreatedAt'),
   // 'role' — фильтр, не колонка (сама колонка называется 'roles', см. ниже) — та же
@@ -46,6 +47,7 @@ const filterableFields = ['role']
 const cellRenderers = { roles: UserRolesCell }
 function cellText(columnId: string, value: unknown): string {
   if (columnId === 'createdAt' && typeof value === 'string') return formatDateIso(value)
+  if (columnId === 'linkSource' && typeof value === 'string') return t(`users.list.linkSource.${value}`)
   return String(value ?? '-')
 }
 
@@ -57,6 +59,7 @@ const columns = computed(() =>
     columnHelper.accessor('bindId', { header: columnLabels.value.bindId, size: 140, minSize: 110 }),
     columnHelper.accessor('azureId', { header: columnLabels.value.azureId, size: 160, minSize: 120 }),
     columnHelper.accessor('univerId', { header: columnLabels.value.univerId, size: 140, minSize: 110 }),
+    columnHelper.accessor('linkSource', { header: columnLabels.value.linkSource, size: 140, minSize: 110 }),
     columnHelper.accessor('roles', { header: columnLabels.value.roles, enableSorting: false, size: 200, minSize: 140 }),
     columnHelper.accessor('createdAt', { header: columnLabels.value.createdAt, size: 120, minSize: 100 }),
   ]),
