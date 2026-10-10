@@ -11,12 +11,9 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 //   независимо от статуса остальных договоров этого же человека;
 // - иначе смотрим на самый поздний по дате окончания договор среди TERMINATED/COMPLETED/
 //   OVERDUE (дата окончания — actualEndDate, если есть, иначе endDate):
-//   - TERMINATED → роль снимается СРАЗУ, без отсрочки (это осознанное решение сотрудника,
-//     принятое с полным знанием ситуации — в отличие от естественного истечения срока);
-//   - COMPLETED/OVERDUE (естественное завершение, никто не расторгал) → роль снимается
-//     только через GRACE_PERIOD_DAYS (30) дней после даты окончания — сотрудник может
-//     не успеть завести продлевающий договор день в день, роль не должна пропадать раньше
-//     этого срока.
+//   - TERMINATED/COMPLETED/OVERDUE → роль сохраняется GRACE_PERIOD_DAYS (30) дней
+//     после фактической даты выезда (для расторгнутого) или даты окончания (для остальных).
+//     Это оставляет время завести продлевающий договор.
 // Проверка "не осталось ли других договоров" зашита в сам порядок проверок выше: прежде
 // чем решать по TERMINATED/COMPLETED/OVERDUE, мы уже убедились, что нет ни одного
 // ACTIVE/EXPIRING договора у этого же человека.
@@ -34,24 +31,23 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 // contract-status.scheduler.ts) — простой "status==='ACTIVE'" перестал бы работать для
 // договоров, которые формально ещё никто не выселял, но крон уже перевёл в EXPIRING/
 // OVERDUE/COMPLETED; переписан на разбор жизненного цикла выше.
-// Два места вызова (как и раньше): после полного синка студентов (sync.service.ts#runSync,
-// имя вызова осталось прежним) — массово, и при каждом логине через rosnou-id
-// (auth.controller.ts) — точечно, только для залогинившегося. Создание/расторжение
-// договора эту функцию НЕ дёргает — эффект проявится на ближайшем логине резидента или
-// ночном синке, тот же принцип задержки, что был и раньше.
+// Массовый пересчёт запускается отдельной синхронизацией; при логине и изменении
+// договора пересчитывается только соответствующий аккаунт.
 // Не трогает остальные роли (STAFF/ADMIN и кастомные) — только строку RESIDENT в users_roles.
 export async function syncResidentRoles(
   prisma: Prisma.TransactionClient,
-  options?: { userId?: number },
-): Promise<{ granted: number; revoked: number }> {
+  options?: { userId?: number; individualUid?: string },
+): Promise<{ processed: number; granted: number; revoked: number }> {
   const residentRole = await prisma.role.findUnique({ where: { name: RESIDENT_ROLE_NAME } });
-  if (!residentRole) return { granted: 0, revoked: 0 };
+  if (!residentRole) throw new Error('Роль RESIDENT не настроена');
 
   const users = await prisma.user.findMany({
-    where: { univerId: { not: null }, ...(options?.userId ? { id: options.userId } : {}) },
+    where: options?.userId !== undefined ? { id: options.userId }
+      : options?.individualUid ? { univerId: options.individualUid }
+        : { OR: [{ univerId: { not: null } }, { roles: { some: { roleId: residentRole.id } } }] },
     select: { id: true, univerId: true, roles: { where: { roleId: residentRole.id }, select: { roleId: true } } },
   });
-  if (users.length === 0) return { granted: 0, revoked: 0 };
+  if (users.length === 0) return { processed: 0, granted: 0, revoked: 0 };
 
   const uids = [...new Set(users.map((u) => u.univerId).filter((uid): uid is string => uid !== null))];
   const contracts = await prisma.contract.findMany({
@@ -78,7 +74,6 @@ export async function syncResidentRoles(
     const ended = list.filter((c) => c.status === 'TERMINATED' || c.status === 'COMPLETED' || c.status === 'OVERDUE');
     if (ended.length === 0) return false;
     const latest = ended.reduce((a, b) => (effectiveEnd(b) > effectiveEnd(a) ? b : a));
-    if (latest.status === 'TERMINATED') return false;
 
     const daysSinceEnd = (now - effectiveEnd(latest).getTime()) / MS_PER_DAY;
     return daysSinceEnd <= GRACE_PERIOD_DAYS;
@@ -90,12 +85,12 @@ export async function syncResidentRoles(
     const isResident = user.univerId !== null && shouldHaveResidentRole(user.univerId);
     const hasResident = user.roles.length > 0;
     if (isResident && !hasResident) {
-      await prisma.userRole.create({ data: { userId: user.id, roleId: residentRole.id } });
-      granted++;
+      const result = await prisma.userRole.createMany({ data: [{ userId: user.id, roleId: residentRole.id }], skipDuplicates: true });
+      granted += result.count;
     } else if (!isResident && hasResident) {
-      await prisma.userRole.deleteMany({ where: { userId: user.id, roleId: residentRole.id } });
-      revoked++;
+      const result = await prisma.userRole.deleteMany({ where: { userId: user.id, roleId: residentRole.id } });
+      revoked += result.count;
     }
   }
-  return { granted, revoked };
+  return { processed: users.length, granted, revoked };
 }

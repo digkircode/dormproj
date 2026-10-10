@@ -14,6 +14,8 @@ import { SyncOverviewController } from './sync-overview.controller';
 import { PortalUsersApiService } from './portal-users-api.service';
 import { PortalUsersSyncService } from './portal-users-sync.service';
 import { PortalUsersSyncController } from './portal-users-sync.controller';
+import { ResidentRolesSyncService } from './resident-roles-sync.service';
+import { ResidentRolesSyncController } from './resident-roles-sync.controller';
 
 @Module({
   imports: [
@@ -25,8 +27,8 @@ import { PortalUsersSyncController } from './portal-users-sync.controller';
     ContactInfoSyncModule,
     Accounting1cModule,
   ],
-  controllers: [SyncController, SyncOverviewController, PortalUsersSyncController],
-  providers: [ExternalStudentApiService, SyncService, SyncScheduler, PortalUsersApiService, PortalUsersSyncService],
+  controllers: [SyncController, SyncOverviewController, PortalUsersSyncController, ResidentRolesSyncController],
+  providers: [ExternalStudentApiService, SyncService, SyncScheduler, PortalUsersApiService, PortalUsersSyncService, ResidentRolesSyncService],
   exports: [SyncService],
 })
 export class SyncModule {}

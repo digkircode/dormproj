@@ -31,7 +31,7 @@ interface OverviewJob {
   group: JobGroup
   state: JobState
   configured: boolean
-  schedule: { kind: 'DAILY' | 'CHAIN'; hour: number; minute: number } | { kind: 'MANUAL' | 'STARTUP' }
+  schedule: { kind: 'DAILY'; hour: number; minute: number } | { kind: 'CHAIN'; hour: number; minute: number; afterJobId: string } | { kind: 'MANUAL' | 'STARTUP' }
   nextScheduledAt: string | null
   lastRun: JobLog | null
   lastSuccessAt: string | null
@@ -45,7 +45,6 @@ const loading = ref(true)
 const loadError = ref(false)
 const runningIds = ref<string[]>([])
 const runErrors = ref<Record<string, string>>({})
-const describedJobs = new Set(['portal-users'])
 const jobIcons: Record<string, Component> = {
   students: GraduationCap,
   individuals: UsersRound,
@@ -53,6 +52,7 @@ const jobIcons: Record<string, Component> = {
   passport: ContactRound,
   'contact-info': BookUser,
   'portal-users': UsersRound,
+  'resident-roles': UsersRound,
   individual: ContactRound,
   'accounting-payment-push': FileOutput,
   'accounting-payment-import': ArrowDownToLine,
@@ -77,14 +77,14 @@ function scheduleText(job: OverviewJob): string {
   if (job.id === 'service-provision-send') return t('sync.overview.sendSchedule')
   const schedule = job.schedule
   if (!('hour' in schedule)) return t(schedule.kind === 'STARTUP' ? 'sync.overview.atStartup' : 'sync.overview.manual')
-  if (schedule.kind === 'CHAIN') return t('sync.overview.afterPrevious')
+  if (schedule.kind === 'CHAIN') return t('sync.overview.afterJob', { step: t(`sync.overview.jobs.${schedule.afterJobId}`) })
   const time = `${String(schedule.hour).padStart(2, '0')}:${String(schedule.minute).padStart(2, '0')}`
   return t('sync.overview.dailyAt', { time })
 }
 function nextText(job: OverviewJob): string {
   if (!job.nextScheduledAt) return '—'
   return job.schedule.kind === 'CHAIN'
-    ? t('sync.overview.afterStart', { date: formatMoscowDateTime(job.nextScheduledAt) })
+    ? t('sync.overview.afterJobStart', { step: t(`sync.overview.jobs.${job.schedule.afterJobId}`), date: formatMoscowDateTime(job.nextScheduledAt) })
     : formatMoscowDateTime(job.nextScheduledAt)
 }
 function formatMoscowDateTime(iso: string): string {
@@ -120,6 +120,7 @@ function resultText(job: OverviewJob): string {
   if (job.id === 'contract-status') return t('sync.overview.results.contracts', { processed: number(d, 'processedContracts') ?? 0, changed: (number(d, 'toExpiring') ?? 0) + (number(d, 'toCompleted') ?? 0) + (number(d, 'toOverdue') ?? 0) })
   if (job.id === 'penalties') return t('sync.overview.results.penalties', { processed: number(d, 'processedContracts') ?? 0, rows: number(d, 'penaltyRowsCreated') ?? 0 })
   if (job.id === 'portal-users') return t('sync.overview.results.portalUsers', { fetched: log.fetchedCount ?? 0, added: log.added ?? 0, updated: log.updated ?? 0, skipped: number(d, 'skipped') ?? 0 })
+  if (job.id === 'resident-roles') return t('sync.overview.results.roles', { processed: number(d, 'processed') ?? log.fetchedCount ?? 0, granted: number(d, 'granted') ?? log.added ?? 0, revoked: number(d, 'revoked') ?? log.removed ?? 0 })
   return t('sync.overview.results.university', { fetched: log.fetchedCount ?? 0, added: log.added ?? 0, updated: log.updated ?? 0, removed: log.removed ?? 0 })
 }
 
@@ -198,7 +199,6 @@ onUnmounted(() => { disposed = true; clearTimeout(timer) })
               <div class="min-w-0">
                 <h3 class="font-medium leading-5">{{ t(`sync.overview.jobs.${job.id}`) }}</h3>
                 <p class="mt-1 text-xs text-muted-foreground">{{ scheduleText(job) }}</p>
-                <p v-if="describedJobs.has(job.id)" class="mt-1 text-xs leading-4 text-muted-foreground">{{ t(`sync.overview.descriptions.${job.id}`) }}</p>
               </div>
             </div>
             <span class="shrink-0 rounded-full px-2 py-1 text-[11px] font-medium" :class="{

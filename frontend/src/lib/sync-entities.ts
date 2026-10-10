@@ -18,6 +18,7 @@ export const SYNC_ENTITIES: SyncEntity[] = [
   { slug: 'passport', nameKey: 'nav.passportData', basePath: '/sync/passport' },
   { slug: 'contact-info', nameKey: 'nav.contactInfo', basePath: '/sync/contact-info' },
   { slug: 'portal-users', nameKey: 'sync.overview.jobs.portal-users', basePath: '/sync/portal-users' },
+  { slug: 'resident-roles', nameKey: 'sync.overview.jobs.resident-roles', basePath: '/sync/overview/jobs/resident-roles' },
   { slug: 'individual', nameKey: 'sync.individualEntityName', basePath: '/sync/individual', showTargetUid: true },
   { slug: 'service-provision-documents', nameKey: 'sync.serviceProvisionDocumentsEntityName', basePath: '/sync/service-provision-documents' },
   { slug: 'penalties', nameKey: 'sync.penaltiesEntityName', basePath: '/sync/penalties' },

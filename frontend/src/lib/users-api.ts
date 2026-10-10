@@ -13,8 +13,13 @@ export interface UserRow {
 export function fetchUsersPage(options: ListOptions, signal?: AbortSignal): Promise<ListPage<UserRow>> {
   return fetchListPage<UserRow>('/users', options, undefined, signal)
 }
-export function fetchUsersFacets(field: string): Promise<FacetOption[]> {
-  return fetchListFacets('/users', field)
+export async function fetchUsersFacets(field: string): Promise<FacetOption[]> {
+  const facets = await fetchListFacets('/users', field)
+  if (field !== 'role') return facets
+  return facets.map((facet) => ({
+    ...facet,
+    label: i18n.global.te(`users.role.${facet.value}`) ? i18n.global.t(`users.role.${facet.value}`) : facet.label,
+  }))
 }
 
 // Ищет среди ВСЕХ пользователей (не только уже имеющих роль, см. бэкенд) — для

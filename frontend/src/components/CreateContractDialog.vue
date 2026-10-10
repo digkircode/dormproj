@@ -189,6 +189,7 @@ function validateFields(phoneValid: boolean) {
   if (!legalRepName.value.trim()) errors.legalRepName = 'parentNameRequired'
   if (!phoneValid) errors.legalRepPhone = 'phoneInvalid'
   if (isMinor.value) {
+    if (!legalRepGender.value) errors.legalRepGender = 'parentGenderRequired'
     if (!legalRepBirthDate.value) errors.legalRepBirthDate = 'parentBirthDateRequired'
     if (!legalRepPassportNumber.value.trim()) errors.legalRepPassportNumber = 'passportNumberRequired'
     if (!legalRepPassportIssuedAt.value) errors.legalRepPassportIssuedAt = 'passportIssuedAtRequired'
@@ -213,7 +214,7 @@ const individualQuery = ref('')
 const individualResults = ref<Individual[]>([])
 const selectedIndividual = ref<Individual | null>(null)
 for (const [key, source] of Object.entries({ number, contractDate, roomId, startDate, endDate,
-  residentIndividualUid: selectedIndividual, roomCost, legalRepName, legalRepPhone, legalRepBirthDate,
+  residentIndividualUid: selectedIndividual, roomCost, legalRepName, legalRepPhone, legalRepGender, legalRepBirthDate,
   legalRepPassportNumber, legalRepPassportIssuedAt, residenceReasonChoice: dailyRateCategory, residenceReason, matCapitalCoveredFrom,
   matCapitalCoveredTo, matCapitalAmount, matCapitalDeferredUntil })) {
   watch(source, () => {
@@ -483,7 +484,7 @@ async function submitCreate() {
     !legalRepName.value.trim() ||
     !phoneValid ||
     (dailyRateCategory.value === 'OTHER_UNIVERSITY' && !residenceReason.value.trim()) ||
-    (isMinor.value && !legalRepBirthDate.value) ||
+    (isMinor.value && (!legalRepGender.value || !legalRepBirthDate.value)) ||
     (useMatCapital.value &&
       (!matCapitalCoveredFrom.value ||
         !matCapitalCoveredTo.value ||
@@ -576,6 +577,7 @@ async function submitCreate() {
                 :item-key="(i: Individual) => i.fizicheskoyeLitsoUid"
                 :item-label="(i: Individual) => i.fullName"
                 :item-sub-label="(i: Individual) => (i.birthDate ? formatDateIso(i.birthDate) : '')"
+                :item-badge="(i: Individual) => i.isManual ? t('contracts.createDialog.manualIndividual') : undefined"
                 :placeholder="t('contracts.createDialog.residentPlaceholder')"
                 :invalid="!!fieldErrors.residentIndividualUid"
                 :loading="individualSearching"
@@ -698,7 +700,7 @@ async function submitCreate() {
                       :model-value="legalRepGender || undefined"
                       @update:model-value="(v) => (legalRepGender = v as 'Мужской' | 'Женский')"
                     >
-                      <SelectTrigger>
+                      <SelectTrigger :class="fieldErrors.legalRepGender ? 'border-red-500' : ''">
                         <SelectValue :placeholder="t('contracts.createDialog.genderPlaceholder')" />
                       </SelectTrigger>
                       <SelectContent>
@@ -706,6 +708,7 @@ async function submitCreate() {
                         <SelectItem value="Женский">{{ t('contracts.gender.female') }}</SelectItem>
                       </SelectContent>
                     </Select>
+                    <p v-if="fieldErrors.legalRepGender" class="text-xs text-destructive">{{ fieldError(fieldErrors.legalRepGender) }}</p>
                   </div>
                   <div class="flex flex-col gap-2">
                     <Label>{{ t('contracts.createDialog.fieldBirthDate') }}</Label>

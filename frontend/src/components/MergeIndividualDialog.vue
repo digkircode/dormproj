@@ -25,7 +25,8 @@ const DIALOG_ANIMATE_CLASS =
 const isOpen = ref(false)
 const sourceUid = ref('')
 
-// Подсказка кандидатов (ФИО и дата рождения, см. backend#mergeCandidates) — только
+// Подсказка кандидатов (фамилия, имя, дата рождения; отчество может отсутствовать,
+// см. backend#mergeCandidates) — только
 // предложение, ничего не выбирает сама, сотрудник кликает нужную строку.
 const candidates = ref<IndividualMergeCandidate[]>([])
 const isLoadingCandidates = ref(false)

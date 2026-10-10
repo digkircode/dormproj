@@ -19,7 +19,7 @@
     "dailyRateNotConfigured": "The daily rate is not configured for the selected category in dormitory settings",
     "communalServicesCostNotConfigured": "The utilities cost is not configured on the dormitory page",
     "communalServicesCostExceedsRoomCost": "The utilities cost cannot exceed the room cost",
-    "minorParentDataRequired": "For a minor, the parent's date of birth, passport number, and passport issue date are required",
+    "minorParentDataRequired": "For a minor, the parent's gender, date of birth, passport number, and passport issue date are required",
     "residenceReasonRequired": "Specify the reason for residence",
     "roomAlreadyOccupied": "The room is already occupied by another contract on these dates",
     "numberAlreadyExists": "A contract with this number already exists",

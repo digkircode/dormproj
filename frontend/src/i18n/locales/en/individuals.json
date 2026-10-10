@@ -92,7 +92,7 @@
     "merge": {
       "button": "Merge with individual",
       "title": "Merge individuals",
-      "description": "Select a 1C University record with the same full name and birth date. Contracts and related records move to it; the manual record remains for history.",
+      "description": "Select a 1C University record with the same surname, given name, and birth date. One record may have no patronymic. Contracts and related records move to the 1C record; the manual record remains for history.",
       "loadingCandidates": "Looking for similar records…",
       "candidatesLabel": "Looks like:",
       "candidateMeta": "Date of birth: {birthDate} · SNILS: {snils}",

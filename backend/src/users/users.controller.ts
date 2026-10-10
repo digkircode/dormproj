@@ -7,6 +7,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { ensureUserRecord } from './ensure-user';
+import { syncResidentRoles } from './resident-role-sync';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { zodErrorMessage } from '../i18n/zod-error-message';
 
@@ -234,6 +235,7 @@ export class UsersController {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const updated = await tx.user.update({ where: { id }, data: { azureId, univerId, linkSource: 'MANUAL' } });
+        await syncResidentRoles(tx, { userId: id });
         const actorId = await ensureUserRecord(tx, req.user!);
         await this.auditLog.log(tx, {
           userId: actorId,

@@ -25,6 +25,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { ensureUserRecord } from '../users/ensure-user';
+import { syncResidentRoles } from '../users/resident-role-sync';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { buildAccrualsForContract } from '../billing/accrual-generation';
 import { recalcAccrualsForTermination } from '../billing/termination';
@@ -518,7 +519,7 @@ export class ContractsController {
     // формы мог завести договор на несовершеннолетнего без данных родителя.
     const contractIsMinor = isMinorAt(individual.birthDate, data.contractDate);
     if (contractIsMinor) {
-      if (!data.legalRepBirthDate || !data.legalRepPassportNumber || !data.legalRepPassportIssuedAt) {
+      if (!data.legalRepGender || !data.legalRepBirthDate || !data.legalRepPassportNumber || !data.legalRepPassportIssuedAt) {
         throw new BadRequestException('contracts.errors.minorParentDataRequired');
       }
     }
@@ -705,6 +706,7 @@ export class ContractsController {
           fields: AUDITED_CONTRACT_FIELDS,
         });
 
+        await syncResidentRoles(tx, { individualUid: data.residentIndividualUid });
         return finalContract;
       });
     } catch (error) {
@@ -779,6 +781,7 @@ export class ContractsController {
         fields: recalculatedPenalty.changed ? ['_operation', '_penaltyTotal'] : ['_operation'],
       });
 
+      await syncResidentRoles(tx, { individualUid: contract.residentIndividualUid });
       return updated;
     }, { timeout: 120_000 });
   }
@@ -807,6 +810,7 @@ export class ContractsController {
     await this.prisma.$transaction(async (tx) => {
       await tx.paymentImportRecord.updateMany({ where: { matchedContractId: id }, data: { matchedContractId: null } });
       await tx.contract.delete({ where: { id } });
+      await syncResidentRoles(tx, { individualUid: contract.residentIndividualUid });
 
       const userId = await ensureUserRecord(tx, req.user!);
       await this.auditLog.log(tx, {

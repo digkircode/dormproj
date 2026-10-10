@@ -201,6 +201,38 @@ function sameBirthDate(a: Date | null, b: Date | null): boolean {
   return !!a && !!b && a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10);
 }
 
+type MergeIdentity = {
+  fullName: string;
+  surname: string | null;
+  name: string | null;
+  otchestvo: string | null;
+  birthDate: Date | null;
+  snils: string | null;
+};
+
+function normalizedNamePart(value: string): string {
+  return normalizedFullName(value).replace(/ё/g, 'е');
+}
+
+// Отсутствующее отчество допускается, но два разных заполненных отчества — нет.
+// Совпадение даты рождения обязательно даже при полном совпадении ФИО.
+function sameMergeIdentity(source: MergeIdentity, target: MergeIdentity): boolean {
+  if (!sameBirthDate(source.birthDate, target.birthDate)) return false;
+  if (source.surname && target.surname && source.name && target.name) {
+    return normalizedNamePart(source.surname) === normalizedNamePart(target.surname)
+      && normalizedNamePart(source.name) === normalizedNamePart(target.name)
+      && (!source.otchestvo || !target.otchestvo
+        || normalizedNamePart(source.otchestvo) === normalizedNamePart(target.otchestvo));
+  }
+  return normalizedFullName(source.fullName) === normalizedFullName(target.fullName);
+}
+
+function conflictingSnils(source: MergeIdentity, target: MergeIdentity): boolean {
+  const sourceSnils = source.snils?.replace(/\D/g, '');
+  const targetSnils = target.snils?.replace(/\D/g, '');
+  return !!sourceSnils && !!targetSnils && sourceSnils !== targetSnils;
+}
+
 function birthDateDayRange(date: Date): { gte: Date; lt: Date } {
   const gte = new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`);
   return { gte, lt: new Date(gte.getTime() + 24 * 60 * 60 * 1000) };
@@ -590,8 +622,8 @@ export class IndividualsController {
   // ничего не выполняет и не решает сама: сотрудник видит список и подтверждает выбор
   // явным кликом, как и везде в проекте (тот же принцип, что у suggestContractMatch в
   // разборе платежей из 1С — по прямой просьбе не делать автоматическое слияние).
-  // После ужесточения merge() подсказка показывает только записи с теми же ФИО и
-  // датой рождения; СНИЛС остаётся виден сотруднику для дополнительной проверки.
+  // Совпадают дата рождения, фамилия и имя. Отчество может отсутствовать в одной
+  // записи; разные заполненные отчества и конфликтующий СНИЛС исключают кандидата.
   @Get(':uid/merge-candidates')
   async mergeCandidates(@Param('uid') uid: string) {
     const source = await this.prisma.individual.findUnique({ where: { fizicheskoyeLitsoUid: uid } });
@@ -605,9 +637,13 @@ export class IndividualsController {
     if (!source.birthDate) return [];
     const sameDayCandidates = await this.prisma.individual.findMany({
       where: { isManual: false, mergedIntoUid: null, birthDate: birthDateDayRange(source.birthDate) },
-      select: { fizicheskoyeLitsoUid: true, fullName: true, snils: true, birthDate: true, code: true },
+      select: { fizicheskoyeLitsoUid: true, fullName: true, surname: true, name: true, otchestvo: true, snils: true, birthDate: true, code: true },
     });
-    return sameDayCandidates.filter((candidate) => normalizedFullName(candidate.fullName) === normalizedFullName(source.fullName)).slice(0, 5);
+    return sameDayCandidates
+      .filter((candidate) => sameMergeIdentity(source, candidate) && !conflictingSnils(source, candidate))
+      .sort((a, b) => Number(normalizedFullName(b.fullName) === normalizedFullName(source.fullName))
+        - Number(normalizedFullName(a.fullName) === normalizedFullName(source.fullName)))
+      .slice(0, 10);
   }
 
   // Слияние ручного физлица (isManual) в настоящую синхронную запись, которая позже
@@ -656,8 +692,11 @@ export class IndividualsController {
     if (target.mergedIntoUid) {
       throw new BadRequestException('individuals.errors.mergeTargetAlreadyMerged');
     }
-    if (normalizedFullName(source.fullName) !== normalizedFullName(target.fullName) || !sameBirthDate(source.birthDate, target.birthDate)) {
+    if (!sameMergeIdentity(source, target)) {
       throw new BadRequestException('individuals.errors.mergeIdentityMismatch');
+    }
+    if (conflictingSnils(source, target)) {
+      throw new ConflictException('individuals.errors.mergeSnilsConflict');
     }
     if (source.accounting1cContractorUid && target.accounting1cContractorUid
       && source.accounting1cContractorUid !== target.accounting1cContractorUid) {
@@ -674,9 +713,11 @@ export class IndividualsController {
       const currentTarget = await tx.individual.findUniqueOrThrow({ where: { fizicheskoyeLitsoUid: targetUid } });
       if (currentSource.mergedIntoUid) throw new ConflictException('individuals.errors.mergeSourceAlreadyMerged');
       if (currentTarget.mergedIntoUid) throw new ConflictException('individuals.errors.mergeTargetAlreadyMerged');
-      if (normalizedFullName(currentSource.fullName) !== normalizedFullName(currentTarget.fullName)
-        || !sameBirthDate(currentSource.birthDate, currentTarget.birthDate)) {
+      if (!sameMergeIdentity(currentSource, currentTarget)) {
         throw new BadRequestException('individuals.errors.mergeIdentityMismatch');
+      }
+      if (conflictingSnils(currentSource, currentTarget)) {
+        throw new ConflictException('individuals.errors.mergeSnilsConflict');
       }
       if (currentSource.accounting1cContractorUid && currentTarget.accounting1cContractorUid
         && currentSource.accounting1cContractorUid !== currentTarget.accounting1cContractorUid) {

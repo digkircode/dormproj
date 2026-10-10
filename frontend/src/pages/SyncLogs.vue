@@ -28,6 +28,7 @@ const entity = computed(() => SYNC_ENTITIES.find((e) => e.slug === route.params.
 const isPenalty = computed(() => entity.value?.slug === 'penalties')
 const isContractStatus = computed(() => entity.value?.slug === 'contract-status')
 const isPortal = computed(() => entity.value?.slug === 'portal-users')
+const isResidentRoles = computed(() => entity.value?.slug === 'resident-roles')
 const isOperational = computed(() => ['accounting-payment-push', 'accounting-payment-import', 'service-provision-preparation', 'service-provision-send', 'service-provision-recovery', 'service-provision-documents'].includes(entity.value?.slug ?? ''))
 const storageKey = computed(() => `sync-logs:${entity.value?.slug ?? 'unknown'}`)
 
@@ -80,6 +81,15 @@ const contractStatusDetails = computed(() => {
     toExpiring: numberValue('toExpiring'),
     toCompleted: numberValue('toCompleted'),
     toOverdue: numberValue('toOverdue'),
+  }
+})
+
+const residentRoleDetails = computed(() => {
+  const details = selectedLog.value?.details as Record<string, unknown> | null
+  return {
+    processed: typeof details?.processed === 'number' ? details.processed : selectedLog.value?.fetchedCount ?? 0,
+    granted: typeof details?.granted === 'number' ? details.granted : selectedLog.value?.added ?? 0,
+    revoked: typeof details?.revoked === 'number' ? details.revoked : selectedLog.value?.removed ?? 0,
   }
 })
 
@@ -239,7 +249,7 @@ onUnmounted(() => clearTimeout(pollTimeout))
         <!-- Разбивка по шагам — только у точечной синхронизации физлица (details
              заполняется лишь там, см. IndividualSyncService), раскрыта сразу при
              открытии модалки (default-open), в отличие от errorStack выше. -->
-        <Collapsible v-if="selectedLog.details && !isOperational && !isPenalty && !isContractStatus && !isPortal" default-open v-slot="{ open }">
+        <Collapsible v-if="selectedLog.details && !isOperational && !isPenalty && !isContractStatus && !isPortal && !isResidentRoles" default-open v-slot="{ open }">
           <CollapsibleTrigger class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ChevronRight class="size-4 shrink-0 text-primary transition-transform" :class="{ 'rotate-90': open }" />
             {{ t('sync.logs.moreByTables') }}
@@ -271,6 +281,11 @@ onUnmounted(() => clearTimeout(pollTimeout))
             </div>
           </CollapsibleContent>
         </Collapsible>
+        <div v-else-if="selectedLog.details && isResidentRoles" class="grid gap-3 rounded-md border p-3 text-sm sm:grid-cols-3">
+          <div><div class="text-muted-foreground">{{ t('sync.logs.residentRoles.processed') }}</div>{{ residentRoleDetails.processed }}</div>
+          <div><div class="text-muted-foreground">{{ t('sync.logs.residentRoles.granted') }}</div>{{ residentRoleDetails.granted }}</div>
+          <div><div class="text-muted-foreground">{{ t('sync.logs.residentRoles.revoked') }}</div>{{ residentRoleDetails.revoked }}</div>
+        </div>
         <Collapsible v-else-if="selectedLog.details && isPenalty" default-open v-slot="{ open }">
           <CollapsibleTrigger class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ChevronRight class="size-4 shrink-0 text-primary transition-transform" :class="{ 'rotate-90': open }" />

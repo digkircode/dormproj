@@ -32,7 +32,7 @@
     "overview": {
       "run": "Run",
       "running": "Running",
-      "universityFlow": "Nightly order: students → individuals → citizenship → passports → contacts → portal users. A manual run starts only the selected step.",
+      "universityFlow": "Nightly order: students → individuals → citizenship → passports → contacts → portal users → resident roles. A manual run starts only the selected step.",
       "resultUnavailable": "No result received",
       "loadError": "Could not refresh the synchronization overview. Please try again.",
       "lastRun": "Last run",
@@ -42,8 +42,8 @@
       "noResult": "No runs yet",
       "manual": "Only manually from an individual profile",
       "atStartup": "When the server starts",
-      "afterPrevious": "Daily after the previous step, from 01:00 Moscow time",
-      "afterStart": "after {date}",
+      "afterJob": "Daily after “{step}”, from 01:00 Moscow time",
+      "afterJobStart": "after “{step}”, no earlier than {date}",
       "dailyAt": "Daily at {time} Moscow time",
       "preparationSchedule": "Daily at 03:00; new month on the 1st at 00:00 Moscow time",
       "sendSchedule": "Daily at 23:55 Moscow time: month-end send, otherwise retry",
@@ -69,6 +69,7 @@
         "passport": "Passport data",
         "contact-info": "Contact information",
         "portal-users": "Users and links",
+        "resident-roles": "Resident roles",
         "individual": "Single individual",
         "accounting-payment-push": "Send payments",
         "accounting-payment-import": "Import payments",
@@ -77,9 +78,6 @@
         "service-provision-recovery": "Recover service documents on startup",
         "contract-status": "Contract statuses",
         "penalties": "Penalty accrual"
-      },
-      "descriptions": {
-        "portal-users": "Links portal accounts to individuals by unambiguous IDs and preserves manual changes."
       },
       "results": {
         "push": "Sent {sent}, succeeded {succeeded}, failed {failed}",
@@ -91,10 +89,12 @@
         "contracts": "Contracts checked {processed}, status changed {changed}",
         "penalties": "Contracts checked {processed}, new accruals {rows}",
         "portalUsers": "Fetched {fetched}, added {added}, updated {updated}, skipped {skipped}",
+        "roles": "Accounts checked {processed}, roles granted {granted}, revoked {revoked}",
         "university": "Fetched {fetched}, added {added}, updated {updated}, removed {removed}"
       }
     },
     "logs": {
+      "residentRoles": { "processed": "Accounts checked", "granted": "Roles granted", "revoked": "Roles revoked" },
       "title": "Logs: {name}",
       "colRowNumber": "#",
       "colTrigger": "Type",

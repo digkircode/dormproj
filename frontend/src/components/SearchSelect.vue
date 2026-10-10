@@ -12,6 +12,7 @@ const props = defineProps<{
   itemLabel: (item: T) => string
   // Необязательная вторая строка справа в пункте списка (например дата рождения у ФИО).
   itemSubLabel?: (item: T) => string
+  itemBadge?: (item: T) => string | undefined
   placeholder?: string
   invalid?: boolean
   // Пока идёт запрос (например debounce у серверного поиска) — не показываем
@@ -91,10 +92,11 @@ onClickOutside(rootRef, () => {
         v-for="item in items"
         :key="itemKey(item)"
         type="button"
-        class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
+        class="flex w-full flex-wrap items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
         @click="choose(item)"
       >
-        <span class="truncate">{{ itemLabel(item) }}</span>
+        <span class="min-w-32 flex-1 truncate">{{ itemLabel(item) }}</span>
+        <span v-if="itemBadge?.(item)" class="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">{{ itemBadge(item) }}</span>
         <span v-if="itemSubLabel" class="shrink-0 text-xs text-muted-foreground">{{ itemSubLabel(item) }}</span>
       </button>
       <p v-if="!items.length" class="px-3 py-2 text-sm text-muted-foreground">{{ t('entityTable.nothingFound') }}</p>

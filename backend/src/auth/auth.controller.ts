@@ -46,8 +46,8 @@ export class AuthController {
         create: { id: sessionUser.id, fullName: sessionUser.fullName, email: sessionUser.email },
         update: { fullName: sessionUser.fullName, email: sessionUser.email },
       });
-      // Роль "Проживающий" следует за Student — точечно для залогинившегося (массовый
-      // пересчёт для всех — после полного синка студентов, см. sync.service.ts).
+        // Роль "Проживающий" пересчитывается по договорам для залогинившегося;
+        // массовый пересчёт выполняет отдельная синхронизация ролей.
       // Не должна ронять логин при сбое — тот же принцип, что у апсёрта выше.
       await syncResidentRoles(this.prisma, { userId: sessionUser.id });
     } catch (error) {

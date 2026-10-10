@@ -5,7 +5,6 @@ import { getErrorMessage, sanitizeErrorStack, SyncAlreadyRunningError } from './
 import { listSyncLogs, syncLogFacetValues, type SyncLogsListQuery } from './sync-logs-list';
 import { PortalUsersApiService, type PortalUserRecord } from './portal-users-api.service';
 import type { SyncTriggerType } from './sync.service';
-import { syncResidentRoles } from '../users/resident-role-sync';
 
 const TYPE = 'portal-users';
 const LOCK_STALE_MS = 30 * 60 * 1_000;
@@ -153,19 +152,13 @@ export class PortalUsersSyncService {
             throw error;
           }
         }
-        let residentRoles = { granted: 0, revoked: 0 };
-        try {
-          residentRoles = await syncResidentRoles(this.prisma);
-        } catch (error) {
-          this.logger.error(`Не удалось пересчитать роли проживающих после синхронизации портала: ${getErrorMessage(error)}`);
-        }
         const skipped = Object.values(reasons).reduce((sum, count) => sum + count, 0);
         await this.prisma.syncLog.update({
           where: { id: log.id },
           data: {
             status: 'SUCCESS', finishedAt: new Date(), fetchedCount: portalUsers.length,
             added, updated, removed: 0,
-            details: { skipped, skippedReasons: reasons, residentRoles } as Prisma.InputJsonValue,
+            details: { skipped, skippedReasons: reasons } as Prisma.InputJsonValue,
           },
         });
         this.logger.log(`Портал: получено ${portalUsers.length}, добавлено ${added}, обновлено ${updated}, пропущено ${skipped}`);

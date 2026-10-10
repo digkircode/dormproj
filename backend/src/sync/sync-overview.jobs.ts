@@ -1,7 +1,7 @@
 import { Prisma } from '../../generated/prisma/client.js';
 
 export type SyncGroup = 'UNIVERSITY' | 'PORTAL' | 'ACCOUNTING' | 'HOSTEL';
-export type SyncSchedule = { kind: 'DAILY'; hour: number; minute: number } | { kind: 'CHAIN'; hour: number; minute: number } | { kind: 'MANUAL' } | { kind: 'STARTUP' };
+export type SyncSchedule = { kind: 'DAILY'; hour: number; minute: number } | { kind: 'CHAIN'; hour: number; minute: number; afterJobId: string } | { kind: 'MANUAL' } | { kind: 'STARTUP' };
 
 export interface SyncJobDefinition {
   id: string;
@@ -15,11 +15,12 @@ export interface SyncJobDefinition {
 
 export const SYNC_JOBS: SyncJobDefinition[] = [
   { id: 'students', group: 'UNIVERSITY', type: 'students', schedule: { kind: 'DAILY', hour: 1, minute: 0 }, manualPath: '/sync/students' },
-  { id: 'individuals', group: 'UNIVERSITY', type: 'individuals', schedule: { kind: 'CHAIN', hour: 1, minute: 0 }, manualPath: '/sync/individuals' },
-  { id: 'citizenship', group: 'UNIVERSITY', type: 'citizenship', schedule: { kind: 'CHAIN', hour: 1, minute: 0 }, manualPath: '/sync/citizenship' },
-  { id: 'passport', group: 'UNIVERSITY', type: 'passport', schedule: { kind: 'CHAIN', hour: 1, minute: 0 }, manualPath: '/sync/passport' },
-  { id: 'contact-info', group: 'UNIVERSITY', type: 'contact-info', schedule: { kind: 'CHAIN', hour: 1, minute: 0 }, manualPath: '/sync/contact-info' },
-  { id: 'portal-users', group: 'PORTAL', type: 'portal-users', schedule: { kind: 'CHAIN', hour: 1, minute: 0 }, configuration: 'PORTAL', manualPath: '/sync/portal-users' },
+  { id: 'individuals', group: 'UNIVERSITY', type: 'individuals', schedule: { kind: 'CHAIN', hour: 1, minute: 0, afterJobId: 'students' }, manualPath: '/sync/individuals' },
+  { id: 'citizenship', group: 'UNIVERSITY', type: 'citizenship', schedule: { kind: 'CHAIN', hour: 1, minute: 0, afterJobId: 'individuals' }, manualPath: '/sync/citizenship' },
+  { id: 'passport', group: 'UNIVERSITY', type: 'passport', schedule: { kind: 'CHAIN', hour: 1, minute: 0, afterJobId: 'citizenship' }, manualPath: '/sync/passport' },
+  { id: 'contact-info', group: 'UNIVERSITY', type: 'contact-info', schedule: { kind: 'CHAIN', hour: 1, minute: 0, afterJobId: 'passport' }, manualPath: '/sync/contact-info' },
+  { id: 'portal-users', group: 'PORTAL', type: 'portal-users', schedule: { kind: 'CHAIN', hour: 1, minute: 0, afterJobId: 'contact-info' }, configuration: 'PORTAL', manualPath: '/sync/portal-users' },
+  { id: 'resident-roles', group: 'HOSTEL', type: 'resident-roles', schedule: { kind: 'CHAIN', hour: 1, minute: 0, afterJobId: 'portal-users' }, manualPath: '/sync/resident-roles' },
   { id: 'individual', group: 'UNIVERSITY', type: 'individual', schedule: { kind: 'MANUAL' } },
   { id: 'accounting-payment-push', group: 'ACCOUNTING', type: 'accounting-payment-push', schedule: { kind: 'DAILY', hour: 2, minute: 30 }, configuration: 'PUSH' },
   { id: 'accounting-payment-import', group: 'ACCOUNTING', type: 'accounting-payment-import', schedule: { kind: 'DAILY', hour: 3, minute: 0 }, configuration: 'FETCH' },

@@ -9,6 +9,7 @@ import { SyncService } from './sync.service';
 import { getErrorMessage, SyncAlreadyRunningError } from './sync.errors';
 import { MISSED_RUN_THRESHOLD_MS, SYNC_TYPE_STUDENTS } from './sync.constants';
 import { PortalUsersSyncService } from './portal-users-sync.service';
+import { ResidentRolesSyncService } from './resident-roles-sync.service';
 
 @Injectable()
 export class SyncScheduler {
@@ -21,6 +22,7 @@ export class SyncScheduler {
     private readonly passportSyncService: PassportSyncService,
     private readonly contactInfoSyncService: ContactInfoSyncService,
     private readonly portalUsersSyncService: PortalUsersSyncService,
+    private readonly residentRolesSyncService: ResidentRolesSyncService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -118,6 +120,18 @@ export class SyncScheduler {
         } else {
           this.logger.error(`Плановая синхронизация пользователей портала завершилась с ошибкой: ${getErrorMessage(error)}`);
         }
+      }
+    }
+
+    // После попытки обновить связи аккаунтов пересчитываем роли по договорам.
+    // Выполняется и без настроенного портала: ручные связи уже могут существовать.
+    try {
+      await this.residentRolesSyncService.runSync('CRON');
+    } catch (error) {
+      if (error instanceof SyncAlreadyRunningError) {
+        this.logger.log('Плановая синхронизация ролей проживающих пропущена: уже выполняется');
+      } else {
+        this.logger.error(`Плановая синхронизация ролей проживающих завершилась с ошибкой: ${getErrorMessage(error)}`);
       }
     }
   }
