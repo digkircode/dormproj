@@ -48,6 +48,7 @@ export interface AccrualRow {
   voidedAt: string | null
   total: number
   paid: number
+  paidRefundedAmount: number
   refundedAmount: number
   balance: number
 }

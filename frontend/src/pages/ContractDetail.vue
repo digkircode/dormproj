@@ -678,7 +678,16 @@ async function confirmReversePayment() {
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.dueDate) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.total) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ a.adjustmentAmount ? formatMoney(a.adjustmentAmount) : '-' }}</TableCell>
-                    <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.paid) }}</TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">
+                      <div class="relative min-w-0" :class="a.paidRefundedAmount > 0 ? 'pb-5' : ''">
+                        <span class="whitespace-nowrap">{{ formatMoney(a.paid) }}</span>
+                        <span
+                          v-if="a.paidRefundedAmount > 0"
+                          class="absolute bottom-0 left-0 max-w-full truncate rounded bg-sky-100 px-1.5 py-0.5 text-[10px] leading-none text-sky-800 dark:bg-sky-500/15 dark:text-sky-300"
+                          :title="t('contracts.detail.netOfRefundTitle', { amount: formatMoney(a.paidRefundedAmount) })"
+                        >{{ t('contracts.detail.netOfRefund') }}</span>
+                      </div>
+                    </TableCell>
                     <TableCell :class="a.balance > 0 ? 'text-red-500' : ''">
                       {{ a.voidedAt ? t('contracts.detail.voided') : formatMoney(a.balance) }}
                     </TableCell>
@@ -747,46 +756,54 @@ async function confirmReversePayment() {
     </template>
 
     <Dialog :open="isBalanceDialogOpen" @update:open="(open) => (isBalanceDialogOpen = open)">
-      <DialogScrollContent :class="['flex w-[calc(100vw-2rem)] flex-col gap-4 sm:max-w-md', DIALOG_ANIMATE_CLASS]">
+      <DialogScrollContent :class="['flex w-[calc(100vw-2rem)] flex-col gap-3 sm:max-w-lg', DIALOG_ANIMATE_CLASS]">
         <DialogHeader><DialogTitle>{{ t('contracts.detail.balanceDetails') }}</DialogTitle></DialogHeader>
-        <div class="flex items-center justify-between border-b pb-3 text-sm">
-          <span>{{ t('contracts.detail.totalBalance') }}</span>
-          <strong :class="totalBalance > 0 ? 'text-red-500' : 'text-green-600'">{{ formatMoney(totalBalance) }}</strong>
+        <div class="rounded-xl border bg-muted/40 p-4">
+          <p class="text-xs text-muted-foreground">{{ t('contracts.detail.totalBalance') }}</p>
+          <p class="mt-1 text-2xl font-semibold tabular-nums" :class="totalBalance > 0 ? 'text-red-500' : 'text-green-600'">
+            {{ formatMoney(totalBalance) }}
+          </p>
         </div>
-        <div v-if="correctionTotal > 0" class="flex items-center justify-between gap-3 text-sm">
-          <span>{{ t('contracts.detail.totalCorrection') }}</span>
-          <span>{{ formatMoney(-correctionTotal) }}</span>
-        </div>
-        <div v-if="totalBalance < 0" class="flex items-center justify-between gap-3 text-sm">
-          <span>{{ t('contracts.detail.contractOverpayment') }}</span>
-          <span>{{ formatMoney(-totalBalance) }}</span>
-        </div>
-        <div class="rounded-lg border bg-muted/30 p-3">
-          <div class="flex items-center justify-between gap-3 font-medium">
-            <span>{{ t('contracts.detail.availableRefund') }}</span>
-            <span>{{ formatMoney(contract?.refundableAmount ?? 0) }}</span>
+        <div v-if="correctionTotal > 0 || totalBalance < 0" class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div v-if="correctionTotal > 0" class="rounded-lg border p-3">
+            <p class="text-xs text-muted-foreground">{{ t('contracts.detail.totalCorrection') }}</p>
+            <p class="mt-1 font-medium tabular-nums">{{ formatMoney(-correctionTotal) }}</p>
           </div>
-          <div v-if="contract?.refundSources.correctionAmount" class="mt-2 flex items-center justify-between gap-3 text-sm text-muted-foreground">
-            <span>{{ t('contracts.detail.refundCorrection') }}</span>
-            <span>{{ formatMoney(contract.refundSources.correctionAmount) }}</span>
-          </div>
-          <div v-if="contract?.refundSources.overpaymentAmount" class="mt-1 flex items-center justify-between gap-3 text-sm text-muted-foreground">
-            <span>{{ t('contracts.detail.extraOverpayment') }}</span>
-            <span>{{ formatMoney(contract.refundSources.overpaymentAmount) }}</span>
+          <div v-if="totalBalance < 0" class="rounded-lg border p-3">
+            <p class="text-xs text-muted-foreground">{{ t('contracts.detail.contractOverpayment') }}</p>
+            <p class="mt-1 font-medium tabular-nums">{{ formatMoney(-totalBalance) }}</p>
           </div>
         </div>
-        <div v-if="refundedTotal > 0" class="border-t pt-3 text-sm">
-          <div class="flex items-center justify-between gap-3 font-medium">
-            <span>{{ t('contracts.detail.alreadyRefunded') }}</span>
-            <span>{{ formatMoney(refundedTotal) }}</span>
+        <div class="rounded-xl border p-4">
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="text-sm font-medium">{{ t('contracts.detail.availableRefund') }}</h3>
+            <strong class="whitespace-nowrap text-lg tabular-nums">{{ formatMoney(contract?.refundableAmount ?? 0) }}</strong>
           </div>
-          <div v-if="refundedCorrection > 0" class="mt-2 flex items-center justify-between gap-3 text-muted-foreground">
-            <span>{{ t('contracts.detail.refundCorrection') }}</span>
-            <span>{{ formatMoney(refundedCorrection) }}</span>
+          <div v-if="contract && contract.refundableAmount > 0" class="mt-3 grid grid-cols-1 gap-2 border-t pt-3 sm:grid-cols-2">
+            <div v-if="contract.refundSources.correctionAmount > 0" class="rounded-md bg-muted/50 p-2.5">
+              <p class="text-xs text-muted-foreground">{{ t('contracts.detail.refundCorrection') }}</p>
+              <p class="mt-1 font-medium tabular-nums">{{ formatMoney(contract.refundSources.correctionAmount) }}</p>
+            </div>
+            <div v-if="contract.refundSources.overpaymentAmount > 0" class="rounded-md bg-muted/50 p-2.5">
+              <p class="text-xs text-muted-foreground">{{ t('contracts.detail.extraOverpayment') }}</p>
+              <p class="mt-1 font-medium tabular-nums">{{ formatMoney(contract.refundSources.overpaymentAmount) }}</p>
+            </div>
           </div>
-          <div v-if="refundedTotal - refundedCorrection > 0" class="mt-1 flex items-center justify-between gap-3 text-muted-foreground">
-            <span>{{ t('contracts.detail.extraOverpayment') }}</span>
-            <span>{{ formatMoney(refundedTotal - refundedCorrection) }}</span>
+        </div>
+        <div v-if="refundedTotal > 0" class="rounded-xl border p-4">
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="text-sm font-medium">{{ t('contracts.detail.alreadyRefunded') }}</h3>
+            <strong class="whitespace-nowrap text-lg tabular-nums">{{ formatMoney(refundedTotal) }}</strong>
+          </div>
+          <div class="mt-3 grid grid-cols-1 gap-2 border-t pt-3 sm:grid-cols-2">
+            <div v-if="refundedCorrection > 0" class="rounded-md bg-muted/50 p-2.5">
+              <p class="text-xs text-muted-foreground">{{ t('contracts.detail.refundCorrection') }}</p>
+              <p class="mt-1 font-medium tabular-nums">{{ formatMoney(refundedCorrection) }}</p>
+            </div>
+            <div v-if="refundedTotal - refundedCorrection > 0" class="rounded-md bg-muted/50 p-2.5">
+              <p class="text-xs text-muted-foreground">{{ t('contracts.detail.extraOverpayment') }}</p>
+              <p class="mt-1 font-medium tabular-nums">{{ formatMoney(refundedTotal - refundedCorrection) }}</p>
+            </div>
           </div>
         </div>
       </DialogScrollContent>

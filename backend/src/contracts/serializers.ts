@@ -32,6 +32,7 @@ export function serializeAccrual(accrual: {
     voidedAt: accrual.voidedAt,
     total: Number(total),
     paid: Number(paid),
+    paidRefundedAmount: Number(allocatedRefunded),
     refundedAmount: Number(refunded),
     balance: Number(total.minus(paid)),
   };

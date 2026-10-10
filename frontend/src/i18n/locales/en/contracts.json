@@ -81,6 +81,8 @@
       "colCost": "Cost",
       "colAdjustment": "Adjustment",
       "colPaid": "Paid",
+      "netOfRefund": "After refund",
+      "netOfRefundTitle": "{amount} refunded from paid amount",
       "colBalance": "Balance",
       "colDate": "Date",
       "colAmount": "Amount",
