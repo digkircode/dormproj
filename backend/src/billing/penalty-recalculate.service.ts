@@ -20,7 +20,7 @@ export async function recalculatePenaltyInTransaction(
   tx: Prisma.TransactionClient,
   contractId: number,
   today = moscowDateOnly(new Date()),
-): Promise<{ rowsCreated: number; totalAdded: Prisma.Decimal }> {
+): Promise<{ rowsCreated: number; totalAdded: Prisma.Decimal; changed: boolean }> {
     const contract = await tx.contract.findUnique({
       where: { id: contractId },
       include: {
@@ -58,6 +58,17 @@ export async function recalculatePenaltyInTransaction(
       }
     }
 
+    const previousRows = await tx.penaltyAccrualLog.findMany({
+      where: { contractId },
+      orderBy: { date: 'asc' },
+      select: { date: true, amount: true, overdueBase: true },
+    });
+    const journalChanged = previousRows.length !== rows.length || previousRows.some((previous, index) =>
+      previous.date.getTime() !== rows[index].date.getTime()
+      || !previous.amount.equals(rows[index].amount)
+      || !previous.overdueBase.equals(rows[index].overdueBase),
+    );
+
     // Полная пересборка — старый журнал договора удаляется целиком и заменяется заново
     // посчитанным, а не дополняется: старые строки могли быть посчитаны неверно (см.
     // комментарий выше), оставлять их рядом с новыми означало бы задвоить пеню за одни и
@@ -93,14 +104,14 @@ export async function recalculatePenaltyInTransaction(
       data: { penaltyAccruedThrough: today, ...(released.greaterThan(0) ? { creditBalance: { increment: released } } : {}) },
     });
 
-    return { rowsCreated: rows.length, totalAdded };
+    return { rowsCreated: rows.length, totalAdded, changed: journalChanged || released.greaterThan(0) };
 }
 
 @Injectable()
 export class PenaltyRecalculateService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async recalculate(contractId: number): Promise<{ rowsCreated: number; totalAdded: Prisma.Decimal }> {
+  async recalculate(contractId: number): Promise<{ rowsCreated: number; totalAdded: Prisma.Decimal; changed: boolean }> {
     return this.prisma.$transaction((tx) => recalculatePenaltyInTransaction(tx, contractId), { timeout: 120_000 });
   }
 }

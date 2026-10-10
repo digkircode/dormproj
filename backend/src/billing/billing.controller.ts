@@ -306,7 +306,7 @@ export class BillingController {
       _count: true,
       _sum: { amount: true },
     });
-    const { rowsCreated, totalAdded } = await this.penaltyRecalculate.recalculate(contractId);
+    const { rowsCreated, totalAdded, changed } = await this.penaltyRecalculate.recalculate(contractId);
     const updated = await this.prisma.contract.findUniqueOrThrow({ where: { id: contractId } });
 
     const userId = await ensureUserRecord(this.prisma, req.user);
@@ -315,7 +315,7 @@ export class BillingController {
       action: 'UPDATE',
       entityType: 'Contract',
       entityId: contract.id,
-      entityLabel: `Пересчёт пени - договор №${contract.number}`,
+      entityLabel: changed ? `Пересчёт пени - договор №${contract.number}` : `Пересчёт пени без изменений - договор №${contract.number}`,
       before: {
         ...contract,
         _operation: null,
@@ -324,11 +324,11 @@ export class BillingController {
       },
       after: {
         ...updated,
-        _operation: 'Ручной пересчёт пени',
+        _operation: changed ? 'Ручной пересчёт пени' : 'PENALTY_RECALC_NO_CHANGE',
         _penaltyRowsCount: rowsCreated,
         _penaltyTotal: totalAdded,
       },
-      fields: ['_operation', '_penaltyRowsCount', '_penaltyTotal', 'penaltyAccruedThrough'],
+      fields: changed ? ['_operation', '_penaltyRowsCount', '_penaltyTotal', 'penaltyAccruedThrough'] : ['_operation'],
     });
 
     return { rowsCreated, totalAdded: Number(totalAdded) };

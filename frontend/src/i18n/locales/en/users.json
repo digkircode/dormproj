@@ -98,6 +98,10 @@
     "fieldAccounting1cContractorUid": "Contractor UID",
     "fieldOperation": "Operation",
     "operationRecalculation": "Manual recalculation",
+    "penaltyRecalculationNoChange": "Recalculated: penalty unchanged",
+    "penaltyTerminationRecalculationNoChange": "Penalty unchanged after termination recalculation",
+    "penaltyTotalsUnchanged": "Recalculated: total and entry count unchanged",
+    "penaltyTerminationTotalUnchanged": "Penalty total unchanged after termination",
     "operationSend": "Manual send to 1C",
     "operationResult": {
       "requested": "Selected documents",

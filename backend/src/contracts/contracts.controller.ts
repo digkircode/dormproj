@@ -757,10 +757,12 @@ export class ContractsController {
       });
       await this.auditLog.log(tx, {
         userId, action: 'UPDATE', entityType: 'Contract', entityId: id,
-        entityLabel: `Пересчёт пени при расторжении - договор №${contract.number}`,
+        entityLabel: recalculatedPenalty.changed
+          ? `Пересчёт пени при расторжении - договор №${contract.number}`
+          : `Пересчёт пени при расторжении без изменений - договор №${contract.number}`,
         before: { _operation: null, _penaltyTotal: previousPenalty._sum.amount ?? new Prisma.Decimal(0) },
-        after: { _operation: 'Пересчёт пени при расторжении', _penaltyTotal: recalculatedPenalty.totalAdded },
-        fields: ['_operation', '_penaltyTotal'],
+        after: { _operation: recalculatedPenalty.changed ? 'Пересчёт пени при расторжении' : 'PENALTY_TERMINATION_RECALC_NO_CHANGE', _penaltyTotal: recalculatedPenalty.totalAdded },
+        fields: recalculatedPenalty.changed ? ['_operation', '_penaltyTotal'] : ['_operation'],
       });
 
       return updated;

@@ -98,6 +98,10 @@
     "fieldAccounting1cContractorUid": "UID контрагента",
     "fieldOperation": "Операция",
     "operationRecalculation": "Ручной пересчёт",
+    "penaltyRecalculationNoChange": "Пересчёт выполнен: пеня не изменилась",
+    "penaltyTerminationRecalculationNoChange": "При расторжении пеня не изменилась",
+    "penaltyTotalsUnchanged": "Пересчёт выполнен: сумма и число начислений не изменились",
+    "penaltyTerminationTotalUnchanged": "При расторжении сумма пени не изменилась",
     "operationSend": "Ручная отправка в 1С",
     "operationResult": {
       "requested": "Выбрано документов",
