@@ -32,7 +32,7 @@ import { recalculatePenaltyInTransaction } from '../billing/penalty-recalculate.
 import { computePenaltyBalance } from '../billing/penalty-balance';
 import { dateOnly, moscowDateOnly } from '../billing/period-utils';
 import { serializeAccrual, serializePayment, serializeTerms } from './serializers';
-import { availableContractRefund } from '../billing/refund-balance';
+import { availableContractRefund, refundSourceBreakdown } from '../billing/refund-balance';
 import { buildPaymentPurpose } from '../billing/payment-purpose';
 import { isMinorAt } from './minor';
 import { buildResidentSnapshot, fillManualFallbacks, type ResidentSnapshot } from './resident-snapshot';
@@ -363,6 +363,7 @@ export class ContractsController {
     const { terms, roomAssignments, accruals, payments, penaltyLogs, refunds, resident, matCapitalAmount, ...contractFields } = contract;
     const refundInput = { accruals, penaltyLogs, payments, refunds, asOf: moscowDateOnly(new Date()) };
     const refundable = availableContractRefund({ ...refundInput, creditBalance: contract.creditBalance });
+    const refundSources = refundSourceBreakdown(refundable);
     // Пеня — производная от журнала (не хранимое поле, см. schema.prisma), сколько из неё
     // уже покрыто платежами — тоже выводим на чтении (см. penalty-balance.ts). "На сейчас",
     // а не на дату — карточка договора не поддерживает выбор даты (в отличие от финансового
@@ -396,7 +397,8 @@ export class ContractsController {
       terms: terms.map(serializeTerms),
       accruals: accruals.map(serializeAccrual),
       refundableAmount: refundable ? Number(refundable.amount) : 0,
-      refunds: refunds.map((row) => ({ id: row.id, amount: Number(row.amount), refundedAt: row.refundedAt, comment: row.comment, accrualId: row.accrualId, periodStart: row.accrual?.periodStart ?? null })),
+      refundSources: { correctionAmount: Number(refundSources.correctionAmount), overpaymentAmount: Number(refundSources.overpaymentAmount) },
+      refunds: refunds.map((row) => ({ id: row.id, amount: Number(row.amount), adjustmentAmount: Number(row.adjustmentAmount), refundedAt: row.refundedAt, comment: row.comment, accrualId: row.accrualId, periodStart: row.accrual?.periodStart ?? null })),
       payments: payments.map((payment) =>
         serializePayment({
           ...payment,

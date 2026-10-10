@@ -3,7 +3,7 @@
     "paymentNotFound": "Платёж не найден",
     "refundFutureDate": "Дата возврата не может быть в будущем",
     "refundBeforeContract": "Дата возврата раньше создания договора",
-    "refundExceedsOverpayment": "Сумма возврата превышает доступную переплату по корректировке",
+    "refundExceedsOverpayment": "Сумма возврата или выбранное основание превышает доступную переплату",
     "paymentAlreadyReversed": "Платёж уже сторнирован",
     "paymentNotWebsiteSource": "В 1С Бухгалтерию отправляются только платежи с сайта (эквайринг)",
     "serviceProvisionDocumentNotFound": "Документ не найден"

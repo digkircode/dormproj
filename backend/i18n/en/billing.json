@@ -3,7 +3,7 @@
     "paymentNotFound": "Payment not found",
     "refundFutureDate": "Refund date cannot be in the future",
     "refundBeforeContract": "Refund date precedes contract creation",
-    "refundExceedsOverpayment": "Refund amount exceeds the available adjustment overpayment",
+    "refundExceedsOverpayment": "Refund amount or selected source exceeds the available overpayment",
     "paymentAlreadyReversed": "Payment has already been reversed",
     "paymentNotWebsiteSource": "Only website (acquiring) payments are sent to 1C Accounting",
     "serviceProvisionDocumentNotFound": "Document not found"

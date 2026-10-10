@@ -10,6 +10,7 @@ import {
   Ban,
   CalendarClock,
   CalendarRange,
+  ChevronDown,
   ChevronRight,
   DoorOpen,
   Download,
@@ -33,6 +34,8 @@ import TableSkeleton from '@/components/TableSkeleton.vue'
 import Skeleton from '@/components/ui/skeleton/Skeleton.vue'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import ContractStatusPill from '@/components/ContractStatusPill.vue'
 import Accounting1cLinkedBadge from '@/components/Accounting1cLinkedBadge.vue'
@@ -110,6 +113,12 @@ onUnmounted(() => {
 const totalBalance = computed(() =>
   contract.value ? contract.value.accruals.filter((a) => !a.voidedAt).reduce((sum, a) => sum + a.balance, 0) + contract.value.penaltyBalance - contract.value.creditBalance : 0,
 )
+const isBalanceDialogOpen = ref(false)
+const correctionTotal = computed(() => contract.value?.accruals
+  .filter((a) => !a.voidedAt && a.adjustmentAmount < 0)
+  .reduce((sum, a) => sum - a.adjustmentAmount, 0) ?? 0)
+const refundedTotal = computed(() => contract.value?.refunds.reduce((sum, row) => sum + row.amount, 0) ?? 0)
+const refundedCorrection = computed(() => contract.value?.refunds.reduce((sum, row) => sum + row.adjustmentAmount, 0) ?? 0)
 
 // История начисления пени по дням — раскрывается кликом по тайлу "Пени" (тот же приём,
 // что и у резидента, см. MyContract.vue), плюс кнопка "Пересчитать" для сотрудника
@@ -202,15 +211,6 @@ const { sort: accrualSort, sorted: sortedAccruals, toggle: toggleAccrualSort } =
   () => displayedAccruals.value,
   'periodStart' satisfies keyof AccrualRow,
 )
-function paidOnlyAdjustedAmount(accrual: AccrualRow): boolean {
-  return !accrual.voidedAt
-    && accrual.adjustmentAmount < 0
-    && accrual.refundedAmount === 0
-    && accrual.total > 0
-    && accrual.paid > 0
-    && Math.abs(accrual.paid - accrual.total) < 0.005
-}
-
 const PAYMENT_COLUMNS = computed<{ id: keyof PaymentRow; label: string }[]>(() => [
   { id: 'paidAt', label: t('contracts.detail.colDate') },
   { id: 'amount', label: t('contracts.detail.colAmount') },
@@ -272,29 +272,59 @@ const filteredPayments = computed(() => {
 })
 
 const isRefundOpen = ref(false)
-const refundAmount = ref('')
+const refundPickerOpen = ref(false)
+const includeCorrection = ref(false)
+const includeOverpayment = ref(false)
+const correctionRefundAmount = ref('')
+const overpaymentRefundAmount = ref('')
 const refundDate = ref('')
 const refundComment = ref('')
 const refundError = ref('')
 const isSavingRefund = ref(false)
+function parsedRefundAmount(value: string): number {
+  return /^\d+(?:[.,]\d{1,2})?$/.test(value) ? Number(value.replace(',', '.')) : NaN
+}
+const selectedCorrectionAmount = computed(() => includeCorrection.value ? parsedRefundAmount(correctionRefundAmount.value) : 0)
+const selectedOverpaymentAmount = computed(() => includeOverpayment.value ? parsedRefundAmount(overpaymentRefundAmount.value) : 0)
+const selectedRefundAmount = computed(() => {
+  const amount = selectedCorrectionAmount.value + selectedOverpaymentAmount.value
+  return Number.isFinite(amount) ? Math.round(amount * 100) / 100 : 0
+})
+const refundSelectionSummary = computed(() => [
+  includeCorrection.value ? t('contracts.detail.refundCorrection') : '',
+  includeOverpayment.value ? t('contracts.detail.extraOverpayment') : '',
+].filter(Boolean).join(', ') || t('contracts.detail.noRefundSourceSelected'))
 function openRefund() {
   const now = new Date()
   refundDate.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-  refundAmount.value = String(contract.value?.refundableAmount ?? '')
+  const sources = contract.value?.refundSources
+  includeCorrection.value = (sources?.correctionAmount ?? 0) > 0
+  includeOverpayment.value = (sources?.overpaymentAmount ?? 0) > 0
+  correctionRefundAmount.value = String(sources?.correctionAmount ?? '')
+  overpaymentRefundAmount.value = String(sources?.overpaymentAmount ?? '')
+  refundPickerOpen.value = false
   refundComment.value = ''
   refundError.value = ''
   isRefundOpen.value = true
 }
 async function saveRefund() {
-  const amount = Number(refundAmount.value.replace(',', '.'))
-  if (!refundDate.value || !/^\d+(?:[.,]\d{1,2})?$/.test(refundAmount.value) || !Number.isFinite(amount) || amount <= 0) {
-    refundError.value = t('contracts.detail.amountAndDateRequired')
+  const correctionAmount = selectedCorrectionAmount.value
+  const overpaymentAmount = selectedOverpaymentAmount.value
+  const sources = contract.value?.refundSources
+  if (!refundDate.value || !Number.isFinite(correctionAmount) || !Number.isFinite(overpaymentAmount)
+    || correctionAmount < 0 || overpaymentAmount < 0 || selectedRefundAmount.value <= 0
+    || correctionAmount > (sources?.correctionAmount ?? 0)
+    || overpaymentAmount > (sources?.overpaymentAmount ?? 0)) {
+    refundError.value = t('contracts.detail.refundSelectionInvalid')
     return
   }
   isSavingRefund.value = true
   refundError.value = ''
   try {
-    await recordContractRefund(contractId.value, { amount, refundedAt: refundDate.value, comment: refundComment.value.trim() || null })
+    await recordContractRefund(contractId.value, {
+      amount: selectedRefundAmount.value, correctionAmount, overpaymentAmount,
+      refundedAt: refundDate.value, comment: refundComment.value.trim() || null,
+    })
     isRefundOpen.value = false
     await load()
   } catch (error) {
@@ -502,9 +532,14 @@ async function confirmReversePayment() {
               </div>
               <div>
                 <p class="text-xs text-muted-foreground">{{ t('contracts.detail.totalBalance') }}</p>
-                <p class="text-lg font-semibold" :class="totalBalance > 0 ? 'text-red-500' : 'text-green-600'">
+                <button
+                  type="button"
+                  class="rounded-sm text-lg font-semibold underline decoration-dotted underline-offset-2 hover:opacity-80"
+                  :class="totalBalance > 0 ? 'text-red-500' : 'text-green-600'"
+                  @click="isBalanceDialogOpen = true"
+                >
                   {{ formatMoney(totalBalance) }}
-                </p>
+                </button>
               </div>
             </div>
             <div class="flex items-center gap-3">
@@ -642,19 +677,7 @@ async function confirmReversePayment() {
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.periodStart) }} - {{ formatDate(a.periodEnd) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatDate(a.dueDate) }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.total) }}</TableCell>
-                    <TableCell :class="CELL_BORDER_CLASS">
-                      <div class="flex items-center justify-between gap-2 whitespace-nowrap">
-                        <span class="shrink-0">{{ a.adjustmentAmount ? formatMoney(a.adjustmentAmount) : '-' }}</span>
-                        <span v-if="a.refundedAmount > 0" class="shrink-0 rounded-md bg-green-100 px-1.5 py-0.5 text-xs leading-tight text-green-800 dark:bg-green-500/15 dark:text-green-300">
-                          {{ a.refundedAmount < -a.adjustmentAmount
-                            ? t('contracts.detail.partlyRefundedAdjustment', { amount: formatMoney(a.refundedAmount), total: formatMoney(-a.adjustmentAmount) })
-                            : t('contracts.detail.refundedAdjustment', { amount: formatMoney(a.refundedAmount) }) }}
-                        </span>
-                        <span v-else-if="paidOnlyAdjustedAmount(a)" class="shrink-0 rounded-md bg-sky-100 px-1.5 py-0.5 text-xs leading-tight text-sky-800 dark:bg-sky-500/15 dark:text-sky-300">
-                          {{ t('contracts.detail.refundNotRequired') }}
-                        </span>
-                      </div>
-                    </TableCell>
+                    <TableCell :class="CELL_BORDER_CLASS">{{ a.adjustmentAmount ? formatMoney(a.adjustmentAmount) : '-' }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ formatMoney(a.paid) }}</TableCell>
                     <TableCell :class="a.balance > 0 ? 'text-red-500' : ''">
                       {{ a.voidedAt ? t('contracts.detail.voided') : formatMoney(a.balance) }}
@@ -723,12 +746,94 @@ async function confirmReversePayment() {
       </Tabs>
     </template>
 
+    <Dialog :open="isBalanceDialogOpen" @update:open="(open) => (isBalanceDialogOpen = open)">
+      <DialogScrollContent :class="['flex w-[calc(100vw-2rem)] flex-col gap-4 sm:max-w-md', DIALOG_ANIMATE_CLASS]">
+        <DialogHeader><DialogTitle>{{ t('contracts.detail.balanceDetails') }}</DialogTitle></DialogHeader>
+        <div class="flex items-center justify-between border-b pb-3 text-sm">
+          <span>{{ t('contracts.detail.totalBalance') }}</span>
+          <strong :class="totalBalance > 0 ? 'text-red-500' : 'text-green-600'">{{ formatMoney(totalBalance) }}</strong>
+        </div>
+        <div v-if="correctionTotal > 0" class="flex items-center justify-between gap-3 text-sm">
+          <span>{{ t('contracts.detail.totalCorrection') }}</span>
+          <span>{{ formatMoney(-correctionTotal) }}</span>
+        </div>
+        <div v-if="totalBalance < 0" class="flex items-center justify-between gap-3 text-sm">
+          <span>{{ t('contracts.detail.contractOverpayment') }}</span>
+          <span>{{ formatMoney(-totalBalance) }}</span>
+        </div>
+        <div class="rounded-lg border bg-muted/30 p-3">
+          <div class="flex items-center justify-between gap-3 font-medium">
+            <span>{{ t('contracts.detail.availableRefund') }}</span>
+            <span>{{ formatMoney(contract?.refundableAmount ?? 0) }}</span>
+          </div>
+          <div v-if="contract?.refundSources.correctionAmount" class="mt-2 flex items-center justify-between gap-3 text-sm text-muted-foreground">
+            <span>{{ t('contracts.detail.refundCorrection') }}</span>
+            <span>{{ formatMoney(contract.refundSources.correctionAmount) }}</span>
+          </div>
+          <div v-if="contract?.refundSources.overpaymentAmount" class="mt-1 flex items-center justify-between gap-3 text-sm text-muted-foreground">
+            <span>{{ t('contracts.detail.extraOverpayment') }}</span>
+            <span>{{ formatMoney(contract.refundSources.overpaymentAmount) }}</span>
+          </div>
+        </div>
+        <div v-if="refundedTotal > 0" class="border-t pt-3 text-sm">
+          <div class="flex items-center justify-between gap-3 font-medium">
+            <span>{{ t('contracts.detail.alreadyRefunded') }}</span>
+            <span>{{ formatMoney(refundedTotal) }}</span>
+          </div>
+          <div v-if="refundedCorrection > 0" class="mt-2 flex items-center justify-between gap-3 text-muted-foreground">
+            <span>{{ t('contracts.detail.refundCorrection') }}</span>
+            <span>{{ formatMoney(refundedCorrection) }}</span>
+          </div>
+          <div v-if="refundedTotal - refundedCorrection > 0" class="mt-1 flex items-center justify-between gap-3 text-muted-foreground">
+            <span>{{ t('contracts.detail.extraOverpayment') }}</span>
+            <span>{{ formatMoney(refundedTotal - refundedCorrection) }}</span>
+          </div>
+        </div>
+      </DialogScrollContent>
+    </Dialog>
+
     <Dialog :open="isRefundOpen" @update:open="(open) => (isRefundOpen = open)">
-      <DialogScrollContent :class="['flex w-[calc(100vw-2rem)] flex-col gap-4', DIALOG_ANIMATE_CLASS]">
+      <DialogScrollContent :class="['flex w-[calc(100vw-2rem)] flex-col gap-4 sm:max-w-lg', DIALOG_ANIMATE_CLASS]">
         <DialogHeader><DialogTitle>{{ t('contracts.detail.recordRefund') }}</DialogTitle></DialogHeader>
         <div class="flex flex-col gap-2">
-          <Label for="refund-amount">{{ t('contracts.detail.amount') }}</Label>
-          <Input id="refund-amount" v-model="refundAmount" type="text" inputmode="decimal" />
+          <Label>{{ t('contracts.detail.refundSource') }}</Label>
+          <Collapsible v-model:open="refundPickerOpen">
+            <CollapsibleTrigger as-child>
+              <button type="button" class="flex h-10 w-full items-center justify-between gap-2 rounded-md border px-3 text-sm hover:bg-accent">
+                <span class="min-w-0 truncate">{{ refundSelectionSummary }}</span>
+                <span class="flex shrink-0 items-center gap-1.5 font-medium">
+                  {{ formatMoney(selectedRefundAmount) }}
+                  <ChevronDown class="size-3.5 text-muted-foreground transition-transform duration-200" :class="refundPickerOpen ? 'rotate-180' : ''" />
+                </span>
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent class="flex flex-col gap-2 pt-2">
+              <div v-if="contract?.refundSources.correctionAmount" class="rounded-md border p-2.5">
+                <label class="flex cursor-pointer items-center justify-between gap-2 text-sm">
+                  <span class="flex items-center gap-2"><Checkbox v-model="includeCorrection" />{{ t('contracts.detail.refundCorrection') }}</span>
+                  <span>{{ formatMoney(contract.refundSources.correctionAmount) }}</span>
+                </label>
+                <div v-if="includeCorrection" class="mt-2 flex items-center gap-2">
+                  <Label for="refund-correction-amount" class="min-w-0 flex-1 text-xs text-muted-foreground">{{ t('contracts.detail.amount') }}</Label>
+                  <Input id="refund-correction-amount" v-model="correctionRefundAmount" class="w-32" type="text" inputmode="decimal" />
+                </div>
+              </div>
+              <div v-if="contract?.refundSources.overpaymentAmount" class="rounded-md border p-2.5">
+                <label class="flex cursor-pointer items-center justify-between gap-2 text-sm">
+                  <span class="flex items-center gap-2"><Checkbox v-model="includeOverpayment" />{{ t('contracts.detail.extraOverpayment') }}</span>
+                  <span>{{ formatMoney(contract.refundSources.overpaymentAmount) }}</span>
+                </label>
+                <div v-if="includeOverpayment" class="mt-2 flex items-center gap-2">
+                  <Label for="refund-overpayment-amount" class="min-w-0 flex-1 text-xs text-muted-foreground">{{ t('contracts.detail.amount') }}</Label>
+                  <Input id="refund-overpayment-amount" v-model="overpaymentRefundAmount" class="w-32" type="text" inputmode="decimal" />
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+          <div class="flex items-center justify-between text-sm">
+            <span>{{ t('contracts.detail.refundTotal') }}</span>
+            <strong>{{ formatMoney(selectedRefundAmount) }}</strong>
+          </div>
         </div>
         <div class="flex flex-col gap-2">
           <Label>{{ t('contracts.detail.date') }}</Label>

@@ -1,5 +1,5 @@
 import { Prisma } from '../../generated/prisma/client.js';
-import { accrualPaidNetOfRefunds, availableContractRefund, contractOverpayment } from './refund-balance';
+import { accrualPaidNetOfRefunds, availableContractRefund, contractOverpayment, refundSourceBreakdown } from './refund-balance';
 
 const d = (value: number) => new Prisma.Decimal(value);
 const day = (value: number) => new Date(Date.UTC(2026, 9, value));
@@ -59,6 +59,26 @@ describe('availableContractRefund', () => {
     expect(contractOverpayment(scenario(20000, 0, 0, 14500)).toNumber()).toBe(17000);
     expect(available?.amount.toNumber()).toBe(17000);
     expect(available?.remainingCorrection.toNumber()).toBe(11500);
+    const sources = refundSourceBreakdown(available);
+    expect(sources.correctionAmount.toNumber()).toBe(11500);
+    expect(sources.overpaymentAmount.toNumber()).toBe(5500);
+  });
+
+  it('does not classify a later extra payment as refundable correction', () => {
+    const sources = refundSourceBreakdown(availableContractRefund(scenario(10750, 0, 0, 3000)));
+    expect(sources.correctionAmount.toNumber()).toBe(0);
+    expect(sources.overpaymentAmount.toNumber()).toBe(7750);
+  });
+
+  it('splits the pentest-sized balance into correction and extra credit', () => {
+    const input = scenario(11250, 0, 0, 9750);
+    input.accruals[0].rentAmount = d(9750);
+    input.accruals[0].adjustmentAmount = d(-6250);
+    const available = availableContractRefund(input);
+    const sources = refundSourceBreakdown(available);
+    expect(available?.amount.toNumber()).toBe(7750);
+    expect(sources.correctionAmount.toNumber()).toBe(6250);
+    expect(sources.overpaymentAmount.toNumber()).toBe(1500);
   });
 
   it('clears the full overpayment without reducing the paid accrual below its charge', () => {

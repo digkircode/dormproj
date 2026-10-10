@@ -55,6 +55,7 @@ export interface AccrualRow {
 export interface ContractRefundRow {
   id: number
   amount: number
+  adjustmentAmount: number
   refundedAt: string
   comment: string | null
   accrualId: number | null
@@ -130,6 +131,7 @@ export interface ContractDetail {
   payments: PaymentRow[]
   refunds: ContractRefundRow[]
   refundableAmount: number
+  refundSources: { correctionAmount: number; overpaymentAmount: number }
   // Определяет доступность "Удалить договор" — после первой же оплаты (даже
   // сторнированной) удаление блокируется навсегда, см. contracts.controller.ts.
   hasPayments: boolean

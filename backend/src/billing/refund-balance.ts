@@ -99,3 +99,16 @@ export function availableContractRefund(input: ContractRefundInput & { creditBal
   const amount = Prisma.Decimal.min(overpayment, input.creditBalance);
   return amount.greaterThan(0) ? { accrualId: null, amount, remainingCorrection: new Decimal(0) } : null;
 }
+
+// Доступная сумма возврата делится по причине: оплаченная часть корректировки
+// и прочая переплата. Способ хранения денег (creditBalance или разноска по
+// начислению) не определяет причину возврата.
+export function refundSourceBreakdown(available: ReturnType<typeof availableContractRefund>) {
+  const correctionAmount = available
+    ? Prisma.Decimal.min(available.amount, available.remainingCorrection)
+    : new Decimal(0);
+  return {
+    correctionAmount,
+    overpaymentAmount: available ? available.amount.minus(correctionAmount) : new Decimal(0),
+  };
+}

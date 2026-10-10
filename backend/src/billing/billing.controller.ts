@@ -17,7 +17,7 @@ import { PenaltyRecalculateService } from './penalty-recalculate.service';
 import { PENALTY_SYNC_TYPE } from './penalty.scheduler';
 import { listSyncLogs, syncLogFacetValues, type SyncLogsListQuery } from '../sync/sync-logs-list';
 import { SERVICE_PROVISION_SYNC_TYPE } from './service-provision-doc.service';
-import { availableContractRefund } from './refund-balance';
+import { availableContractRefund, refundSourceBreakdown } from './refund-balance';
 import { dateOnly, moscowDateOnly } from './period-utils';
 
 const createPaymentSchema = z.object({
@@ -29,6 +29,8 @@ const createPaymentSchema = z.object({
 
 const createRefundSchema = z.object({
   amount: z.number().finite().positive().refine((value) => new Prisma.Decimal(value).decimalPlaces() <= 2),
+  correctionAmount: z.number().finite().nonnegative().refine((value) => new Prisma.Decimal(value).decimalPlaces() <= 2).optional(),
+  overpaymentAmount: z.number().finite().nonnegative().refine((value) => new Prisma.Decimal(value).decimalPlaces() <= 2).optional(),
   refundedAt: z.coerce.date(),
   comment: z.string().trim().max(1000).nullish(),
 });
@@ -115,8 +117,21 @@ export class BillingController {
         creditBalance: contract.creditBalance,
       });
       const amount = new Prisma.Decimal(parsed.data.amount);
+      const selectedCorrection = parsed.data.correctionAmount === undefined ? null : new Prisma.Decimal(parsed.data.correctionAmount);
+      const selectedOverpayment = parsed.data.overpaymentAmount === undefined ? null : new Prisma.Decimal(parsed.data.overpaymentAmount);
+      const sourcesAtDate = refundSourceBreakdown(available);
+      const sourcesNow = refundSourceBreakdown(availableNow);
       if (!available || !availableNow || available.accrualId !== availableNow.accrualId
         || amount.greaterThan(available.amount) || amount.greaterThan(availableNow.amount)) {
+        throw new BadRequestException('billing.errors.refundExceedsOverpayment');
+      }
+      if ((selectedCorrection === null) !== (selectedOverpayment === null)
+        || (selectedCorrection !== null && selectedOverpayment !== null
+          && (!selectedCorrection.plus(selectedOverpayment).equals(amount)
+            || selectedCorrection.greaterThan(sourcesAtDate.correctionAmount)
+            || selectedCorrection.greaterThan(sourcesNow.correctionAmount)
+            || selectedOverpayment.greaterThan(sourcesAtDate.overpaymentAmount)
+            || selectedOverpayment.greaterThan(sourcesNow.overpaymentAmount)))) {
         throw new BadRequestException('billing.errors.refundExceedsOverpayment');
       }
       const createdByUserId = await ensureUserRecord(tx, req.user!);
@@ -124,7 +139,7 @@ export class BillingController {
       const refund = await tx.contractRefund.create({
         data: {
           contractId, accrualId: available.accrualId, amount, creditAmount,
-          adjustmentAmount: Prisma.Decimal.min(amount.minus(creditAmount), available.remainingCorrection, availableNow.remainingCorrection),
+          adjustmentAmount: selectedCorrection ?? Prisma.Decimal.min(amount.minus(creditAmount), available.remainingCorrection, availableNow.remainingCorrection),
           refundedAt, comment: parsed.data.comment ?? null, createdByUserId,
         },
       });

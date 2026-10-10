@@ -23,7 +23,7 @@ export async function createPayment(contractId: number, input: CreatePaymentInpu
   return response.json()
 }
 
-export async function recordContractRefund(contractId: number, input: { amount: number; refundedAt: string; comment?: string | null }): Promise<ContractRefundRow> {
+export async function recordContractRefund(contractId: number, input: { amount: number; correctionAmount: number; overpaymentAmount: number; refundedAt: string; comment?: string | null }): Promise<ContractRefundRow> {
   const response = await apiFetch(`/contracts/${contractId}/refunds`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
