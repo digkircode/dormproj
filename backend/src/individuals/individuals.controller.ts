@@ -193,6 +193,19 @@ const mergeIndividualSchema = z.object({
   targetUid: z.string().trim().min(1),
 });
 
+function normalizedFullName(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLocaleLowerCase('ru-RU');
+}
+
+function sameBirthDate(a: Date | null, b: Date | null): boolean {
+  return !!a && !!b && a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10);
+}
+
+function birthDateDayRange(date: Date): { gte: Date; lt: Date } {
+  const gte = new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`);
+  return { gte, lt: new Date(gte.getTime() + 24 * 60 * 60 * 1000) };
+}
+
 const accounting1cMappingSchema = z.object({
   contractorUid: z.string().trim().max(200).nullish().transform((value) => value || null),
 });
@@ -326,6 +339,13 @@ export class IndividualsController {
     const fullName = [data.surname, data.name, data.otchestvo].filter(Boolean).join(' ');
 
     return this.prisma.$transaction(async (tx) => {
+      const possibleDuplicates = await tx.individual.findMany({
+        where: { birthDate: birthDateDayRange(data.birthDate), mergedIntoUid: null },
+        select: { fullName: true },
+      });
+      if (possibleDuplicates.some((candidate) => normalizedFullName(candidate.fullName) === normalizedFullName(fullName))) {
+        throw new ConflictException('individuals.errors.duplicateIndividual');
+      }
       const created = await tx.individual.create({
         data: {
           fizicheskoyeLitsoUid: `manual-${randomUUID()}`,
@@ -374,6 +394,7 @@ export class IndividualsController {
 
     const existing = await this.prisma.individual.findUnique({ where: { fizicheskoyeLitsoUid: uid } });
     if (!existing) throw new NotFoundException('individuals.errors.individualNotFound');
+    if (existing.mergedIntoUid) throw new ConflictException('individuals.errors.mergedIndividualReadOnly');
 
     await this.prisma.$transaction(async (tx) => {
       const updated = await tx.individual.update({
@@ -417,6 +438,9 @@ export class IndividualsController {
     const existing = await this.prisma.individual.findUnique({ where: { fizicheskoyeLitsoUid: uid } });
     if (!existing) {
       throw new NotFoundException('individuals.errors.individualNotFound');
+    }
+    if (existing.mergedIntoUid) {
+      throw new ConflictException('individuals.errors.mergedIndividualReadOnly');
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -566,9 +590,8 @@ export class IndividualsController {
   // ничего не выполняет и не решает сама: сотрудник видит список и подтверждает выбор
   // явным кликом, как и везде в проекте (тот же принцип, что у suggestContractMatch в
   // разборе платежей из 1С — по прямой просьбе не делать автоматическое слияние).
-  // Совпадение по СНИЛС/паспорту — сильный сигнал, по ФИО — слабый (мог просто
-  // совпасть у разных людей), но остаётся полезной подсказкой, если СНИЛС/паспорт
-  // ещё не заполнены ни у одной из сторон.
+  // После ужесточения merge() подсказка показывает только записи с теми же ФИО и
+  // датой рождения; СНИЛС остаётся виден сотруднику для дополнительной проверки.
   @Get(':uid/merge-candidates')
   async mergeCandidates(@Param('uid') uid: string) {
     const source = await this.prisma.individual.findUnique({ where: { fizicheskoyeLitsoUid: uid } });
@@ -579,19 +602,12 @@ export class IndividualsController {
       return [];
     }
 
-    const orClauses: Prisma.IndividualWhereInput[] = [{ fullName: { equals: source.fullName, mode: 'insensitive' } }];
-    if (source.snils) {
-      orClauses.push({ snils: source.snils });
-    }
-    if (source.passportSeries && source.passportNumber) {
-      orClauses.push({ passports: { some: { series: source.passportSeries, number: source.passportNumber } } });
-    }
-
-    return this.prisma.individual.findMany({
-      where: { isManual: false, mergedIntoUid: null, OR: orClauses },
+    if (!source.birthDate) return [];
+    const sameDayCandidates = await this.prisma.individual.findMany({
+      where: { isManual: false, mergedIntoUid: null, birthDate: birthDateDayRange(source.birthDate) },
       select: { fizicheskoyeLitsoUid: true, fullName: true, snils: true, birthDate: true, code: true },
-      take: 5,
     });
+    return sameDayCandidates.filter((candidate) => normalizedFullName(candidate.fullName) === normalizedFullName(source.fullName)).slice(0, 5);
   }
 
   // Слияние ручного физлица (isManual) в настоящую синхронную запись, которая позже
@@ -640,8 +656,32 @@ export class IndividualsController {
     if (target.mergedIntoUid) {
       throw new BadRequestException('individuals.errors.mergeTargetAlreadyMerged');
     }
+    if (normalizedFullName(source.fullName) !== normalizedFullName(target.fullName) || !sameBirthDate(source.birthDate, target.birthDate)) {
+      throw new BadRequestException('individuals.errors.mergeIdentityMismatch');
+    }
+    if (source.accounting1cContractorUid && target.accounting1cContractorUid
+      && source.accounting1cContractorUid !== target.accounting1cContractorUid) {
+      throw new ConflictException('individuals.errors.mergeAccountingConflict');
+    }
 
     await this.prisma.$transaction(async (tx) => {
+      // Создание договора блокирует ту же строку физлица. При параллельных запросах
+      // договор не сможет появиться на источнике после проверки и переноса его договоров.
+      for (const individualUid of [uid, targetUid].sort()) {
+        await tx.$queryRaw`SELECT fizicheskoye_litso_uid FROM individuals WHERE fizicheskoye_litso_uid = ${individualUid} FOR UPDATE`;
+      }
+      const currentSource = await tx.individual.findUniqueOrThrow({ where: { fizicheskoyeLitsoUid: uid } });
+      const currentTarget = await tx.individual.findUniqueOrThrow({ where: { fizicheskoyeLitsoUid: targetUid } });
+      if (currentSource.mergedIntoUid) throw new ConflictException('individuals.errors.mergeSourceAlreadyMerged');
+      if (currentTarget.mergedIntoUid) throw new ConflictException('individuals.errors.mergeTargetAlreadyMerged');
+      if (normalizedFullName(currentSource.fullName) !== normalizedFullName(currentTarget.fullName)
+        || !sameBirthDate(currentSource.birthDate, currentTarget.birthDate)) {
+        throw new BadRequestException('individuals.errors.mergeIdentityMismatch');
+      }
+      if (currentSource.accounting1cContractorUid && currentTarget.accounting1cContractorUid
+        && currentSource.accounting1cContractorUid !== currentTarget.accounting1cContractorUid) {
+        throw new ConflictException('individuals.errors.mergeAccountingConflict');
+      }
       // User.univerId и ChatConversation.individualUid оба @unique в схеме — если ОБЕ
       // стороны уже успели обзавестись своей записью, автоматически объединить их некуда
       // (какую из двух оставить — решение не техническое, а человеческое). Останавливаемся
@@ -675,7 +715,7 @@ export class IndividualsController {
       // трогаем: он уже реально используется её собственными платежами. Переносим только
       // если у цели его ещё нет, а у источника есть (иначе следующий платёж по
       // перенесённому договору уйдёт в 1С без UID и заведёт там контрагента-дубля).
-      const accountingContractorUidCopied = !target.accounting1cContractorUid && !!source.accounting1cContractorUid;
+      const accountingContractorUidCopied = !currentTarget.accounting1cContractorUid && !!currentSource.accounting1cContractorUid;
 
       await Promise.all([
         residentContracts.length
@@ -699,7 +739,7 @@ export class IndividualsController {
         sourceUser ? tx.user.update({ where: { id: sourceUser.id }, data: { univerId: targetUid } }) : Promise.resolve(),
         sourceChat ? tx.chatConversation.update({ where: { id: sourceChat.id }, data: { individualUid: targetUid } }) : Promise.resolve(),
         accountingContractorUidCopied
-          ? tx.individual.update({ where: { fizicheskoyeLitsoUid: targetUid }, data: { accounting1cContractorUid: source.accounting1cContractorUid } })
+          ? tx.individual.update({ where: { fizicheskoyeLitsoUid: targetUid }, data: { accounting1cContractorUid: currentSource.accounting1cContractorUid } })
           : Promise.resolve(),
       ]);
 
@@ -757,7 +797,35 @@ export class IndividualsController {
       throw new BadRequestException('individuals.errors.unmergeNoSnapshot');
     }
 
+    let accountingMappingNeedsReview = false;
     await this.prisma.$transaction(async (tx) => {
+      // Если UID был скопирован на пустую цель, вернуть её прежнее (пустое)
+      // сопоставление можно лишь пока у неё нет собственных договоров, уже связанных
+      // с 1С. UID источника при этом никогда не меняется.
+      if (snapshot.accountingContractorUidCopied && source.accounting1cContractorUid) {
+        const targetOwnAccountingContracts = await tx.contract.count({
+          where: {
+            residentIndividualUid: targetUid,
+            id: { notIn: snapshot.contractResidentIds },
+            OR: [
+              { accounting1cUid: { not: null } },
+              { payments: { some: { accounting1cSyncStatus: 'SYNCED' } } },
+            ],
+          },
+        });
+        if (targetOwnAccountingContracts === 0) {
+          await tx.individual.updateMany({
+            where: { fizicheskoyeLitsoUid: targetUid, accounting1cContractorUid: source.accounting1cContractorUid },
+            data: { accounting1cContractorUid: null },
+          });
+        } else {
+          const targetMapping = await tx.individual.findUniqueOrThrow({
+            where: { fizicheskoyeLitsoUid: targetUid },
+            select: { accounting1cContractorUid: true },
+          });
+          accountingMappingNeedsReview = targetMapping.accounting1cContractorUid === source.accounting1cContractorUid;
+        }
+      }
       await Promise.all([
         snapshot.contractResidentIds.length
           ? tx.contract.updateMany({ where: { id: { in: snapshot.contractResidentIds } }, data: { residentIndividualUid: uid } })
@@ -781,12 +849,10 @@ export class IndividualsController {
         snapshot.chatConversationId
           ? tx.chatConversation.update({ where: { id: snapshot.chatConversationId }, data: { individualUid: uid } })
           : Promise.resolve(),
-        // Возвращаем в null, а не на какое-то старое значение цели — до слияния его там не
-        // было (мы копировали только когда у цели было пусто, см. merge() выше).
-        snapshot.accountingContractorUidCopied
-          ? tx.individual.update({ where: { fizicheskoyeLitsoUid: targetUid }, data: { accounting1cContractorUid: null } })
-          : Promise.resolve(),
       ]);
+
+      // Если цель уже использовала сопоставление в своих договорах либо получила
+      // другой UID, оно сохранено. Такой случай требует ручной проверки после отмены.
 
       await tx.individual.update({
         where: { fizicheskoyeLitsoUid: uid },
@@ -806,7 +872,7 @@ export class IndividualsController {
       });
     });
 
-    return this.detail(uid);
+    return { ...(await this.detail(uid)), accountingMappingNeedsReview };
   }
 
   // История изменений одного физлица — кнопка "История изменений" на карточке
@@ -845,6 +911,9 @@ export class IndividualsController {
   @Post(':uid/sync')
   @HttpCode(200)
   async sync(@Param('uid') uid: string): Promise<IndividualSyncResult> {
+    const individual = await this.prisma.individual.findUnique({ where: { fizicheskoyeLitsoUid: uid }, select: { mergedIntoUid: true } });
+    if (!individual) throw new NotFoundException('individuals.errors.individualNotFound');
+    if (individual.mergedIntoUid) throw new ConflictException('individuals.errors.mergedIndividualReadOnly');
     try {
       return await this.individualSyncService.runSyncForIndividual(uid);
     } catch (error) {

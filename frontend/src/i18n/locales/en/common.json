@@ -165,6 +165,8 @@
     "expiredAction": "Log in"
   },
   "errors": {
+    "authLoadFailed": "Could not check your sign-in. Please try again.",
+    "retry": "Retry",
     "tooManyRequests": "Too many requests - please wait a moment and try again",
     "checkDataFields": "Please check the data you entered",
     "fetchUserFailed": "Could not load user details ({status})",

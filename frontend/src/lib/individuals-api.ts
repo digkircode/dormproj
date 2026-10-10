@@ -98,6 +98,7 @@ export interface IndividualMergedFrom {
 }
 
 export interface IndividualDetail extends Individual {
+  accountingMappingNeedsReview?: boolean
   citizenships: IndividualCitizenship[]
   passports: IndividualPassport[]
   contactInfos: IndividualContactInfo[]
@@ -257,7 +258,7 @@ export interface IndividualMergeCandidate {
   code: string | null
 }
 
-// Только подсказка (СНИЛС/паспорт/ФИО) — сотрудник сам решает, сливать ли, и может
+// Только подсказка (ФИО и дата рождения) — сотрудник сам решает, сливать ли, и может
 // выбрать любое другое физлицо через поиск, не только из этого списка.
 export async function fetchIndividualMergeCandidates(uid: string): Promise<IndividualMergeCandidate[]> {
   const response = await apiFetch(`/individuals/${encodeURIComponent(uid)}/merge-candidates`)

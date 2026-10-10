@@ -8,7 +8,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { Button } from '@/components/ui/button'
 import AppSidebar from './components/AppSidebar.vue'
 import AppFooter from './components/AppFooter.vue'
-import { currentUser, isAuthLoading, ensureUserLoaded } from '@/lib/auth-state'
+import { currentUser, isAuthLoading, authLoadError, ensureUserLoaded, loadCurrentUser } from '@/lib/auth-state'
 import { rosnouLoginUrl } from '@/lib/auth-api'
 import { sessionExpired } from '@/lib/api-base'
 import { breadcrumbOverride, breadcrumbTrail as trackedTrail } from '@/lib/breadcrumb-state'
@@ -29,10 +29,15 @@ const breadcrumbTrail = computed(() =>
 
 onMounted(async () => {
   await ensureUserLoaded()
-  if (!currentUser.value) {
+  if (!currentUser.value && !authLoadError.value) {
     window.location.href = rosnouLoginUrl()
   }
 })
+
+async function retryAuth() {
+  await loadCurrentUser()
+  if (!currentUser.value && !authLoadError.value) window.location.href = rosnouLoginUrl()
+}
 
 function goToLogin() {
   window.location.href = rosnouLoginUrl()
@@ -40,7 +45,14 @@ function goToLogin() {
 </script>
 
 <template>
-  <div v-if="isAuthLoading || !currentUser" class="min-h-svh bg-background" />
+  <div v-if="isAuthLoading" class="min-h-svh bg-background" />
+  <div v-else-if="authLoadError" class="flex min-h-svh items-center justify-center bg-background p-4">
+    <div class="flex max-w-sm flex-col items-center gap-4 rounded-lg border bg-card p-6 text-center shadow-sm">
+      <p>{{ t('errors.authLoadFailed') }}</p>
+      <Button @click="retryAuth">{{ t('errors.retry') }}</Button>
+    </div>
+  </div>
+  <div v-else-if="!currentUser" class="min-h-svh bg-background" />
   <SidebarProvider v-else>
     <AppSidebar />
     <!-- h-svh + overflow-hidden — сама страница (html/body/SidebarInset) никогда не

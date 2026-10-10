@@ -13,6 +13,7 @@
     "contractNotFound": "Contract not found",
     "sessionUserNotFound": "Could not determine the session user",
     "individualNotFound": "Individual not found",
+    "individualMerged": "This individual was merged into another record — select the current one",
     "roomNotFound": "Room not found",
     "roomPriceNotConfigured": "The room cost is not configured for the selected category",
     "communalServicesCostNotConfigured": "The utilities cost is not configured on the dormitory page",

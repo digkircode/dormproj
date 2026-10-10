@@ -497,7 +497,10 @@ async function confirmReversePayment() {
       </DropdownMenu>
     </div>
 
-    <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
+    <div v-if="loadError" class="flex items-center gap-3 text-sm text-red-500">
+      <p>{{ loadError }}</p>
+      <Button variant="outline" size="sm" @click="load">{{ t('errors.retry') }}</Button>
+    </div>
     <p v-if="downloadError" class="text-sm text-red-500">{{ downloadError }}</p>
     <TableSkeleton v-if="isLoading && !contract" :columns="6" :rows="8" class="min-h-[60vh]" />
 

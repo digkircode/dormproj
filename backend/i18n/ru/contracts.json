@@ -13,6 +13,7 @@
     "contractNotFound": "Договор не найден",
     "sessionUserNotFound": "Не удалось определить пользователя сессии",
     "individualNotFound": "Физлицо не найдено",
+    "individualMerged": "Физлицо объединено с другой карточкой — выберите актуальную запись",
     "roomNotFound": "Комната не найдена",
     "roomPriceNotConfigured": "Для выбранной категории не указана стоимость комнаты",
     "communalServicesCostNotConfigured": "На странице общежития не указана стоимость коммунальных услуг",

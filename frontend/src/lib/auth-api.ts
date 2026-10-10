@@ -30,7 +30,7 @@ export function rosnouLogoutUrl(): string {
 
 // null означает "не авторизован" — это ожидаемый, не ошибочный исход.
 export async function fetchCurrentUser(): Promise<SessionUser | null> {
-  const response = await apiFetch('/auth/me')
+  const response = await apiFetch('/auth/me', { signal: AbortSignal.timeout(15000) })
   if (response.status === 401) {
     return null
   }

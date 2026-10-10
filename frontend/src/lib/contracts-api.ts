@@ -295,7 +295,12 @@ export function fetchContractFacets(field: string): Promise<FacetOption[]> {
 }
 
 export async function fetchContractDetail(id: number): Promise<ContractDetail> {
-  const response = await apiFetch(`/contracts/${id}`)
+  let response: Response
+  try {
+    response = await apiFetch(`/contracts/${id}`, { signal: AbortSignal.timeout(15000) })
+  } catch {
+    throw new Error(i18n.global.t('contracts.errors.loadContractFailed'))
+  }
   if (!response.ok) {
     throw new Error(i18n.global.t('contracts.errors.fetchContractFailed', { status: response.status }))
   }

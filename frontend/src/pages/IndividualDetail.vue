@@ -197,11 +197,13 @@ function onMerged(targetUid: string) {
 // в шаблоне, кнопка видна только на слитой карточке), перечитываем ту же карточку.
 const isUnmerging = ref(false)
 const unmergeError = ref('')
+const unmergeWarning = ref('')
 async function onUnmerge() {
   isUnmerging.value = true
   unmergeError.value = ''
   try {
-    await unmergeIndividual(uid.value)
+    const result = await unmergeIndividual(uid.value)
+    unmergeWarning.value = result.accountingMappingNeedsReview ? t('individuals.merge.accountingReviewWarning') : ''
     await loadDetail()
   } catch (error) {
     unmergeError.value = error instanceof Error ? error.message : String(error)
@@ -294,6 +296,7 @@ onUnmounted(() => {
     <p v-else-if="notFound" class="text-sm text-red-500">{{ t('individuals.detail.notFound') }}</p>
 
     <template v-else-if="detail">
+      <p v-if="unmergeWarning" class="rounded-md border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm">{{ unmergeWarning }}</p>
       <!-- Источник слияния (см. MergeIndividualDialog.vue) — карточка сама больше не
            актуальна, дальше работать нужно с той, в которую слили. Не скрываем остальной
            контент карточки целиком (историческая справка всё ещё может понадобиться),
@@ -357,9 +360,10 @@ onUnmounted(() => {
             <div class="flex flex-col gap-1" :class="detail.isManual ? '' : 'pt-1'">
               <div class="flex flex-wrap items-center gap-2">
                 <div class="text-xl font-semibold">{{ detail.fullName }}</div>
-                <button type="button" class="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" @click="openAccounting1cMapping">
+                <button v-if="!detail.mergedIntoUid" type="button" class="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" @click="openAccounting1cMapping">
                   <Accounting1cLinkedBadge :linked="detail.accounting1cContractorUid !== null" />
                 </button>
+                <Accounting1cLinkedBadge v-else :linked="detail.accounting1cContractorUid !== null" />
               </div>
               <!-- Копирование UID/кода 1С — только у синхронизируемых физлиц, у ручных
                    (isManual) это не настоящий код/guid из 1С, а синтетический
@@ -431,11 +435,11 @@ onUnmounted(() => {
               </Transition>
               {{ t('individuals.detail.sync') }}
             </Button>
-            <Button size="sm" class="w-full justify-start" @click="detail && createDialogRef?.open(detail)">
+            <Button v-if="!detail.mergedIntoUid" size="sm" class="w-full justify-start" @click="detail && createDialogRef?.open(detail)">
               <FileSignature />
               {{ t('individuals.detail.createContract') }}
             </Button>
-            <Button variant="outline" size="sm" class="w-full justify-start" @click="detail && editDialogRef?.open(detail)">
+            <Button v-if="!detail.mergedIntoUid" variant="outline" size="sm" class="w-full justify-start" @click="detail && editDialogRef?.open(detail)">
               <Pencil class="text-primary" />
               {{ t('individuals.detail.edit') }}
             </Button>

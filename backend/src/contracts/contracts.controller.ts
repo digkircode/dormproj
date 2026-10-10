@@ -484,6 +484,9 @@ export class ContractsController {
     if (!individual) {
       throw new NotFoundException({ message: 'contracts.errors.individualNotFound', fieldErrors: { residentIndividualUid: 'contracts.errors.selectResidentAgain' } });
     }
+    if (individual.mergedIntoUid) {
+      throw new BadRequestException({ message: 'contracts.errors.individualMerged', fieldErrors: { residentIndividualUid: 'contracts.errors.selectResidentAgain' } });
+    }
     const room = await this.prisma.room.findUnique({ where: { id: data.roomId } });
     if (!room) {
       throw new NotFoundException({ message: 'contracts.errors.roomNotFound', fieldErrors: { roomId: 'contracts.errors.selectRoomAgain' } });
@@ -551,6 +554,10 @@ export class ContractsController {
         // Serialize contract creation for one resident. Otherwise two requests
         // for different rooms could both pass the conflict check concurrently.
         await tx.$queryRaw`SELECT fizicheskoye_litso_uid FROM individuals WHERE fizicheskoye_litso_uid = ${data.residentIndividualUid} FOR UPDATE`;
+        const currentIndividual = await tx.individual.findUniqueOrThrow({ where: { fizicheskoyeLitsoUid: data.residentIndividualUid }, select: { mergedIntoUid: true } });
+        if (currentIndividual.mergedIntoUid) {
+          throw new BadRequestException({ message: 'contracts.errors.individualMerged', fieldErrors: { residentIndividualUid: 'contracts.errors.selectResidentAgain' } });
+        }
         if (await conflictingRoomAssignment(tx, data.residentIndividualUid, data.roomId, data.startDate, data.endDate)) {
           throw new BadRequestException({
             message: 'contracts.errors.conflictingRoomAssignment',

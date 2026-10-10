@@ -2,6 +2,7 @@
   "contracts": {
     "errors": {
       "fetchContractFailed": "Failed to load contract data ({status})",
+      "loadContractFailed": "Could not load the contract. Check your connection and try again.",
       "fetchContractsListFailed": "Failed to load the list of contracts ({status})",
       "createFailed": "Failed to create the contract ({status})",
       "terminateFailed": "Failed to terminate the contract ({status})",

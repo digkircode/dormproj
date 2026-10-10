@@ -2,6 +2,7 @@
   "contracts": {
     "errors": {
       "fetchContractFailed": "Не удалось получить данные договора ({status})",
+      "loadContractFailed": "Не удалось загрузить договор. Проверьте соединение и повторите запрос.",
       "fetchContractsListFailed": "Не удалось получить список договоров ({status})",
       "createFailed": "Не удалось создать договор ({status})",
       "terminateFailed": "Не удалось расторгнуть договор ({status})",
