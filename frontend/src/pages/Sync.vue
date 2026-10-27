@@ -260,8 +260,8 @@ onUnmounted(() => { disposed = true; clearTimeout(timer) })
               class="flex items-center gap-2 rounded-md px-2 py-1 text-xs font-medium hover:bg-muted disabled:opacity-50"
               @click="toggleAutoRun(job)">
               <span>{{ t('sync.overview.autoRun') }}</span>
-              <span class="relative h-5 w-9 rounded-full transition-colors" :class="job.autoRunEnabled ? 'bg-primary' : 'bg-muted-foreground/40'">
-                <span class="absolute top-0.5 size-4 rounded-full bg-white shadow transition-transform" :class="job.autoRunEnabled ? 'translate-x-4' : 'translate-x-0.5'" />
+              <span class="relative block h-5 w-9 shrink-0 rounded-full transition-colors" :class="job.autoRunEnabled ? 'bg-primary' : 'bg-muted-foreground/40'">
+                <span class="absolute top-0.5 left-0.5 size-4 rounded-full bg-white shadow transition-transform" :class="job.autoRunEnabled ? 'translate-x-4' : 'translate-x-0'" />
               </span>
             </button>
           </div>
