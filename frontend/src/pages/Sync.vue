@@ -13,7 +13,7 @@ import { triggerSync } from '@/lib/sync-api'
 import { formatDateTime, formatDuration } from '@/lib/sync-format'
 import { goBack } from '@/lib/utils'
 
-type JobState = 'RUNNING' | 'SUCCESS' | 'FAILED' | 'MISSED' | 'NOT_CONFIGURED' | 'NONE' | 'BLOCKED'
+type JobState = 'RUNNING' | 'SUCCESS' | 'FAILED' | 'MISSED' | 'NOT_CONFIGURED' | 'NONE' | 'BLOCKED' | 'DISABLED'
 type JobGroup = 'UNIVERSITY' | 'PORTAL' | 'ACCOUNTING' | 'HOSTEL'
 interface JobLog {
   status: 'RUNNING' | 'SUCCESS' | 'FAILED'
@@ -31,6 +31,7 @@ interface OverviewJob {
   group: JobGroup
   state: JobState
   configured: boolean
+  autoRunEnabled: boolean | null
   schedule: { kind: 'DAILY'; hour: number; minute: number } | { kind: 'CHAIN'; hour: number; minute: number; afterJobId: string } | { kind: 'MANUAL' | 'STARTUP' }
   nextScheduledAt: string | null
   lastRun: JobLog | null
@@ -45,6 +46,8 @@ const loading = ref(true)
 const loadError = ref(false)
 const runningIds = ref<string[]>([])
 const runErrors = ref<Record<string, string>>({})
+const togglingIds = ref<string[]>([])
+const toggleErrors = ref<Record<string, string>>({})
 const jobIcons: Record<string, Component> = {
   students: GraduationCap,
   individuals: UsersRound,
@@ -165,6 +168,27 @@ async function run(job: OverviewJob) {
   }
 }
 
+async function toggleAutoRun(job: OverviewJob) {
+  if (job.group !== 'ACCOUNTING' || togglingIds.value.includes(job.id)) return
+  togglingIds.value = [...togglingIds.value, job.id]
+  const nextErrors = { ...toggleErrors.value }
+  delete nextErrors[job.id]
+  toggleErrors.value = nextErrors
+  try {
+    const response = await apiFetch(`/sync/overview/jobs/${job.id}/auto-run`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: !job.autoRunEnabled }),
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    await refresh()
+  } catch (error) {
+    toggleErrors.value = { ...toggleErrors.value, [job.id]: error instanceof Error ? error.message : String(error) }
+  } finally {
+    togglingIds.value = togglingIds.value.filter((id) => id !== job.id)
+  }
+}
+
 onMounted(refresh)
 onUnmounted(() => { disposed = true; clearTimeout(timer) })
 </script>
@@ -208,7 +232,7 @@ onUnmounted(() => { disposed = true; clearTimeout(timer) })
               'bg-red-100 text-red-800': displayState(job) === 'FAILED' || displayState(job) === 'MISSED',
               'bg-amber-100 text-amber-800': displayState(job) === 'NOT_CONFIGURED' || displayState(job) === 'BLOCKED',
               'bg-blue-100 text-blue-800': displayState(job) === 'RUNNING',
-              'bg-muted text-muted-foreground': displayState(job) === 'NONE',
+              'bg-muted text-muted-foreground': displayState(job) === 'NONE' || displayState(job) === 'DISABLED',
             }">{{ t(`sync.overview.states.${displayState(job)}`) }}</span>
           </div>
           <dl class="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
@@ -221,6 +245,7 @@ onUnmounted(() => { disposed = true; clearTimeout(timer) })
             <span class="text-muted-foreground">{{ t('sync.overview.lastResult') }}: </span>{{ resultText(job) }}
             <p v-if="job.lastRun?.errorMessage" class="mt-1 line-clamp-2 text-red-600" :title="job.lastRun.errorMessage">{{ job.lastRun.errorMessage }}</p>
             <p v-if="runErrors[job.id]" class="mt-1 text-red-600">{{ runErrors[job.id] }}</p>
+            <p v-if="toggleErrors[job.id]" class="mt-1 text-red-600">{{ t('sync.overview.toggleError') }}: {{ toggleErrors[job.id] }}</p>
           </div>
           <div class="mt-auto flex items-center justify-between border-t pt-3">
             <Button variant="ghost" size="sm" @click="router.push(`/sync/${job.id}/logs`)">{{ t('sync.actionsLogs') }}<ArrowUpRight class="ml-1 size-3.5" /></Button>
@@ -229,6 +254,16 @@ onUnmounted(() => { disposed = true; clearTimeout(timer) })
               <Play v-else class="mr-1 size-3.5 text-primary" />
               {{ isRunning(job) ? t('sync.overview.running') : t('sync.overview.run') }}
             </Button>
+            <button v-if="job.group === 'ACCOUNTING'" type="button" role="switch"
+              :aria-checked="job.autoRunEnabled === true" :aria-label="`${t('sync.overview.autoRun')}: ${t(`sync.overview.jobs.${job.id}`)}`"
+              :disabled="togglingIds.includes(job.id)"
+              class="flex items-center gap-2 rounded-md px-2 py-1 text-xs font-medium hover:bg-muted disabled:opacity-50"
+              @click="toggleAutoRun(job)">
+              <span>{{ t('sync.overview.autoRun') }}</span>
+              <span class="relative h-5 w-9 rounded-full transition-colors" :class="job.autoRunEnabled ? 'bg-primary' : 'bg-muted-foreground/40'">
+                <span class="absolute top-0.5 size-4 rounded-full bg-white shadow transition-transform" :class="job.autoRunEnabled ? 'translate-x-4' : 'translate-x-0.5'" />
+              </span>
+            </button>
           </div>
         </article>
       </div>

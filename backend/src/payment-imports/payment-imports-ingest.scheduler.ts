@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { PaymentImportsIngestService } from './payment-imports-ingest.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { logScheduledSync } from '../sync/scheduled-sync-log';
+import { isAccountingAutoRunEnabled } from '../sync/accounting-auto-run';
 
 export const ACCOUNTING_PAYMENT_IMPORT_SYNC_TYPE = 'accounting-payment-import';
 
@@ -13,6 +14,12 @@ export class PaymentImportsIngestScheduler {
 
   @Cron('0 3 * * *', { timeZone: 'Europe/Moscow' })
   async ingest(): Promise<void> {
+    try {
+      if (!await isAccountingAutoRunEnabled(this.prisma, ACCOUNTING_PAYMENT_IMPORT_SYNC_TYPE)) return;
+    } catch (error) {
+      this.logger.error(`Не удалось проверить автозапуск загрузки платежей: ${error instanceof Error ? error.message : String(error)}`);
+      return;
+    }
     await logScheduledSync(this.prisma, this.logger, ACCOUNTING_PAYMENT_IMPORT_SYNC_TYPE, async () => {
       const { errorMessage, ...details } = await this.ingestService.ingest();
       return { details, errorMessage };

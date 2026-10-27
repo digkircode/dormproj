@@ -33,7 +33,7 @@ model Student {
   period               DateTime
 
   createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@id([zachetnayaKnigaUid, fizicheskoyeLitsoUid])
   @@index([fizicheskoyeLitsoUid])
@@ -279,6 +279,14 @@ model SyncLog {
 
   @@index([type, status, finishedAt])
   @@map("sync_logs")
+}
+
+model SyncJobSetting {
+  jobId     String   @id @map("job_id")
+  enabled   Boolean  @default(true)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("sync_job_settings")
 }
 
 enum SyncTrigger {

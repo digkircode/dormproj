@@ -2,6 +2,7 @@ import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { ServiceProvisionDocService, SERVICE_PROVISION_SYNC_TYPE } from './service-provision-doc.service';
+import { isAccountingAutoRunEnabled, type AccountingAutoRunJob } from '../sync/accounting-auto-run';
 
 const MOSCOW_TIME_ZONE = 'Europe/Moscow';
 
@@ -43,7 +44,13 @@ export class ServiceProvisionDocScheduler implements OnApplicationBootstrap {
     private readonly prisma: PrismaService,
   ) {}
 
-  private async runLogged(operation: string, task: () => Promise<Record<string, unknown>>): Promise<void> {
+  private async runLogged(jobId: AccountingAutoRunJob, operation: string, task: () => Promise<Record<string, unknown>>): Promise<void> {
+    try {
+      if (!await isAccountingAutoRunEnabled(this.prisma, jobId)) return;
+    } catch (error) {
+      this.logger.error(`Не удалось проверить автозапуск документов (${operation}): ${error instanceof Error ? error.message : String(error)}`);
+      return;
+    }
     let log: { id: number };
     try {
       log = await this.prisma.syncLog.create({
@@ -80,7 +87,7 @@ export class ServiceProvisionDocScheduler implements OnApplicationBootstrap {
   }
 
   async onApplicationBootstrap(): Promise<void> {
-    await this.runLogged('STARTUP_RECOVERY', async () => {
+    await this.runLogged('service-provision-recovery', 'STARTUP_RECOVERY', async () => {
       const now = new Date();
       const currentMonth = moscowCalendarDate(now);
       await this.service.computeAndSave(currentMonth);
@@ -107,7 +114,7 @@ export class ServiceProvisionDocScheduler implements OnApplicationBootstrap {
 
   @Cron('0 0 1 * *', { timeZone: MOSCOW_TIME_ZONE })
   async createCurrentMonth(): Promise<void> {
-    await this.runLogged('CREATE_CURRENT_MONTH', async () => ({
+    await this.runLogged('service-provision-preparation', 'CREATE_CURRENT_MONTH', async () => ({
       period: moscowCalendarDate(new Date()).toISOString().slice(0, 7),
       ...(await this.service.computeAndSave(moscowCalendarDate(new Date()))),
     }));
@@ -115,7 +122,7 @@ export class ServiceProvisionDocScheduler implements OnApplicationBootstrap {
 
   @Cron('0 3 * * *', { timeZone: MOSCOW_TIME_ZONE })
   async recalculateCurrentMonth(): Promise<void> {
-    await this.runLogged('DAILY_RECALCULATION', async () => ({
+    await this.runLogged('service-provision-preparation', 'DAILY_RECALCULATION', async () => ({
       period: moscowCalendarDate(new Date()).toISOString().slice(0, 7),
       ...(await this.service.computeAndSave(moscowCalendarDate(new Date()))),
     }));
@@ -125,11 +132,11 @@ export class ServiceProvisionDocScheduler implements OnApplicationBootstrap {
   async finalizeCurrentMonth(): Promise<void> {
     const today = moscowCalendarDate(new Date());
     if (isLastCalendarDay(today)) {
-      await this.runLogged('FINAL_RECALC_AND_SEND', async () => ({ period: today.toISOString().slice(0, 7), ...(await this.service.run(today)) }));
+      await this.runLogged('service-provision-send', 'FINAL_RECALC_AND_SEND', async () => ({ period: today.toISOString().slice(0, 7), ...(await this.service.run(today)) }));
       return;
     }
 
     const previousMonth = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
-    await this.runLogged('RETRY_PREVIOUS_MONTH', async () => ({ period: previousMonth.toISOString().slice(0, 7), ...(await this.service.retryUnsyncedMonth(previousMonth)) }));
+    await this.runLogged('service-provision-send', 'RETRY_PREVIOUS_MONTH', async () => ({ period: previousMonth.toISOString().slice(0, 7), ...(await this.service.retryUnsyncedMonth(previousMonth)) }));
   }
 }

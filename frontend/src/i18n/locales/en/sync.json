@@ -32,6 +32,8 @@
     "overview": {
       "run": "Run",
       "running": "Running",
+      "autoRun": "Automatic run",
+      "toggleError": "Could not change automatic run",
       "universityFlow": "Nightly order: students → individuals → citizenship → passports → contacts → portal users → resident roles. A manual run starts only the selected step.",
       "resultUnavailable": "No result received",
       "loadError": "Could not refresh the synchronization overview. Please try again.",
@@ -60,6 +62,7 @@
         "MISSED": "Scheduled run missed",
         "NOT_CONFIGURED": "Not configured",
         "BLOCKED": "Missing 1C UIDs",
+        "DISABLED": "Disabled",
         "NONE": "No runs"
       },
       "jobs": {

@@ -1,4 +1,5 @@
-import { Controller, Get, Inject, NotFoundException, Param, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Inject, NotFoundException, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import { z } from 'zod';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -7,6 +8,7 @@ import { ACCOUNTING_1C_PROVIDER, type Accounting1cProvider } from '../accounting
 import { listSyncLogs, syncLogFacetValues, type SyncLogsListQuery } from './sync-logs-list';
 import { dailyScheduleWindow, nextMonthStartMoscow, SYNC_JOBS, syncJobWhere } from './sync-overview.jobs';
 import { PortalUsersSyncService } from './portal-users-sync.service';
+import { ACCOUNTING_AUTO_RUN_JOBS } from './accounting-auto-run';
 
 const overviewLogSelect = {
   status: true,
@@ -39,7 +41,11 @@ export class SyncOverviewController {
   @Get()
   async overview() {
     const now = new Date();
+    const settings = await this.prisma.syncJobSetting.findMany({ select: { jobId: true, enabled: true, updatedAt: true } });
+    const settingsById = new Map(settings.map((setting) => [setting.jobId, setting]));
     return Promise.all(SYNC_JOBS.map(async (job) => {
+      const setting = settingsById.get(job.id);
+      const autoRunEnabled = job.group === 'ACCOUNTING' ? setting?.enabled ?? true : null;
       const where = syncJobWhere(job);
       const [lastRun, lastSuccess, lastCron] = await Promise.all([
         this.prisma.syncLog.findFirst({ where, orderBy: { startedAt: 'desc' }, select: overviewLogSelect }),
@@ -51,12 +57,14 @@ export class SyncOverviewController {
           : job.configuration === 'DOCUMENTS' ? this.accounting.isServiceProvisionConfigured()
             : job.configuration === 'PORTAL' ? this.portalUsers.isConfigured() : true;
       const window = job.schedule.kind === 'MANUAL' || job.schedule.kind === 'STARTUP' ? null : dailyScheduleWindow(now, job.schedule.hour, job.schedule.minute);
-      const nextScheduledAt = job.id === 'service-provision-preparation' && window
+      const nextScheduledAt = autoRunEnabled === false ? null : job.id === 'service-provision-preparation' && window
         ? new Date(Math.min(window.next.getTime(), nextMonthStartMoscow(now).getTime()))
         : window?.next ?? null;
-      const missed = window && lastCron && lastCron.startedAt < window.previous && now.getTime() > window.previous.getTime() + 2 * 60 * 60_000;
-      const state = !configured ? 'NOT_CONFIGURED'
-        : lastRun?.status === 'RUNNING' ? 'RUNNING'
+      const missed = window && lastCron && lastCron.startedAt < window.previous
+        && (!setting || setting.updatedAt < window.previous)
+        && now.getTime() > window.previous.getTime() + 2 * 60 * 60_000;
+      const state = lastRun?.status === 'RUNNING' ? 'RUNNING' : autoRunEnabled === false ? 'DISABLED'
+        : !configured ? 'NOT_CONFIGURED'
           : lastRun?.status === 'FAILED' ? 'FAILED'
             : missed ? 'MISSED' : lastRun?.status ?? 'NONE';
       return {
@@ -64,6 +72,7 @@ export class SyncOverviewController {
         group: job.group,
         state,
         configured,
+        autoRunEnabled,
         schedule: job.schedule,
         nextScheduledAt: nextScheduledAt?.toISOString() ?? null,
         lastRun,
@@ -71,6 +80,22 @@ export class SyncOverviewController {
         manualPath: job.manualPath ?? null,
       };
     }));
+  }
+
+  @Patch('jobs/:id/auto-run')
+  async setAutoRun(@Param('id') id: string, @Body() body: unknown) {
+    const job = this.job(id);
+    if (job.group !== 'ACCOUNTING' || !ACCOUNTING_AUTO_RUN_JOBS.some((item) => item === id)) {
+      throw new BadRequestException('Автозапуск доступен только для заданий 1С Бухгалтерии');
+    }
+    const parsed = z.object({ enabled: z.boolean() }).safeParse(body);
+    if (!parsed.success) throw new BadRequestException('Укажите enabled: true или false');
+    return this.prisma.syncJobSetting.upsert({
+      where: { jobId: id },
+      create: { jobId: id, enabled: parsed.data.enabled },
+      update: { enabled: parsed.data.enabled },
+      select: { jobId: true, enabled: true },
+    });
   }
 
   @Get('jobs/:id/logs')

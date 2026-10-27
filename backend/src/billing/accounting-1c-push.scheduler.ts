@@ -4,6 +4,7 @@ import { Accounting1cPushService } from './accounting-1c-push.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ACCOUNTING_1C_PROVIDER, type Accounting1cProvider } from '../accounting-1c/accounting-1c.types';
 import { logScheduledSync } from '../sync/scheduled-sync-log';
+import { isAccountingAutoRunEnabled } from '../sync/accounting-auto-run';
 
 export const ACCOUNTING_PAYMENT_PUSH_SYNC_TYPE = 'accounting-payment-push';
 
@@ -18,6 +19,12 @@ export class Accounting1cPushScheduler {
 
   @Cron('30 2 * * *', { timeZone: 'Europe/Moscow' })
   async pushPayments(): Promise<void> {
+    try {
+      if (!await isAccountingAutoRunEnabled(this.prisma, ACCOUNTING_PAYMENT_PUSH_SYNC_TYPE)) return;
+    } catch (error) {
+      this.logger.error(`Не удалось проверить автозапуск отправки платежей: ${error instanceof Error ? error.message : String(error)}`);
+      return;
+    }
     await logScheduledSync(this.prisma, this.logger, ACCOUNTING_PAYMENT_PUSH_SYNC_TYPE, async () => {
       if (!this.provider.isConfigured()) return { details: {}, errorMessage: 'Отправка платежей в 1С Бухгалтерию не настроена' };
       const result = await this.pushService.pushPayments();
