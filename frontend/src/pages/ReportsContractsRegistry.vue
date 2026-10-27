@@ -30,9 +30,6 @@ const router = useRouter()
 const route = useRoute()
 const { t } = useI18n()
 
-// Переход с "Главной" (StaffHomeDashboard.vue) — тайлы "Просроченные"/"Истекающие" ведут
-// сюда с ?bucket=OVERDUE/EXPIRING, чтобы таблица сразу открывалась с применённым фильтром
-// (по прямой просьбе 2026-09-05), а не просто на список без выборки.
 const initialFilters = computed<Record<string, string[]>>(() => {
   const bucket = route.query.bucket
   const filters: Record<string, string[]> = {}
@@ -44,7 +41,7 @@ const columnLabels = computed<Record<string, string>>(() => ({
   contractNumber: t('reports.registry.colContractNumber'),
   residentFullName: t('reports.registry.colResident'),
   room: t('reports.registry.colRoom'),
-  createdAt: t('reports.registry.colCreatedAt'),
+  contractDate: t('reports.registry.colContractDate'),
   startDate: t('reports.registry.colStart'),
   endDate: t('reports.registry.colEnd'),
   bucket: t('reports.registry.colStatus'),
@@ -58,7 +55,7 @@ function formatDateIso(iso: string): string {
   return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
 }
 function cellText(columnId: string, value: unknown): string {
-  if ((columnId === 'createdAt' || columnId === 'startDate' || columnId === 'endDate') && typeof value === 'string') {
+  if ((columnId === 'contractDate' || columnId === 'startDate' || columnId === 'endDate') && typeof value === 'string') {
     return formatDateIso(value)
   }
   return String(value ?? '')
@@ -70,7 +67,7 @@ const columns = computed(() =>
     columnHelper.accessor('contractNumber', { header: columnLabels.value.contractNumber, enableHiding: false, size: 128, minSize: 100 }),
     columnHelper.accessor('residentFullName', { header: columnLabels.value.residentFullName, size: 220, minSize: 160 }),
     columnHelper.accessor('room', { header: columnLabels.value.room, size: 110, minSize: 90 }),
-    columnHelper.accessor('createdAt', { header: columnLabels.value.createdAt, size: 128, minSize: 100 }),
+    columnHelper.accessor('contractDate', { header: columnLabels.value.contractDate, size: 128, minSize: 100 }),
     columnHelper.accessor('startDate', { header: columnLabels.value.startDate, size: 128, minSize: 100 }),
     columnHelper.accessor('endDate', { header: columnLabels.value.endDate, size: 128, minSize: 100 }),
     columnHelper.accessor('bucket', { header: columnLabels.value.bucket, size: 160, minSize: 130 }),

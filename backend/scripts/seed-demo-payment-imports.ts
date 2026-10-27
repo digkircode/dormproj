@@ -1,6 +1,3 @@
-// Демонстрационные документы в формате AllPaymentDoc (примеры Desktop/buh).
-// Запуск: node dist/scripts/seed-demo-payment-imports.js
-// Обновляет только DEMO-PAYMENT-IMPORT-*, сохраняя подтверждения и сторнирования.
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client.js';
@@ -29,7 +26,6 @@ async function main() {
     for (const [index, sample] of samples.entries()) {
       const externalId = `DEMO-PAYMENT-IMPORT-${index + 1}`;
       const existing = await prisma.paymentImportRecord.findFirst({ where: { source: '1C', externalId } });
-      // Не меняем реквизиты уже проведённого платежа: это финансовая история.
       if (existing?.resultingPaymentId) {
         console.log(`${externalId}: проведённый документ сохранён`);
         continue;

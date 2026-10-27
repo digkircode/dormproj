@@ -46,9 +46,6 @@ function isFilterableField(field: string): field is FilterableField {
   return (FILTERABLE_FIELDS as readonly string[]).includes(field);
 }
 
-// Этаж — теперь обычная (защищённая) характеристика, а не колонка Room, но при создании
-// комнаты его всё равно нужно указать явно (раньше выводился регуляркой из номера, теперь
-// такого автоматизма нет) — см. create().
 const FLOOR_DEFINITION_NAME = 'Этаж';
 
 const createRoomSchema = z.object({ room: z.string().trim().min(1), floor: z.number().int() });
@@ -63,15 +60,9 @@ const updateValueSchema = z.object({
   value: z.union([z.boolean(), z.number(), z.string()]).optional(),
 });
 
-// options — закрытый список допустимых значений для TEXT-характеристик (см.
-// schema.prisma), заполняется через "Характеристики комнат" (комнаты сами по себе список
-// не меняют). Пустой массив — обычное свободное поле, как раньше, ничего не проверяем.
 function assertValueInOptions(definition: { valueType: string; options: string[] }, storedValueText: string | null) {
   if (definition.valueType !== 'TEXT' || definition.options.length === 0) return;
   if (storedValueText === null || !definition.options.includes(storedValueText)) {
-    // Резолвится сразу текстом, не ключом — options (данные из каталога) подставляются
-    // через args прямо здесь, а не через параметризацию в HttpExceptionFilter (тот
-    // сейчас поддерживает только статичные ключи без плейсхолдеров).
     throw new BadRequestException(
       I18nContext.current()?.t('rooms.errors.invalidOptionValue', { args: { options: definition.options.join(', ') } }) ??
         `Значение должно быть одним из: ${definition.options.join(', ')}`,
@@ -124,7 +115,6 @@ export class RoomsController {
           }
         }
       } catch {
-        // Битый JSON в необязательном параметре — просто игнорируем фильтры, не 400'им весь запрос.
       }
     }
 
@@ -150,17 +140,10 @@ export class RoomsController {
 
   @Get('facets/:field')
   facetValues(@Param('field') field: string) {
-    // Фильтруемых полей у комнат сейчас нет — этаж переехал в характеристики
-    // (см. FLOOR_DEFINITION_NAME), сортировать/фильтровать список комнат по нему
-    // отдельно не нужно, он смотрится на карточке конкретной комнаты.
     void field;
     return [];
   }
 
-  // Все комнаты с текущим этажом — для дерева "Общежитие → этажи → комнаты" на фронте.
-  // Без пагинации: комнат в общежитии немного, тянуть их разом дешевле, чем N+1
-  // fetchRoomDetail на каждую. Регистрировать строго до @Get(':id') — иначе Nest
-  // примет "tree" за id.
   @Get('tree')
   async tree() {
     const floorDefinition = await this.prisma.roomCharacteristicDefinition.findUnique({
@@ -191,9 +174,6 @@ export class RoomsController {
       include: {
         characteristicValues: {
           include: { definition: true },
-          // period без второго ключа даёт непредсказуемый порядок среди записей
-          // с одинаковым period (сиды все на 01.09.2026) — имя характеристики
-          // тай-брейкером делает историю стабильной и читаемой.
           orderBy: [{ period: 'desc' }, { definition: { name: 'asc' } }],
         },
       },
@@ -231,8 +211,6 @@ export class RoomsController {
       where: { name: FLOOR_DEFINITION_NAME },
     });
     if (!floorDefinition) {
-      // Не должно происходить в проде (заведено миграцией), но каталог теоретически
-      // редактируется через UI — на всякий случай не 500'им без объяснения.
       throw new ConflictException('rooms.errors.floorCharacteristicMissing');
     }
 

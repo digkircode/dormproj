@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ensureUserRecord } from '../users/ensure-user';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { allocatePaymentFifo } from './payment-allocation';
+import { flagHistoricalPenaltyRecalculation } from './penalty-recalc-flag';
 import { serializePayment } from '../contracts/serializers';
 import { zodErrorMessage } from '../i18n/zod-error-message';
 import { Accounting1cPushService } from './accounting-1c-push.service';
@@ -160,10 +161,6 @@ export class BillingController {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
-  // Ручной платёж (сотрудник вносит) — сразу разносится по неоплаченным начислениям
-  // (FIFO, самое старое первым, см. billing/payment-allocation.ts). Источник — всегда
-  // MANUAL: импорт из 1С и оплата на сайте — отдельные, ещё не реализованные потоки
-  // (см. дизайн-документ), это не тот же эндпоинт.
   @Post('contracts/:contractId/payments')
   async createPayment(@Param('contractId') contractIdParam: string, @Body() body: unknown, @Req() req: Request) {
     const contractId = parseIdParam(contractIdParam);
@@ -195,6 +192,7 @@ export class BillingController {
         },
       });
       await allocatePaymentFifo(tx, contractId, payment.id, amount, parsed.data.paidAt);
+      await flagHistoricalPenaltyRecalculation(tx, contractId, parsed.data.paidAt);
 
       await this.auditLog.log(tx, {
         userId: createdByUserId,
@@ -211,8 +209,6 @@ export class BillingController {
     });
   }
 
-  // Сторно — платёж внесён ошибочно. Не удаляем сам Payment (остаётся с reversedAt для
-  // истории), но снимаем его разнесение — начисления сразу же снова видны как неоплаченные.
   @Post('payments/:paymentId/reverse')
   async reversePayment(@Param('paymentId') paymentIdParam: string, @Req() req: Request) {
     const paymentId = parseIdParam(paymentIdParam);
@@ -230,6 +226,7 @@ export class BillingController {
     return this.prisma.$transaction(async (tx) => {
       await tx.paymentAllocation.deleteMany({ where: { paymentId } });
       const updated = await tx.payment.update({ where: { id: paymentId }, data: { reversedAt: new Date() } });
+      await flagHistoricalPenaltyRecalculation(tx, payment.contractId, payment.paidAt);
 
       const userId = await ensureUserRecord(tx, req.user!);
       await this.auditLog.log(tx, {
@@ -247,10 +244,6 @@ export class BillingController {
     });
   }
 
-  // Ручной повтор отправки в 1С Бухгалтерию (флоу 1) — та же логика, что и ночной крон
-  // (accounting-1c-push.scheduler.ts), но на один конкретный платёж, для случая, когда
-  // сотрудник не хочет ждать следующего ночного прогона после ошибки/правки на стороне 1С.
-  // Пишем в историю изменений — это явное действие сотрудника, не фоновый крон.
   @Post('payments/:paymentId/sync-to-1c')
   async syncPaymentToAccounting1c(@Param('paymentId') paymentIdParam: string, @Req() req: Request) {
     const paymentId = parseIdParam(paymentIdParam);
@@ -283,13 +276,6 @@ export class BillingController {
     return serializePayment(updated);
   }
 
-  // Ручной пересчёт пени по кнопке сотрудника (2026-09-05) — полная пересборка журнала
-  // пени договора с нуля тем же дневным расчётом, что и ночной крон (penalty-calc.ts),
-  // см. penalty-recalculate.service.ts. Нужен, чтобы поправить историю пени у договоров,
-  // которую крон уже успел неверно посчитать (например, до фикса в тот же день — задним
-  // числом занесённый договор получал пеню от максимального долга сразу за весь
-  // пропущенный период) — сам крон такую историю задним числом не переиграет, он только
-  // идёт вперёд от Contract.penaltyAccruedThrough.
   @Post('contracts/:contractId/recalculate-penalty')
   async recalculatePenalty(@Param('contractId') contractIdParam: string, @Req() req: Request) {
     const contractId = parseIdParam(contractIdParam);
@@ -334,18 +320,9 @@ export class BillingController {
     return { rowsCreated, totalAdded: Number(totalAdded) };
   }
 
-  // Флоу 3 — видимость сотруднику: что реально отправилось за какой месяц и с каким
-  // статусом (без похода в БД/логи контейнера). Без пагинации — по два документа на
-  // месяц (Найм/Коммуналка), даже за несколько лет это небольшой список.
-  //
-  // GET только читает сохранённые документы. Создание и обновление выполняют планировщик
-  // и отдельная ручка пересчёта, поэтому открытие страницы не запускает тяжёлый расчёт.
   @Get('service-provision-documents')
   async listServiceProvisionDocuments() {
     const rows = await this.prisma.serviceProvisionDocument.findMany({ orderBy: [{ periodStart: 'desc' }, { type: 'asc' }], take: 100 });
-    // rawPayload нужен здесь только для счётчика несопоставленных строк и намеренно не
-    // уходит клиенту. Поэтому вход на страницу не загружает состав всех документов;
-    // строки конкретного документа запрашиваются только при открытии его карточки.
     return rows.map((row) => {
       const details = serviceProvisionDetails(row.rawPayload);
       return {
@@ -367,11 +344,6 @@ export class BillingController {
     });
   }
 
-  // Детализация одного документа — какие именно договоры и на какую сумму попали в
-  // сводную цифру (по прямой просьбе 2026-09-04, "детально показывать какие договора
-  // попали в этот документ"). Новые строки содержат наш contractId, номер, ФИО и признак
-  // сопоставления с 1С. Для старых сохранённых документов поддерживаем прежний формат и
-  // по возможности резолвим договор обратно по ContractUID.
   @Get('service-provision-documents/:id')
   async getServiceProvisionDocument(@Param('id') idParam: string) {
     const id = parseIdParam(idParam);
@@ -434,8 +406,6 @@ export class BillingController {
     return result;
   }
 
-  // Ручная отправка ровно выбранных сохранённых документов. Пересчёт остаётся отдельным
-  // явным действием, чтобы пользователь видел и подтверждал конкретные период и сумму.
   @Post('service-provision-documents/run')
   async runServiceProvisionDocuments(@Body() body: unknown, @Req() req: Request) {
     const parsed = serviceProvisionDocumentIdsSchema.safeParse(body);

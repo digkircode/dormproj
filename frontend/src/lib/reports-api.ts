@@ -12,7 +12,7 @@ export interface DebtorRow {
   residentFullName: string
   room: string | null
   status: ContractStatus
-  createdAt: string
+  contractDate: string
   endDate: string
   totalAccrued: number
   totalPaid: number
@@ -51,7 +51,6 @@ export interface DebtorBreakdown {
   unallocatedCredit: number
   totalAccrued: number
   totalPaid: number
-  // Пеня — единая сумма на договор, не по периодам (см. reports.controller.ts).
   penaltyBalance: number
   totalDebt: number
 }
@@ -120,7 +119,7 @@ export interface ContractRegistryRow {
   residentIndividualUid: string
   residentFullName: string
   room: string | null
-  createdAt: string
+  contractDate: string
   startDate: string
   endDate: string
   actualEndDate: string | null
@@ -163,11 +162,6 @@ async function getJson<T>(path: string): Promise<T> {
   return response.json()
 }
 
-// Скачивание .xlsx — тот же приём, что downloadContractDocument в contracts-api.ts:
-// apiFetch не подходит для обычной ссылки (нужна кука авторизации), поэтому сами
-// получаем blob и эмулируем клик по <a download>. Экспорт учитывает только "на дату"/
-// период отчёта (то, что видит и сама эта страница вне EntityTable) — поиск/сортировку/
-// фильтры колонок EntityTable намеренно не пробрасывает наружу, см. EntityTable.vue.
 async function downloadFile(path: string, filename: string): Promise<void> {
   const response = await apiFetch(path)
   if (!response.ok) {
@@ -184,7 +178,6 @@ async function downloadFile(path: string, filename: string): Promise<void> {
   URL.revokeObjectURL(url)
 }
 
-// --- Финансовый отчёт (бывшая "Задолженность") ---
 export function fetchDebtorsPage(options: ListOptions, asOf: string, signal?: AbortSignal): Promise<ListPage<DebtorRow>> {
   return fetchListPage<DebtorRow>('/reports/debtors', options, { asOf }, signal)
 }
@@ -208,12 +201,10 @@ export function fetchUpcomingPayments(days = 7): Promise<UpcomingPaymentRow[]> {
   return getJson(`/reports/upcoming-payments?days=${days}`)
 }
 
-// --- Занятость ---
 export function fetchOccupancy(): Promise<OccupancyReport> {
   return getJson('/reports/occupancy')
 }
 
-// --- Реестр проживающих ---
 export function fetchContingentPage(options: ListOptions, asOf: string, signal?: AbortSignal): Promise<ListPage<ContingentRow>> {
   return fetchListPage<ContingentRow>('/reports/contingent', options, { asOf }, signal)
 }
@@ -224,7 +215,6 @@ export function exportContingentExcel(asOf: string): Promise<void> {
   return downloadFile(`/reports/contingent/export?asOf=${asOf}`, `Реестр проживающих на ${asOf}.xlsx`)
 }
 
-// --- Реестр договоров ---
 export function fetchContractsRegistryPage(options: ListOptions, asOf?: string, signal?: AbortSignal): Promise<ListPage<ContractRegistryRow>> {
   return fetchListPage<ContractRegistryRow>('/reports/contracts-registry', options, asOf ? { asOf } : undefined, signal)
 }
@@ -238,7 +228,6 @@ export function exportContractsRegistryExcel(asOf?: string): Promise<void> {
   return downloadFile(`/reports/contracts-registry/export${asOf ? `?asOf=${asOf}` : ''}`, asOf ? `Реестр договоров на ${asOf}.xlsx` : 'Реестр договоров.xlsx')
 }
 
-// --- Заселение / выселение ---
 export function fetchMovementsPage(options: ListOptions, from: string, to: string, signal?: AbortSignal): Promise<ListPage<MovementEvent>> {
   return fetchListPage<MovementEvent>('/reports/movements', options, { from, to }, signal)
 }

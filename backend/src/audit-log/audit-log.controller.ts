@@ -14,9 +14,6 @@ const ACTION_LABELS: Record<string, string> = {
   DELETE: 'Удаление',
 };
 
-// Держать в синхроне со всеми entityType, которые реально передаются в
-// AuditLogService.log() по проекту (см. contracts/individuals/rooms/billing/users/roles
-// контроллеры) — иначе фильтр по этому полю не покажет вариант в списке.
 const ENTITY_TYPE_LABELS: Record<string, string> = {
   Individual: 'Физическое лицо',
   Contract: 'Договор',
@@ -65,16 +62,12 @@ const SORTABLE_FIELDS: Record<string, string> = {
   entityLabel: 'entityLabel',
 };
 
-// action/entityType — практичные поля для мультивыбора (небольшой фиксированный набор
-// значений), та же схема, что "role"/"status" в других реестрах проекта.
 const FILTERABLE_FIELDS = ['action', 'entityType'] as const;
 type FilterableField = (typeof FILTERABLE_FIELDS)[number];
 function isFilterableField(field: string): field is FilterableField {
   return (FILTERABLE_FIELDS as readonly string[]).includes(field);
 }
 
-// Только ADMIN — история изменений показывает в т.ч. персональные данные (см. changes),
-// тот же уровень доступа, что и у SyncLogs/users/roles (см. "Роли и права доступа" в промпте).
 @Controller('audit-log')
 @UseGuards(AuthGuard, RolesGuard)
 @Roles('ADMIN')
@@ -109,7 +102,6 @@ export class AuditLogController {
           }
         }
       } catch {
-        // Битый JSON в необязательном параметре — просто игнорируем фильтры, не 400'им весь запрос.
       }
     }
 
@@ -158,9 +150,6 @@ export class AuditLogController {
     };
   }
 
-  // action/entityType — фиксированный небольшой список значений (не растущий со временем
-  // список из БД, как факультет/курс в других реестрах) — просто хардкод, тот же приём, что
-  // и у статусов договора/движения проживающих в reports.controller.ts.
   @Get('facets/:field')
   facetValues(@Param('field') field: string) {
     if (field === 'action') {

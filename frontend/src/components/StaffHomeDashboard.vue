@@ -30,13 +30,9 @@ import { parseApiError } from '@/lib/utils'
 
 const { t } = useI18n()
 
-// Тот же fade-переход открытия/закрытия, что у остальных диалогов (CreateIndividualDialog.vue).
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
 
-// Главная для роли STAFF/ADMIN (см. Home.vue) — вместо моков (StatCard/AreaChart/DataTable,
-// удалены) реальные плашки поверх уже существующих отчётных эндпоинтов, ничего нового на
-// бэкенде заводить не пришлось (по прямой просьбе 2026-08-27).
 const occupancy = ref<OccupancyReport | null>(null)
 const debtorsSummary = ref<DebtorsSummary | null>(null)
 const topDebtors = ref<DebtorRow[]>([])
@@ -66,7 +62,7 @@ function rememberedRowCount(key: string, fallback: number): number {
   }
 }
 function rememberRowCount(key: string, count: number) {
-  try { localStorage.setItem(key, String(Math.max(1, count))) } catch { /* Storage can be disabled. */ }
+  try { localStorage.setItem(key, String(Math.max(1, count))) } catch { }
 }
 const attentionSkeletonRows = ref(rememberedRowCount('home-attention-rows', 6))
 const announcementsSkeletonRows = ref(rememberedRowCount('home-announcement-rows', 3))
@@ -89,9 +85,6 @@ function formatDate(value: string): string {
 
 onMounted(() => {
   const asOf = todayIso()
-  // pageSize 3 (было 4) — по прямой просьбе 2026-08-30, после того как "Требует внимания"
-  // и "Объявления" встали бок о бок (см. template) карточка стала уже, 4 строки уже не
-  // помещались так же комфортно, как раньше в полную ширину.
   const baseListOptions = { page: 1, pageSize: 3, search: '' }
   void Promise.all([
     loadSource('occupancy', fetchOccupancy(), (value) => { occupancy.value = value }),
@@ -107,8 +100,6 @@ onMounted(() => {
   ])
 })
 
-// Объявления — отдельным запросом (не в общий Promise.all выше, чтобы падение одного не
-// задерживало остальные плашки визуально) — по прямой просьбе 2026-08-30.
 async function loadAnnouncements() {
   announcementsState.value = 'loading'
   try {
@@ -151,8 +142,6 @@ interface AttentionRow {
   to: string
 }
 
-// Порядок — тот же приоритет, что и у плашек выше (Должники → Просроченные →
-// Истекающие), по прямой просьбе 2026-09-05.
 const attentionRows = computed<AttentionRow[]>(() => {
   const rows: AttentionRow[] = topDebtors.value.map((d) => ({
     key: `debtor-${d.contractId}`,
@@ -207,10 +196,6 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
 
 <template>
   <div class="flex flex-1 flex-col gap-4 p-4 md:p-6">
-    <!-- Порядок — Комнаты, Должники, Просроченные, Истекающие, Непрочитанные (по прямой
-         просьбе 2026-09-05, было Комнаты/Истекающие/Должники/Непрочитанные). Должники/
-         Просроченные/Истекающие ведут на соответствующий отчёт уже с применённым фильтром
-         (?hasDebt=YES / ?status=OVERDUE / ?bucket=EXPIRING), а не просто на пустой список. -->
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
       <RouterLink
         to="/reports/occupancy"
@@ -279,8 +264,6 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
       </RouterLink>
     </div>
 
-    <!-- Нейтральные кнопки (по прямой просьбе 2026-08-27) — иконка остаётся primary,
-         сама кнопка больше не акцентная, чтобы не спорить за внимание с KPI-плашками выше. -->
     <div class="flex flex-wrap gap-2">
       <Button size="sm" variant="outline" class="flex items-center gap-2" @click="individualDialogRef?.open()">
         <UserPlus class="size-4 shrink-0 text-primary" />
@@ -299,9 +282,6 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
       <AnnouncementDialog ref="announcementDialogRef" @saved="loadAnnouncements" />
     </div>
 
-    <!-- "Требует внимания" и "Объявления" — по прямой просьбе 2026-08-30 бок о бок
-         (было друг под другом), тот же grid-паттерн, что у пар карточек на
-         ResidentHomeDashboard.vue (Мой договор/Оплата, Чат/Контакты). -->
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <Card class="min-w-0 p-4">
         <div class="mb-3 flex items-center gap-1.5 text-sm font-medium">
@@ -333,10 +313,6 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
         <p v-if="!attentionLoading && attentionRows.length && attentionIncomplete" class="mt-2 text-xs text-destructive">{{ t('home.attentionIncomplete') }}</p>
       </Card>
 
-      <!-- Объявления — по прямой просьбе 2026-08-30. Иконка каждой строки — свой цвет по
-           хэшу id (iconBadgeColorClasses, тот же приём, что у аватарок в чате), не путать с
-           фиксированной фиолетовой иконкой на резидентской карточке (ResidentHomeDashboard.vue) —
-           там весь БЛОК один, тут список из МНОГИХ объявлений. -->
       <Card class="min-w-0 p-4">
         <div class="mb-3 flex items-center gap-1.5 text-sm font-medium">
           <Megaphone class="size-4 text-primary" />
@@ -352,10 +328,6 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
         <p v-else-if="announcementsState === 'error'" class="flex min-h-[68px] items-center text-sm text-destructive">{{ t('home.dataUnavailable') }}</p>
         <p v-else-if="!announcements.length" class="flex min-h-[68px] items-center text-sm text-muted-foreground">{{ t('home.staffAnnouncementsEmpty') }}</p>
         <div v-else class="data-reveal flex flex-col divide-y divide-border">
-          <!-- pb-6 + relative — освобождает место под ФИО/дату, притянутые в правый нижний
-               угол абсолютным позиционированием (по прямой просьбе 2026-08-30, было третьей
-               строкой в текстовом столбце). Кебаб-меню остаётся в потоке (верх строки), с
-               подписью в углу не пересекается — она ниже и у правого края. -->
           <div v-for="a in announcements" :key="a.id" class="relative -mx-2 flex items-start gap-3 rounded-md px-2 py-2 pb-6">
             <div class="flex size-8 shrink-0 items-center justify-center rounded-lg" :class="iconBadgeColorClasses(a.id).container">
               <Newspaper class="size-4" :class="iconBadgeColorClasses(a.id).icon" />
@@ -388,9 +360,6 @@ const contractDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(
       </Card>
     </div>
 
-    <!-- Подтверждение удаления объявления — тот же паттерн, что и у удаления комнаты
-         (RoomDetailPanel.vue): обычный Dialog с Cancel/Delete, без отдельного
-         AlertDialog-компонента (в проекте такого нет). -->
     <Dialog :open="!!deleteAnnouncementTarget" @update:open="(v) => { if (!v) deleteAnnouncementTarget = null }">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>

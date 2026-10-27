@@ -28,9 +28,8 @@ const open = useVModel(props, "open", emits, {
 }) as Ref<boolean>
 
 function setOpen(value: boolean) {
-  open.value = value // emits('update:open', value)
+  open.value = value
 
-  // This sets the cookie to keep the sidebar state.
   document.cookie = `${SIDEBAR_COOKIE_NAME}=${open.value}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
 }
 
@@ -38,7 +37,6 @@ function setOpenMobile(value: boolean) {
   openMobile.value = value
 }
 
-// Helper to toggle the sidebar.
 function toggleSidebar() {
   return isMobile.value ? setOpenMobile(!openMobile.value) : setOpen(!open.value)
 }
@@ -50,8 +48,6 @@ useEventListener("keydown", (event: KeyboardEvent) => {
   }
 })
 
-// We add a state so that we can do data-state="expanded" or "collapsed".
-// This makes it easier to style the sidebar with Tailwind classes.
 const state = computed(() => open.value ? "expanded" : "collapsed")
 
 provideSidebarContext({
@@ -66,15 +62,6 @@ provideSidebarContext({
 </script>
 
 <template>
-  <!-- ignore-non-keyboard-focus=true — без этого Tooltip у Reka открывается по ЛЮБОМУ
-       фокусу элемента-триггера, не только по клавиатурной навигации. Закрытие Dialog
-       (Reka) корректно возвращает фокус на кнопку, которая его открыла — если это была
-       кнопка с Tooltip, подсказка от этого программного фокуса открывалась заново прямо
-       в момент закрытия модалки ("подсказка остаётся"). Поймано вживую через debug-харнесс
-       (document.activeElement совпадал с триггером, data-state="instant-open"). С этим
-       флагом Tooltip по фокусу открывается только когда фокус реально клавиатурный
-       (:focus-visible) — обычная работа мышью и программный возврат фокуса не триггерят.
-       delay-duration не 0 — просто более отзывчивый UX, к этому багу отношения не имеет. -->
   <TooltipProvider :delay-duration="150" :ignore-non-keyboard-focus="true">
     <div
       :style="{

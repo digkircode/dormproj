@@ -30,8 +30,6 @@ function requireUser(req: Request) {
   return req.user;
 }
 
-// options — закрытый список допустимых значений, только для valueType TEXT (см.
-// schema.prisma) — пустой массив у BOOLEAN/NUMBER означает "не ограничено", как раньше.
 const optionsField = z.array(z.string().trim().min(1)).max(50).optional().default([]);
 
 const createSchema = z.object({
@@ -40,9 +38,6 @@ const createSchema = z.object({
   unit: z.string().trim().min(1).nullish(),
   options: optionsField,
 });
-// valueType сознательно нельзя поменять после создания — уже записанные значения лежат
-// в конкретной типизированной колонке (см. characteristic-value.ts), смена типа задним
-// числом рассинхронизирует историю с новым valueType без пересчёта всех старых записей.
 const updateSchema = z.object({
   name: z.string().trim().min(1).optional(),
   unit: z.string().trim().min(1).nullish(),
@@ -58,10 +53,6 @@ function parseIdParam(idParam: string): number {
   return id;
 }
 
-// Список (GET) остаётся доступен и STAFF — им пользуется страница "Комнаты"
-// (RoomDetailPanel.vue, выбор характеристики при добавлении значения), а не только
-// admin-страница "Характеристики комнат". Мутации (создание/переименование/удаление/
-// порядок самих типов характеристик) — только ADMIN, см. @Roles('ADMIN') на методах ниже.
 @Controller('room-characteristic-definitions')
 @UseGuards(AuthGuard, RolesGuard)
 @Roles('STAFF', 'ADMIN')
@@ -73,8 +64,6 @@ export class RoomCharacteristicDefinitionsController {
 
   @Get()
   list() {
-    // По sortOrder — ручной порядок через drag-and-drop в UI (не по id/имени),
-    // новые характеристики получают max(sortOrder)+1 при создании, см. create().
     return this.prisma.roomCharacteristicDefinition.findMany({ orderBy: { sortOrder: 'asc' } });
   }
 
@@ -122,11 +111,6 @@ export class RoomCharacteristicDefinitionsController {
     }
   }
 
-  // Перетаскивание строк в UI — ids в новом порядке целиком, sortOrder переставляется
-  // по позиции в массиве. Регистрируется раньше ":id" ниже, иначе Nest примет "reorder"
-  // за id и упадёт в parseIdParam. Один audit-лог на весь reorder (не по строке на
-  // характеристику) — иначе перетаскивание одной строки в конец списка со многими
-  // характеристиками плодило бы десятки записей истории почти без полезного сигнала.
   @Patch('reorder')
   @Roles('ADMIN')
   async reorder(@Body() body: unknown, @Req() req: Request) {
@@ -239,8 +223,6 @@ export class RoomCharacteristicDefinitionsController {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
         throw new NotFoundException('rooms.errors.definitionNotFound');
       }
-      // FK RESTRICT — у характеристики ещё есть значения, вручную сформулированная ошибка
-      // понятнее сотруднику, чем сырой код ограничения БД.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
         throw new ConflictException('rooms.errors.hasValuesCannotDelete');
       }

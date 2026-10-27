@@ -20,19 +20,12 @@ import { contractRegistryStatusAtDate } from './contract-registry-status';
 
 const { Decimal } = Prisma;
 
-// Резолвит перевод под язык текущего запроса (см. contract-display-status.ts), с fallback
-// на русский текст — и для вызовов вне HTTP-запроса, и как аргумент по умолчанию, если ключ
-// не сматчился ни на один язык.
 function t(key: string, fallback: string): string {
   return I18nContext.current()?.t(key) ?? fallback;
 }
 
 type ContractRegistryBucket = ContractStatus;
 
-// Proxy-таргет — сам объект с русскими фолбэками, не пустой {} — иначе
-// Object.keys(BUCKET_LABELS) (см. contractsRegistryFacets ниже) вернул бы [] (ownKeys
-// форвардится на реальные ключи target, а не на get-ловушку), тот же приём и та же
-// ловушка, что уже почищена в contract-display-status.ts#CONTRACT_STATUS_LABELS.
 const BUCKET_LABELS_RU: Record<ContractRegistryBucket, string> = {
   ACTIVE: 'Действует',
   EXPIRING: 'Истекает',
@@ -45,8 +38,6 @@ const BUCKET_LABELS: Record<ContractRegistryBucket, string> = new Proxy(BUCKET_L
 });
 
 
-// Название характеристик комнаты, от которых зависят отчёты "Занятость" — заведены сидом
-// 1С-выгрузки (см. миграции seed_room_characteristics/floor_as_characteristic), не менялись.
 const CAPACITY_DEFINITION_NAME = 'Количество мест';
 const FLOOR_DEFINITION_NAME = 'Этаж';
 
@@ -70,8 +61,6 @@ interface ContingentRow {
   kursNumber: number | null;
   birthDate: Date | null;
   citizenship: string | null;
-  // Производные поля для фиксированных фильтров (тот же принцип, что bucket/agingBucket/
-  // operation в остальных отчётах) — не отдельные хранимые поля.
   citizenshipGroup: 'RU' | 'FOREIGN' | 'UNKNOWN';
   isOwnUniversity: 'OWN' | 'OTHER';
   movedInDate: Date;
@@ -83,7 +72,7 @@ interface ContractRegistryRow {
   residentIndividualUid: string;
   residentFullName: string;
   room: string | null;
-  createdAt: Date;
+  contractDate: Date;
   startDate: Date;
   endDate: Date;
   actualEndDate: Date | null;
@@ -113,12 +102,6 @@ function resolveAsOf(asOfParam?: string): Date {
   return asOfParam ? dateOnly(new Date(asOfParam)) : dateOnly(new Date());
 }
 
-// hasDebt/hasPenalty — строковые псевдо-поля под фильтр (реального такого столбца в
-// DebtorRow нет, только YES/NO по знаку totalBalance/penaltyBalance) — по прямой просьбе
-// 2026-08-27, фильтры "Только должники"/"Есть пеня" на Финансовом отчёте. status —
-// реальное поле ContractStatus (с 2026-08-31 включает EXPIRING/OVERDUE/COMPLETED, см.
-// contracts/contract-display-status.ts). Для прошлой даты status восстанавливается
-// из срока договора и долга на эту дату, поэтому фильтруем/сортируем прямо по status.
 type DebtorRowWithFlags = DebtorRow & { hasDebt: 'YES' | 'NO'; hasPenalty: 'YES' | 'NO' };
 function withDebtFlags(rows: DebtorRow[]): DebtorRowWithFlags[] {
   return rows.map((r) => ({
@@ -134,10 +117,6 @@ function withDebtFlags(rows: DebtorRow[]): DebtorRowWithFlags[] {
 export class ReportsController {
   constructor(private readonly prisma: PrismaService) {}
 
-  // ===== Финансовый отчёт (бывшая "Задолженность") =====
-  // Показывает ВСЕ договоры (по прямой просьбе 2026-08-22, не только должников), на дату
-  // asOf (по умолчанию сегодня). Сама выборка — buildDebtorRows() в ./debtor-rows.ts
-  // (вынесена оттуда же — та же выборка нужна фильтрам рассылки чата, см. chats/).
   @Get('debtors')
   async debtors(
     @Query('page') pageParam?: string,
@@ -153,7 +132,7 @@ export class ReportsController {
     const options = parseListOptions(pageParam, pageSizeParam, searchParam, sortByParam, sortDirParam, filtersParam, 'totalBalance');
     return paginateInMemory(rows, options, {
       searchFields: ['contractNumber', 'residentFullName', 'room'],
-      sortableFields: ['contractNumber', 'residentFullName', 'room', 'createdAt', 'status', 'totalAccrued', 'totalPaid', 'penaltyBalance', 'totalBalance'],
+      sortableFields: ['contractNumber', 'residentFullName', 'room', 'contractDate', 'status', 'totalAccrued', 'totalPaid', 'penaltyBalance', 'totalBalance'],
       filterFields: ['status', 'hasDebt', 'hasPenalty'],
     });
   }
@@ -164,9 +143,6 @@ export class ReportsController {
     return {
       debtorsCount: rows.filter((r) => r.totalBalance > 0).length,
       totalAccrued: rows.reduce((sum, r) => sum + r.totalAccrued, 0),
-      // Переплата по одному договору не должна маскировать реальный долг по другому —
-      // в сумме учитываем только положительные "Долг" (см. totalBalance выше), сама
-      // строка при этом всё равно показывает истинный (возможно отрицательный) баланс.
       totalDebt: rows.reduce((sum, r) => sum + Math.max(0, r.totalBalance), 0),
       totalPenalty: rows.reduce((sum, r) => sum + r.penaltyBalance, 0),
       totalPaid: rows.reduce((sum, r) => sum + r.totalPaid, 0),
@@ -194,8 +170,6 @@ export class ReportsController {
     }));
   }
 
-  // Экспорт — та же фильтрация/сортировка, что и у обычного списка (debtors() выше), но
-  // без пагинации: весь отфильтрованный набор целиком, не только текущая страница таблицы.
   @Get('debtors/export')
   async debtorsExport(
     @Res() res: Response,
@@ -210,7 +184,7 @@ export class ReportsController {
     const options = parseListOptions(undefined, undefined, searchParam, sortByParam, sortDirParam, filtersParam, 'totalBalance');
     const sorted = filterAndSortInMemory(rows, options, {
       searchFields: ['contractNumber', 'residentFullName', 'room'],
-      sortableFields: ['contractNumber', 'residentFullName', 'room', 'createdAt', 'status', 'totalAccrued', 'totalPaid', 'penaltyBalance', 'totalBalance'],
+      sortableFields: ['contractNumber', 'residentFullName', 'room', 'contractDate', 'status', 'totalAccrued', 'totalPaid', 'penaltyBalance', 'totalBalance'],
       filterFields: ['status', 'hasDebt', 'hasPenalty'],
     });
 
@@ -219,7 +193,7 @@ export class ReportsController {
       { header: t('reports.excel.colFullName', 'ФИО'), value: (r) => r.residentFullName, width: 32 },
       { header: t('reports.excel.colRoom', 'Комната'), value: (r) => r.room ?? '', width: 12 },
       { header: t('reports.excel.colStatus', 'Статус'), value: (r) => CONTRACT_STATUS_LABELS[r.status], width: 22 },
-      { header: t('reports.excel.colCreatedAt', 'Дата создания'), value: (r) => r.createdAt, format: 'date', width: 14 },
+      { header: t('reports.excel.colContractDate', 'Дата договора'), value: (r) => r.contractDate, format: 'date', width: 14 },
       { header: t('reports.excel.colAccrued', 'Начислено'), value: (r) => r.totalAccrued, format: 'money', width: 16 },
       { header: t('reports.excel.colPaid', 'Оплачено'), value: (r) => r.totalPaid, format: 'money', width: 16 },
       { header: t('reports.excel.colPenalty', 'Пеня'), value: (r) => r.penaltyBalance, format: 'money', width: 14 },
@@ -228,13 +202,6 @@ export class ReportsController {
     await sendExcelReport(res, 'financial-report', t('reports.excel.sheetDebtors', 'Финансовый отчёт'), columns, sorted);
   }
 
-  // Структура долга одного договора по периодам (клик на договор в реестре) — ВСЕ
-  // начисления по договору (весь срок, по прямой просьбе 2026-08-22 — не только
-  // наступившие), но "Долг" по каждому периоду — по аналогии с главной таблицей: для ещё
-  // не наступивших (dueDate>asOf) всегда 0 (не в счёт, см. DebtBalanceCell.vue — 0 без
-  // подсветки), для наступивших — реальный остаток на asOf (может быть отрицательным при
-  // переплате, тогда подсвечивается зелёным). Пеня — единая на договор и по дням (см.
-  // PenaltyAccrualLog), поэтому отдаётся отдельно от periods, не как их колонка.
   @Get('debtors/:contractId/breakdown')
   async debtorBreakdown(@Param('contractId') contractIdParam: string, @Query('asOf') asOfParam?: string) {
     const contractId = parseIdParam(contractIdParam);
@@ -310,9 +277,6 @@ export class ReportsController {
     };
   }
 
-  // Расшифровка пени по дням (клик на "Пеня" в реестре) — сырые строки журнала до asOf
-  // включительно, чтобы ответить "откуда взялась сумма" (по прямой просьбе 2026-08-22):
-  // каждая строка — один день, добавленная за него сумма и база расчёта на тот момент.
   @Get('debtors/:contractId/penalty-log')
   async debtorPenaltyLog(@Param('contractId') contractIdParam: string, @Query('asOf') asOfParam?: string) {
     const contractId = parseIdParam(contractIdParam);
@@ -346,8 +310,6 @@ export class ReportsController {
     };
   }
 
-  // Начисления со сроком оплаты в ближайшие N дней (по умолчанию 7), ещё не закрытые —
-  // для точечных напоминаний.
   @Get('upcoming-payments')
   async upcomingPayments(@Query('days') daysParam?: string) {
     const days = Math.max(1, Number.parseInt(daysParam ?? '', 10) || 7);
@@ -378,12 +340,6 @@ export class ReportsController {
       .filter((row) => row.balance > 0);
   }
 
-  // ===== Отчёт "Занятость и свободные места" =====
-  // Вместимость/этаж — характеристики комнаты (см. CAPACITY_DEFINITION_NAME/FLOOR_DEFINITION_NAME),
-  // "занято" — число активных на asOf RoomAssignment (тот же признак "текущего" проживания,
-  // что и everywhere в проекте: fromDate<=asOf и (toDate null или >=asOf)). Карта комнат —
-  // не список/таблица, а сетка карточек, поэтому под общий вид таблиц (поиск/фильтры/
-  // сортировка) не подпадает — этот эндпоинт как был, так и остался нестраничным.
   @Get('occupancy')
   async occupancy(@Query('asOf') asOfParam?: string) {
     const asOf = resolveAsOf(asOfParam);
@@ -408,8 +364,6 @@ export class ReportsController {
     const roomRows: OccupancyRoomRow[] = rooms.map((r) => {
       let floor: number | null = null;
       let capacity: number | null = null;
-      // characteristicValues отсортированы period desc — первое попавшееся значение на
-      // каждый definitionId и есть "текущее" (тот же принцип, что pickCurrentCharacteristics).
       for (const cv of r.characteristicValues) {
         if (floorDef && cv.definitionId === floorDef.id && floor === null) {
           floor = fromStoredValue('NUMBER', cv) as number | null;
@@ -456,17 +410,6 @@ export class ReportsController {
     };
   }
 
-  // ===== Отчёт "Реестр проживающих" =====
-  // Кто проживает на дату asOf, с привязкой к Контингенту (факультет/курс) — если у
-  // физлица несколько зачёток (Student.fizicheskoyeLitsoUid не уникален), берём
-  // последнюю по period, при равенстве — по UID зачётки. История изменений
-  // факультета/курса в Student не хранится: это актуальные сведения, не снимок asOf.
-  //
-  // Один резидент — одна строка (по прямой просьбе 2026-09-05), даже если на asOf у него
-  // одновременно больше одного договора/заселения (поддерживается в проекте, см. промпт —
-  // "несколько одновременных договоров") — раньше каждое совпадающее по дате RoomAssignment
-  // давало отдельную строку с одним и тем же ФИО. Общая с чатом выборка оставляет
-  // последнее заселение на дату, а при равной дате — запись с большим id.
   private async buildContingentRows(asOf: Date): Promise<ContingentRow[]> {
     const assignments = await currentResidentAssignments(this.prisma, asOf);
 
@@ -481,10 +424,6 @@ export class ReportsController {
       if (!studentByUid.has(s.fizicheskoyeLitsoUid)) studentByUid.set(s.fizicheskoyeLitsoUid, s);
     }
 
-    // Дата заселения — не fromDate текущего RoomAssignment (это дата последнего
-    // переезда/начала ТЕКУЩЕГО договора), а старт самого первого по времени договора
-    // этого физлица — по прямой просьбе, вне зависимости от того, сколько у него
-    // договоров было всего.
     const allContractsOfResidents = await this.prisma.contract.findMany({
       where: { residentIndividualUid: { in: uids } },
       select: { residentIndividualUid: true, startDate: true },
@@ -497,7 +436,7 @@ export class ReportsController {
 
     return assignments.map((a) => {
       const student = studentByUid.get(a.contract.residentIndividualUid);
-      const citizenship = a.contract.resident.citizenships[0]?.country ?? null;
+      const citizenship = a.contract.resident.citizenships[0]?.country ?? a.contract.resident.citizenship ?? null;
       return {
         contractId: a.contract.id,
         contractNumber: a.contract.number,
@@ -508,8 +447,6 @@ export class ReportsController {
         kursNumber: student?.kursNumber ?? null,
         birthDate: a.contract.resident.birthDate,
         citizenship,
-        // В БД значение хранится капсом ("РОССИЯ", см. citizenships.country из 1С) —
-        // сравнение регистронезависимое, чтобы не зависеть от регистра источника.
         citizenshipGroup: !citizenship ? 'UNKNOWN' : citizenship.toUpperCase() === 'РОССИЯ' ? 'RU' : 'FOREIGN',
         isOwnUniversity: student ? 'OWN' : 'OTHER',
         movedInDate: firstContractStartByUid.get(a.contract.residentIndividualUid) ?? a.fromDate,
@@ -586,15 +523,9 @@ export class ReportsController {
     await sendExcelReport(res, 'residents-registry', t('reports.excel.sheetContingent', 'Реестр проживающих'), columns, sorted);
   }
 
-  // ===== Отчёт "Реестр договоров" =====
-  // Сегодня показываем сохранённый ContractStatus. Для других дат восстанавливаем
-  // статус по сроку договора; долг не нужен, поскольку после окончания договор
-  // в выборку уже не попадает. daysUntilEnd остаётся справочной колонкой.
   private async buildContractRegistryRows(asOf: Date): Promise<ContractRegistryRow[]> {
     const isToday = asOf.getTime() === moscowDateOnly(new Date()).getTime();
     const contracts = await this.prisma.contract.findMany({
-      // Реестр на дату отражает период действия договора, даже если запись внесли
-      // позже задним числом. Фактический выезд у расторгнутого ограничивает период.
       where: {
         startDate: { lte: asOf },
         endDate: { gte: asOf },
@@ -619,7 +550,7 @@ export class ReportsController {
         residentIndividualUid: c.residentIndividualUid,
         residentFullName: c.resident.fullName,
         room: c.roomAssignments[0]?.room.room ?? null,
-        createdAt: c.createdAt,
+        contractDate: c.contractDate,
         startDate: c.startDate,
         endDate: c.endDate,
         actualEndDate: c.actualEndDate,
@@ -643,7 +574,7 @@ export class ReportsController {
     const options = parseListOptions(pageParam, pageSizeParam, searchParam, sortByParam, sortDirParam, filtersParam, 'endDate');
     return paginateInMemory(rows, options, {
       searchFields: ['contractNumber', 'residentFullName', 'room'],
-      sortableFields: ['contractNumber', 'residentFullName', 'room', 'createdAt', 'startDate', 'endDate', 'bucket'],
+      sortableFields: ['contractNumber', 'residentFullName', 'room', 'contractDate', 'startDate', 'endDate', 'bucket'],
       filterFields: ['bucket'],
     });
   }
@@ -654,9 +585,6 @@ export class ReportsController {
     return {
       active: rows.filter((r) => r.bucket === 'ACTIVE').length,
       expiring30: rows.filter((r) => r.bucket === 'EXPIRING').length,
-      // OVERDUE вынесен из "ended" в свой тайл (по прямой просьбе 2026-09-05) — просрочен,
-      // но ещё не завершён: резидент может погасить долг и вернуться в ACTIVE, в отличие
-      // от COMPLETED/TERMINATED, откуда возврата не бывает.
       overdue: rows.filter((r) => r.bucket === 'OVERDUE').length,
       ended: rows.filter((r) => r.bucket === 'COMPLETED' || r.bucket === 'TERMINATED').length,
     };
@@ -682,7 +610,7 @@ export class ReportsController {
     const options = parseListOptions(undefined, undefined, searchParam, sortByParam, sortDirParam, filtersParam, 'endDate');
     const sorted = filterAndSortInMemory(rows, options, {
       searchFields: ['contractNumber', 'residentFullName', 'room'],
-      sortableFields: ['contractNumber', 'residentFullName', 'room', 'createdAt', 'startDate', 'endDate', 'bucket'],
+      sortableFields: ['contractNumber', 'residentFullName', 'room', 'contractDate', 'startDate', 'endDate', 'bucket'],
       filterFields: ['bucket'],
     });
 
@@ -691,7 +619,7 @@ export class ReportsController {
       { header: t('reports.excel.colFullName', 'ФИО'), value: (r) => r.residentFullName, width: 32 },
       { header: t('reports.excel.colRoom', 'Комната'), value: (r) => r.room ?? '', width: 12 },
       { header: t('reports.excel.colStatus', 'Статус'), value: (r) => BUCKET_LABELS[r.bucket], width: 22 },
-      { header: t('reports.excel.colCreatedAt', 'Дата создания'), value: (r) => r.createdAt, format: 'date', width: 14 },
+      { header: t('reports.excel.colContractDate', 'Дата договора'), value: (r) => r.contractDate, format: 'date', width: 14 },
       { header: t('reports.excel.colStartDate', 'Дата начала'), value: (r) => r.startDate, format: 'date', width: 14 },
       { header: t('reports.excel.colEndDate', 'Дата окончания'), value: (r) => r.endDate, format: 'date', width: 14 },
       { header: t('reports.excel.colDaysUntilEnd', 'Дней до окончания'), value: (r) => r.daysUntilEnd, width: 16 },
@@ -699,9 +627,6 @@ export class ReportsController {
     await sendExcelReport(res, 'contracts-registry', t('reports.excel.sheetRegistry', 'Реестр договоров'), columns, sorted);
   }
 
-  // ===== Отчёт "Движение проживающих" (бывшее "Заселение / выселение") =====
-  // Events are derived from contracts and their actual occupancy intervals.
-  // The 30-day comparison is implemented and tested in movement-events.ts.
   private async buildMovementEvents(): Promise<MovementEvent[]> {
     const contracts = await this.prisma.contract.findMany({
       select: {
@@ -730,11 +655,6 @@ export class ReportsController {
     @Query('to') toParam?: string,
   ) {
     const to = resolveAsOf(toParam);
-    // from пустой -> отчёт "на дату to" целиком (нижней границы нет), от начала времён.
-    // from задан -> строго ПОСЛЕ from и по to включительно — разница между "на дату to" и
-    // "на дату from" (см. комментарий к buildMovementEvents), не просто диапазон дат:
-    // события считаются один раз глобально по истории договоров, а не пересчитываются
-    // отдельно на каждую границу, поэтому разница снапшотов эквивалентна фильтру по дате.
     const from = fromParam ? dateOnly(new Date(fromParam)) : null;
     const allEvents = await this.buildMovementEvents();
     const events = allEvents

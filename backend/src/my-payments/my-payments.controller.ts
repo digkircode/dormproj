@@ -26,6 +26,7 @@ import type { SessionUser } from '../auth/types';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import type { Env } from '../config/env.schema';
 import { allocatePaymentFifo } from '../billing/payment-allocation';
+import { flagHistoricalPenaltyRecalculation } from '../billing/penalty-recalc-flag';
 import { computePenaltyBalance } from '../billing/penalty-balance';
 import { dateOnly } from '../billing/period-utils';
 import { serializeAccrual } from '../contracts/serializers';
@@ -43,21 +44,10 @@ const { Decimal } = Prisma;
 
 type PaymentIntentWithContract = Prisma.PaymentIntentGetPayload<{ include: { contract: true } }>;
 
-// Телефон убран из формы (по прямой просьбе 2026-08-25) — только email, обязателен.
-// ФИО представителя — только буквы (кириллица/латиница), пробел и дефис — то же самое
-// ограничение, что и на фронте (см. sanitizeLettersOnly в lib/utils.ts), продублировано
-// тут: фронт вырезает недопустимые символы на вводе, но прямой запрос мимо формы должен
-// отклоняться сервером, а не просто довериться уже отфильтрованному значению.
 const REPRESENTATIVE_NAME_PATTERN = /^[A-Za-zА-Яа-яЁё\s-]+$/;
 const createIntentSchema = z
   .object({
     contractId: z.number().int().positive().nullish(),
-    // Единственный способ выбрать сумму (с 2026-08-31, по прямой просьбе — убрали "свою
-    // сумму" и отдельный режим "только пеня", см. CreatePaymentDialog.vue) — выбор из
-    // непогашенных начислений. Пеня — такой же выбираемый пункт (includePenalty), не
-    // обязательная надбавка: по умолчанию отмечена на фронте, но можно снять галочку.
-    // allocatePaymentFifo сам разносит её (после наступивших начислений, до будущих),
-    // если она вошла в сумму.
     accrualIds: z.array(z.number().int().positive()).default([]),
     includePenalty: z.boolean().default(true),
     payerIsResident: z.boolean(),
@@ -105,10 +95,6 @@ function serializeIntent(intent: {
   };
 }
 
-// Онлайн-оплата проживающего — тот же паттерн self-only доступа, что my-contract.controller.ts
-// (без :id в маршруте, individualUid только из сессии). Скелет эквайринга/кассы — см.
-// acquiring/ и fiscal/, обе стороны подключаются через интерфейс и молчаливо "не настроены"
-// без реквизитов в .env (см. AcquiringNotConfiguredError/FiscalNotConfiguredError ниже).
 @Controller('my-payments')
 @UseGuards(AuthGuard, RolesGuard)
 @Roles('RESIDENT')
@@ -130,10 +116,6 @@ export class MyPaymentsController {
     return user.univerId;
   }
 
-  // Email для чека — Individual.email как основной источник (туда же пишем правку, см.
-  // createIntent), фолбэк на самую актуальную запись ContactInfo типа "Email" (синк из
-  // 1С, тот же pickLatestContactInfo, что и на карточке физлица) — по прямой просьбе
-  // 2026-08-25: раньше поле было полностью ручным, теперь подтягивается само.
   private async resolveResidentEmail(individualUid: string): Promise<string | null> {
     const individual = await this.prisma.individual.findUnique({
       where: { fizicheskoyeLitsoUid: individualUid },
@@ -146,9 +128,6 @@ export class MyPaymentsController {
     return emailContact?.email || null;
   }
 
-  // contractId — явный выбор из переключателя договоров (см. my-contract.controller.ts#myContracts,
-  // тот же принцип multi-contract, добавлено 2026-08-25); без него — самый свежий, как раньше.
-  // Принадлежность resident'у проверяется прямо в where.
   private async findResidentContract(individualUid: string, contractId?: number) {
     const contract = await this.prisma.contract.findFirst({
       where: contractId ? { id: contractId, residentIndividualUid: individualUid } : { residentIndividualUid: individualUid },
@@ -235,10 +214,6 @@ export class MyPaymentsController {
     const contract = await this.findResidentContract(individualUid, input.contractId ?? undefined);
     if (!contract) throw new NotFoundException('payment.errors.noActiveContract');
 
-    // Правка email прямо из формы оплаты — пишем в Individual.email, он и есть основной
-    // источник для resolveResidentEmail (см. выше), так что дальше подтягивается уже
-    // отсюда, а не из ContactInfo/1С (по прямой просьбе 2026-08-25). Только когда платит
-    // сам проживающий — email представителя не имеет отношения к его собственной карточке.
     if (input.payerIsResident) {
       const currentEmail = await this.resolveResidentEmail(individualUid);
       if (input.payerEmail !== currentEmail) {
@@ -253,11 +228,6 @@ export class MyPaymentsController {
       payments: contract.payments,
     });
 
-    // Сумма — выбранные начисления + пеня, если галочка включена (includePenalty, по
-    // умолчанию true на фронте, но необязательна — CreatePaymentDialog.vue). Можно
-    // оплатить только пеню, ничего не выбрав из начислений (amount тогда равен ровно
-    // penaltyBalance) — то же поведение, что раньше давал отдельный penaltyOnly-режим,
-    // просто без явного переключателя.
     const selected = openAccruals.filter((a) => input.accrualIds.includes(a.id));
     if (selected.length !== input.accrualIds.length) {
       throw new BadRequestException('payment.errors.accrualsUnavailable');
@@ -307,10 +277,6 @@ export class MyPaymentsController {
       });
       return { intentId: intent.id, paymentPageUrl: started.paymentPageUrl };
     } catch (error) {
-      // Резолвится сразу текстом (не ключом) — значение уходит и в исключение клиенту, и в
-      // failureReason на PaymentIntent (БД), которое дальше отдаётся как есть, без второго
-      // прохода через переводчик (см. serializeIntent) — в отличие от остальных исключений
-      // в контроллерах, здесь перевод нужен один раз, на месте.
       const message =
         error instanceof AcquiringNotConfiguredError
           ? (I18nContext.current()?.t('payment.errors.acquiringUnavailable') ?? error.message)
@@ -347,9 +313,6 @@ export class MyPaymentsController {
     return serializeIntent(intent);
   }
 
-  // Опрос банка сервером (не доверяем редиректу браузера, см. промпт задачи) — переводит
-  // intent в SUCCEEDED/FAILED, при успехе тут же заводит настоящий Payment и разносит его
-  // по начислениям тем же allocatePaymentFifo, что и ручные платежи сотрудников.
   private async reconcileBankStatus(intent: PaymentIntentWithContract, sessionUser: SessionUser): Promise<PaymentIntentWithContract> {
     let status;
     try {
@@ -374,8 +337,6 @@ export class MyPaymentsController {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      // Перечитываем внутри транзакции — сюда можно дойти дважды почти одновременно
-      // (два опроса статуса подряд), вторая попытка не должна создать второй Payment.
       const fresh = await tx.paymentIntent.findUniqueOrThrow({ where: { id: intent.id }, include: { contract: true } });
       if (fresh.status !== 'PENDING_BANK') return fresh;
 
@@ -391,11 +352,8 @@ export class MyPaymentsController {
           rawComment: fresh.description,
         },
       });
-      // Разносится тем же allocatePaymentFifo, что и ручные платежи сотрудников —
-      // наступившие начисления → пеня (Payment.penaltyAmount) → будущие начисления, см.
-      // billing/payment-allocation.ts. Сумма уже включает пеню целиком (см. createIntent
-      // выше), отдельно её выделять здесь не нужно.
       await allocatePaymentFifo(tx, fresh.contractId, payment.id, fresh.amount, payment.paidAt);
+      await flagHistoricalPenaltyRecalculation(tx, fresh.contractId, payment.paidAt);
 
       await this.auditLog.log(tx, {
         userId,
@@ -421,8 +379,6 @@ export class MyPaymentsController {
     });
   }
 
-  // Best-effort: чек — отдельный от денег шаг, ошибка кассы не должна "откатывать" уже
-  // проведённый платёж, просто оставляет fiscalStatus пустым до следующего опроса.
   private async registerFiscalReceipt(intent: PaymentIntentWithContract): Promise<PaymentIntentWithContract> {
     if (!this.fiscal.isConfigured()) return intent;
     try {
@@ -457,7 +413,6 @@ export class MyPaymentsController {
       });
     } catch (error) {
       if (error instanceof FiscalNotConfiguredError) return intent;
-      // Не пробрасываем — платёж уже проведён, чек можно дозарегистрировать позже вручную.
       return intent;
     }
   }

@@ -10,10 +10,6 @@ const TEMPLATE_FILES: Record<ContractDocumentTemplate, string> = {
   minor: 'contract-minor.docx',
 };
 
-// Шаблоны — реальные бланки договора, присланные пользователем (см. описание полей в
-// плане реализации), с подставленными {tag}-плейсхолдерами вместо подчёркиваний.
-// process.cwd() — и в Docker (CMD запущен из /app), и локально (npm run из backend/)
-// это корень backend, где лежит templates/ рядом с dist/prisma.
 function templatePath(template: ContractDocumentTemplate): string {
   return path.join(process.cwd(), 'templates', TEMPLATE_FILES[template]);
 }

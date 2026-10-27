@@ -39,7 +39,6 @@ export class PassportSyncService {
     });
 
     try {
-      // Ручные физлица (isManual) не отправляем в 1С — у них нет реального UID источника.
       const individuals = await this.prisma.individual.findMany({
         where: { isManual: false },
         select: { fizicheskoyeLitsoUid: true },
@@ -48,14 +47,6 @@ export class PassportSyncService {
 
       const records = await this.externalApi.fetchPassports(uids);
 
-      // Слепок, а не апсерт по ключу — у истории паспортных данных нет стабильного UID
-      // (несколько документов на одно физлицо), поэтому каждый запуск полностью
-      // очищает и заново заполняет таблицу (как citizenships/students).
-      // Область очистки — ТОЛЬКО строки уже опрошенных (isManual=false) физлиц, а не вся
-      // таблица целиком (было deleteMany({}) без where — код-ревью 2026-09-04): иначе
-      // стирались бы и строки под preservedFromMerge=true (перенесённые слиянием ручного
-      // физлица на эту же цель, см. individuals.controller.ts#merge) — 1С о них не знает и
-      // никогда не пришлёт их обратно.
       const { added, removed } = await this.prisma.$transaction(
         async (tx) => {
           const scope = { fizicheskoyeLitsoUid: { in: uids }, preservedFromMerge: false } as const;
@@ -116,16 +107,11 @@ export class PassportSyncService {
     }
   }
 
-  // Точечная синхронизация одного физлица (кнопка на карточке) — та же логика "слепка",
-  // что и в общем прогоне, но удаляет и заново пишет только строки этого UID, а не всю
-  // таблицу. Без отдельного SyncLog — это шаг общего лога IndividualSyncService.
   async syncOne(uid: string): Promise<{ fetchedCount: number; added: number; removed: number; records: unknown[] }> {
     const records = await this.externalApi.fetchPassports([uid]);
 
     return this.prisma.$transaction(
       async (tx) => {
-        // preservedFromMerge=false — та же защита перенесённых слиянием строк, что и в
-        // runSync() выше, здесь актуальна для точечной синхронизации самой цели слияния.
         const scope = { fizicheskoyeLitsoUid: uid, preservedFromMerge: false } as const;
         const existingCount = await tx.passport.count({ where: scope });
         await tx.passport.deleteMany({ where: scope });

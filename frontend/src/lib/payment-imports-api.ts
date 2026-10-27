@@ -12,8 +12,6 @@ export interface PaymentImportSuggestedContract {
   residentIndividualUid: string
 }
 
-// Все договоры опознанного контрагента (не только предложенный) — если их больше
-// одного, показывается выпадающий список вместо одной "чипы" (см. промпт проекта).
 export interface PaymentImportCandidateContract {
   id: number
   number: string
@@ -48,9 +46,6 @@ export interface PaymentImportDetail extends Omit<PaymentImportRow, 'suggestedCo
     amount: number | null
     paidAt: string | null
     comment: string | null
-    // Как поступил платёж (реальное поле AllPaymentDoc — "Операция по платежной карте"/
-    // "Поступление наличных" и т.п., см. payment-import-candidate.ts), по прямой просьбе
-    // 2026-09-04.
     type: string | null
   }
   suggestedContract: PaymentImportSuggestedContract | null
@@ -70,10 +65,6 @@ export function fetchPaymentImportsFacets(field: string): Promise<FacetOption[]>
 
 export type Accounting1cSyncStatus = 'NOT_SYNCED' | 'SYNCED' | 'FAILED'
 
-// Флоу 1 — наши WEBSITE-платежи (эквайринг) со статусом отправки в 1С. Показываются на
-// том же экране, что и очередь одобрения из 1С (флоу 2) — по прямой просьбе 2026-09-03,
-// один общий обзор вместо двух разрозненных мест. Без пагинации на бэке — см.
-// payment-imports.controller.ts#websitePayments.
 export interface WebsitePaymentRow {
   id: number
   paidAt: string
@@ -104,7 +95,6 @@ export async function fetchPaymentImportDetail(id: number): Promise<PaymentImpor
   return response.json()
 }
 
-// Сумма и дата — только из 1С, сотрудник их не правит (по прямой просьбе 2026-09-03).
 
 export async function approvePaymentImport(id: number): Promise<{ record: PaymentImportRow; payment: PaymentRow }> {
   const response = await apiFetch(`/payment-imports/${id}/approve`, {

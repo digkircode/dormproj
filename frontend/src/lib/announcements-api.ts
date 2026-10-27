@@ -29,7 +29,6 @@ async function parseErrorMessage(response: Response, fallbackKey: string): Promi
   return body.message ?? i18n.global.t(fallbackKey, { status: response.status })
 }
 
-// ===== Сотрудники (STAFF/ADMIN) — секция "Объявления" на StaffHomeDashboard.vue =====
 
 export async function fetchAnnouncements(): Promise<StaffAnnouncement[]> {
   const response = await apiFetch('/announcements')
@@ -61,7 +60,6 @@ export async function deleteAnnouncement(id: number): Promise<void> {
   if (!response.ok) throw new Error(await parseErrorMessage(response, 'announcements.errors.deleteFailed'))
 }
 
-// ===== Проживающий — лента на ResidentHomeDashboard.vue =====
 
 export async function fetchMyAnnouncements(): Promise<ResidentAnnouncement[]> {
   const response = await apiFetch('/my-announcements')

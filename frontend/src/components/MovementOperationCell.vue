@@ -7,8 +7,6 @@ const props = defineProps<{ value: unknown; row?: unknown }>()
 
 const { t } = useI18n()
 
-// Proxy, не обычный объект — тот же приём, что STATUS_LABELS в contracts-format.ts,
-// реактивен к смене языка (см. те же ключи в MOVEMENT_LABELS reports.controller.ts).
 const OPERATION_LABELS: Record<MovementOperation, string> = new Proxy({} as Record<MovementOperation, string>, {
   get: (_target, operation: string) => t(`reports.movementOperation.${operation}`),
 })

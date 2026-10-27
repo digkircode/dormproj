@@ -29,7 +29,7 @@ import { syncResidentRoles } from '../users/resident-role-sync';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { buildAccrualsForContract } from '../billing/accrual-generation';
 import { recalcAccrualsForTermination } from '../billing/termination';
-import { recalculatePenaltyInTransaction } from '../billing/penalty-recalculate.service';
+import { reconcileChronologicalPenaltyInTransaction } from '../billing/penalty-recalculate.service';
 import { computePenaltyBalance } from '../billing/penalty-balance';
 import { dateOnly, moscowDateOnly } from '../billing/period-utils';
 import { serializeAccrual, serializePayment, serializeTerms } from './serializers';
@@ -50,9 +50,6 @@ import { conflictingRoomAssignment } from './room-conflict';
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 
-// residentFullName — через связь resident, room намеренно не сортируем (текущая комната —
-// производная от roomAssignments, не прямая колонка, как и в остальных списках проекта не
-// всё отображаемое обязано быть сортируемым, см. passport.controller.ts).
 const SORTABLE_FIELDS = ['number', 'contractDate', 'residentFullName', 'startDate', 'endDate', 'status'] as const;
 type SortableField = (typeof SORTABLE_FIELDS)[number];
 function isSortableField(field: string): field is SortableField {
@@ -65,8 +62,6 @@ function isFilterableField(field: string): field is FilterableField {
   return (FILTERABLE_FIELDS as readonly string[]).includes(field);
 }
 
-// EXPIRING/OVERDUE/COMPLETED — реальные значения ContractStatus (с 2026-08-31, см.
-// schema.prisma), не вычисляемый бакет — фильтр просто сопоставляет значение как есть.
 const STATUS_FACET_LABELS: Record<ContractStatus, string> = CONTRACT_STATUS_LABELS;
 
 const legalRepFields = {
@@ -110,11 +105,6 @@ const createContractSchema = z
     ...matCapitalFields,
   })
   .refine((data) => data.endDate >= data.startDate, { message: 'contracts.errors.endDateBeforeStartDate', path: ['endDate'] })
-  // ФИО и телефон родителя обязательны у ЛЮБОГО договора, не только у несовершеннолетнего
-  // (форма CreateContractDialog.vue требует их всегда, см. legalRepNameInvalid/phoneValid
-  // там) — раньше эта проверка была только на фронте, legalRepFields сами по себе nullish,
-  // прямой POST /contracts мимо формы мог создать договор вообще без данных родителя.
-  // Добавлено по прямой просьбе 2026-08-26 при разборе уязвимостей проекта.
   .refine((data) => (data.legalRepName?.trim().length ?? 0) > 0, {
     message: 'contracts.errors.parentNameRequired',
     path: ['legalRepName'],
@@ -131,9 +121,6 @@ const accounting1cMappingSchema = z.object({
   contractorUid: z.string().trim().max(200).nullish().transform((value) => value || null),
 });
 
-// Поля, участвующие в diff'е истории изменений (AuditLogService) — residentSnapshot (JSON-
-// слепок) и penaltyAccruedThrough (служебное, для идемпотентности крона) намеренно не
-// отслеживаются, слишком шумно/не осмысленно для diff'а.
 const AUDITED_CONTRACT_FIELDS = [
   'number',
   'contractDate',
@@ -161,10 +148,6 @@ const AUDITED_CONTRACT_FIELDS = [
   'matCapitalDeferredUntil',
 ];
 
-// EXPIRING/OVERDUE/COMPLETED — реальные значения ContractStatus с 2026-08-31 (переходы
-// считает billing/contract-status.scheduler.ts) — фильтр просто сравнивает значение,
-// вычислять по датам уже не нужно (раньше здесь была date-math копия того, что уже есть
-// на фронте в contracts-format.ts).
 function buildStatusFilterClause(values: string[]): Prisma.ContractWhereInput | undefined {
   const statusValues = values.filter((v): v is ContractStatus => (Object.values(ContractStatus) as string[]).includes(v));
   return statusValues.length > 0 ? { status: { in: statusValues } } : undefined;
@@ -228,7 +211,6 @@ export class ContractsController {
           }
         }
       } catch {
-        // Битый JSON в необязательном параметре — просто игнорируем фильтры, не 400'им весь запрос.
       }
     }
 
@@ -282,12 +264,6 @@ export class ContractsController {
     };
   }
 
-  // Временный эндпоинт для показа покупателю "Главной" проживающего с реальными данными,
-  // без переключения ролей на демо-аккаунте сотрудника (см. DemoStudentHome.vue) — та же
-  // сводка, что и my-contract.controller.ts#myContractSummary у самого резидента, только
-  // отбор договора по фиксированному номеру уже существующего демо-договора вместо сессии
-  // (STAFF/ADMIN не привязаны к своему Individual/Contract). Удалить вместе с
-  // DemoStudentHome.vue, когда демонстрация больше не нужна.
   @Get('demo-home-summary')
   async demoHomeSummary() {
     const contract = await buildContractHomeSummary(this.prisma, { number: 'VIP27-27/01' });
@@ -302,14 +278,6 @@ export class ContractsController {
     return Object.entries(STATUS_FACET_LABELS).map(([value, label]) => ({ value, label }));
   }
 
-  // Автоподстановка родителя на новом договоре того же человека — последний договор этого
-  // резидента, где уже вводилось ФИО родителя. Раньше условием было legalRepIndividualUid
-  // (Individual(isManual) заводится только для несовершеннолетних, см. create() ниже) —
-  // из-за этого автоподстановка ФИО/телефона работала только для несовершеннолетних, хотя
-  // форма (CreateContractDialog.vue) требует их у ЛЮБОГО договора. По прямой просьбе
-  // 2026-08-26 — условие ослаблено до "ФИО родителя вообще было указано", подстановка
-  // теперь работает и для совершеннолетних. Печатные данные конкретного договора всё равно
-  // берутся из legalRep*-полей самого НАЙДЕННОГО договора (не из Individual).
   @Get('legal-rep/:residentUid')
   async legalRepPrefill(@Param('residentUid') residentUid: string) {
     const previous = await this.prisma.contract.findFirst({
@@ -365,10 +333,6 @@ export class ContractsController {
     const refundInput = { accruals, penaltyLogs, payments, refunds, asOf: moscowDateOnly(new Date()) };
     const refundable = availableContractRefund({ ...refundInput, creditBalance: contract.creditBalance });
     const refundSources = refundSourceBreakdown(refundable);
-    // Пеня — производная от журнала (не хранимое поле, см. schema.prisma), сколько из неё
-    // уже покрыто платежами — тоже выводим на чтении (см. penalty-balance.ts). "На сейчас",
-    // а не на дату — карточка договора не поддерживает выбор даты (в отличие от финансового
-    // отчёта, где asOf выбирается пользователем).
     const { penaltyAmount, penaltyPaid, penaltyBalance } = computePenaltyBalance({
       asOf: dateOnly(new Date()),
       penaltyLogs,
@@ -376,16 +340,11 @@ export class ContractsController {
     });
     return {
       ...contractFields,
-      // Decimal не сериализуется в JSON как обычное число сам по себе — тот же приём, что
-      // и в serializeTerms/serializeAccrual, явный Number(...) вместо спреда как есть.
       matCapitalAmount: matCapitalAmount !== null ? Number(matCapitalAmount) : null,
       creditBalance: Number(contractFields.creditBalance),
       penaltyAmount: Number(penaltyAmount),
       penaltyPaid: Number(penaltyPaid),
       penaltyBalance: Number(penaltyBalance),
-      // Журнал начисления пени по дням — для клика по тайлу "Пени" на карточке (тот же
-      // приём, что и у резидента, см. my-contract.controller.ts), плюс кнопка "Пересчитать"
-      // рядом (billing.controller.ts#recalculatePenalty).
       penaltyLog: penaltyLogs
         .slice()
         .sort((a, b) => a.date.getTime() - b.date.getTime())
@@ -413,8 +372,6 @@ export class ContractsController {
           }),
         }),
       ),
-      // Определяет, доступно ли "Удалить договор" в UI — после первой же оплаты (даже
-      // сторнированной) удаление блокируется навсегда, см. remove() ниже.
       hasPayments: payments.length > 0,
     };
   }
@@ -493,10 +450,6 @@ export class ContractsController {
       throw new NotFoundException({ message: 'contracts.errors.roomNotFound', fieldErrors: { roomId: 'contracts.errors.selectRoomAgain' } });
     }
 
-    // Стоимость комнаты в характеристике — это полный месячный платёж: найм +
-    // коммунальные услуги. Берём актуальное значение нужной категории прямо из БД,
-    // чтобы прямой POST не мог сохранить другой финансовый расклад, чем указан на
-    // странице комнаты. Комната без обеих месячных характеристик остаётся посуточной.
     const roomPriceDefinitionName =
       data.dailyRateCategory === 'OWN_UNIVERSITY' ? 'Стоимость (из вуза)' : 'Стоимость (не из вуза)';
     const [roomPriceCharacteristic, anyRoomPriceCharacteristic, dormitoryInfo] = await Promise.all([
@@ -513,10 +466,6 @@ export class ContractsController {
     ]);
     const isDailyOnlyRoom = !anyRoomPriceCharacteristic;
 
-    // Несовершеннолетие — на дату ДОГОВОРА (contractDate), как и во фронтовом computed
-    // isMinor (Contracts.vue). Раньше здесь не было никакой серверной проверки блока
-    // родителя вообще (см. известную проблему в промпте проекта) — прямой запрос мимо
-    // формы мог завести договор на несовершеннолетнего без данных родителя.
     const contractIsMinor = isMinorAt(individual.birthDate, data.contractDate);
     if (contractIsMinor) {
       if (!data.legalRepGender || !data.legalRepBirthDate || !data.legalRepPassportNumber || !data.legalRepPassportIssuedAt) {
@@ -524,16 +473,10 @@ export class ContractsController {
       }
     }
 
-    // Причина проживания печатается в п.1.2 бланка вместо "обучением в АНО ВО «РосНОУ»" —
-    // обязательна только для тех, кто не из своего вуза (см. contract-document-data.ts).
     if (data.dailyRateCategory === 'OTHER_UNIVERSITY' && !data.residenceReason) {
       throw new BadRequestException('contracts.errors.residenceReasonRequired');
     }
 
-    // Для обычной комнаты сохраняем раздельные суммы. Значения rentAmount и
-    // utilitiesAmount из тела оставлены в контракте API для совместимости старого
-    // клиента, но источниками истины служат карточка комнаты и карточка общежития.
-    // У посуточной комнаты обе месячные части равны нулю.
     if (!isDailyOnlyRoom && (roomPriceCharacteristic === null || roomPriceCharacteristic.valueNumber === null)) {
       throw new BadRequestException({ message: 'contracts.errors.roomPriceNotConfigured', fieldErrors: { roomCost: 'contracts.errors.setRoomPrice' } });
     }
@@ -548,8 +491,6 @@ export class ContractsController {
       throw new BadRequestException({ message: 'contracts.errors.communalServicesCostExceedsRoomCost', fieldErrors: { roomCost: 'contracts.errors.roomCostBelowUtilities' } });
     }
     const rentAmount = isDailyOnlyRoom ? new Prisma.Decimal(0) : roomCost.minus(utilitiesAmount);
-    // Основание проживания определяет категорию и для будущих студентов, которых
-    // ещё нет в 1С. Сохраняем настроенную ставку выбранной категории.
     const dailyRateAmount = data.dailyRateCategory === 'OWN_UNIVERSITY'
       ? dormitoryInfo?.dailyPaymentInternal
       : dormitoryInfo?.dailyPaymentOther;
@@ -559,8 +500,6 @@ export class ContractsController {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
-        // Serialize contract creation for one resident. Otherwise two requests
-        // for different rooms could both pass the conflict check concurrently.
         await tx.$queryRaw`SELECT fizicheskoye_litso_uid FROM individuals WHERE fizicheskoye_litso_uid = ${data.residentIndividualUid} FOR UPDATE`;
         const currentIndividual = await tx.individual.findUniqueOrThrow({ where: { fizicheskoyeLitsoUid: data.residentIndividualUid }, select: { mergedIntoUid: true } });
         if (currentIndividual.mergedIntoUid) {
@@ -572,7 +511,6 @@ export class ContractsController {
             fieldErrors: { roomId: 'contracts.errors.conflictingRoomAssignment' },
           });
         }
-        // Serialize bookings for this room before reading occupancy (READ COMMITTED).
         await tx.$queryRaw`SELECT id FROM rooms WHERE id = ${data.roomId} FOR UPDATE`;
         const { capacity, occupied } = await roomAvailability(tx, data.roomId, data.startDate, data.endDate);
         if (occupied >= capacity) {
@@ -580,9 +518,6 @@ export class ContractsController {
         }
         const createdByUserId = await ensureUserRecord(tx, req.user!);
 
-        // Снимок личных данных проживающего на момент подписания — печать договора
-        // всегда будет показывать именно это, даже если синхрон 1С перепишет паспорт/
-        // СНИЛС/адрес/телефон позже (см. resident-snapshot.ts).
         const residentSnapshot = await buildResidentSnapshot(tx, data.residentIndividualUid);
 
         const contract = await tx.contract.create({
@@ -653,20 +588,8 @@ export class ContractsController {
           });
         }
 
-        // Родитель несовершеннолетнего — заводится как настоящий Individual(isManual=true),
-        // не только текстовыми legalRep*-полями на Contract (см. schema.prisma — это
-        // сознательный пересмотр прежнего решения, по прямой просьбе). uid детерминированный
-        // (один на резидента) — повторный договор того же несовершеннолетнего обновляет ту
-        // же запись, а не плодит дубли; печатные данные конкретно ЭТОГО договора всё равно
-        // берутся из legalRep*-полей выше, эта запись только для будущей автоподстановки.
         if (contractIsMinor && data.legalRepName) {
           const legalRepUid = `manual-parent-${data.residentIndividualUid}`;
-          // Телефон/адрес/паспорт родителя (2026-08-22) — те же поля ручного ввода, что и у
-          // формы "Новое физическое лицо" (см. schema.prisma), тем же upsert'ом, что и
-          // остальные поля выше. Contract.legalRep* при этом не трогаем — они остаются
-          // неизменным снимком на момент подписания для печати бланка (см. промпт проекта),
-          // это чисто аддитивно обогащает связанную запись Individual для будущей пользы
-          // (поиск/карточка), риска для печати нет.
           const legalRepIndividualData = {
             fullName: data.legalRepName,
             gender: data.legalRepGender ?? null,
@@ -717,9 +640,6 @@ export class ContractsController {
     }
   }
 
-  // Досрочное расторжение. endDate договора не переписывается (исходные условия не
-  // теряются) — фактическая дата выезда отдельным полем, будущие начисления гасятся
-  // (voidedAt), граничное начисление пересчитывается через adjustmentAmount.
   @Post(':id/terminate')
   async terminate(@Param('id') idParam: string, @Body() body: unknown, @Req() req: Request) {
     const id = parseIdParam(idParam);
@@ -757,7 +677,7 @@ export class ContractsController {
       });
       await recalcAccrualsForTermination(tx, id, parsed.data.actualEndDate);
       const previousPenalty = await tx.penaltyAccrualLog.aggregate({ where: { contractId: id }, _sum: { amount: true } });
-      const recalculatedPenalty = await recalculatePenaltyInTransaction(tx, id);
+      const recalculatedPenalty = await reconcileChronologicalPenaltyInTransaction(tx, id);
       const updated = await tx.contract.findUniqueOrThrow({ where: { id } });
 
       const userId = await ensureUserRecord(tx, req.user!);
@@ -786,12 +706,6 @@ export class ContractsController {
     }, { timeout: 120_000 });
   }
 
-  // Полное удаление договора со всеми связками (ContractTerms/RoomAssignment/Accrual —
-  // onDelete: Cascade в schema.prisma) — но ТОЛЬКО пока по нему не было ни одной оплаты
-  // (даже сторнированной, reversedAt не разбираем — раз платёж был, назад дороги нет).
-  // matchedContractId у PaymentImportRecord обнуляем на всякий случай — таблица пока
-  // пустая на практике (нет сервиса импорта), но если когда-то появится, FK не должен
-  // блокировать удаление осиротевшей ссылки.
   @Delete(':id')
   async remove(@Param('id') idParam: string, @Req() req: Request) {
     const id = parseIdParam(idParam);
@@ -827,19 +741,19 @@ export class ContractsController {
     return { ok: true };
   }
 
-  // Печать договора — заполняет один из двух реальных бланков (обычный/для
-  // несовершеннолетних, выбор по наличию legalRepIndividualUid) данными на момент
-  // подписания. Для договоров, созданных до этой фичи (residentSnapshot ещё пуст) —
-  // best-effort снимок из ТЕКУЩИХ данных физлица строится один раз здесь же и сохраняется,
-  // дальше уже не пересчитывается (см. resident-snapshot.ts).
-  // Общая часть печати одного договора — вынесена из document() ниже, чтобы print-batch()
-  // (печать пачкой, см. ниже) переиспользовала ровно ту же сборку данных бланка, а не
-  // держала вторую копию рядом.
   private async renderContractDocumentBuffer(id: number): Promise<{ buffer: Buffer; number: string }> {
-    let contract = await this.prisma.contract.findUnique({
-      where: { id },
-      include: { terms: { orderBy: { validFrom: 'asc' }, take: 1 }, roomAssignments: { orderBy: { fromDate: 'asc' }, take: 1, include: { room: true } } },
-    });
+    const [foundContract, dormitoryInfo] = await Promise.all([
+      this.prisma.contract.findUnique({
+        where: { id },
+        include: {
+          terms: { orderBy: { validFrom: 'asc' }, take: 1 },
+          roomAssignments: { orderBy: { fromDate: 'asc' }, take: 1, include: { room: true } },
+          resident: { select: { phone: true, address: true, passportSeries: true, passportNumber: true, passportIssuedBy: true, passportIssuedCode: true, passportIssuedAt: true } },
+        },
+      }),
+      this.prisma.dormitoryInfo.findUnique({ where: { id: 1 } }),
+    ]);
+    let contract = foundContract;
     if (!contract) {
       throw new NotFoundException('contracts.errors.contractNotFound');
     }
@@ -853,21 +767,10 @@ export class ContractsController {
       contract = { ...contract, residentSnapshot: snapshot as unknown as Prisma.JsonValue };
     }
 
-    // Снимок мог быть сохранён ДО фикса isManual-фолбэка (2026-08-23) — телефон/адрес/
-    // паспорт в нём тогда пустые, хотя у физлица они введены вручную. Снимок целиком не
-    // пересобираем (не должен "плыть" от текущих данных), но именно эти пустые поля
-    // дозаполняем текущими значениями Individual при каждой печати, см. fillManualFallbacks.
-    const individualForFallback = await this.prisma.individual.findUnique({
-      where: { fizicheskoyeLitsoUid: contract.residentIndividualUid },
-      select: { phone: true, address: true, passportSeries: true, passportNumber: true, passportIssuedBy: true, passportIssuedCode: true, passportIssuedAt: true },
-    });
-    const resident = fillManualFallbacks(contract.residentSnapshot as unknown as ResidentSnapshot, individualForFallback ?? {
-      phone: null, address: null, passportSeries: null, passportNumber: null, passportIssuedBy: null, passportIssuedCode: null, passportIssuedAt: null,
-    });
+    const resident = fillManualFallbacks(contract.residentSnapshot as unknown as ResidentSnapshot, contract.resident);
     const terms = contract.terms[0];
     const room = contract.roomAssignments[0]?.room ?? null;
     const isMinorContract = contract.legalRepIndividualUid !== null;
-    const dormitoryInfo = await this.prisma.dormitoryInfo.findUnique({ where: { id: 1 } });
     const buffer = renderContractDocument(
       isMinorContract ? 'minor' : 'standard',
       buildDocumentData(contract, resident, terms, room, dormitoryInfo?.communalServicesCost ?? null),
@@ -881,9 +784,6 @@ export class ContractsController {
     const id = parseIdParam(idParam);
     const { buffer, number } = await this.renderContractDocumentBuffer(id);
 
-    // Content-Disposition — только Latin1/ASCII в filename=, иначе Node бросает
-    // ERR_INVALID_CHAR (номер договора может содержать кириллицу/что угодно) —
-    // ASCII-заглушка в filename= + правильно закодированное имя в filename* (RFC 5987/6266).
     const asciiFallback = `contract-${number}.docx`.replace(/[^\x20-\x7E]/g, '_');
     const utf8Name = encodeURIComponent(`Договор № ${number}.docx`);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
@@ -891,11 +791,6 @@ export class ContractsController {
     res.send(buffer);
   }
 
-  // То же самое, но PDF вместо .docx, отдаётся как inline (не attachment) — фронт грузит
-  // его в скрытый iframe и сам вызывает window.print() на этом iframe, получая системный
-  // диалог печати с живым предпросмотром, как будто пользователь сам нажал Ctrl+P (см.
-  // lib/print-pdf.ts). Отдельная кнопка ДОПОЛНИТЕЛЬНО к .docx выше, не замена — .docx
-  // остаётся основным способом получить редактируемый файл.
   @Get(':id/document/pdf')
   async documentPdf(@Param('id') idParam: string, @Res() res: Response) {
     const id = parseIdParam(idParam);
@@ -912,18 +807,10 @@ export class ContractsController {
     res.send(pdfBuffer);
   }
 
-  // Массовая печать — выбранные на фронте (только текущая страница списка, см.
-  // Contracts.vue) договоры пачкой, каждый как отдельный .docx (тот же бланк, что и при
-  // печати по одному) внутри одного ZIP. Осознанно не единый .docx на все договоры —
-  // склейка нескольких docxtemplater-документов в один не поддерживается используемым
-  // стеком без хрупких обходов (ломает разрывы страниц/колонтитулы), см. обсуждение с
-  // пользователем при добавлении фичи 2026-08-25.
   @Post('print-batch')
   async printBatch(@Body() body: unknown, @Res() res: Response) {
     const { ids } = z.object({ ids: z.array(z.number().int().positive()).min(1).max(200) }).parse(body);
 
-    // Существование всех id проверяем ДО того, как начнём стримить ZIP — заголовки/тело
-    // ответа уже нельзя было бы превратить в ошибку после archive.pipe(res).
     const existingCount = await this.prisma.contract.count({ where: { id: { in: ids } } });
     if (existingCount !== ids.length) {
       throw new NotFoundException('contracts.errors.contractsNotFound');
@@ -935,8 +822,6 @@ export class ContractsController {
     const archive = archiver('zip', { zlib: { level: 9 } });
     archive.pipe(res);
 
-    // Имя файла в архиве — по номеру договора, с дедупликацией: number не имеет
-    // unique-constraint в схеме, два совпадающих номера иначе схлопнулись бы в один файл.
     const usedNames = new Set<string>();
     for (const id of ids) {
       const { buffer, number } = await this.renderContractDocumentBuffer(id);
@@ -953,12 +838,6 @@ export class ContractsController {
     await archive.finalize();
   }
 
-  // То же самое, но один слитый PDF на всю пачку вместо ZIP с отдельными .docx — фронт
-  // открывает единый диалог печати сразу на все выбранные договоры (см. print-pdf.ts).
-  // Лимит ниже (не 200, как у print-batch) — каждый договор тут ещё и конвертируется
-  // через soffice, а конвертации идут строго последовательно, одна за одной (см.
-  // docx-to-pdf.ts) — большая пачка держала бы очередь минутами и блокировала бы печать
-  // одиночных договоров другими сотрудниками в это же время.
   @Post('print-batch/pdf')
   async printBatchPdf(@Body() body: unknown, @Res() res: Response) {
     const { ids } = z.object({ ids: z.array(z.number().int().positive()).min(1).max(50) }).parse(body);

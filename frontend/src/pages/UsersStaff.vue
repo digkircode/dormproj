@@ -17,17 +17,12 @@ const router = useRouter()
 const { t } = useI18n()
 
 const dialogRef = ref<InstanceType<typeof ManageUserRolesDialog> | null>(null)
-// Клик по ячейке "Роли" — тот же диалог, что и по кнопке-действию на строку (Shield) и по
-// кнопке "+" в шапке (UserPlus) ниже, просто ещё один способ его открыть (по прямой
-// просьбе 2026-08-31, тот же приём, что уже есть в UsersList.vue).
 provide(USER_ROLES_CLICK_KEY, (row) => dialogRef.value?.open(row as UserRow))
 
 const columnLabels = computed<Record<string, string>>(() => ({
   fullName: t('users.staff.colFullName'),
   email: t('users.staff.colEmail'),
   roles: t('users.staff.colRoles'),
-  // 'role' — фильтр, не колонка (сама колонка называется 'roles', см. выше) — та же
-  // схема, что citizenshipGroup в ReportsContingent.vue.
   role: t('users.staff.colRole'),
 }))
 const filterableFields = ['role']

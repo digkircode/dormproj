@@ -25,7 +25,6 @@ defineProps<{
     url?: string
     icon?: LucideIcon
     isActive?: boolean
-    // Кружок непрочитанного (сейчас только у "Чаты", см. AppSidebar.vue/lib/chat-unread-state.ts).
     badge?: boolean
     items?: {
       title: string
@@ -38,9 +37,6 @@ const { t } = useI18n()
 const { state, isMobile, setOpen } = useSidebar()
 const openGroups = reactive<Record<string, boolean>>({})
 
-// Свёрнутый (иконочный) сайдбар прячет CollapsibleContent целиком — тоггл открытости
-// группы там визуально ничего не даёт, выглядит как "кнопка не работает". В этом
-// состоянии клик по группе должен разворачивать сам сайдбар, а не открывать группу.
 function handleGroupClick(title: string, isActive?: boolean) {
   if (state.value === 'collapsed' && !isMobile.value) {
     setOpen(true)
@@ -84,11 +80,6 @@ function handleGroupClick(title: string, isActive?: boolean) {
         <SidebarMenuItem v-else>
           <SidebarMenuButton as-child :tooltip="item.title">
             <RouterLink :to="item.url ?? '#'">
-              <!-- Кружок непрочитанного дублирован намеренно — см. подробный комментарий
-                   в NavStudent.vue: в свёрнутом (icon-only) сайдбаре "ml-auto"-вариант
-                   физически рендерился, но обрезался overflow-hidden сжавшейся кнопки —
-                   невидимый кружок (реальный баг, "точечки не появляются"). Второй кружок
-                   висит на самой иконке, виден только в свёрнутом состоянии. -->
               <span class="relative inline-flex shrink-0">
                 <component :is="item.icon" v-if="item.icon" class="size-4 shrink-0 text-primary" />
                 <span v-if="item.badge" class="absolute -top-0.5 -right-0.5 hidden size-2 rounded-full bg-primary group-data-[collapsible=icon]:block" />

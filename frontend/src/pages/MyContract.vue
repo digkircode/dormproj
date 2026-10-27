@@ -46,25 +46,14 @@ import { goBack } from '@/lib/utils'
 const router = useRouter()
 const { t } = useI18n()
 const contract = ref<MyContractDetail | null>(null)
-// Загрузка успешно завершилась, но договора нет — отдельно от isLoading/loadError, чтобы
-// не путать "договора действительно нет" с "ещё грузится"/"ошибка запроса" (тот же приём,
-// что messagesLoadedFor в Chats.vue).
 const isLoading = ref(true)
 const loadError = ref('')
 
-// У одного человека может быть больше одного договора одновременно (новый не ждёт
-// окончания предыдущего, см. schema.prisma) — переключатель по клику на "Договор № …"
-// (по прямой просьбе 2026-08-25). Без выбора — самый свежий, как и раньше.
 const contracts = ref<MyContractSummary[]>([])
 const selectedContractId = ref<number | undefined>(undefined)
 
-// Попытки онлайн-оплаты (GET /my-payments) — сырые, дальше объединяются с леджерными
-// contract.payments в unifiedPayments (см. ниже).
 const paymentHistory = ref<PaymentIntentRow[]>([])
 
-// silent — переключение УЖЕ выбранного на странице договора (см. switchContract): не
-// прячем текущие данные под "Загрузка…" (было резко и дёргано, по прямой просьбе
-// 2026-08-25), просто приглушаем карточку/вкладки полупрозрачностью, пока не придут новые.
 const isSwitching = ref(false)
 
 async function load(silent = false) {
@@ -84,24 +73,16 @@ async function load(silent = false) {
     const payments = await fetchMyPayments(selectedContractId.value)
     paymentHistory.value = payments.history
   } catch {
-    // Тихо игнорируем — основная карточка договора важнее, вкладка "Платежи" просто
-    // останется пустой при ошибке (тот же принцип, что и остальные вспомогательные секции).
   }
 }
 
 async function switchContract(id: number) {
-  // Клик по уже показанному договору в списке — не перезагружать (по прямой просьбе
-  // 2026-08-25), тот же принцип, что и не дёргать сеть без реальной смены выбора.
   if (id === selectedContractId.value) return
   selectedContractId.value = id
   await load(true)
 }
 
 onMounted(async () => {
-  // Список договоров грузим ПАРАЛЛЕЛЬНО с самим договором, а не после (было — стрелочка
-  // переключателя "запаздывала": сначала рисовался обычный заголовок, потом резко
-  // подменялся на выпадающий список, когда список догружался). К моменту, когда основной
-  // load() разрешится (там два последовательных запроса), этот — уже почти наверняка готов.
   const contractsPromise = fetchMyContracts().catch(() => [])
   await load()
   contracts.value = await contractsPromise
@@ -109,9 +90,6 @@ onMounted(async () => {
 
 const paymentDialog = ref<InstanceType<typeof CreatePaymentDialog> | null>(null)
 
-// История начисления пени по дням — раскрывается кликом по тайлу "Пени" (по прямой
-// просьбе 2026-08-26). Данные уже приходят вместе с договором (contract.penaltyLog,
-// см. my-contract.controller.ts), отдельного запроса не требуется.
 const isPenaltyDialogOpen = ref(false)
 const PENALTY_DAILY_RATE_PERCENT = '0,14%'
 
@@ -136,10 +114,6 @@ function formatMoney(value: number): string {
   return `${value.toLocaleString(dateLocaleTag(), { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
 }
 
-// --- Начисления — та же EntityTable, что и во всех остальных таблицах приложения (по
-// прямой просьбе 2026-08-26 — раньше тут были самодельные кнопки-заголовки без настроек
-// колонок/поиска). fetchPage/fetchFacetValues — клиентский адаптер (см. lib/client-list.ts):
-// начисления уже целиком в памяти (не постранично с сервера, как у остальных таблиц). ---
 const accrualColumnHelper = createAppColumnHelper<AccrualRow>()
 const accrualColumnLabels = computed<Record<string, string>>(() => ({
   periodStart: t('contracts.detail.colPeriod'),
@@ -157,14 +131,6 @@ const accrualColumns = computed(() =>
     accrualColumnHelper.accessor('balance', { header: accrualColumnLabels.value.balance, size: 120, minSize: 100 }),
   ]),
 )
-// Срок оплаты, найм и коммуналка скрыты по умолчанию на телефоне (по прямой просьбе
-// 2026-08-28, после реального использования с узкого экрана): все колонки на 320-375px
-// давали заголовки в 2-3 буквы, нечитаемо. Период/Оплачено/Остаток — минимум, без
-// которого таблица теряет смысл, остальное можно вернуть вручную через "Настройка
-// колонок" (EntityTable.vue сам это умеет, hiddenByDefault только задаёт стартовое
-// состояние). useMediaQuery — тот же приём/тот же breakpoint (768px), что у сайдбара
-// (SidebarProvider.vue) — вычисляется один раз на маунт, не переигрывает при повороте
-// экрана (не нужно для этого случая).
 const isMobile = useMediaQuery('(max-width: 768px)')
 const accrualHiddenByDefault = computed(() => (isMobile.value ? ['dueDate', 'total'] : []))
 
@@ -183,10 +149,6 @@ async function fetchAccrualFacets() {
   return []
 }
 
-// --- Платежи — объединённый леджер (Payment, в т.ч. внесённые сотрудником вручную и уже
-// успешно проведённые онлайн) + попытки, которые деньгами не закончились (см. тип
-// UnifiedPaymentRow) — по прямой просьбе 2026-08-26: раньше вкладка видела только
-// PaymentIntent и не показывала оплаты, внесённые сотрудником. ---
 const unifiedPayments = computed<UnifiedPaymentRow[]>(() => {
   const ledgerRows: UnifiedPaymentRow[] = (contract.value?.payments ?? []).map((p) => ({
     id: `payment-${p.id}`,
@@ -194,9 +156,6 @@ const unifiedPayments = computed<UnifiedPaymentRow[]>(() => {
     description: p.purpose || p.rawComment || t(`payment.method.${p.method}`) || p.method,
     amount: p.amount,
     status: p.reversedAt ? 'REVERSED' : 'PAID',
-    // Заглушка чека — только для того, что реально прошло как онлайн-оплата (эквайринг/
-    // сайт); у ручных наличных/переводом сотрудник чек не выписывает, показывать кнопку
-    // там было бы вводящей в заблуждение.
     showReceiptButton: !p.reversedAt && (p.method === 'CARD_ACQUIRING' || p.method === 'WEBSITE'),
     fiscalReceiptUrl: null,
   }))
@@ -244,11 +203,6 @@ function paymentCellText(columnId: string, value: unknown): string {
 }
 const paymentCellRenderers = { status: PaymentStatusPillCell, fiscalReceiptUrl: PaymentReceiptCell }
 const paymentFilterableFields = ['status']
-// На мобильном "Статус"/"Описание" тоже скрыты по умолчанию (тот же приём, что у
-// начислений выше) — без видимой колонки статуса список без фильтра выглядел бы как
-// нечитаемая мешанина из оплаченных/неудачных/отменённых попыток, поэтому здесь же
-// подставляется дефолтный фильтр "Оплачено" (по прямой просьбе 2026-08-28) — колонки
-// можно вернуть вручную через настройку колонок, фильтр — снять через крестик на чипе.
 const paymentHiddenByDefault = computed(() => (isMobile.value ? ['status', 'description'] : []))
 const paymentDefaultFilters = computed(() => {
   const filters: Record<string, string[]> = isMobile.value ? { status: ['PAID'] } : {}
@@ -267,33 +221,12 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
 </script>
 
 <template>
-  <!-- md:min-h-0 (не голый min-h-0) — реальная причина бага "футер внутри таблицы"
-       (2026-08-28): min-h-0 БЕЗ overflow-hidden/overflow-y-auto НА ЭТОМ ЖЕ элементе не
-       обрезает контент, если он не помещается в выделенное flex-пространство — контент
-       просто визуально вылезает ЗА пределы блока (сам блок при этом остаётся МЕНЬШЕ
-       содержимого), а следующий сосед по DOM (AppFooter, см. App.vue) как раз и есть
-       следующий элемент сразу после этого div — вылезающий хвост таблицы рисуется поверх
-       него/рядом с ним. Раньше искал причину внутри EntityTable.vue (там уже есть honest
-       h-[60vh] на мобильном, см. компонент) — а настоящая причина была здесь, на уровне
-       страницы: KPI-карточка+вкладки+таблица суммарно легко превышают то, что достаётся
-       этому div по flex-grow (после вычета места под AppFooter) на типичном экране
-       телефона. md:min-h-0 — на десктопе (где узкого места нет, и flex-высота обычно
-       не меньше контента) поведение не меняется; на мобильном без min-h-0 блок берёт
-       свою ЕСТЕСТВЕННУЮ высоту по контенту, дальше эта высота корректно учитывается
-       overflow-y-auto на уровне App.vue — скроллится вся страница целиком, футер идёт
-       строго после всего контента, без наложения. -->
   <div class="flex min-w-0 flex-1 flex-col gap-4 p-4 md:min-h-0 md:p-6">
-    <!-- flex-wrap — на узком экране дропдаун договора + пилюля статуса + кнопка "Оплатить"
-         (ml-auto) не помещаются в одну строку без переноса (особенно с длинным номером
-         договора вроде VIP27-27/01) — без wrap строка вылезала бы за ширину экрана. -->
     <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
         <span class="sr-only">{{ t('contracts.list.back') }}</span>
       </Button>
-      <!-- Явно кнопочный вид (рамка/фон), не просто текст+стрелка — чтобы возможность
-           сменить договор считывалась сразу, а не терялась среди заголовка (по прямой
-           просьбе 2026-08-25). Виден только когда договоров реально больше одного. -->
       <DropdownMenu v-if="contract && contracts.length > 1">
         <DropdownMenuTrigger as-child>
           <button
@@ -315,8 +248,6 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
       </h1>
       <ContractStatusPill v-if="contract" :status="contract.status" />
       <Loader v-if="isSwitching" class="size-4 shrink-0 animate-spin text-muted-foreground" />
-      <!-- Тут же, на уровне номера договора — было тесно вперемешку с датой создания,
-           та переехала в карточку ниже (по прямой просьбе 2026-08-26). -->
       <Button v-if="contract" size="sm" class="ml-auto flex items-center gap-2" @click="paymentDialog?.open(contract.id)">
         <CreditCard class="size-4 shrink-0" />
         {{ t('nav.sidebarPay') }}
@@ -336,8 +267,6 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
     </Card>
 
     <template v-if="contract">
-      <!-- opacity/transition — та же смена договора, что и переключатель выше, но резче
-           бросается в глаза именно тут (весь блок цифр), поэтому приглушаем отдельно. -->
       <div class="data-reveal flex flex-1 flex-col gap-4 transition-opacity duration-200 md:min-h-0" :class="isSwitching ? 'opacity-50' : ''">
       <Card class="flex flex-col gap-4 p-4">
         <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
@@ -349,8 +278,6 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
             <CalendarRange class="size-4 shrink-0 text-primary" />
             {{ formatDate(contract.startDate) }} - {{ formatDate(contract.actualEndDate ?? contract.endDate) }}
           </span>
-          <!-- Дата создания — тут же, в карточке (была в общем заголовке страницы, но там
-               теперь кнопка "Оплатить", по прямой просьбе 2026-08-26). -->
           <span class="ml-auto flex items-center gap-1.5 text-muted-foreground">
             <History class="size-4 shrink-0 text-primary" />
             {{ t('contracts.detail.createdOn', { date: formatDate(contract.createdAt) }) }}
@@ -387,12 +314,6 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
               <p class="text-lg font-medium">{{ formatMoney(contract.terms[0]?.dailyRateAmount ?? 0) }}</p>
             </div>
           </div>
-          <!-- Кликабельна только сама сумма (открывает историю начисления по дням, см.
-               isPenaltyDialogOpen), не весь тайл — раньше подсвечивался фоном весь блок
-               при наведении, выглядело неопрятно на фоне остальных (некликабельных)
-               тайлов рядом; теперь тот же приём, что у PenaltyBalanceCell.vue в Финансовом
-               отчёте — подчёркнутая сумма без общего hover-фона (по прямой просьбе
-               2026-08-28). -->
           <div class="flex min-w-0 items-center gap-3">
             <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-500/15">
               <Percent class="size-5 text-orange-600 dark:text-orange-400" />

@@ -29,6 +29,7 @@ export const SYNC_JOBS: SyncJobDefinition[] = [
   { id: 'service-provision-recovery', group: 'ACCOUNTING', type: 'service-provision-documents', operations: ['STARTUP_RECOVERY'], schedule: { kind: 'STARTUP' } },
   { id: 'contract-status', group: 'HOSTEL', type: 'contract-status', schedule: { kind: 'DAILY', hour: 1, minute: 30 } },
   { id: 'penalties', group: 'HOSTEL', type: 'penalties', schedule: { kind: 'DAILY', hour: 2, minute: 0 } },
+  { id: 'penalty-reconciliation', group: 'HOSTEL', type: 'penalty-reconciliation', schedule: { kind: 'DAILY', hour: 0, minute: 30 } },
 ];
 
 export function syncJobWhere(job: SyncJobDefinition): Prisma.SyncLogWhereInput {
@@ -40,8 +41,6 @@ export function syncJobWhere(job: SyncJobDefinition): Prisma.SyncLogWhereInput {
   };
 }
 
-// Moscow has a fixed UTC+03:00 offset. Keep the calculation on the server so all
-// clients see the same upcoming run, regardless of their own time zone.
 export function dailyScheduleWindow(now: Date, hour: number, minute: number): { previous: Date; next: Date } {
   const moscowNow = new Date(now.getTime() + 3 * 60 * 60_000);
   const today = Date.UTC(moscowNow.getUTCFullYear(), moscowNow.getUTCMonth(), moscowNow.getUTCDate(), hour - 3, minute);

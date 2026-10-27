@@ -28,8 +28,6 @@ import {
 const router = useRouter()
 const { t } = useI18n()
 
-// Список читает уже сохранённые документы. Планировщик обновляет текущий месяц ежедневно,
-// а сотрудник может отдельно пересчитать или отправить любые выбранные строки.
 
 function formatMoney(value: number): string {
   return `${value.toLocaleString(dateLocaleTag(), { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
@@ -57,8 +55,6 @@ interface TableRow {
   contractCount: number
   unmatchedContractCount: number
   status: Accounting1cSyncStatus
-  // Самый свежий periodStart среди загруженных документов — визуально выделяется в
-  // таблице (см. ServiceProvisionPeriodCell.vue), по прямой просьбе 2026-09-04.
   isCurrent: boolean
 }
 
@@ -87,12 +83,6 @@ async function loadDocs() {
       status: d.accounting1cSyncStatus,
       isCurrent: d.periodStart === latestPeriod,
     }))
-    // EntityTable сам подгружает данные один раз в onMounted и дальше реагирует только на
-    // смену страницы/сортировки/поиска/фильтра (см. EntityTable.vue) — источник (docs)
-    // ему не известен как зависимость. Без явного refresh() тут первый заход на страницу
-    // показывал бы пустую таблицу до первого клика по сортировке/фильтру (этот же fetch
-    // ещё не мог успеть отработать раньше onMounted самой EntityTable — сетевой запрос
-    // всегда медленнее синхронного монтирования).
     await tableRef.value?.refresh()
   } catch (error) {
     loadError.value = error instanceof Error ? error.message : String(error)
@@ -192,7 +182,6 @@ async function confirmSend() {
   }
 }
 
-// --- Детализация одного документа — какие договоры и на какую сумму в него вошли ---
 const detailOpen = ref(false)
 const detailLoading = ref(false)
 const detailError = ref('')

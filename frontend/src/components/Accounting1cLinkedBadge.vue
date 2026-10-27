@@ -3,10 +3,6 @@ import { Check, X } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
-// linked — известен ли 1С Бухгалтерии ContractorUID/ContractUID этого физлица/договора
-// (Contract.accounting1cUid / Individual.accounting1cContractorUid), по прямой просьбе
-// 2026-09-04 — не путать с Accounting1cStatusPill.vue (тот про статус отправки КОНКРЕТНОГО
-// платежа, здесь — про саму сущность целиком, есть ли у неё вообще известная пара).
 defineProps<{ linked: boolean }>()
 const { t } = useI18n()
 </script>

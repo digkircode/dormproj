@@ -1,7 +1,5 @@
 import { z } from 'zod';
 
-// Форма одной записи из внешнего REST API 1С с историей паспортных данных. Нет
-// собственного UID записи — только связь с физлицом (FizicheskoyeLitsoUID) и период.
 export const passportApiRecordSchema = z.object({
   FizicheskoyeLitsoUID: z.uuid(),
   Period: z.coerce.date(),

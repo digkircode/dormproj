@@ -59,8 +59,6 @@ export function buildMovementEvents(contracts: MovementContract[]): MovementEven
         residentFullName: contract.resident.fullName,
       };
 
-      // A previous contract must have started before this one and have been
-      // valid during the preceding 30 days (or still be valid on start).
       const previous = list
         .filter((other) => other.id !== contract.id && other.startDate < start && effectiveEnd(other) >= other.startDate
           && effectiveEnd(other) >= addDays(start, -GAP_DAYS))
@@ -73,8 +71,6 @@ export function buildMovementEvents(contracts: MovementContract[]): MovementEven
         events.push({ date: start, operation: previousRoom === room ? 'RENEWAL' : 'MOVE', from: previousRoom, to: room, ...meta });
       }
 
-      // Any other contract continuing past this end or starting within the
-      // following 30 days prevents a move-out event.
       const continues = list.some((other) => other.id !== contract.id
         && other.startDate <= addDays(end, GAP_DAYS) && effectiveEnd(other) > end);
       if (!continues) events.push({ date: end, operation: 'OUT', from: roomAt(contract, end), to: null, ...meta });

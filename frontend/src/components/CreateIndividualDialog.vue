@@ -18,11 +18,8 @@ import { blockNonDigitKeys, formatSnils, formatSubdivisionCode, isValidEmailForm
 const router = useRouter()
 const { t, locale } = useI18n()
 
-// Тот же fade-переход открытия/закрытия, что у остальных диалогов (CreateContractDialog.vue).
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
-// Те же классы, что и у components/ui/input/Input.vue — для голых <input> с собственной
-// маской (СНИЛС/код подразделения), см. комментарий у соответствующих полей ниже.
 const MASK_INPUT_CLASS =
   'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground transition-shadow focus-visible:outline-none focus-visible:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/20 focus-visible:shadow-sm disabled:cursor-not-allowed disabled:opacity-50'
 
@@ -38,9 +35,6 @@ const name = ref('')
 const otchestvo = ref('')
 const birthDate = ref('')
 const gender = ref<'Мужской' | 'Женский' | ''>('')
-// Закрытый список (ОКСМ, см. lib/citizenship-list.ts) — тот же принцип SearchSelect, что и
-// поиск проживающего/комнаты в CreateContractDialog.vue: локальный фильтр по уже
-// загруженному целиком списку (250+ стран, отдельный запрос на бэк не нужен).
 const citizenship = ref('')
 const citizenshipQuery = ref('')
 const citizenshipResults = ref<string[]>([])
@@ -59,7 +53,6 @@ const passportIssuedAt = ref('')
 
 const phoneInputRef = ref<InstanceType<typeof PhoneInput> | null>(null)
 
-// Тот же паттерн submitAttempted-гейта, что и в CreateContractDialog.vue.
 function computedInvalid(check: () => boolean) {
   return computed(() => submitAttempted.value && check())
 }
@@ -78,9 +71,6 @@ const emailInvalid = computedInvalid(
 const invalidClass = 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20'
 watch(phone, () => { phoneInvalid.value = false })
 
-// СНИЛС/код подразделения — цифровая маска с разделителями (formatSnils/
-// formatSubdivisionCode, см. lib/utils.ts), тот же приём, что и в CreateContractDialog.vue
-// для полей родителя.
 function onSnilsInput(event: Event) {
   const input = event.target as HTMLInputElement
   const formatted = formatSnils(input.value)
@@ -288,10 +278,6 @@ async function submitCreate() {
             <div class="grid grid-cols-2 gap-4">
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.snils') }}</Label>
-                <!-- Голый <input>, не обёртка Input.vue — та держит свой внутренний v-model
-                     на том же нативном 'input'-событии, что и наш @input-хендлер маски —
-                     гонка (см. известную ловушку в промпте проекта, тот же приём, что и в
-                     DatePickerField.vue). -->
                 <input :value="snils" :class="MASK_INPUT_CLASS" placeholder="000-000-000 00" @input="onSnilsInput" @keydown="blockNonDigitKeys" />
               </div>
               <div class="flex flex-col gap-2">

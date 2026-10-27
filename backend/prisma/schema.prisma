@@ -1,7 +1,4 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
   provider     = "prisma-client"
@@ -13,8 +10,6 @@ datasource db {
   provider = "postgresql"
 }
 
-// Один активный студент = одна зачётная книжка (ZachetnayaKnigaUID из внешнего API).
-// Отчисленных/выпустившихся не храним — при синхронизации отсутствующие строки удаляются.
 model Student {
   zachetnayaKnigaUid   String   @map("zachetnaya_kniga_uid")
   fizicheskoyeLitsoUid String   @map("fizicheskoye_litso_uid")
@@ -42,9 +37,6 @@ model Student {
 
   @@id([zachetnayaKnigaUid, fizicheskoyeLitsoUid])
   @@index([fizicheskoyeLitsoUid])
-  // Под реальные фильтры/сортировки списка "Контингент студентов" (students.controller.ts) —
-  // без них список читает всю таблицу целиком на каждый список/фильтр/сортировку (seq scan),
-  // см. известную проблему в промпте проекта, добавлено 2026-08-28.
   @@index([fullName])
   @@index([group])
   @@index([kursNumber])
@@ -59,14 +51,6 @@ model Student {
   @@map("students")
 }
 
-// Физическое лицо (человек), в отличие от Student — не привязано к конкретной зачётке
-// (у одного человека может быть несколько). Источник данных отдаёт их по запросу с
-// конкретными UID, а не полным списком, поэтому здесь никогда не делаем hard delete —
-// пропавшая или помеченная DeleteMark=true запись всё равно остаётся в базе как есть.
-// Только fullName обязателен. Синхрон из 1С заполняет все остальные поля всегда,
-// но будущее ручное добавление на сайте (см. isManual) может завести человека
-// сначала по одному имени, остальное — позже, поэтому у таблицы не может быть NOT NULL
-// на всём подряд.
 model Individual {
   fizicheskoyeLitsoUid String    @id @map("fizicheskoye_litso_uid")
   deleteMark           Boolean   @default(false) @map("delete_mark")
@@ -77,23 +61,12 @@ model Individual {
   otchestvo            String?
   gender               String?
   birthDate            DateTime? @map("birth_date")
-  // Сгенерированная БД колонка (to_char(birth_date, 'DD.MM.YYYY')) — только чтобы дату
-  // рождения можно было искать тем же ILIKE-поиском по тексту, что и остальные поля,
-  // не переписывая весь список на сырой SQL. Приложение в неё никогда не пишет.
   birthDateText        String?   @map("birth_date_text")
   inn                  String?
   snils                String?
   photoCode            String?   @map("photo_code")
-  // Заведено вручную на сайте, а не синхроном из 1С — такие записи синхрон физлиц
-  // не трогает и их UID не участвует в запросе к источнику (см. individuals-sync.service.ts).
   isManual             Boolean   @default(false) @map("is_manual")
 
-  // Поля ручного ввода (форма "Новое физическое лицо", individuals.controller.ts, и
-  // родитель несовершеннолетнего при создании договора, contracts.controller.ts) — для
-  // синхронизируемых из 1С физлиц всегда null, реальные контакты/документы там приходят
-  // через связи contactInfos/passports. Не путать с Passport/ContactInfo — те две модели
-  // "слепок из 1С" с обязательными техническими полями (xml/json/systemDoc и т.п.), не
-  // подходящими для ручного ввода.
   phone              String?   @map("phone")
   email              String?   @map("email")
   address            String?   @map("address")
@@ -102,14 +75,8 @@ model Individual {
   passportIssuedBy   String?   @map("passport_issued_by")
   passportIssuedCode String?   @map("passport_issued_code")
   passportIssuedAt   DateTime? @map("passport_issued_at")
-  // Гражданство ручного ввода — как и остальные поля выше, только для isManual; у
-  // синхронизируемых физлиц гражданство приходит через связь citizenships (история по period).
   citizenship        String?   @map("citizenship")
 
-  // ContractorUID из 1С Бухгалтерии (не путать с fizicheskoyeLitsoUid — тот из другой,
-  // студенческой/HR базы 1С). Заполняется один раз из ответа при первой успешной отправке
-  // платежа по этому человеку (см. accounting1cDocumentUid у Payment) и переиспользуется
-  // на все следующие отправки, чтобы 1С не создавала контрагента-дубль каждый раз.
   accounting1cContractorUid String? @map("accounting_1c_contractor_uid")
 
   citizenships        Citizenship[]
@@ -120,27 +87,15 @@ model Individual {
   contractsAsLegalRep Contract[]        @relation("ContractLegalRep")
   chatConversation    ChatConversation?
 
-  // Слияние ручного физлица (isManual) в настоящую синхронную запись, когда она позже
-  // появилась в 1С Университет (см. individuals.controller.ts#merge) — ТОЛЬКО по явному
-  // действию сотрудника, никогда автоматически синхроном. Строка-источник не удаляется
-  // физически (иначе исторические AuditLog.entityId/старые ссылки повисли бы в никуда) —
-  // помечается mergedIntoUid, скрывается из обычных списков/поиска, но остаётся доступна
-  // по прямой ссылке с баннером "объединено с...".
   mergedIntoUid String?      @map("merged_into_uid")
   mergedInto    Individual?  @relation("IndividualMerge", fields: [mergedIntoUid], references: [fizicheskoyeLitsoUid])
   mergedFrom    Individual[] @relation("IndividualMerge")
   mergedAt      DateTime?    @map("merged_at")
-  // Точный слепок того, что именно было перенесено при слиянии (id договоров/паспортов/
-  // etc, см. IndividualMergeSnapshot в individuals.controller.ts) — только для отмены
-  // (unmerge(), ADMIN). Без этого снимка нельзя надёжно понять, какие из ТЕКУЩИХ данных
-  // цели принадлежали именно источнику на момент слияния, а какие были у цели и так.
   mergedSnapshot Json?       @map("merged_snapshot")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  // Под реальные фильтры/сортировки списка "Физические лица" (individuals.controller.ts) —
-  // см. известную проблему в промпте проекта, добавлено 2026-08-28.
   @@index([fullName])
   @@index([code])
   @@index([snils])
@@ -150,33 +105,16 @@ model Individual {
   @@map("individuals")
 }
 
-// "Слепок", а не синхрон в смысле Student/Individual — источник отдаёт историю
-// гражданств без какого-либо стабильного ключа (у одного физлица может быть
-// несколько периодов), апсертить не по чему. Поэтому при каждом запуске таблица
-// полностью очищается и заполняется заново (как раньше делали для Student).
-// ФИО в этой таблице не хранится — только fizicheskoyeLitsoUid, ФИО подтягивается
-// связью с Individual на чтении (см. citizenship.controller.ts).
 model Citizenship {
   id                   Int        @id @default(autoincrement())
   fizicheskoyeLitsoUid String     @map("fizicheskoye_litso_uid")
   individual           Individual @relation(fields: [fizicheskoyeLitsoUid], references: [fizicheskoyeLitsoUid])
 
   period      DateTime
-  // Сгенерированная БД колонка (см. birthDateText у Individual) — чтобы период
-  // тоже искался обычным ILIKE, а не только точным/диапазонным сравнением дат.
-  // period здесь всегда заполнен (не как birthDate у Individual), поэтому не String? —
-  // dbgenerated("") ничего не меняет в реальной БД (та задаётся ручной миграцией),
-  // но помечает поле как "с дефолтом", чтобы Prisma не требовал его при createMany.
   periodText  String   @default(dbgenerated()) @map("period_text")
   country     String
   countryCode String   @map("country_code")
 
-  // true — строка перенесена сюда при слиянии ручного физлица с этой (синхронной) записью
-  // (individuals.controller.ts#merge), не пришла из 1С Университет. Ночной полный
-  // ресинк (citizenship-sync.service.ts) исключает такие строки из своего "слепка" —
-  // иначе он их тут же стирал бы как "не пришедшие в этот раз из 1С" (код-ревью
-  // 2026-09-04 — тихая потеря данных, перенесённых слиянием). Сбрасывается в false при
-  // unmerge(), когда строка возвращается на исходное ручное физлицо.
   preservedFromMerge Boolean @default(false) @map("preserved_from_merge")
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -185,9 +123,6 @@ model Citizenship {
   @@map("citizenships")
 }
 
-// Тот же принцип "слепка", что и Citizenship — история паспортных данных без
-// стабильного ключа (несколько документов на одно физлицо со временем), полная
-// очистка+перезапись при каждом запуске. ФИО не хранится, только связь с Individual.
 model Passport {
   id                   Int        @id @default(autoincrement())
   fizicheskoyeLitsoUid String     @map("fizicheskoye_litso_uid")
@@ -204,7 +139,6 @@ model Passport {
   codeUnit      String   @map("code_unit")
   systemDoc     String   @map("system_doc")
 
-  // См. Citizenship.preservedFromMerge — тот же принцип, для passport-sync.service.ts.
   preservedFromMerge Boolean @default(false) @map("preserved_from_merge")
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -213,10 +147,6 @@ model Passport {
   @@map("passports")
 }
 
-// Тот же принцип "слепка" — контактов (адреса/телефоны/email/место рождения и т.д.)
-// у одного физлица может быть много, стабильного ключа нет, полная очистка+перезапись
-// при каждом запуске. XML/JSON — дубли Predstavleniye/Country/... в структурированном
-// виде из источника; по явной просьбе храним и показываем как есть, а не отбрасываем.
 model ContactInfo {
   id                   Int        @id @default(autoincrement())
   fizicheskoyeLitsoUid String     @map("fizicheskoye_litso_uid")
@@ -232,12 +162,9 @@ model ContactInfo {
   email             String
   phoneNumber       String   @map("phone_number")
   phoneNumberNoCode String   @map("phone_number_no_code")
-  // 1С отдаёт "0001-01-01" как "дата не задана" (не NULL) — храним как есть, на фронте
-  // такое значение показываем как "—" (см. ContactInfo.vue).
   dateStart         DateTime @map("date_start")
   dateStartText     String   @default(dbgenerated()) @map("date_start_text")
 
-  // См. Citizenship.preservedFromMerge — тот же принцип, для contact-info-sync.service.ts.
   preservedFromMerge Boolean @default(false) @map("preserved_from_merge")
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -246,24 +173,13 @@ model ContactInfo {
   @@map("contact_infos")
 }
 
-// Привязка SSO-аккаунтов (rosnou-id/Azure) к физлицам — источник legacy БД (users +
-// users_binds), разово импортирована по выгрузке в JSON, только строки, у которых
-// univerId реально указывает на существующего физлица (см. импорт-скрипт, в репозитории
-// не хранится — разовый прогон, не постоянный синхрон). id — не autoincrement, а
-// исходный id аккаунта из источника (тот же id, что rosnou-id отдаёт в /api/user), как и
-// у Individual сохраняем внешний идентификатор как есть. Синхрона/логов для этой таблицы
-// пока нет, только сама таблица и разовый импорт — расширять по отдельной задаче.
 model User {
   id       Int     @id
   bindId   String? @map("bind_id")
   azureId  String? @map("azure_id")
   univerId String? @map("univer_id")
-  // PORTAL: связи обновляются синхроном; MANUAL: ручная правка имеет приоритет.
-  // UNSET сохраняет ранее импортированные связи и допускает автозаполнение пустых.
   linkSource String @default("UNSET") @map("link_source")
   fullName String  @map("full_name")
-  // Заполняется/обновляется автоматически при каждом логине из фолбека rosnou-id
-  // (SessionUser.email, см. auth.controller.ts) — не из формы, своего UI на это поле нет.
   email    String?
   notificationLocale String @default("ru") @map("notification_locale")
 
@@ -302,26 +218,13 @@ model UserSession {
   @@map("user_sessions")
 }
 
-// История изменений (кто/что/где поменял) — действия пользователей и автоматические
-// переходы статуса договора. Ночной синхрон 1С ведёт свой SyncLog (см. sync/). Пишется
-// явными вызовами AuditLogService.log() из контроллеров (не общий Prisma-хук — иначе не
-// вышло бы отличить "человек нажал кнопку" от синхрона, и сообщения были бы менее читаемыми).
-// changes — diff только по интересующим полям на момент действия (не весь объект целиком) —
-// { fieldName: { before, after } }, для CREATE/DELETE одна из сторон всегда null.
 model AuditLog {
   id          Int      @id @default(autoincrement())
   userId      Int?
   user        User?    @relation(fields: [userId], references: [id])
   action      String
-  // Тип сущности — своё короткое имя ('Individual'/'Contract'/'Room' и т.п.), не Prisma
-  // model name напрямую, чтобы не сломаться при переименовании модели в схеме.
   entityType  String
-  // Строкой всегда, даже если реальный PK — число (Contract.id) или natural key
-  // (Individual.fizicheskoyeLitsoUid) — единое поле для фильтра/ссылки в UI.
   entityId    String
-  // Человекочитаемая метка сущности НА МОМЕНТ действия (ФИО/номер договора и т.п.) — сама
-  // сущность могла быть с тех пор переименована или удалена, а запись истории должна
-  // остаться понятной.
   entityLabel String
   changes     Json
   createdAt   DateTime @default(now()) @map("created_at")
@@ -332,13 +235,6 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-// Первая часть ролевой модели (первый этап, см. промпт проекта) — только таблицы и
-// назначение по 3 фиксированным ролям, БЕЗ своего UI управления (это отдельная,
-// пока не начатая задача) и БЕЗ бэкенд-проверки на большинстве эндпоинтов (только
-// individuals/contracts, см. @Roles() там) — известная критическая дыра (AuthGuard
-// без проверки роли) остаётся открытой почти everywhere ещё на один заход.
-// name — стабильный ключ ('ADMIN'/'STAFF'/'RESIDENT'), не для отображения (русские
-// подписи — в коде, ROLE_LABELS, тот же принцип, что statusLabel/BUCKET_LABELS).
 model Role {
   id    Int        @id @default(autoincrement())
   name  String     @unique
@@ -347,8 +243,6 @@ model Role {
   @@map("roles")
 }
 
-// Junction, не enum-колонка на User — по прямой просьбе, плюс задел на будущее
-// (несколько ролей на аккаунт), даже если сейчас практически используется одна.
 model UserRole {
   userId Int @map("user_id")
   roleId Int @map("role_id")
@@ -360,8 +254,6 @@ model UserRole {
   @@map("users_roles")
 }
 
-// Однорядный лок на время выполнения синхронизации данного типа — защита от параллельного запуска.
-// Уникальность type делает acquire атомарным на уровне БД (create падает, если лок уже держит кто-то другой).
 model SyncLock {
   type      String   @id
   startedAt DateTime @default(now()) @map("started_at")
@@ -382,12 +274,7 @@ model SyncLog {
   removed      Int?
   errorMessage String?     @map("error_message")
   errorStack   String?     @map("error_stack")
-  // UID физлица — заполняется только для точечной синхронизации одного физлица
-  // (с его карточки), у остальных 5 типов синхронов всегда null.
   targetUid    String?     @map("target_uid")
-  // Разбивка added/updated/removed по шагам (студент/физлицо/гражданство/паспорт/
-  // контакты) — только у точечной синхронизации физлица и только при успехе
-  // (см. IndividualSyncService), у остальных 5 типов синхронов всегда null.
   details      Json?
 
   @@index([type, status, finishedAt])
@@ -405,20 +292,9 @@ enum SyncStatus {
   FAILED
 }
 
-// Справочник комнат — изначально разовая загрузка из выгрузки 1С (см. миграцию add_rooms),
-// теперь дополняется вручную через UI (создание/переименование/удаление комнаты), поэтому
-// guid — nullable: у комнат, заведённых на сайте, 1С-идентификатора нет и не будет.
-// Этаж больше не отдельная колонка — раньше выводился регуляркой из номера (see миграция
-// add_room_characteristics), теперь это обычная защищённая характеристика (см.
-// RoomCharacteristicDefinition), задаётся вручную при создании комнаты (миграция
-// floor_as_characteristic переносит старые значения и убирает generated-колонку).
 model Room {
   id   Int     @id @default(autoincrement())
   guid String? @unique
-  // @unique — иначе обработка P2002 в rooms.controller.ts (create/update) была мёртвым
-  // кодом: ничего в схеме реально не мешало завести две комнаты с одинаковым номером
-  // (код-ревью 2026-09-04). Перед деплоем миграции на прод проверить, что там уже нет
-  // дублей room — иначе `prisma migrate deploy` упадёт на добавлении constraint'а.
   room String @unique
 
   characteristicValues RoomCharacteristicValue[]
@@ -433,30 +309,13 @@ enum RoomCharacteristicValueType {
   TEXT
 }
 
-// Открытый каталог характеристик комнат — в отличие от floor/room, которые фиксированы,
-// сотрудники заводят/переименовывают/удаляют характеристики сами через UI (см. обсуждение:
-// "Жилое помещение", "Количество мест", "Площадь", "Стоимость" — стартовый набор из 1С-выгрузки,
-// "Санузел" и всё, что появится дальше — уже полностью ручное). valueType закрепляет, в какую
-// из типизированных колонок RoomCharacteristicValue пишется значение этой характеристики.
 model RoomCharacteristicDefinition {
   id          Int                         @id @default(autoincrement())
   name        String                      @unique
   valueType   RoomCharacteristicValueType @map("value_type")
   unit        String?
-  // Стартовые 4 характеристики из 1С-выгрузки (Жилое помещение/Количество мест/Площадь/
-  // Стоимость) — их нельзя удалить через UI, в отличие от всего, что заводят сотрудники
-  // сами (см. room-characteristic-definitions.controller.ts). Переименовывать/менять
-  // единицу измерения по-прежнему можно — блокируется только delete.
   isProtected Boolean                     @default(false) @map("is_protected")
-  // Ручной порядок для drag-and-drop в UI — новые характеристики получают
-  // max(sortOrder)+1 (в конец списка), см. room-characteristic-definitions.controller.ts.
   sortOrder   Int                         @default(0) @map("sort_order")
-  // Закрытый список допустимых значений — только для valueType TEXT (пусто = обычное
-  // свободное текстовое поле, как раньше). Если задан — форма значения на комнате
-  // (RoomDetailPanel.vue) рисует Select вместо голого <input>, а бэкенд (rooms.controller.ts)
-  // отклоняет значение, которого нет в списке. Добавлено вместе с "Корпус" (Новый/Старый),
-  // но не привязано к конкретному имени характеристики — общий механизм для любой будущей
-  // TEXT-характеристики с фиксированным набором значений.
   options     String[]                    @default([]) @map("options")
 
   values RoomCharacteristicValue[]
@@ -466,12 +325,6 @@ model RoomCharacteristicDefinition {
   @@map("room_characteristic_definitions")
 }
 
-// Значение характеристики комнаты на конкретную дату — история хранится как есть (не
-// перетирается), "актуальное" значение — просто ряд с максимальным period на пару
-// (room, definition), см. current-characteristics.ts (тот же принцип, что pickLatestContactInfo
-// у физлиц, только без эвристик — period здесь всегда надёжен, не 1С-сентинел).
-// Типизированный EAV: заполнена ровно одна из трёх value*-колонок — какая именно, определяет
-// definition.valueType (не дублируется на каждой записи, чтобы не могло рассинхронизироваться).
 model RoomCharacteristicValue {
   id           Int                          @id @default(autoincrement())
   roomId       Int                          @map("room_id")
@@ -483,9 +336,6 @@ model RoomCharacteristicValue {
   valueBool   Boolean? @map("value_bool")
   valueNumber Decimal? @map("value_number") @db.Decimal(12, 2)
   valueText   String?  @map("value_text")
-  // Исторические значения на 01.09.2026 (стартовая выгрузка 1С) — заблокированы от
-  // изменения/удаления через UI навсегда, в отличие от значений, которые добавляют
-  // сотрудники позже (см. rooms.controller.ts).
   isProtected Boolean  @default(false) @map("is_protected")
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -495,22 +345,11 @@ model RoomCharacteristicValue {
   @@map("room_characteristic_values")
 }
 
-// Финансовые показатели по общежитию в целом, не по конкретной комнате — компактная
-// карточка при клике на корень дерева комнат (см. RoomTree.vue/Rooms.vue), не через
-// обычный каталог характеристик комнат. Ровно 3 фиксированных поля, не открытый каталог,
-// как у комнат — сотрудники не заводят/переименовывают/удаляют свои произвольные,
-// поэтому обычные колонки, а не EAV. Singleton: ровно одна строка с id=1, общежитие одно
-// (см. DormitoryInfoController — upsert по этому id на каждом чтении/записи). Только
-// текущее значение, без истории по period — по прямой просьбе, в отличие от комнат.
 model DormitoryInfo {
   id                   Int      @id @default(1)
   communalServicesCost Decimal? @map("communal_services_cost") @db.Decimal(12, 2)
   dailyPaymentInternal Decimal? @map("daily_payment_internal") @db.Decimal(12, 2)
   dailyPaymentOther    Decimal? @map("daily_payment_other") @db.Decimal(12, 2)
-  // Добавлено 2026-08-23 — справочные величины для страницы "Проживающий → Общая
-  // информация" (StudentGeneralInfo.vue): восстановление утерянного пропускного
-  // документа (единая цена что для студенческого билета, что для пластиковой карты)
-  // и суточная ставка для гостевых комнат (см. характеристика "Гостевая" ниже).
   passRestorationCost  Decimal? @map("pass_restoration_cost") @db.Decimal(12, 2)
   guestRoomDailyRate   Decimal? @map("guest_room_daily_rate") @db.Decimal(12, 2)
   updatedAt            DateTime @updatedAt @map("updated_at")
@@ -518,19 +357,7 @@ model DormitoryInfo {
   @@map("dormitory_info")
 }
 
-// ===== Договоры найма, начисления, оплаты =====
-// Начисления и оплаты — раздельные потоки данных (AR-леджер), не "остаток на договоре":
-// долг — не хранимое поле, а производная (начислено − оплачено), см. Accrual/Payment ниже.
 
-// Полный жизненный цикл (переписано 2026-08-31 — раньше только ACTIVE/TERMINATED,
-// EXPIRED был заведён в схеме, но нигде не проставлялся и не читался, 0 строк с ним):
-// ACTIVE (обычное течение) → EXPIRING (осталось ≤30 дней до endDate, тот же порог, что
-// раньше был чисто вычисляемым "Истекает" на фронте/в отчётах, см. contracts-status.scheduler.ts)
-// → COMPLETED (endDate прошёл, долга по начислениям+пене нет) ИЛИ OVERDUE (endDate прошёл,
-// долг есть). TERMINATED — единственный статус, который НЕ проставляется автоматически,
-// только явным действием сотрудника (contracts.controller.ts#terminate), в любой момент
-// из любого из перечисленных выше. Переходы считает ночной крон
-// billing/contract-status.scheduler.ts — см. его комментарий насчёт порядка/идемпотентности.
 enum ContractStatus {
   ACTIVE
   EXPIRING
@@ -544,14 +371,6 @@ enum DailyRateCategory {
   OTHER_UNIVERSITY
 }
 
-// Договор найма — сам факт и стороны. Финансовые условия — не здесь, а в ContractTerms
-// (могут пересматриваться в течение срока), комната — не здесь, а в RoomAssignment
-// (переезд между комнатами не должен рвать договор и терять историю "кто где жил на дату
-// X"). residentIndividualUid — всегда проживающий (чья зачётка, кто физически живёт), не
-// родитель. Для несовершеннолетних Наниматель — родитель, который как правило никогда не
-// появится в 1С и не должен заводиться как Individual(isManual) — это сделало бы isManual
-// нормой для целой категории договоров вместо редкого служебного случая, поэтому родитель
-// хранится простыми полями прямо здесь, не отдельной сущностью.
 model Contract {
   id                    Int            @id @default(autoincrement())
   number                String
@@ -560,19 +379,11 @@ model Contract {
   resident              Individual     @relation(fields: [residentIndividualUid], references: [fizicheskoyeLitsoUid])
   startDate             DateTime       @map("start_date")
   endDate               DateTime       @map("end_date")
-  // Фактическая дата выезда, если раньше endDate (досрочное расторжение) — endDate при
-  // этом не переписывается, исходные условия договора не теряются.
   actualEndDate         DateTime?      @map("actual_end_date")
   status                ContractStatus @default(ACTIVE)
 
-  // Причина проживания для тех, кто не из АНО ВО «РосНОУ» (dailyRateCategory ==
-  // OTHER_UNIVERSITY) — печатается в п.1.2 бланка вместо стандартной формулировки
-  // "обучением в АНО ВО «РосНОУ»". Для своих студентов не используется (null).
   residenceReason String? @map("residence_reason")
 
-  // Родитель/законный представитель — у взрослых заполнен только legalRepPhone (просто
-  // контакт по тексту договора), у несовершеннолетних весь блок (родитель — сторона
-  // договора, паспортные данные обязательны).
   legalRepName               String?   @map("legal_rep_name")
   legalRepPhone              String?   @map("legal_rep_phone")
   legalRepGender             String?   @map("legal_rep_gender")
@@ -586,42 +397,21 @@ model Contract {
   legalRepInn                String?   @map("legal_rep_inn")
   legalRepAddress            String?   @map("legal_rep_address")
 
-  // Оплата материнским капиталом — единовременный платёж за явно заданный период с
-  // возможной отсрочкой (ПФР платит не сразу). Если период попадает под неё, крон пени
-  // (см. Accrual) не начисляет пеню, пока текущая дата <= matCapitalDeferredUntil.
-  // matCapitalAmount — справочно (сумма к получению от ПФР), в леджер начислений/оплат
-  // не заводится напрямую, реальная оплата по-прежнему через обычный Payment.
   matCapitalCoveredFrom   DateTime? @map("mat_capital_covered_from")
   matCapitalCoveredTo     DateTime? @map("mat_capital_covered_to")
   matCapitalAmount        Decimal?  @map("mat_capital_amount") @db.Decimal(12, 2)
   matCapitalDeferredUntil DateTime? @map("mat_capital_deferred_until")
 
-  // Пеня — 0,14%/день от суммы всех ПРОСРОЧЕННЫХ (прошёл срок 10-го числа месяца,
-  // следующего за periodStart, см. accrual-generation.ts/penaltyStartsAt) и непогашенных
-  // начислений — начисляется ночным кроном (billing/penalty.scheduler.ts). Сама сумма НЕ
-  // хранится отдельным полем (по прямой просьбе 2026-08-22 — нужен отчёт "на дату", а
-  // одно число без истории по дням не даёт восстановить пеню на прошлую дату) — она
-  // производная: сумма PenaltyAccrualLog.amount по этому договору за нужный период,
-  // см. billing/penalty-balance.ts. penaltyAccruedThrough — до какой даты уже начислено,
-  // только для идемпотентности крона, сам баланс из него не считать.
   penaltyAccruedThrough DateTime?           @map("penalty_accrued_through")
+  penaltyRecalcPending   Boolean             @default(false) @map("penalty_recalc_pending")
+  penaltyRecalcRevision  Int                 @default(0) @map("penalty_recalc_revision")
   penaltyLogs           PenaltyAccrualLog[]
 
-  // Снимок личных данных проживающего на момент подписания (паспорт/СНИЛС/адрес/телефон/
-  // институт-курс — то, что синхрон 1С может незаметно перезаписать позже). Заполняется
-  // один раз при создании договора; для договоров, созданных до этой фичи — лениво при
-  // первой печати (см. resident-snapshot.ts) и дальше уже не трогается.
   residentSnapshot Json? @map("resident_snapshot")
 
-  // Родитель несовершеннолетнего как отдельный Individual(isManual=true) — только чтобы на
-  // следующем договоре того же несовершеннолетнего подставить уже введённые данные.
-  // Печатные данные конкретно ЭТОГО договора по-прежнему берутся из legalRep*-полей выше
-  // (они не меняются задним числом) — эта связь не источник печати, а только для автоподстановки.
   legalRepIndividualUid String?     @map("legal_rep_individual_uid")
   legalRepIndividual    Individual? @relation("ContractLegalRep", fields: [legalRepIndividualUid], references: [fizicheskoyeLitsoUid])
 
-  // Необязательная связь для истории перезаключений — на бизнес-логику начислений не
-  // влияет, продление всегда новый Contract с новым номером и датами, не мутация старого.
   renewedFromContractId Int?       @map("renewed_from_contract_id")
   renewedFrom           Contract?  @relation("ContractRenewal", fields: [renewedFromContractId], references: [id])
   renewals              Contract[] @relation("ContractRenewal")
@@ -629,20 +419,8 @@ model Contract {
   createdByUserId Int?  @map("created_by_user_id")
   createdBy       User? @relation("ContractCreatedBy", fields: [createdByUserId], references: [id])
 
-  // ContractUID из 1С Бухгалтерии — тот же принцип, что у Individual.accounting1cContractorUid
-  // выше: заполняется один раз из ответа при первой успешной отправке платежа по этому
-  // договору, дальше переиспользуется, чтобы не плодить в 1С дубли договора.
   accounting1cUid String? @map("accounting_1c_uid")
 
-  // Переплата сверх всех начислений (включая будущие) и пени — раньше молча терялась
-  // (деньги были в Payment.amount, но не отражались ни в одной PaymentAllocation, см.
-  // промпт проекта, код-ревью 2026-09-04). Обновляется в allocatePaymentFifo
-  // (billing/payment-allocation.ts): при разнесении НОВОГО платежа сюда же добавляется уже
-  // накопленный остаток — так что если с прошлого раза на договоре появился новый долг
-  // (например, пеня снова начислена после полного погашения — см. penalty.scheduler.ts),
-  // остаток в первую очередь гасит именно его, прежде чем расходуются деньги самого нового
-  // платежа. Не трогается сам Payment.amount — это чистая книга учёта ещё не потраченной
-  // переплаты по договору, не сумма конкретного платежа.
   creditBalance Decimal @default(0) @map("credit_balance") @db.Decimal(12, 2)
 
   terms                         ContractTerms[]
@@ -660,13 +438,10 @@ model Contract {
   @@unique([number])
   @@index([residentIndividualUid])
   @@index([status])
+  @@index([penaltyRecalcPending, id])
   @@map("contracts")
 }
 
-// Финансовые условия договора — снимок на момент подписания/пересмотра, с историей (тот
-// же принцип, что у RoomCharacteristicValue: "текущее" = запись с максимальным validFrom).
-// Не мутируем существующую строку при пересмотре цены — закрываем validTo у старой,
-// создаём новую, чтобы уже сформированные начисления оставались объяснимыми задним числом.
 model ContractTerms {
   id         Int       @id @default(autoincrement())
   contractId Int       @map("contract_id")
@@ -678,9 +453,6 @@ model ContractTerms {
   utilitiesAmount   Decimal           @map("utilities_amount") @db.Decimal(12, 2)
   dailyRateCategory DailyRateCategory @map("daily_rate_category")
   dailyRateAmount   Decimal           @map("daily_rate_amount") @db.Decimal(12, 2)
-  // Число месяца, до которого нужно оплатить конкретное месячное начисление (п. 4.4/5.4
-  // договора — всегда 5, но не хардкодим). Наниматель платит как ему удобно, не привязан
-  // к единой схеме на весь срок — это только срок начисления, не выбор периодичности.
   paymentDueDay     Int               @default(5) @map("payment_due_day")
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -689,9 +461,6 @@ model ContractTerms {
   @@map("contract_terms")
 }
 
-// История заселения в комнату — отдельно от финансовых условий, потому что переезд между
-// комнатами не меняет юридические условия найма, только помещение, и не должен рвать
-// договор или терять историю "кто где жил на дату X". Текущая комната = запись с toDate = null.
 model RoomAssignment {
   id         Int       @id @default(autoincrement())
   contractId Int       @map("contract_id")
@@ -709,15 +478,6 @@ model RoomAssignment {
   @@map("room_assignments")
 }
 
-// Начисление — одна строка на один расчётный период (обычно календарный месяц, кроме
-// первого/последнего — они могут быть неполными и считаются посуточно по dailyRateAmount
-// из действовавших на periodStart ContractTerms, с потолком в полную месячную сумму,
-// см. п. 4.2/5.2 договора). totalAmount/остаток не хранятся отдельным полем — считаются
-// на чтении (rentAmount + utilitiesAmount + adjustmentAmount минус сумма PaymentAllocation),
-// материализация в кеш — только если реально понадобится по нагрузке. Пеня — НЕ здесь,
-// она единая на весь договор и по дням, см. PenaltyAccrualLog ниже (по прямой просьбе
-// 2026-08-22: база пени — сумма всех просроченных начислений договора целиком, не одно
-// начисление).
 model Accrual {
   id         Int      @id @default(autoincrement())
   contractId Int      @map("contract_id")
@@ -730,14 +490,9 @@ model Accrual {
   rentAmount      Decimal @map("rent_amount") @db.Decimal(12, 2)
   utilitiesAmount Decimal @map("utilities_amount") @db.Decimal(12, 2)
 
-  // Ручная корректировка (плюс или минус) поверх исходно выставленной суммы — например,
-  // пересчёт последнего периода при досрочном выезде. Не переписываем rentAmount/
-  // utilitiesAmount напрямую, чтобы не терять то, что реально было выставлено человеку.
   adjustmentAmount Decimal @default(0) @map("adjustment_amount") @db.Decimal(12, 2)
   adjustmentReason String? @map("adjustment_reason")
 
-  // Начисление отменено (период стал ненужным при досрочном расторжении) — не удаляем
-  // физически, помечаем, чтобы не терять историю того, что вообще планировалось.
   voidedAt DateTime? @map("voided_at")
 
   allocations PaymentAllocation[]
@@ -750,25 +505,13 @@ model Accrual {
   @@map("accruals")
 }
 
-// Журнал начисления пени — одна строка на один календарный день на один договор,
-// пишется ночным кроном (billing/penalty.scheduler.ts). Это не только аудит ("откуда
-// взялась сумма") — это ЕДИНСТВЕННЫЙ источник самой суммы пени: Contract больше не хранит
-// пеню отдельным полем, она всегда считается как SUM(amount) по нужному диапазону дат
-// (см. billing/penalty-balance.ts), это и даёт финансовому отчёту точную пеню на
-// произвольную ПРОШЛУЮ дату, а не только "на сейчас".
 model PenaltyAccrualLog {
   id         Int      @id @default(autoincrement())
   contractId Int      @map("contract_id")
   contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
-  // Календарный день, за который начислена ЭТА строка (не дата запуска крона — при
-  // довозе пропущенных дней одним запуском на каждый день своя строка, см. крон).
   date        DateTime @map("date")
-  // Добавлено пени за этот день.
   amount      Decimal  @db.Decimal(12, 2)
-  // База расчёта (сумма просроченных непогашенных начислений на момент запуска крона),
-  // справочно — amount = overdueBase * PENALTY_DAILY_RATE, хранится явно, чтобы не
-  // пересчитывать вручную при разборе "откуда цифра", см. запрос пользователя 2026-08-22.
   overdueBase Decimal  @map("overdue_base") @db.Decimal(12, 2)
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -793,20 +536,12 @@ enum PaymentSource {
   WEBSITE
 }
 
-// Статус отправки платежа В 1С Бухгалтерию (не путать с source=IMPORTED_1C — это про
-// платежи, пришедшие ИЗ 1С; это поле — про наши WEBSITE-платежи, уходящие ТУДА). Раз в
-// сутки ночной крон (billing/accounting-1c-push.scheduler.ts) отправляет пачкой все
-// NOT_SYNCED/FAILED, плюс ручная кнопка "Отправить повторно" на конкретном платеже.
 enum Accounting1cSyncStatus {
   NOT_SYNCED
   SYNCED
   FAILED
 }
 
-// Платёж — факт поступления денег. contractId обязателен (в отличие от черновой идеи
-// делать его nullable под неопознанные 1С-платежи) — неоднозначные платежи из импорта
-// остаются в PaymentImportRecord и превращаются в Payment только после сопоставления
-// с договором, поэтому в самом леджере "подвешенных" записей не бывает.
 model Payment {
   id         Int      @id @default(autoincrement())
   contractId Int      @map("contract_id")
@@ -817,31 +552,16 @@ model Payment {
   method PaymentMethod
   source PaymentSource
 
-  // Сколько из этого платежа реально ушло на пеню (добавлено 2026-08-31) — реальное
-  // разнесение, не эвристика "leftover" на чтении (см. billing/penalty-balance.ts):
-  // проставляется в allocatePaymentFifo вторым шагом, после наступивших начислений и до
-  // будущих (см. billing/payment-allocation.ts). Нужно для выгрузки в 1С — там пеня
-  // отдельной строкой ("Пени") в DocumentSummDetails, не вместе с начислениями.
   penaltyAmount Decimal @default(0) @map("penalty_amount") @db.Decimal(12, 2)
 
-  // id платёжного документа в 1С — для идемпотентности повторного импорта и связи с
-  // PaymentImportRecord. rawComment — исходное "Назначение платежа", на случай, если
-  // авто-сопоставление ошиблось и нужно разбираться руками.
   externalRef String? @map("external_ref")
   rawComment  String? @map("raw_comment")
 
-  // Отправка ЭТОГО платежа в 1С Бухгалтерию (актуально только для source=WEBSITE, но
-  // поле есть у всех — для MANUAL/IMPORTED_1C просто остаётся NOT_SYNCED и никогда не
-  // трогается). accounting1cDocumentUid — DocumentUID из ответа 1С при успехе,
-  // accounting1cSyncError — текст ошибки как есть (для отображения сотруднику в UI, не
-  // требует похода в логи), accounting1cSyncedAt — когда последний раз пытались отправить
-  // (и при успехе, и при ошибке — чтобы отличать "ещё не пробовали" от "пробовали и не вышло").
   accounting1cSyncStatus  Accounting1cSyncStatus @default(NOT_SYNCED) @map("accounting_1c_sync_status")
   accounting1cDocumentUid String?                @map("accounting_1c_document_uid")
   accounting1cSyncError   String?                @map("accounting_1c_sync_error")
   accounting1cSyncedAt    DateTime?              @map("accounting_1c_synced_at")
 
-  // Платёж отменён/сторнирован (ошибочно внесён и т.п.) — не удаляем, помечаем.
   reversedAt DateTime? @map("reversed_at")
 
   createdByUserId Int?  @map("created_by_user_id")
@@ -858,8 +578,6 @@ model Payment {
   @@map("payments")
 }
 
-// Сотрудник фиксирует уже выполненный возврат переплаты по договору.
-// Это расход денег, а не входящий Payment: платёж и корректировка начисления сохраняются.
 model ContractRefund {
   id               Int      @id @default(autoincrement())
   contractId       Int      @map("contract_id")
@@ -886,19 +604,6 @@ enum ServiceProvisionType {
   PENALTY
 }
 
-// Флоу 3 — "оказание услуг", ежемесячный крон (billing/service-provision-doc.scheduler.ts)
-// собирает три документа за месяц (Найм, Коммуналка и Пени отдельно). Первые два
-// включают договоры, у которых есть неотменённое начисление за этот месяц
-// (не по Contract.status — см. подробный комментарий
-// в service-provision-doc.service.ts#collectContractLines, статус договора для этого
-// намеренно не смотрим), независимо от того, оплачены начисления или нет. Пени
-// собираются по PenaltyAccrualLog.date за тот же месяц. Все три типа отправляются
-// в 1С Бухгалтерию через ServProvisionDoc. Одна строка = один документ на
-// один месяц на один тип, не одна строка на договор — детализация по договорам живёт
-// внутри rawPayload (DocumentSummDetails), здесь только сводка + статус отправки для сотрудника.
-// accounting1cDocumentUid запоминается, чтобы при ручном повторе после сбоя ОБНОВИТЬ уже
-// созданный в 1С документ, а не наплодить дублей (см. промпт проекта — "DocumentUID в
-// запросе обновит документ, а не создаст новый").
 model ServiceProvisionDocument {
   id            Int                  @id @default(autoincrement())
   periodStart   DateTime             @map("period_start")
@@ -911,9 +616,6 @@ model ServiceProvisionDocument {
   accounting1cSyncError   String?                @map("accounting_1c_sync_error")
   accounting1cSyncedAt    DateTime?              @map("accounting_1c_synced_at")
 
-  // Актуальный состав документа по данным сайта. Для каждой строки сохраняются наш id
-  // договора, отображаемые реквизиты и состояние сопоставления с 1С. При отправке
-  // служебные поля отбрасываются; документ с несопоставленными строками не отправляется.
   rawPayload Json @map("raw_payload")
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -923,10 +625,6 @@ model ServiceProvisionDocument {
   @@map("service_provision_documents")
 }
 
-// Разнесение платежа по начислениям — таблица многие-ко-многим: один платёж может
-// закрыть несколько начислений (квартальная/годовая оплата разом), одно начисление может
-// закрываться несколькими платежами (частичная оплата). Долг — не отдельное поле, а
-// разница между Accrual.total и суммой этих строк, см. комментарий у Accrual.
 model PaymentAllocation {
   id        Int     @id @default(autoincrement())
   paymentId Int     @map("payment_id")
@@ -936,13 +634,6 @@ model PaymentAllocation {
 
   amount Decimal @db.Decimal(12, 2)
 
-  // true, если эта КОНКРЕТНАЯ разноска меньше полной исходной суммы начисления
-  // (rentAmount+utilitiesAmount+adjustmentAmount) — неважно, из-за чего: сам платёж
-  // частичный, или начисление уже было частично оплачено раньше другим платежом.
-  // Добавлено 2026-08-31 для выгрузки в 1С — найм/коммуналка разносятся отдельными
-  // строками в DocumentSummDetails только когда isPartial=false (сумма разноски точно
-  // равна rentAmount/utilitiesAmount начисления); при isPartial=true вся сумма разноски
-  // одной строкой "Найм", без деления — делить пропорционально не просили.
   isPartial Boolean @default(false) @map("is_partial")
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -957,12 +648,6 @@ enum PaymentImportStatus {
   NEEDS_REVIEW
 }
 
-// Стадия импорта из 1С — сырые данные попадают сюда первыми, целиком (rawPayload), и
-// только после однозначного сопоставления с договором (авто или вручную сотрудником)
-// создаётся настоящий Payment. Так в основном леджере (Payment) никогда не оказывается
-// неоднозначных/неподтверждённых записей — тот же принцип "храним сырое как есть", что
-// уже применён к ContactInfo.xml/json. Импорт как таковой (сам процесс выгрузки из 1С)
-// этой миграцией не реализуется — только место, куда он будет класть данные.
 model PaymentImportRecord {
   id         Int                 @id @default(autoincrement())
   source     String              @default("1C")
@@ -971,12 +656,6 @@ model PaymentImportRecord {
   importedAt DateTime            @default(now()) @map("imported_at")
   status     PaymentImportStatus @default(NEEDS_REVIEW)
 
-  // Предложение системы (по ContractorUID/ContractUID из rawPayload, либо fallback по
-  // ФИО/номеру договора) — НЕ решение. Статус при появлении предложения — NEEDS_REVIEW,
-  // не MATCHED. matchedContractId проставляется только на реальном подтверждении
-  // сотрудником (см. payment-imports.controller.ts#approve) — может отличаться от
-  // suggestedContractId, если сотрудник поправил вручную (см. «человеческий фактор» —
-  // не туда/не тот контрагент/не та сумма).
   suggestedContractId Int?      @map("suggested_contract_id")
   suggestedContract   Contract? @relation("PaymentImportSuggested", fields: [suggestedContractId], references: [id])
 
@@ -1003,12 +682,6 @@ enum PaymentIntentStatus {
   EXPIRED
 }
 
-// Попытка онлайн-оплаты проживающего (эквайринг ГПБ) — черновик ДО подтверждения банком.
-// Payment (основной леджер) создаётся только из этой записи и только по факту успешного
-// результата (см. my-payments.controller.ts) — сюда попадают и незавершённые/неудачные
-// попытки, леджер платежей ими не засоряется. payerFullName — ФИО того, кто реально
-// платит (не всегда сам проживающий и не всегда законный представитель из договора,
-// см. промпт проекта) — только для чека кассы, отдельного Individual под него не заводим.
 model PaymentIntent {
   id         Int      @id @default(autoincrement())
   contractId Int      @map("contract_id")
@@ -1018,24 +691,12 @@ model PaymentIntent {
   status      PaymentIntentStatus @default(CREATED)
   description String              @map("description")
 
-  // УСТАРЕЛО (2026-08-31) — раньше отдельный режим "оплатить только пеню" в модалке,
-  // не проходивший через allocatePaymentFifo вообще (вся сумма оставалась неразнесённой,
-  // computePenaltyBalance трактовал остаток как покрытие пени). С 2026-08-31 модалка
-  // избавилась от "своей суммы"/отдельного режима пени — пеня добавляется к сумме
-  // автоматически поверх выбранных начислений, allocatePaymentFifo сам разносит её вторым
-  // шагом (наступившие начисления → пеня → будущие, см. billing/payment-allocation.ts) в
-  // Payment.penaltyAmount. Новые intent'ы это поле больше не выставляют (всегда false) —
-  // оставлено только ради уже существующих исторических записей (в т.ч. демо-данные
-  // Цуйкова, см. промпт проекта), не читать как признак чего-либо в новом коде.
   penaltyOnly Boolean @default(false) @map("penalty_only")
 
   payerFullName String  @map("payer_full_name")
   payerEmail    String? @map("payer_email")
   payerPhone    String? @map("payer_phone")
 
-  // Идентификатор попытки в нашей системе — то же значение уходит в params.order_id при
-  // старте платежа у ГПБ, чтобы result-статус можно было однозначно связать обратно с этой
-  // строкой независимо от token (см. gazprombank-acquiring.provider.ts).
   bankToken     String? @unique @map("bank_token")
   bankRawStatus Json?   @map("bank_raw_status")
 
@@ -1045,7 +706,6 @@ model PaymentIntent {
 
   failureReason String? @map("failure_reason")
 
-  // Итоговый леджерный платёж — появляется только при status=SUCCEEDED.
   paymentId Int?     @unique @map("payment_id")
   payment   Payment? @relation(fields: [paymentId], references: [id])
 
@@ -1057,24 +717,13 @@ model PaymentIntent {
   @@map("payment_intents")
 }
 
-// ===== Внутренний чат «проживающий ↔ сотрудники» =====
-// Упрощённая переписка по типу Telegram, не тикет-система — без приоритетов/статусов/
-// назначения ответственного (см. промпт проекта, раздел про чат). Один диалог на
-// физлицо, общий сразу для всех сотрудников (нет "назначен на конкретного сотрудника").
 
-// Диалог привязан к Individual, а не к User — так рассылка/фильтр по этажу/должникам
-// может адресоваться физлицу, у которого ещё нет аккаунта rosnou-id (аккаунт и роль
-// RESIDENT появляются только при первом логине, см. resident-role-sync.ts): сообщение
-// уже будет ждать его в диалоге, диалог найдётся по individualUid, когда он всё же войдёт.
 model ChatConversation {
   id            Int        @id @default(autoincrement())
   individualUid String     @unique @map("individual_uid")
   individual    Individual @relation(fields: [individualUid], references: [fizicheskoyeLitsoUid])
 
   lastMessageAt      DateTime  @default(now()) @map("last_message_at")
-  // Общая на ВСЕХ сотрудников отметка прочтения — нет назначения ответственного, значит
-  // нет и персонального прочтения: открыл один сотрудник диалог — непрочитанность
-  // снимается для всей команды сразу (по прямой просьбе, см. промпт проекта).
   staffLastReadAt    DateTime? @map("staff_last_read_at")
   residentLastReadAt DateTime? @map("resident_last_read_at")
 
@@ -1096,15 +745,8 @@ model ChatMessage {
   conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   senderUserId   Int              @map("sender_user_id")
   sender         User             @relation(fields: [senderUserId], references: [id])
-  // Хранится явно на сообщении, а не выводится из текущих ролей отправителя — роль в
-  // JWT это снимок на момент логина (не живая проверка, см. известную проблему в
-  // промпте проекта), плюс гибридный аккаунт (сотрудник, который сам проживает) может
-  // писать и как сотрудник, и как проживающий — это поле однозначно определяет, с какой
-  // стороны экрана рисовать сообщение, независимо от смены ролей задним числом.
   senderRole     ChatSenderRole   @map("sender_role")
 
-  // Nullable — сообщение может быть только вложением без текста (как в Telegram),
-  // см. attachments ниже. На бэке проверяется "текст ИЛИ хотя бы одно вложение".
   body String?
 
   attachments ChatAttachment[]
@@ -1121,16 +763,12 @@ enum ChatAttachmentKind {
   VIDEO
 }
 
-// Файл лежит в persistent docker volume. Метаданные вложения принадлежат сообщению,
-// а физический storageKey вынесен в ChatStoredFile: рассылка ссылается на один файл.
-// Оригинальное имя используется только для отображения, никогда как путь на диске.
 model ChatAttachment {
   id         Int                @id @default(autoincrement())
   messageId  Int                @map("message_id")
   message    ChatMessage        @relation(fields: [messageId], references: [id], onDelete: Cascade)
   kind       ChatAttachmentKind
   mimeType   String             @map("mime_type")
-  // Оригинальное имя файла — только для отображения/Content-Disposition, не для пути на диске.
   fileName   String             @map("file_name")
   sizeBytes  Int                @map("size_bytes")
   fileId     Int                @map("file_id")
@@ -1205,10 +843,6 @@ model ChatBroadcastRecipient {
   @@map("chat_broadcast_recipients")
 }
 
-// Объявления сотрудников для проживающих — лента на "Главной" резидента + секция на
-// "Главной" сотрудника (по прямой просьбе 2026-08-30). Без markdown/HTML — обычный текст,
-// см. обсуждение в промпте проекта: рендерится как есть через {{ }}, не через v-html,
-// поэтому не открывает XSS-поверхность (тот же инвариант, что и у остального сайта).
 model Announcement {
   id    Int    @id @default(autoincrement())
   title String
@@ -1220,19 +854,11 @@ model Announcement {
   reads AnnouncementRead[]
 
   createdAt DateTime @default(now()) @map("created_at")
-  // Прочитанность считается по этому полю (см. AnnouncementRead.readAt ниже) — редактирование
-  // объявления сдвигает updatedAt вперёд, и синяя точка "непрочитано" автоматически
-  // возвращается всем, кто уже успел прочитать старую версию, без отдельного флага/события.
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("announcements")
 }
 
-// Отметка прочтения объявления конкретным пользователем (не Individual — читает тот, кто
-// залогинен, независимо от привязки к физлицу) — один ряд на пару (объявление, юзер), тем
-// же принципом, что chat_conversations.residentLastReadAt, но здесь на уровне отдельной
-// записи, а не одной колонки: объявлений может быть много одновременно, в отличие от
-// одного чата на резидента.
 model AnnouncementRead {
   id Int @id @default(autoincrement())
 

@@ -13,7 +13,6 @@ import { blockScientificNotationKeys } from '@/lib/utils'
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
-// Скрывает нативные стрелочки +/- у <input type="number"> (Chrome/Safari + Firefox).
 const NO_SPINNER_CLASS = '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
 
 const { t } = useI18n()
@@ -36,11 +35,7 @@ async function loadTree() {
 
 onMounted(loadTree)
 
-// Карточка комнаты — панель справа от дерева на этой же странице, а не отдельная
-// модалка/роут (по прямой просьбе), см. RoomDetailPanel.vue.
 const selectedRoomId = ref<number | null>(null)
-// Клик по корню дерева ("Общежитие РосНОУ") — отдельный режим, показывает в
-// RoomDetailPanel компактную карточку общежитских полей вместо конкретной комнаты.
 const showDormitoryInfo = ref(false)
 
 function onRoomSelect(id: number) {
@@ -77,9 +72,6 @@ function openCreate() {
 
 async function submitCreate() {
   if (isCreating.value) return
-  // v-model на <input type="number"> сам приводит значение к number на вводе (даже без
-  // модификатора .number) — newRoomFloor.value бывает и строкой (пусто), и числом,
-  // String(...) перед trim() нужен, чтобы не словить "x.trim is not a function".
   const floorRaw = String(newRoomFloor.value).trim()
   const floor = Number(floorRaw)
   createError.value = ''
@@ -104,16 +96,9 @@ async function submitCreate() {
 </script>
 
 <template>
-  <!-- h-full + min-h-0 — берём всю высоту, которую даёт App.vue (SidebarInset ограничен
-       h-svh), а не гадаем константу под высоту хедера через calc(100vh-Xrem) (та плыла
-       при любой правке шапки и не работала на мобильном). min-h-0 обязателен — иначе
-       flex-элемент отказывается сжиматься ниже размера контента, и вся страница снова
-       растягивается вместо внутреннего скролла (см. тот же приём в RoomDetailPanel.vue). -->
   <div class="flex h-full min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
     <p v-if="treeError" class="shrink-0 text-sm text-red-500">{{ treeError }}</p>
 
-    <!-- На мобильном — 2 явных ряда (дерево фиксированной высоты сверху, карточка комнаты —
-         оставшееся), на md — снова 1 ряд, колонки вместо рядов. -->
     <div class="grid min-h-0 flex-1 grid-cols-1 grid-rows-[280px_minmax(0,1fr)] gap-4 md:grid-rows-1 md:grid-cols-[360px_1fr]">
       <Card class="min-h-0 min-w-0 gap-0 overflow-hidden py-0">
         <RoomTree
@@ -153,9 +138,6 @@ async function submitCreate() {
         </div>
         <div class="flex flex-col gap-2">
           <Label for="new-room-floor">{{ t('rooms.createDialog.floor') }}</Label>
-          <!-- Обычный native input, не Input.vue — та обёртка на type="number" не ловит
-               v-model, а с ручным :value+@input через раз глотает нажатия (см.
-               RoomDetailPanel.vue). Классы скопированы из Input.vue вручную. -->
           <input
             id="new-room-floor"
             v-model="newRoomFloor"

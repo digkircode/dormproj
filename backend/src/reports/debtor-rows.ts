@@ -14,44 +14,24 @@ export interface DebtorRow {
   residentIndividualUid: string;
   residentFullName: string;
   room: string | null;
-  // Добавлено вместе с roomId — джойн с характеристиками комнаты (этаж/корпус) для
-  // фильтров рассылки чата (см. chats/chat-recipients.ts), сам отчёт "Финансовый" его
-  // не использует.
   roomId: number | null;
-  // Для прошлой даты статус определяется по сроку и долгу на эту дату.
   status: ContractStatus;
-  createdAt: Date;
-  // endDate — только для отображения статуса "Истекает" на фронте (ContractStatusCell.vue,
-  // тот же приём, что в основном списке /contracts), в расчёт долга/пени само по себе не участвует.
+  contractDate: Date;
   endDate: Date;
-  // Начислено/Оплачено — по ВСЕМУ сроку договора (весь срок целиком, не зависит от asOf) —
-  // справочные итоги, не то же самое, что "Долг" ниже.
   totalAccrued: number;
   totalPaid: number;
-  // Долг НА ДАТУ asOf: тело долга только по уже НАСТУПИВШИМ начислениям (dueDate<=asOf),
-  // погашённое только теми платежами, что были ДО asOf, плюс пеня на asOf (сумма журнала
-  // PenaltyAccrualLog по эту дату, см. penalty-balance.ts). Именно эта пара figures даёт
-  // "долг по договору на дату", а не по всему сроку.
   principalDebt: number;
   penaltyBalance: number;
   totalBalance: number;
 }
 
-// Показывает все существовавшие на выбранную дату договоры (не только должников), на дату
-// asOf (по умолчанию сегодня): "Долг" — тело долга только по уже НАСТУПИВШИМ начислениям
-// (dueDate<=asOf), погашённое только платежами ДО asOf (позже — не считается, иначе
-// "долг на дату X" включал бы деньги, внесённые уже после X), плюс пеня на asOf (сумма
-// журнала PenaltyAccrualLog по эту дату, см. penalty-balance.ts). Начислено/Оплачено —
-// по ВСЕМУ сроку договора целиком (не зависят от asOf) — справочные итоги.
-// Вынесено из ReportsController (Финансовый отчёт) — та же выборка нужна фильтрам
-// рассылки чата (текущая комната + баланс проживающего), см. chats/chat-recipients.ts.
 export async function buildDebtorRows(prisma: PrismaService, asOf: Date, contractIds?: number[]): Promise<DebtorRow[]> {
   const startedAt = Date.now();
   if (contractIds?.length === 0) return [];
   const contracts = await prisma.contract.findMany({
     where: {
       ...(contractIds ? { id: { in: contractIds } } : {}),
-      createdAt: { lt: addDays(asOf, 1) },
+      startDate: { lte: asOf },
     },
     include: {
       resident: { select: { fullName: true, fizicheskoyeLitsoUid: true } },
@@ -66,8 +46,6 @@ export async function buildDebtorRows(prisma: PrismaService, asOf: Date, contrac
   if (contracts.length === 0) return [];
 
   const ids = contracts.map((contract) => contract.id);
-  // PostgreSQL sums the high-volume daily journal instead of transferring years
-  // of penalty rows to the application for every report or broadcast preview.
   const [penaltyTotals, paymentTotals, paidPenaltyTotals, paymentAsOfTotals] = await Promise.all([
     prisma.penaltyAccrualLog.groupBy({
       by: ['contractId'], where: { contractId: { in: ids }, date: { lte: asOf } },
@@ -111,9 +89,6 @@ export async function buildDebtorRows(prisma: PrismaService, asOf: Date, contrac
         .reduce((sum, al) => sum.plus(al.amount), new Decimal(0))
         .minus(accrual.refunds.filter((refund) => refund.refundedAt <= asOf)
           .reduce((sum, refund) => sum.plus(refund.amount.minus(refund.creditAmount)), new Decimal(0)));
-      // НЕ ограничиваем снизу нулём — переплата по одному начислению должна гасить долг
-      // по другому в сумме по договору (не просто исчезать), это и даёт отрицательный
-      // "Долг" = переплата (см. DebtBalanceCell.vue на фронте, зелёная подсветка).
       principalDebtAsOf = principalDebtAsOf.plus(principal.minus(paidAsOf));
     }
 
@@ -139,7 +114,7 @@ export async function buildDebtorRows(prisma: PrismaService, asOf: Date, contrac
       status: asOf < dateOnly(new Date())
         ? contractRegistryStatusAtDate(contract, asOf, totalBalance)
         : contract.status,
-      createdAt: contract.createdAt,
+      contractDate: contract.contractDate,
       endDate: contract.endDate,
       totalAccrued: Number(totalAccrued),
       totalPaid: Number(totalPaid),

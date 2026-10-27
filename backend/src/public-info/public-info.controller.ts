@@ -2,10 +2,6 @@ import { Controller, Get, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
 
-// Единственный контроллер в проекте без @Roles() поверх AuthGuard — доступен ЛЮБОМУ
-// залогиненному, включая пользователей вообще без роли (тот же принцип доступа, что у
-// страницы "Проживающий → Общая информация" на фронте, см. промпт проекта). Не путать с
-// GET /dormitory-info (тот же источник данных, но STAFF/ADMIN-only, с полем для правки).
 
 const CAPACITY_DEFINITION_NAME = 'Количество мест';
 const OWN_UNIVERSITY_PRICE_NAME = 'Стоимость (из вуза)';
@@ -20,9 +16,6 @@ interface CharacteristicValueRow {
   definition: { name: string };
 }
 
-// "Актуальное" значение — макс. period на пару (room, definitionName), тот же принцип,
-// что и pickCurrentCharacteristics в rooms/current-characteristics.ts, но узкий срез
-// только под нужные здесь 4 характеристики, без общего типа комнаты.
 function currentByRoom(rows: CharacteristicValueRow[], definitionName: string): Map<number, CharacteristicValueRow> {
   const result = new Map<number, CharacteristicValueRow>();
   for (const row of rows) {
@@ -59,9 +52,6 @@ export class PublicInfoController {
     const otherPriceByRoom = currentByRoom(values, OTHER_UNIVERSITY_PRICE_NAME);
     const guestByRoom = currentByRoom(values, GUEST_DEFINITION_NAME);
 
-    // Диапазон цен по вместимости — по всем НЕ гостевым комнатам, обе категории (из/не
-    // из вуза) вместе в одном диапазоне (публичная страница не показывает разбивку по
-    // категории проживающего, только "от и до" по размеру комнаты, как раньше на сайте).
     const pricesByCapacity = new Map<number, number[]>();
     for (const [roomId, capacityRow] of capacityByRoom) {
       if (guestByRoom.get(roomId)?.valueBool) continue;

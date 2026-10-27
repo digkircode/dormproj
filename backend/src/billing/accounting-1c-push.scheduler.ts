@@ -7,8 +7,6 @@ import { logScheduledSync } from '../sync/scheduled-sync-log';
 
 export const ACCOUNTING_PAYMENT_PUSH_SYNC_TYPE = 'accounting-payment-push';
 
-// Раз в сутки, не сразу при оплате (по прямой просьбе 2026-09-03) — 02:30 МСК, в том же
-// окне, что и остальные ночные кроны (01:00 синк 1С, 01:30 статусы договоров, 02:00 пеня).
 @Injectable()
 export class Accounting1cPushScheduler {
   private readonly logger = new Logger(Accounting1cPushScheduler.name);

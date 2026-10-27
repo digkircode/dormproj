@@ -23,9 +23,6 @@ export interface CurrentCharacteristic {
   isProtected: boolean;
 }
 
-// "Актуальное" значение характеристики — просто ряд с максимальным period на пару
-// (room, definition), в отличие от pickLatestContactInfo у физлиц period здесь всегда
-// надёжен (не 1С-сентинел), поэтому без эвристик — обычный max по дате.
 export function pickCurrentCharacteristics(values: CharacteristicValueRow[]): CurrentCharacteristic[] {
   const latestByDefinition = new Map<number, CharacteristicValueRow>();
   for (const value of values) {

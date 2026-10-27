@@ -12,28 +12,6 @@ const { Decimal } = Prisma;
 const CONTRACT_BATCH_SIZE = 50;
 const PENALTY_INSERT_CHUNK_SIZE = 1000;
 
-// Ночной крон — 0,14%/день (п. 4.8/5.9 договора) от суммы всех ПРОСРОЧЕННЫХ и непогашенных
-// начислений договора ЦЕЛИКОМ (не по каждому начислению отдельно) — начисление считается
-// просроченным с 10 числа месяца, следующего за его periodStart (см. penaltyStartsAt в
-// accrual-generation.ts). Сам расчёт базы на конкретный день — в penalty-calc.ts, общий с
-// ручным пересчётом по кнопке сотрудника (penalty-recalculate.service.ts).
-// Каждый начисленный день — отдельная строка PenaltyAccrualLog (не общий инкремент одним
-// числом): и аудит "откуда взялась сумма" (по прямой просьбе 2026-08-22), и единственный
-// способ восстановить пеню на прошлую дату для финансового отчёта (сумма строк журнала по
-// эту дату, см. billing/penalty-balance.ts). Идемпотентно: penaltyAccruedThrough на
-// Contract не даёт начислить дважды за один день (плюс @@unique([contractId, date]) в БД —
-// защита на случай гонки/повторного запуска).
-//
-// Если крон пропустил несколько дней подряд (сервер лежал, ИЛИ — по прямой просьбе
-// 2026-09-05 — договор занесён задним числом спустя месяцы после заселения), база пени
-// пересчитывается ОТДЕЛЬНО НА КАЖДЫЙ пропущенный день, а не берётся один раз "на сегодня"
-// и не размножается на весь период (так было раньше — самый частый практический эффект:
-// первые дни просрочки получали пеню от долга, который на самом деле накопился только
-// позже). "Оплачено ли начисление" на каждый день считается по факту — какие платежи с
-// какой датой paidAt реально были СДЕЛАНЫ К ЭТОМУ дню, а не оплачено ли начисление вообще
-// на текущий момент — иначе платёж, поступивший уже ПОСЛЕ занесения договора (например,
-// подтягивается вместе с ним, задним числом), задним же числом убрал бы пеню и за более
-// ранние дни, когда долг по факту ещё висел.
 @Injectable()
 export class PenaltyScheduler {
   private readonly logger = new Logger(PenaltyScheduler.name);
@@ -68,7 +46,6 @@ export class PenaltyScheduler {
     }
   }
 
-  // Позже ночного синка 1С (01:00) — чтобы не спорить за БД с ним.
   @Cron('0 2 * * *', { timeZone: 'Europe/Moscow' })
   async accruePenalties(): Promise<void> {
     await this.runLogged(async () => this.accruePenaltiesInternal());
@@ -76,12 +53,6 @@ export class PenaltyScheduler {
 
   private async accruePenaltiesInternal(): Promise<Record<string, unknown>> {
     const today = moscowDateOnly(new Date());
-    // Грубый префильтр — пеня стартует не раньше 10 числа месяца, следующего за
-    // periodStart, то есть минимум через ~10 дней после periodStart (periodStart в конце
-    // длинного месяца, следующий короткий) — точная проверка (grace period, маткапитал,
-    // остаток) уже в цикле ниже, дороже гонять её без предварительного отсева. periodStart
-    // не индексирован, но на текущем объёме (см. известные проблемы в промпте проекта) это
-    // не критично.
     let cursor = 0;
     let processedContracts = 0;
     let penaltyRowsCreated = 0;
@@ -94,7 +65,6 @@ export class PenaltyScheduler {
           accruals: {
             where: { voidedAt: null },
             include: {
-              // paidAt/reversedAt are needed for each missed day's balance.
               allocations: { include: { payment: { select: { paidAt: true, reversedAt: true } } } },
             },
           },
@@ -131,10 +101,6 @@ export class PenaltyScheduler {
           }
         }
 
-        // Помечаем договор обработанным по сегодня в любом случае (даже если ни одного дня
-        // с реальным долгом не нашлось) — иначе следующий прогон отсчитает этот же
-        // "тихий" промежуток заново, как будто долг всё это время был (см. промпт проекта,
-        // код-ревью 2026-09-04).
         updatedContractIds.push(contract.id);
 
         if (rowsForContract > 0) {
@@ -147,11 +113,7 @@ export class PenaltyScheduler {
       }
 
       if (updatedContractIds.length > 0) {
-        // Journal rows and the progress marker commit together. A failed batch
-        // remains available to the next run; completed batches are skipped.
         const inserted = await this.prisma.$transaction(async (tx) => {
-          // Обновление держит блокировку строки до коммита. Если договор уже расторгнут,
-          // он не попадёт в результат и рассчитанные заранее строки не сохранятся.
           const eligible = await tx.contract.updateManyAndReturn({
             where: { id: { in: updatedContractIds }, status: { not: 'TERMINATED' } },
             data: { penaltyAccruedThrough: today },

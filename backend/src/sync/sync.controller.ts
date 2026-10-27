@@ -20,9 +20,6 @@ import { SyncAlreadyRunningError } from './sync.errors';
 export class SyncController {
   constructor(private readonly syncService: SyncService) {}
 
-  // Пока синхронизация выполняется, повторный вызов получает 409 вместо того, чтобы
-  // встать в очередь или запуститься параллельно — фронту этого достаточно, чтобы
-  // держать кнопку задизейбленной со спиннером до завершения текущего запуска.
   @Post()
   @HttpCode(200)
   async trigger(): Promise<SyncResult> {

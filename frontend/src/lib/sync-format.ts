@@ -1,16 +1,8 @@
 import { CircleCheck, CircleX, Loader } from 'lucide-vue-next'
 import { i18n } from '@/i18n'
 
-// Реальные значения enum SyncLog.status из БД — NONE не хранится нигде, это чисто
-// UI-сентинел "синхронизация ни разу не запускалась" (см. useSyncRow.ts), у него нет
-// иконки/цвета, только текстовая подпись (см. statusLabel ниже).
 export type SyncStatusKey = 'RUNNING' | 'SUCCESS' | 'FAILED' | 'NONE'
 
-// Proxy, не обычный объект — тот же приём, что STATUS_LABELS в contracts-format.ts,
-// реактивен к смене языка. Раньше statusIcon/statusIconClass были заведены НЕ по enum,
-// а по уже переведённому русскому тексту лейбла (использовался как key) — при локализации
-// это ломалось (для EN лейбл больше не совпадал бы с русским ключом), поэтому статус-иконки
-// переведены на ключи enum, а перевод текста — в statusLabel отдельно.
 export const statusLabel: Record<SyncStatusKey, string> = new Proxy({} as Record<SyncStatusKey, string>, {
   get: (_target, status: string) => (status === 'NONE' ? '-' : i18n.global.t(`sync.status.${status}`)),
 })

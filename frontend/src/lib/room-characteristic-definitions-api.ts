@@ -9,9 +9,6 @@ export interface RoomCharacteristicDefinition {
   unit: string | null
   isProtected: boolean
   sortOrder: number
-  // Закрытый список допустимых значений — только для valueType TEXT (пусто = обычное
-  // свободное поле, как раньше). См. RoomDetailPanel.vue (Select вместо <input>) и
-  // RoomCharacteristics.vue (редактирование списка).
   options: string[]
 }
 
@@ -41,7 +38,6 @@ export async function createDefinition(input: {
   return response.json()
 }
 
-// valueType нельзя поменять после создания (см. бэкенд) — только имя/единица измерения/options.
 export async function updateDefinition(
   id: number,
   input: { name?: string; unit?: string | null; options?: string[] },
@@ -66,7 +62,6 @@ export async function deleteDefinition(id: number): Promise<void> {
   }
 }
 
-// Порядок целиком (id в новом порядке) — из drag-and-drop в таблице, см. RoomCharacteristics.vue.
 export async function reorderDefinitions(ids: number[]): Promise<RoomCharacteristicDefinition[]> {
   const response = await apiFetch('/room-characteristic-definitions/reorder', {
     method: 'PATCH',

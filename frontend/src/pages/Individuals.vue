@@ -29,8 +29,6 @@ const filterableFields = ['gender']
 const hiddenByDefault = ['fizicheskoyeLitsoUid', 'accounting1cMatched']
 const cellRenderers = { accounting1cMatched: Accounting1cMatchCell }
 
-// gender — литерал 'Мужской'/'Женский' (см. individuals-api.ts, соответствует значению
-// в БД), переводим только отображение, те же ключи, что и в CreateContractDialog.vue.
 function cellText(columnId: string, value: unknown): string {
   if (columnId === 'birthDate' && typeof value === 'string') {
     const date = new Date(value)

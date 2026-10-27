@@ -30,7 +30,6 @@ const columnLabels = computed<Record<string, string>>(() => ({
 const filterableFields = ['type', 'country']
 const hiddenByDefault = ['xml', 'json', 'fizicheskoyeLitsoUid']
 
-// 1С отдаёт "0001-01-01" как "дата не задана" — показываем такое как "—", а не 01.01.0001.
 function cellText(columnId: string, value: unknown): string {
   if (columnId === 'dateStart' && typeof value === 'string') {
     const date = new Date(value)

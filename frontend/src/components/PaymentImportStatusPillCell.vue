@@ -6,9 +6,6 @@ import type { PaymentImportRow } from '@/lib/payment-imports-api'
 defineProps<{ value: unknown; row: PaymentImportRow }>()
 const { t } = useI18n()
 
-// Тот же визуальный приём, что и PaymentStatusPillCell.vue (объединённая история
-// платежей резидента) — нейтральная рамка+фон у пилюли для всех статусов, цвет только
-// у иконки внутри.
 const STATUS_ICON = {
   NEEDS_REVIEW: Clock,
   MATCHED: Check,
@@ -23,8 +20,6 @@ const STATUS_ICON_CLASS: Record<PaymentImportRow['status'], string> = {
 </script>
 
 <template>
-  <!-- min-w-0 + max-w-full + truncate на тексте — тот же приём, что у остальных
-       пилюлей в проекте, без него длинный лейбл распирает ячейку. -->
   <span class="inline-flex w-fit max-w-full items-center gap-1 rounded-full border border-border bg-background px-2.5 py-0.5 text-xs font-normal text-muted-foreground">
     <component :is="STATUS_ICON[row.status]" class="size-3.5 shrink-0" :class="STATUS_ICON_CLASS[row.status]" />
     <span class="min-w-0 truncate">{{ t(`paymentImports.status.${row.status}`) }}</span>

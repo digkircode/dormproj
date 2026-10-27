@@ -8,22 +8,12 @@ import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn, digitsToDateTemplate, handleDateMaskKeydown } from '@/lib/utils'
 
-// Голый <input>, не обёртка Input.vue — у нашего @keydown/@input-обработчиков и
-// внутреннего v-model самой Input.vue произошла бы гонка за то, что реально показать в
-// DOM (тот же класс бага, что задокументирован в промпте проекта для type="number":
-// два независимых источника правды на одном элементе). Один явный источник — надёжно.
 const INPUT_CLASS =
   'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground transition-shadow focus-visible:outline-none focus-visible:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/20 focus-visible:shadow-sm disabled:cursor-not-allowed disabled:opacity-50'
 
 const { t, locale } = useI18n()
 
-// Маска ввода (дд.мм.гггг) и парсер (parseManual/formatDate ниже) сознательно остаются
-// в этом формате независимо от языка интерфейса — это формат хранения/ввода дат по
-// всему проекту (см. digitsToDateTemplate/handleDateMaskKeydown в lib/utils.ts), не
-// локаль отображения; переписывать маску под мм/дд/гггг для English — отдельная, не
-// запрошенная задача. Локализуется только всплывающий календарь (Calendar#locale ниже).
 defineProps<{ placeholder?: string; invalid?: boolean }>()
-// ISO-строка (YYYY-MM-DD), как везде в проекте — не Date, чтобы не тянуть за собой часовые пояса.
 const model = defineModel<string>({ required: true })
 
 const isOpen = ref(false)
@@ -37,9 +27,6 @@ function formatDate(iso: string): string {
 
 const DATE_RE = /^(\d{2})\.(\d{2})\.(\d{4})$/
 
-// Парсим строго дд.мм.гггг и перепроверяем, что компоненты даты не "переполнились"
-// (Date сам нормализует 31.02 в 03.03 — без обратной сверки невалидная дата тихо
-// проехала бы как валидная).
 function parseManual(text: string): string | null {
   const match = text.trim().match(DATE_RE)
   if (!match) return null
@@ -52,18 +39,11 @@ function parseManual(text: string): string | null {
   return `${year}-${pad(month)}-${pad(day)}`
 }
 
-// Текст поля — собственное состояние, не завязано напрямую на model: иначе на
-// каждый введённый символ невалидного промежуточного значения ("31.0") поле
-// откатывалось бы или мешало печатать дальше.
 const text = ref(model.value ? formatDate(model.value) : '')
 watch(model, (value) => {
   text.value = value ? formatDate(value) : ''
 })
 
-// Цифры/Backspace/Delete обрабатываются на @keydown (handleDateMaskKeydown — см.
-// lib/utils.ts, перезаписывает символ под кареткой, а не пересобирает всё значение).
-// @input остаётся только как фолбэк для вставки/автозаполнения — тех путей, что не
-// проходят через keydown вообще.
 function onTextKeydown(event: KeyboardEvent) {
   const result = handleDateMaskKeydown(event, text.value)
   if (!result) return
@@ -90,7 +70,6 @@ function commitText() {
   if (iso) {
     model.value = iso
   } else {
-    // Невалидный ввод — откатываем текст к последнему валидному значению модели.
     text.value = model.value ? formatDate(model.value) : ''
   }
 }

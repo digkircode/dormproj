@@ -47,8 +47,6 @@ export class SyncScheduler {
       }
     }
 
-    // Физлица синхронизируются сразу следом на свежем списке UID из только что
-    // обновлённой таблицы студентов — независимо от того, как прошёл шаг выше.
     try {
       const result = await this.individualsSyncService.runSync('CRON');
       individualsReady = result.fetchedCount > 0;
@@ -64,9 +62,6 @@ export class SyncScheduler {
       }
     }
 
-    // Гражданство и паспортные данные используют свежий список UID из только что
-    // обновлённой таблицы физлиц (individuals), не студентов напрямую. Друг от друга
-    // они не зависят — порядок между ними не важен.
     try {
       await this.citizenshipSyncService.runSync('CRON');
     } catch (error) {
@@ -109,8 +104,6 @@ export class SyncScheduler {
       }
     }
 
-    // Портал содержит только связи аккаунтов; FK на физлицо требует успешного
-    // обновления физических лиц из 1С в этой же ночной цепочке.
     if (studentsReady && individualsReady && this.portalUsersSyncService.isConfigured()) {
       try {
         await this.portalUsersSyncService.runSync('CRON');
@@ -123,8 +116,6 @@ export class SyncScheduler {
       }
     }
 
-    // После попытки обновить связи аккаунтов пересчитываем роли по договорам.
-    // Выполняется и без настроенного портала: ручные связи уже могут существовать.
     try {
       await this.residentRolesSyncService.runSync('CRON');
     } catch (error) {

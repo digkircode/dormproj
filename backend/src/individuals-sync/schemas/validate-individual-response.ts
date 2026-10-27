@@ -4,8 +4,6 @@ import {
   type IndividualApiRecord,
 } from './individual-api-record.schema';
 
-// Тот же порог, что и у студентов (см. sync/schemas/validate-student-response.ts) —
-// пара битых записей пропускается, но резкий рост доли невалидных значит смену формата.
 const MAX_INVALID_RATIO = 0.1;
 
 export class IndividualApiFormatError extends Error {}

@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ensureUserRecord } from '../users/ensure-user';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { allocatePaymentFifo } from '../billing/payment-allocation';
+import { flagHistoricalPenaltyRecalculation } from '../billing/penalty-recalc-flag';
 import { serializePayment } from '../contracts/serializers';
 import { listPaymentImports, paymentImportsFacetValues } from './payment-imports-list';
 import { parsePaymentImportCandidate, paymentMethodFromType } from './payment-import-candidate';
@@ -22,10 +23,6 @@ function parseIdParam(idParam: string): number {
   return id;
 }
 
-// Флоу 2 (см. промпт проекта) — платежи, пришедшие мимо сайта (касса/перевод/по
-// реквизитам), разбираются здесь ВСЕГДА вручную: даже однозначное на вид совпадение
-// требует явного подтверждения сотрудника (см. suggest-contract-match.ts — то, что
-// система предлагает, это не решение).
 @Controller('payment-imports')
 @UseGuards(AuthGuard, RolesGuard)
 @Roles('STAFF', 'ADMIN')
@@ -51,11 +48,6 @@ export class PaymentImportsController {
     return paymentImportsFacetValues(this.prisma, field);
   }
 
-  // Флоу 1, для того же обзорного экрана (см. промпт проекта — по прямой просьбе
-  // 2026-09-03 страница показывает не только очередь на одобрение из 1С, но и наши
-  // WEBSITE-платежи с их статусом отправки в 1С, единым списком). Без пагинации —
-  // объём пока небольшой, фронт мёржит клиентски вместе с payment-imports (см.
-  // client-list.ts) и сам режет на страницы.
   @Get('website-payments')
   async websitePayments() {
     const payments = await this.prisma.payment.findMany({
@@ -86,8 +78,6 @@ export class PaymentImportsController {
       accounting1cDocumentUid: payment.accounting1cDocumentUid,
       accounting1cSyncError: payment.accounting1cSyncError,
       accounting1cSyncedAt: payment.accounting1cSyncedAt,
-      // Для колонки "Чек" на фронте (тот же принцип, что и в объединённом леджере
-      // резидента, MyContract.vue) — сторнированному платежу кнопку чека не показываем.
       reversedAt: payment.reversedAt,
     }));
   }
@@ -125,14 +115,10 @@ export class PaymentImportsController {
           }
         : null,
       matchedContract: record.matchedContract,
-      // Все договоры опознанного контрагента — если их больше одного, фронт рисует
-      // выпадающий список вместо одной "чипы" (см. suggest-contract-match.ts).
       candidateContracts: [],
     };
   }
 
-  // Единственный путь, которым платёж из 1С превращается в настоящий Payment леджера —
-  // всегда явным подтверждением; договор и способ поступления определяются из 1С.
   @Post(':id/approve')
   async approve(@Param('id') idParam: string, @Req() req: Request) {
     const id = parseIdParam(idParam);
@@ -165,8 +151,6 @@ export class PaymentImportsController {
     const paidAt = candidate.paidAt ?? record.importedAt;
 
     const result = await this.prisma.$transaction(async (tx) => {
-      // Захватываем запись внутри транзакции до создания Payment: при двух
-      // одновременных подтверждениях только один запрос сможет сменить статус.
       const claimed = await tx.paymentImportRecord.updateMany({
         where: { id, status: 'NEEDS_REVIEW' },
         data: { status: 'MATCHED' },
@@ -189,6 +173,7 @@ export class PaymentImportsController {
         },
       });
       await allocatePaymentFifo(tx, contract.id, payment.id, amount, paidAt);
+      await flagHistoricalPenaltyRecalculation(tx, contract.id, paidAt);
 
       const updated = await tx.paymentImportRecord.update({
         where: { id },

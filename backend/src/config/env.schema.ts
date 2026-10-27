@@ -28,9 +28,6 @@ export const envSchema = z.object({
   MAX_BOT_USERNAME: z.string().min(1).optional(),
   MAX_WEBHOOK_SECRET: z.string().min(5).optional(),
 
-  // Эквайринг ГПБ (онлайн-оплата проживающих, см. acquiring/) — все поля опциональны:
-  // пока не заполнены, GazprombankAcquiringProvider.isConfigured() возвращает false и
-  // страница оплаты показывает "временно недоступна", а не падает при старте бэкенда.
   GPB_ACQUIRING_BASE_URL: z.url().optional(),
   GPB_ACQUIRING_PORTAL_ID: z.string().min(1).optional(),
   GPB_ACQUIRING_MERCHANT_ID: z.string().min(1).optional(),
@@ -39,8 +36,6 @@ export const envSchema = z.object({
   GPB_ACQUIRING_CLIENT_KEY_PATH: z.string().min(1).optional(),
   GPB_ACQUIRING_CLIENT_KEY_PASSPHRASE: z.string().min(1).optional(),
 
-  // Цифровая касса Эвотор/АТОЛ Онлайн (фискализация чеков, см. fiscal/) — та же логика
-  // опциональности, что и у эквайринга выше.
   ATOL_KASSA_BASE_URL: z.url().optional(),
   ATOL_KASSA_LOGIN: z.string().min(1).optional(),
   ATOL_KASSA_PASSWORD: z.string().min(1).optional(),
@@ -50,15 +45,10 @@ export const envSchema = z.object({
   ATOL_KASSA_COMPANY_SNO: z.string().min(1).optional(),
   ATOL_KASSA_PAYMENT_ADDRESS: z.string().min(1).optional(),
 
-  // 1С Бухгалтерия — отправка платежей эквайринга (см. accounting-1c/), та же логика
-  // опциональности, что у эквайринга/кассы выше. Basic Auth, как и остальные интеграции
-  // с 1С в проекте (см. sync/external-student-api.service.ts).
   ACCOUNTING_1C_LOGIN: z.string().min(1).optional(),
   ACCOUNTING_1C_PASSWORD: z.string().min(1).optional(),
   ACCOUNTING_1C_SEND_PAYMENTS_URL: z.url().optional(),
-  // Флоу 2 — получение платежей, пришедших мимо сайта (касса/перевод/по реквизитам).
   ACCOUNTING_1C_GET_PAYMENTS_URL: z.url().optional(),
-  // Флоу 3 — ежемесячный документ "оказание услуг" (Найм/Коммуналка).
   ACCOUNTING_1C_SERVICE_PROVISION_URL: z.url().optional(),
 });
 

@@ -29,8 +29,6 @@ import enServiceProvisionDocuments from './locales/en/serviceProvisionDocuments.
 export type AppLocale = 'ru' | 'en'
 export const LOCALE_STORAGE_KEY = 'dormproj-locale'
 
-// Обычная функция, не composable — используется и вне компонентов (api-base.ts,
-// главный модуль до монтирования приложения), поэтому не может опираться на useI18n().
 export function getStoredLocale(): AppLocale {
   try {
     const raw = localStorage.getItem(LOCALE_STORAGE_KEY)

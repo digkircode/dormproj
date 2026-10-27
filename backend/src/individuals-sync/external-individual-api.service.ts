@@ -20,8 +20,6 @@ export class ExternalIndividualApiService {
     private readonly config: ConfigService<Env, true>,
   ) {}
 
-  // uids — FizicheskoyeLitsoUID из нашей таблицы students (distinct), а не полный
-  // список от источника: этот эндпоинт 1С отдаёт данные только по запрошенным UID.
   async fetchIndividuals(uids: string[]): Promise<IndividualApiRecord[]> {
     if (uids.length === 0) {
       return [];
@@ -53,8 +51,6 @@ export class ExternalIndividualApiService {
             retry({
               count: MAX_ATTEMPTS - 1,
               delay: (error, retryCount) => {
-                // Логируем только message, а не сам error/response — в config axios-ошибки
-                // лежит Authorization-заголовок, и его нельзя писать в лог.
                 this.logger.warn(
                   `Попытка ${retryCount}/${MAX_ATTEMPTS - 1} получить данные физлиц из внешнего API не удалась: ${getErrorMessage(error)}`,
                 );

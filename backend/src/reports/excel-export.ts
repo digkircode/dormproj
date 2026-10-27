@@ -4,16 +4,10 @@ import ExcelJS from 'exceljs';
 export interface ExcelColumn<T> {
   header: string;
   width?: number;
-  // 'date'/'money' задают формат ячейки в Excel — money всегда в рублях (2 знака после
-  // запятой), date — русский формат dd.mm.yyyy (те же данные, что уже отображает UI).
   format?: 'date' | 'money';
   value: (row: T) => string | number | Date | null;
 }
 
-// Общий рендер отчёта в .xlsx — переиспользуется всеми экспортами reports.controller.ts
-// (см. вызовы ниже). Один лист на файл, шапка жирным + автоширина по колонкам, дальше
-// строки как есть — форматирование внутри Excel через numFmt, не через строковый вывод,
-// чтобы получатель мог сортировать/суммировать колонки как числа/даты, а не текст.
 export async function sendExcelReport<T>(
   res: Response,
   filenameBase: string,
@@ -39,8 +33,6 @@ export async function sendExcelReport<T>(
 
   const buffer = await workbook.xlsx.writeBuffer();
 
-  // Content-Disposition — только Latin1/ASCII в filename= (см. contracts.controller.ts,
-  // тот же баг ERR_INVALID_CHAR на кириллице), ASCII-заглушка + filename* по RFC 5987/6266.
   const asciiFallback = `${filenameBase}.xlsx`.replace(/[^\x20-\x7E]/g, '_');
   const utf8Name = encodeURIComponent(`${sheetName}.xlsx`);
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

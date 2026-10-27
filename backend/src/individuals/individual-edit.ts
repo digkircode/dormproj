@@ -2,9 +2,6 @@ import { Prisma } from '../../generated/prisma/client.js';
 import { pickLatestContactInfo } from './contact-info-priority';
 import { sortPassportsByPriority } from './passport-priority';
 
-// Типы ContactInfo, которые эта форма умеет редактировать — те же строковые ключи, что
-// использует вся остальная карточка физлица (см. CONTACT_TYPE_ORDER на фронте,
-// RESIDENCE_ADDRESS_TYPE/REGISTRATION_ADDRESS_TYPE в resident-snapshot.ts).
 export const BIRTH_PLACE_TYPE = 'Место рождения';
 export const REGISTRATION_ADDRESS_TYPE = 'Адрес по прописке';
 export const RESIDENCE_ADDRESS_TYPE = 'Адрес места проживания';
@@ -13,19 +10,6 @@ export const EMAIL_TYPE = 'Email';
 
 const DEFAULT_PASSPORT_TYPE = 'Паспорт РФ';
 
-// "Критическая правка" физлица (STAFF/ADMIN) — по прямой просьбе 2026-08-23 пишет ПРЯМО
-// в те же таблицы, что заполняет ночной синхрон 1С (ContactInfo/Passport/Citizenship),
-// а не в отдельные manual-поля Individual (как форма "Новое физическое лицо" — там это
-// осознанно было наоборот, см. schema.prisma). Разворот сознательный: это аварийный
-// костыль для критических ситуаций, следующий ночной синхрон синхронизируемых физлиц
-// перезапишет эти значения обратно из 1С — и это нормально, не баг.
-//
-// Стратегия — обновить ту же запись, что уже показывается как "актуальная" (по тем же
-// правилам приоритета, что и карточка/печать, см. pickLatestContactInfo/
-// sortPassportsByPriority), не создавать вторую вперемешку с первой. Если такой записи
-// нет вообще (чисто ручное физлицо без единой синхронной строки) — создаём новую,
-// технические 1С-поля (xml/json/systemDoc и т.п.), не имеющие смысла для ручного ввода,
-// заполняются пустой строкой.
 
 export async function upsertContactInfo(
   tx: Prisma.TransactionClient,
@@ -58,8 +42,6 @@ export async function upsertContactInfo(
   });
 }
 
-// Удаляет запись типа type, если она есть — для случая, когда сотрудник очистил поле
-// в форме (не оставлять на карточке значение, от которого явно отказались).
 export async function deleteContactInfoIfExists(tx: Prisma.TransactionClient, uid: string, type: string): Promise<void> {
   const rows = await tx.contactInfo.findMany({ where: { fizicheskoyeLitsoUid: uid, type } });
   const latest = pickLatestContactInfo(rows)[0];
@@ -106,10 +88,6 @@ export async function upsertCitizenship(tx: Prisma.TransactionClient, uid: strin
   await tx.citizenship.create({ data: { fizicheskoyeLitsoUid: uid, period: new Date(), country, countryCode: '' } });
 }
 
-// Снимок текущих значений редактируемых полей — та же логика приоритета, что и у
-// карточки физлица (detail()), плоским набором для формы правки и для diff'а в истории
-// изменений (audit log). Не путать с ResidentSnapshot (contracts/resident-snapshot.ts) —
-// тот замороженный на момент подписания договора, этот — всегда живой.
 export interface EditableIndividualSnapshot {
   fullName: string;
   surname: string | null;

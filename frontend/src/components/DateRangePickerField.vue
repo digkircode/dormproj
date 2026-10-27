@@ -21,26 +21,17 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn, digitsToDateTemplate, handleDateMaskKeydown } from '@/lib/utils'
 
-// Голый <input>, не обёртка Input.vue — см. подробное объяснение в DatePickerField.vue
-// (гонка между внутренним v-model обёртки и внешним @input-обработчиком маски).
 const INPUT_CLASS =
   'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground transition-shadow focus-visible:outline-none focus-visible:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/20 focus-visible:shadow-sm disabled:cursor-not-allowed disabled:opacity-50'
 
 const { t, locale } = useI18n()
 
-// Маска дд.мм.гггг — тот же осознанный выбор, что в DatePickerField.vue, не меняется
-// с языком интерфейса.
 defineProps<{ placeholder?: string; invalid?: boolean }>()
-// Два ISO-поля (YYYY-MM-DD), как везде в проекте, а не Date/DateRange — компонент
-// снаружи выглядит как два обычных v-model-поля, только UI один period-пикер.
 const from = defineModel<string>('from', { default: '' })
 const to = defineModel<string>('to', { default: '' })
 
 const isOpen = ref(false)
 
-// Минимальный выбираемый год — 1900 во всех календарях приложения (по прямой просьбе,
-// тот же приём, что в общем Calendar.vue — этот пикер собран на голых RangeCalendar*
-// примитивах, не через ту обёртку, minValue нужно задать здесь отдельно).
 const MIN_DATE = new CalendarDate(1900, 1, 1)
 
 const rangeValue = computed(() => ({
@@ -68,8 +59,6 @@ function parseManual(text: string): string | null {
   return `${year}-${pad(month)}-${pad(day)}`
 }
 
-// Текст полей — своё состояние, не завязано напрямую на from/to (та же причина, что
-// в DatePickerField.vue — не мешать печатать промежуточные значения).
 const fromText = ref(from.value ? formatDate(from.value) : '')
 const toText = ref(to.value ? formatDate(to.value) : '')
 watch(from, (value) => {
@@ -79,9 +68,6 @@ watch(to, (value) => {
   toText.value = value ? formatDate(value) : ''
 })
 
-// Цифры/Backspace/Delete — на @keydown (handleDateMaskKeydown, см. DatePickerField.vue
-// и lib/utils.ts — перезаписывает символ под кареткой, не пересобирает всё значение).
-// @input — только фолбэк для вставки/автозаполнения.
 function onFromKeydown(event: KeyboardEvent) {
   const result = handleDateMaskKeydown(event, fromText.value)
   if (!result) return
@@ -141,7 +127,6 @@ function commitTo() {
 function onRangeUpdate(value: { start?: DateValue; end?: DateValue }) {
   from.value = value.start ? value.start.toString() : ''
   to.value = value.end ? value.end.toString() : ''
-  // Обе границы выбраны — закрываем поповер сами, отдельной кнопки "Готово" нет.
   if (value.start && value.end) isOpen.value = false
 }
 
@@ -159,13 +144,6 @@ const CELL_TRIGGER_CLASS = cn(
 </script>
 
 <template>
-  <!-- Ровно два столбца, как и у полей "Сумма"/"Отсрочка оплаты" под этим полем в
-       Contracts.vue — без отдельной колонки под кнопку календаря (иконка наложена
-       абсолютно внутри правого поля, тем же приёмом, что в DatePickerField.vue), иначе
-       разбивка "от – до [📅]" не совпадает по ширине с 50/50 сеткой снизу. Тире между
-       полями — тоже абсолютно спозиционировано поверх зазора, а не отдельная колонка,
-       чтобы не портить это выравнивание; чуть увеличенный gap (5 вместо 4) освобождает
-       ему место, не наезжая на текст в полях. -->
   <div class="relative grid grid-cols-2 gap-5">
     <input
       :value="fromText"

@@ -1,25 +1,3 @@
-// Одноразовый seed для презентации флоу 3 ("оказание услуг", /finance/service-docs) —
-// реальных боевых реквизитов 1С Бухгалтерии нет (см. промпт проекта, ACCOUNTING_1C_* не
-// заполнены), поэтому реальный подсчёт (ServiceProvisionDocService#computeAndSave, дёргается
-// на каждый GET) сейчас всегда находит ноль договоров — ни у одного нет уже известной пары
-// ContractorUID/ContractUID (та появляется только после первого успешного флоу 1). Документы
-// ("Найм"/"Коммуналка" за три последних месяца) заводятся напрямую, с уже проставленным
-// accounting1cSyncStatus — как будто реальные прогоны уже были, три разных статуса
-// (NOT_SYNCED/SYNCED/FAILED) на разных месяцах, тот же принцип, что в
-// seed-demo-website-payments.ts. Идемпотентно по periodStart+type (тот же уникальный
-// индекс, что использует сам ServiceProvisionDocService#run).
-//
-// Первая строка КАЖДОГО документа ссылается на реальный демо-договор VIP27-27/01 (тот же,
-// что уже используют seed-demo-payment-imports.ts/seed-demo-website-payments.ts/
-// backfill-demo-payment-ledger.ts) — если у него ещё нет accounting1cUid/
-// Individual.accounting1cContractorUid, скрипт проставляет демо-значения (как будто флоу 1
-// для него уже когда-то отработал), чтобы "Список договоров" в детализации документа
-// показывал настоящее ФИО/номер, а не голый UID. Остальные строки — намеренно
-// НЕ резолвящиеся demo-*-uid-N (показывают, как выглядит "Договор не опознан" в
-// детализации) — специально НЕ трогаем другие реальные договоры чужими demo-UID'ами,
-// чтобы не подложить мину под будущую настоящую интеграцию с 1С.
-//
-// Запуск (из backend/, после `npm run build`): node dist/scripts/seed-demo-service-provision-docs.js [--force]
 
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -85,10 +63,6 @@ async function main() {
   const prevMonth = startOfMonthsAgo(2);
   const olderMonth = startOfMonthsAgo(3);
 
-  // Три месяца подряд, чтобы на странице сразу были видны все три статуса отправки —
-  // самый свежий месяц ещё не отправлялся (как оно и будет по-настоящему сразу после
-  // включения интеграции и первого ночного прогона), средний ушёл успешно, а в самом
-  // старом "Найм" специально с ошибкой — показать, как выглядит FAILED в таблице.
   const demoDocs: DemoDoc[] = [
     {
       periodStart: lastMonth,
@@ -175,9 +149,6 @@ async function main() {
       NomenclatureType: demo.nomenclature,
       DocumentSumm: demo.documentSumm,
       Comment: `HostelRosNOUWeb | ${demo.nomenclature === 'Найм' ? 'Найм услуги' : 'Коммунальные услуги'} | демо-данные`,
-      // Первая строка — реальный демо-договор (см. backfill выше, резолвится в детализации
-      // до настоящего ФИО/номера), остальные — намеренно нерезолвящиеся demo-*-uid-N
-      // (показывают "Договор не опознан" в детализации).
       DocumentSummDetails: Array.from({ length: demo.contractCount }, (_, i) => ({
         ContractorUID: i === 0 ? realContractorUid : `demo-contractor-uid-${i + 1}`,
         ContractUID: i === 0 ? realContractUid : `demo-contract-uid-${i + 1}`,

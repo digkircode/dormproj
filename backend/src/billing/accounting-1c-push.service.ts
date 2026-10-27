@@ -14,10 +14,6 @@ const PAYMENT_WITH_RELATIONS = {
   allocations: { include: { accrual: { select: { rentAmount: true, utilitiesAmount: true, periodStart: true } } } },
 } as const;
 
-// Флоу 1 (см. промпт проекта) — отправка платежей эквайринга в 1С Бухгалтерию. Раз в сутки
-// (accounting-1c-push.scheduler.ts) пачкой все ещё не отправленные/упавшие, плюс ручной
-// повтор одного платежа (billing.controller.ts#syncPaymentToAccounting1c) — оба пути через
-// один и тот же метод, отличаются только набором payment.id на входе.
 @Injectable()
 export class Accounting1cPushService {
   private readonly logger = new Logger(Accounting1cPushService.name);
@@ -27,9 +23,6 @@ export class Accounting1cPushService {
     @Inject(ACCOUNTING_1C_PROVIDER) private readonly provider: Accounting1cProvider,
   ) {}
 
-  // paymentIds не задан — пакетный ночной прогон (только NOT_SYNCED/FAILED); задан —
-  // точечный повтор конкретных платежей (ручная кнопка), статус синка не фильтруем —
-  // сотрудник явно попросил переотправить, независимо от текущего состояния.
   async pushPayments(paymentIds?: number[]): Promise<{ sent: number; succeeded: number; failed: number }> {
     if (!this.provider.isConfigured()) {
       this.logger.warn('1С Бухгалтерия не настроена - пропуск отправки платежей');
@@ -53,8 +46,6 @@ export class Accounting1cPushService {
       results = await this.provider.pushPayments(items);
     } catch (error) {
       if (error instanceof Accounting1cNotConfiguredError) return { sent: 0, succeeded: 0, failed: 0 };
-      // Сеть/сервис недоступны целиком — статусы не трогаем, следующий прогон
-      // (ночной крон или повторная ручная кнопка) попробует снова с чистого листа.
       this.logger.error(`Не удалось отправить платежи в 1С Бухгалтерию: ${getErrorMessage(error)}`);
       return { sent: payments.length, succeeded: 0, failed: 0 };
     }
@@ -71,16 +62,11 @@ export class Accounting1cPushService {
           where: { id: payment.id },
           data: {
             accounting1cSyncStatus: 'SYNCED',
-            // Фолбэк на уже сохранённый uid — 1С не обязана эхом возвращать DocumentUID на
-            // КАЖДЫЙ успешный ответ (см. тот же приём во флоу 3, service-provision-doc.service.ts),
-            // без него повторная успешная отправка тихо обнуляла бы уже известный uid.
             accounting1cDocumentUid: result.DocumentUID ?? payment.accounting1cDocumentUid ?? null,
             accounting1cSyncError: null,
             accounting1cSyncedAt: new Date(),
           },
         });
-        // Запоминаем UID контрагента/договора только один раз (пока ещё не известны) —
-        // не перезаписываем, если 1С вдруг вернула другое значение на повторной отправке.
         if (result.ContractorUID && !payment.contract.resident.accounting1cContractorUid) {
           await this.prisma.individual.update({
             where: { fizicheskoyeLitsoUid: payment.contract.residentIndividualUid },

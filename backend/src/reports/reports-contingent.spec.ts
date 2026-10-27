@@ -8,7 +8,7 @@ describe('resident registry with a future student population', () => {
       room: { room: String(index + 1) },
       contract: {
         id: index + 1, number: String(index + 1), residentIndividualUid: `uid-${index}`,
-        resident: { fullName: `Resident ${index}`, birthDate: null, citizenships: [] },
+        resident: { fullName: `Resident ${index}`, birthDate: null, citizenship: index === 0 ? 'Россия' : null, citizenships: [] },
       },
     }));
     const studentRecords = Array.from({ length: 5000 }, (_, index) => ({
@@ -27,6 +27,7 @@ describe('resident registry with a future student population', () => {
     const result = await controller.contingent(undefined, undefined, undefined, undefined, undefined, undefined, '2026-03-01');
 
     expect(result.total).toBe(1000);
+    expect(result.data.find((row) => row.residentIndividualUid === 'uid-0')).toMatchObject({ citizenship: 'Россия', citizenshipGroup: 'RU' });
     expect(studentFind.mock.calls[0][0].where.fizicheskoyeLitsoUid.in).toHaveLength(1000);
     expect(prisma.roomAssignment.findMany).toHaveBeenCalledTimes(1);
   });

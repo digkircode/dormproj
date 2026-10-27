@@ -25,15 +25,9 @@ interface StepResult {
   added: number;
   updated?: number;
   removed?: number;
-  // Сырые записи, как они пришли от источника — чтобы в модалке "Подробнее" можно
-  // было увидеть не только счётчики, а что именно пришло (UID и остальные поля).
   records: unknown[];
 }
 
-// Синхронизация одного физлица со своей карточки — проходит те же 5 источников, что
-// и ночной крон (студент → физлицо → гражданство → паспорт → контакты), но по одному
-// UID и как ОДИН лог, а не пять. Никакого cron/массового запуска для этого типа нет —
-// единственный вход сюда — POST /individuals/:uid/sync (см. IndividualsController).
 @Injectable()
 export class IndividualSyncService {
   private readonly logger = new Logger(IndividualSyncService.name);
@@ -64,14 +58,9 @@ export class IndividualSyncService {
       const fetchedCount =
         students.fetchedCount + individuals.fetchedCount + citizenship.fetchedCount + passport.fetchedCount + contactInfo.fetchedCount;
       const added = students.added + individuals.added + citizenship.added + passport.added + contactInfo.added;
-      // "Обновлено" осмысленно только у физлица (upsert) — у остальных 4 шагов слепок
-      // (удалить+записать), там любое совпадение считается через added/removed.
       const updated = individuals.updated;
       const removed = students.removed + citizenship.removed + passport.removed + contactInfo.removed;
 
-      // Разбивка по шагам — только при успехе (частичный набор шагов после падения
-      // на середине был бы вводящим в заблуждение), фронт разворачивает её в модалке
-      // "Подробнее" сразу при открытии.
       const details: Record<string, StepResult> = {
         students,
         individuals,

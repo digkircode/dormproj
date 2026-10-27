@@ -25,17 +25,12 @@ const DIALOG_ANIMATE_CLASS =
 const isOpen = ref(false)
 const sourceUid = ref('')
 
-// Подсказка кандидатов (фамилия, имя, дата рождения; отчество может отсутствовать,
-// см. backend#mergeCandidates) — только
-// предложение, ничего не выбирает сама, сотрудник кликает нужную строку.
 const candidates = ref<IndividualMergeCandidate[]>([])
 const isLoadingCandidates = ref(false)
 
 const selectedTargetUid = ref<string | null>(null)
 const selectedTargetLabel = ref<string | null>(null)
 
-// Ручной поиск (SearchSelect) — на случай, если среди подсказок нет нужного человека,
-// или подсказок не нашлось вовсе. Только синхронные физлица (не ручные, не сам источник).
 const searchQuery = ref('')
 const searchResults = ref<Individual[]>([])
 const isSearching = ref(false)
@@ -57,7 +52,6 @@ async function open(uid: string) {
   try {
     candidates.value = await fetchIndividualMergeCandidates(uid)
   } catch {
-    // Тихо — это только подсказка, ручной поиск ниже работает независимо от неё.
   } finally {
     isLoadingCandidates.value = false
   }
@@ -113,10 +107,6 @@ function formatDate(iso: string | null): string {
 
 <template>
   <Dialog :open="isOpen" @update:open="(open) => (isOpen = open)">
-    <!-- min-h — без кандидатов (частый случай) диалог короткий, и выпадающий список
-         SearchSelect (до 256px, см. SearchSelect.vue) при открытии перекрывал футер с
-         кнопками — снизу просто не было места. Явный минимум держит зазор всегда,
-         независимо от того, сколько подсказок пришло. -->
     <DialogScrollContent :class="['flex min-h-[420px] flex-col gap-4', DIALOG_ANIMATE_CLASS]">
       <DialogHeader>
         <DialogTitle>{{ t('individuals.merge.title') }}</DialogTitle>
@@ -150,9 +140,6 @@ function formatDate(iso: string | null): string {
         </button>
       </div>
 
-      <!-- flex-1 — растягивает этот блок на всё оставшееся место внутри min-h контейнера
-           (особенно заметно без кандидатов, см. комментарий у DialogScrollContent выше),
-           отодвигая футер вниз, а не оставляя его впритык под полем поиска. -->
       <div class="flex flex-1 flex-col gap-2">
         <Label>{{ candidates.length > 0 ? t('individuals.merge.searchOtherLabel') : t('individuals.merge.searchLabel') }}</Label>
         <SearchSelect

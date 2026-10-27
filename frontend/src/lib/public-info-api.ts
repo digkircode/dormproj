@@ -13,9 +13,6 @@ export interface HostelPublicInfo {
   priceRanges: HostelPriceRange[]
 }
 
-// Единственный эндпоинт в проекте, доступный любому залогиненному без проверки роли
-// (backend/src/public-info/public-info.controller.ts) — питает StudentGeneralInfo.vue,
-// реальные числа из БД (характеристики комнат + DormitoryInfo), не текстом руками.
 export async function fetchHostelPublicInfo(): Promise<HostelPublicInfo> {
   const response = await apiFetch('/public-info/hostel')
   if (!response.ok) {

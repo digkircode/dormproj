@@ -4,8 +4,6 @@ import { FileText, Loader, Play } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
-// Обе колоночные экшн-кнопки (Логи + Запустить) в одной ячейке — по прямой просьбе,
-// раньше "Запустить" была рядом со статус-пиллом (см. SyncOverviewStatusCell.vue).
 defineProps<{
   value?: unknown
   row?: { slug: string; isRunning: boolean; isReal: boolean; run: () => Promise<void> }

@@ -1,15 +1,12 @@
-// Абстракция над кассой (фискализация чеков) — единственная реализация сейчас
-// (Эвотор/АТОЛ Онлайн "Цифровая касса", см. atol-fiscal.provider.ts).
 
 export interface FiscalReceiptItem {
   name: string;
-  price: number; // рубли, за единицу
+  price: number;
   quantity: number;
-  sum: number; // рубли
+  sum: number;
 }
 
 export interface FiscalReceiptInput {
-  // Уникален среди документов, отправленных нашим логином — используем id PaymentIntent.
   externalId: string;
   items: FiscalReceiptItem[];
   total: number;

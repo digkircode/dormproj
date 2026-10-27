@@ -40,22 +40,12 @@ export class ContactInfoSyncService {
     });
 
     try {
-      // Ручные физлица (isManual) не отправляем в 1С — у них нет реального UID источника.
       const individuals = await this.prisma.individual.findMany({
         where: { isManual: false },
         select: { fizicheskoyeLitsoUid: true },
       });
       const uids = individuals.map((i) => i.fizicheskoyeLitsoUid);
 
-      // Слепок пачками, не всей таблицей за один раз (переписано 2026-09-01 — прошлая
-      // версия собирала ВСЕ ~45 тыс. записей одним массивом в памяти Node и одной
-      // транзакцией на всю таблицу, что на проде (1.9 ГБ RAM) периодически вгоняло сервер
-      // в своп и валило транзакцию по таймауту — подтверждено живым наблюдением через
-      // pg_stat_activity, см. contact-info-sync.constants.ts). Каждая пачка — тот же
-      // принцип "удалить по uid, вставить по uid", что и в syncOne() ниже, просто на
-      // группу uid, а не на одно физлицо — полноту слепка не теряем: пробегаем ВСЕ uids
-      // пачками, включая те, по которым 1С в этот раз ничего не вернула (их контакты
-      // удаляются и не восстанавливаются, как и раньше).
       let fetchedCount = 0;
       let added = 0;
       let removed = 0;
@@ -66,9 +56,6 @@ export class ContactInfoSyncService {
 
         const { added: batchAdded, removed: batchRemoved } = await this.prisma.$transaction(
           async (tx) => {
-            // preservedFromMerge=false — не трогаем строки, перенесённые слиянием ручного
-            // физлица на кого-то из этой пачки (individuals.controller.ts#merge) — 1С о них
-            // не знает и никогда не пришлёт их обратно (код-ревью 2026-09-04).
             const scope = { fizicheskoyeLitsoUid: { in: batch }, preservedFromMerge: false } as const;
             const existingCount = await tx.contactInfo.count({ where: scope });
 
@@ -132,16 +119,11 @@ export class ContactInfoSyncService {
     }
   }
 
-  // Точечная синхронизация одного физлица (кнопка на карточке) — та же логика "слепка",
-  // что и в общем прогоне, но удаляет и заново пишет только строки этого UID, а не всю
-  // таблицу. Без отдельного SyncLog — это шаг общего лога IndividualSyncService.
   async syncOne(uid: string): Promise<{ fetchedCount: number; added: number; removed: number; records: unknown[] }> {
     const records = await this.externalApi.fetchContactInfo([uid]);
 
     return this.prisma.$transaction(
       async (tx) => {
-        // preservedFromMerge=false — та же защита перенесённых слиянием строк, что и в
-        // runSync() выше, здесь актуальна для точечной синхронизации самой цели слияния.
         const scope = { fizicheskoyeLitsoUid: uid, preservedFromMerge: false } as const;
         const existingCount = await tx.contactInfo.count({ where: scope });
         await tx.contactInfo.deleteMany({ where: scope });

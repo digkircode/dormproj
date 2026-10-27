@@ -1,10 +1,5 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 
-// Антиспам на создание платёжных попыток — тот же приём "в памяти процесса, sliding
-// window по userId", что и ChatRateLimiterService (chats/chat-rate-limiter.service.ts),
-// не переиспользует общий ThrottlerModule (тот IP-based на весь сайт). Каждая попытка —
-// реальный поход к токену банка, лимит защищает и банк, и нас от случайного/скриптового
-// дабл-клика.
 const WINDOW_MS = 10 * 60_000;
 const LIMIT = 10;
 

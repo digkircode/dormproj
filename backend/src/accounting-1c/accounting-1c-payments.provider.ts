@@ -16,10 +16,6 @@ import {
 
 const REQUEST_TIMEOUT_MS = 30_000;
 
-// Basic Auth — тот же приём, что и у остальных интеграций с 1С в проекте (см.
-// sync/external-student-api.service.ts). Три метода — отправка платежей эквайринга
-// (флоу 1), получение платежей мимо сайта (флоу 2) и ежемесячный документ "оказание
-// услуг" (флоу 3) — независимо настраиваемые (может быть включён только часть URL).
 @Injectable()
 export class Accounting1cPaymentsProvider implements Accounting1cProvider {
   private readonly logger = new Logger(Accounting1cPaymentsProvider.name);
@@ -66,10 +62,6 @@ export class Accounting1cPaymentsProvider implements Accounting1cProvider {
     );
   }
 
-  // AllPaymentDoc — POST, не GET (реальный пример 2026-09-04): 1С не отдаёт общую ленту
-  // новых платежей, а отвечает только по переданным парам ContractorUID/ContractUID.
-  // Пустой список пар — не ошибка, просто нечего спрашивать (см. ingest-service, откуда
-  // пары берутся).
   async fetchPayments(pairs: AccountingContractPair[]): Promise<AccountingRawImportedPayment[]> {
     if (!this.isFetchConfigured() || pairs.length === 0) return [];
 
@@ -98,8 +90,6 @@ export class Accounting1cPaymentsProvider implements Accounting1cProvider {
     );
   }
 
-  // ServProvisionDoc — та же форма, что и pushPayments (эхо SiteDocumentID вместо
-  // DogovorID/OplataID), см. AccountingServiceProvisionPush.
   async pushServiceProvisionDocs(items: AccountingServiceProvisionPush[]): Promise<AccountingServiceProvisionPushResult[]> {
     if (!this.isServiceProvisionConfigured()) throw new Accounting1cNotConfiguredError();
     if (items.length === 0) return [];

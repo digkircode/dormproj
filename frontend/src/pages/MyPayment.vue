@@ -11,16 +11,6 @@ import { fetchMyPayments, fetchPaymentIntent, type MyPaymentsData, type PaymentI
 import { dateLocaleTag } from '@/lib/format-locale'
 import { goBack } from '@/lib/utils'
 
-// Собственная форма создания платежа отсюда убрана 2026-08-27 — с 2026-08-25 она и так
-// была скрыта из навигации в пользу модалки CreatePaymentDialog.vue (сайдбар/карточка
-// договора), но сам дублирующий код тут не трогали. Оставлять его дальше было уже не
-// просто избыточно: пеня в модалке переведена на отдельный penaltyOnly-режим (см.
-// CreatePaymentDialog.vue/my-payments.controller.ts — платится всегда отдельным платежом,
-// backend больше не принимает старый includePenalty), так что старая форма здесь тихо
-// показывала бы сумму "с пеней", а реально создавала бы платёж без нее — несоответствие,
-// не безобидный дубль. Роут (см. router/index.ts) остаётся — нужен как returnUrl-цель
-// после редиректа из банка (see my-payments.controller.ts#createIntent), эта страница
-// теперь только показывает статус возврата и историю платежей.
 const router = useRouter()
 const route = useRoute()
 const { t } = useI18n()
@@ -48,8 +38,6 @@ function formatMoney(value: number): string {
   return `${value.toLocaleString(dateLocaleTag(), { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
 }
 
-// --- Возврат с платёжной страницы банка (?intentId=) — опрашиваем статус сами, не
-// доверяем самому факту редиректа обратно (см. промпт задачи). ---
 const returningIntent = ref<PaymentIntentRow | null>(null)
 const isPolling = ref(false)
 let pollTimeout: ReturnType<typeof setTimeout> | undefined
@@ -65,17 +53,12 @@ async function pollIntent(id: number) {
     }
     if (intent.status === 'SUCCEEDED') await load()
   } catch {
-    // Тихо игнорируем — следующий заход на страницу/ручное обновление попробует снова.
   } finally {
     isPolling.value = false
   }
 }
 onUnmounted(() => clearTimeout(pollTimeout))
 
-// Proxy, не обычный объект — тот же приём, что STATUS_LABELS в contracts-format.ts,
-// реактивен к смене языка (те же ключи payment.status.*, что и UNIFIED_PAYMENT_STATUS_LABELS
-// в my-payments-api.ts, плюс SUCCEEDED — там его нет, PaymentIntentStatus его исключает
-// из UnifiedPaymentStatus, но сам intent до слияния в леджер им может быть).
 const STATUS_LABELS: Record<PaymentIntentStatus, string> = new Proxy({} as Record<PaymentIntentStatus, string>, {
   get: (_target, status: string) => t(`payment.status.${status}`),
 })
@@ -133,7 +116,6 @@ onMounted(async () => {
       <p class="text-sm font-medium">{{ t('contracts.myContract.noContractFound') }}</p>
     </Card>
 
-    <!-- На телефоне платежи показаны карточками; с sm остаётся полная таблица. -->
     <Card v-if="data?.contract" class="data-reveal flex min-w-0 flex-col gap-0 overflow-hidden py-0 md:min-h-0 md:flex-1">
       <p class="flex shrink-0 items-center gap-1.5 border-b p-4 text-sm font-medium">
         <Wallet class="size-4 text-primary" />

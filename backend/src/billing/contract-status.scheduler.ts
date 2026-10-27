@@ -10,14 +10,6 @@ const EXPIRING_WINDOW_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const CONTRACT_BATCH_SIZE = 50;
 
-// Ночной крон — переводит договоры по жизненному циклу (см. ContractStatus в schema.prisma):
-// ACTIVE -> EXPIRING, когда до endDate осталось ≤30 дней; ACTIVE/EXPIRING -> COMPLETED
-// (endDate прошёл, долга по начислениям+пене нет) или OVERDUE (endDate прошёл, долг есть).
-// TERMINATED этот крон не трогает вообще (не в выборке ниже) и никогда сюда не
-// возвращает — единственный статус, проставляемый только вручную (см.
-// contracts.controller.ts#terminate). OVERDUE/COMPLETED пересматриваются на каждом
-// прогоне (не только один раз при первом переходе за endDate) — платёж задним числом
-// или сторно платежа может поменять итог уже после того, как договор проехал endDate.
 @Injectable()
 export class ContractStatusScheduler {
   private readonly logger = new Logger(ContractStatusScheduler.name);
@@ -42,9 +34,6 @@ export class ContractStatusScheduler {
     });
   }
 
-  // Между синком 1С (01:00) и начислением пени (02:00, см. billing/penalty.scheduler.ts) —
-  // сам расчёт пени от статуса договора не зависит, порядок не критичен, просто держим
-  // все три ночных крона в одном известном окне.
   @Cron('30 1 * * *', { timeZone: 'Europe/Moscow' })
   async transitionStatuses(): Promise<void> {
     const startedAt = Date.now();

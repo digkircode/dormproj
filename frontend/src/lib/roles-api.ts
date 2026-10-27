@@ -9,10 +9,6 @@ export interface Role {
   _count: { users: number }
 }
 
-// Подписи только для 3 системных ролей — только они реально на что-то влияют
-// (см. RolesGuard/@Roles() на бэкенде). Роль с незнакомым name (созданная вручную
-// через "Добавить роль") отображается как есть, без перевода. Proxy — тот же приём, что
-// STATUS_LABELS в contracts-format.ts, реактивен к языку интерфейса.
 const KNOWN_ROLE_NAMES = new Set(['ADMIN', 'STAFF', 'RESIDENT'])
 export const ROLE_LABELS: Record<string, string> = new Proxy(
   {} as Record<string, string>,
@@ -27,7 +23,6 @@ const ROLE_ICONS: Record<string, Component> = {
   STAFF: Briefcase,
   RESIDENT: User,
 }
-// Роль с незнакомым name (созданная вручную через "Добавить роль") — общая иконка-заглушка.
 export function roleIcon(name: string): Component {
   return ROLE_ICONS[name] ?? Tag
 }

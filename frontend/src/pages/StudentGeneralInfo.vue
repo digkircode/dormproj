@@ -33,8 +33,6 @@ import { fetchHostelPublicInfo, type HostelPublicInfo } from '@/lib/public-info-
 const router = useRouter()
 const route = useRoute()
 const { t, locale } = useI18n()
-// Компонент рендерится и как /student/general-info, и как содержимое "Главной" для
-// пользователей без роли (см. Home.vue) — на "Главной" стрелка "назад" не нужна.
 const isHome = computed(() => route.name === 'home')
 import molPhoto from '@/assets/staff/mol.webp'
 import cicPhoto from '@/assets/staff/cic.webp'
@@ -43,20 +41,12 @@ import isaPhoto from '@/assets/staff/isa.webp'
 import guzPhoto from '@/assets/staff/guz.jpg'
 import butPhoto from '@/assets/staff/but.jpg'
 
-// Контент дословно взят со страницы https://rosnou.ru/university/hostel/ (по прямой
-// просьбе — эта страница показывает официальную информацию об общежитии как есть, без
-// отсебятины). Обновлять вручную при изменениях на сайте вуза — автосинхронизации нет.
-// Исключение — "Стоимость проживания" ниже: цифры реальные, из БД (см. hostelInfo).
-// Три вкладки (2026-08-23, второй раунд) — вместо одной длинной ленты карточек.
 
 interface StaffPerson {
   name: string
   photo?: string
 }
 
-// value — фактические контактные данные (адрес/телефон/email), не переводится, как
-// значения других реквизитных полей в проекте (см. "что осознанно НЕ локализуется" в
-// промпте) — только label вокруг них.
 const contacts = computed(() => [
   { icon: MapPin, label: t('student.contactsAdmin.addressLabel'), value: 'г. Москва, ул. Авиамоторная, д. 55, корп. 5' },
   { icon: Phone, label: t('student.contactsAdmin.phoneLabel'), value: '+7 (977) 812-81-87, +7 (495) 223-40-49' },
@@ -64,8 +54,6 @@ const contacts = computed(() => [
   { icon: Clock, label: t('student.contactsAdmin.hoursLabel'), value: '9:30-18:00' },
 ])
 
-// photo — файлы получены от пользователя 2026-08-23 с говорящими именами (mol/cic/jil/isa/
-// guz/but — по фамилии), сопоставление подтверждено, не гадали по внешности.
 const staff: StaffPerson[] = [
   { name: 'Молоствова Наталья Константиновна', photo: molPhoto },
   { name: 'Цицерова Марина Викторовна', photo: cicPhoto },
@@ -95,10 +83,6 @@ function initials(fullName: string): string {
     .toUpperCase()
 }
 
-// "Здание" — развёрнутым текстом, не краткими буллетами (по прямой просьбе 2026-08-23:
-// после переноса "Доступности" в правую колонку слева стало заметно меньше текста, чем
-// справа — расписали подробнее, не сокращая присланный пользователем текст про крылья/
-// обстановку комнат до одной строки, как было раньше).
 const buildingParagraphs = computed(() => [
   t('student.building.paragraph1'),
   t('student.building.paragraph2'),
@@ -122,9 +106,6 @@ const tempRegistrationDocuments = computed(() => [
   t('student.tempRegistration.doc4'),
 ])
 
-// "Шпаргалка" — добавлено 2026-08-23 по присланному пользователем тексту, сжато до
-// пошагового списка (само собой разумеющееся вступление про иногородних/список
-// документов уже было на странице абзацем выше — не дублировали).
 const polyclinicSteps = computed(() => [t('student.polyclinic.step1'), t('student.polyclinic.step2'), t('student.polyclinic.step3')])
 
 const polyclinicsOpen = ref(false)
@@ -136,17 +117,10 @@ const polyclinics = [
   { name: 'Детская поликлиника № 61, филиал 3 (ДГП № 115)', address: 'ул. 2-я Синичкина, д. 6', phone: null as string | null },
 ]
 
-// --- Стоимость проживания — реальные числа из БД (характеристики комнат + настройки
-// общежития), не текст руками, см. backend/src/public-info/public-info.controller.ts ---
 const hostelInfo = ref<HostelPublicInfo | null>(null)
 const hostelInfoError = ref('')
 const isHostelInfoLoading = ref(true)
 
-// Склонение "человек" — реальные вместимости комнат в общежитии от 2 до 5, но формула
-// общая (стандартное правило русского числительного), не завязана на этот диапазон.
-// Для EN своя, гораздо более простая пара форм (person/people) — библиотечной
-// (vue-i18n) плюрализации под русские 3 формы в проекте нигде больше не заводили
-// (см. приём с "N дн." в отчётах/синхронизации), поэтому и здесь решается вручную в JS.
 function roomLabel(capacity: number): string {
   let unit: string
   if (locale.value === 'en') {
@@ -187,10 +161,6 @@ onMounted(async () => {
     </div>
 
     <Tabs default-value="general">
-      <!-- overflow-x-auto — на узком экране 3 подписанных таба (иконка+русский текст)
-           могут не поместиться в TabsList (inline-flex, сам не переносится и не сжимается,
-           см. components/ui/tabs/TabsList.vue) — без обёртки это раздвигало бы всю
-           страницу по горизонтали, так скроллится только сама полоска табов. -->
       <div class="overflow-x-auto">
         <TabsList>
           <TabsTrigger value="general">
@@ -214,9 +184,6 @@ onMounted(async () => {
         </TabsList>
       </div>
 
-      <!-- Вкладка 1 — Здание слева развёрнутым текстом, справа Инфраструктура и под ней
-           (по прямой просьбе) Доступность — перенесена сюда с левой колонки, чтобы
-           текста в обеих колонках было примерно поровну; "Как добраться" — внизу вкладки. -->
       <TabsContent value="general" class="mt-4 flex flex-col gap-4">
         <Card class="p-4 sm:p-6">
           <div class="flex flex-col gap-6 lg:flex-row lg:divide-x lg:divide-border">
@@ -266,9 +233,6 @@ onMounted(async () => {
               </ul>
             </div>
 
-            <!-- Тот же embed (конструктор Яндекс.Карт), что и на официальной странице
-                 rosnou.ru/university/hostel/ — с готовыми пронумерованными маршрутами на
-                 карте, не просто геокодированная точка (см. промпт проекта). -->
             <div class="lg:w-1/2 lg:pl-6">
               <div class="overflow-hidden rounded-md border">
                 <iframe
@@ -283,8 +247,6 @@ onMounted(async () => {
         </Card>
       </TabsContent>
 
-      <!-- Вкладка 2 — Оплата и Стоимость проживания через вертикальный разделитель,
-           плюс Временная регистрация и Поликлиники ниже отдельной карточкой. -->
       <TabsContent value="payment" class="mt-4 flex flex-col gap-4">
         <Card class="p-4 sm:p-6">
           <div class="flex flex-col gap-6 lg:flex-row lg:divide-x lg:divide-border">
@@ -311,9 +273,6 @@ onMounted(async () => {
               </div>
               <p v-if="hostelInfoError" class="mt-3 text-sm text-red-500">{{ hostelInfoError }}</p>
               <LoadingState v-else-if="isHostelInfoLoading" class="mt-3" />
-              <!-- Разбивка по центру (2026-08-27, по прямой просьбе) — было label слева/
-                   цена справа в одну строку, стало карточками label сверху/цена крупно
-                   снизу, выровненными по центру колонки, а не растянутыми на всю ширину. -->
               <div v-else class="mt-3 grid w-full grid-cols-1 gap-3 min-[390px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-2">
                 <div
                   v-for="p in hostelInfo?.priceRanges ?? []"
@@ -361,9 +320,6 @@ onMounted(async () => {
                   </li>
                 </ol>
               </div>
-              <!-- Раскрывающийся список (по прямой просьбе 2026-08-24) — сам список поликлиник
-                   спрятан по умолчанию за тогглом, тот же Collapsible/ChevronRight-паттерн,
-                   что у групп сайдбара (см. NavProjects.vue). -->
               <Collapsible v-model:open="polyclinicsOpen">
                 <CollapsibleTrigger class="flex w-full items-center gap-1.5 rounded-md py-1 text-sm font-medium hover:text-primary">
                   <ChevronRight class="size-4 shrink-0 transition-transform duration-200" :class="{ 'rotate-90': polyclinicsOpen }" />
@@ -396,7 +352,6 @@ onMounted(async () => {
         </Card>
       </TabsContent>
 
-      <!-- Вкладка 3 — Контакты, фото крупнее и круглые (лицо+плечи, object-top). -->
       <TabsContent value="contacts" class="mt-4 flex flex-col gap-4">
         <Card class="p-4 sm:p-6">
           <div class="flex flex-col gap-6 lg:flex-row lg:divide-x lg:divide-border">
@@ -409,21 +364,13 @@ onMounted(async () => {
                 <div v-for="c in contacts" :key="c.label" class="flex items-start gap-2 text-sm">
                   <component :is="c.icon" class="size-4 shrink-0 text-primary" />
                   <span class="w-24 shrink-0 text-muted-foreground sm:w-32">{{ c.label }}</span>
-                  <!-- min-w-0 + break-words — email/адрес без пробелов иначе не переносится
-                       внутри flex-строки и растягивает её (и всю страницу) по горизонтали
-                       на узком экране. -->
                   <span class="min-w-0 break-words">{{ c.value }}</span>
                 </div>
               </div>
               <div class="mt-1 border-t pt-3">
                 <div class="mb-2 text-xs text-muted-foreground">{{ t('student.contactsAdmin.responsibleStaff') }}</div>
-                <!-- justify-center — по прямой просьбе: когда фото не помещаются в ряд
-                     (например 2 фото на узком экране) и переносятся, неполная строка
-                     раньше прижималась к левому краю, теперь центрируется. -->
                 <div class="flex flex-wrap justify-center gap-6">
                   <div v-for="p in staff" :key="p.name" class="flex w-40 flex-col items-center gap-2 text-center sm:w-56">
-                    <!-- size-40 на мобильном (было размером с половину экрана на узком
-                         телефоне), sm:size-56 — прежний размер с планшета и выше. -->
                     <Avatar class="size-40 rounded-full border-4 border-border sm:size-56">
                       <AvatarImage v-if="p.photo" :src="p.photo" :alt="p.name" />
                       <AvatarFallback class="text-4xl">{{ initials(p.name) }}</AvatarFallback>
@@ -448,9 +395,6 @@ onMounted(async () => {
               </div>
               <div class="mt-1 border-t pt-3">
                 <div class="mb-2 text-xs text-muted-foreground">{{ t('student.contactsAdmin.responsibleStaff') }}</div>
-                <!-- justify-center — по прямой просьбе: когда фото не помещаются в ряд
-                     (например 2 фото на узком экране) и переносятся, неполная строка
-                     раньше прижималась к левому краю, теперь центрируется. -->
                 <div class="flex flex-wrap justify-center gap-6">
                   <div v-for="p in ddmStaff" :key="p.name" class="flex w-40 flex-col items-center gap-2 text-center sm:w-56">
                     <Avatar class="size-40 rounded-full border-4 border-border sm:size-56">

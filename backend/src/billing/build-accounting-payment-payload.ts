@@ -4,11 +4,6 @@ import { buildPaymentPurpose } from './payment-purpose';
 
 const { Decimal } = Prisma;
 
-// "YYYY-MM-DDT00:00:00" — по образцу присланному 1С-разработчиком (ContractDate/Date в
-// примере запроса были в ISO, без времени и без "Z" на конце), не "ДД.ММ.ГГГГ", как у
-// АТОЛ/Эвотор (fiscal/atol-fiscal.provider.ts) — разные внешние API, не путать формат.
-// Экспортирован — тот же формат подтверждён и у ServProvisionDoc (флоу 3, реальный пример
-// 2026-09-04, см. service-provision-doc.service.ts), не только у флоу 1.
 export function formatDateOnlyIso(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}T00:00:00`;
@@ -36,11 +31,6 @@ type PaymentForPush = {
   }[];
 };
 
-// Собирает DocumentSummDetails по тому же принципу, что уже описан у
-// PaymentAllocation.isPartial в schema.prisma: полные (isPartial=false) разноски
-// разбиваются на Найм/Коммуналка по факту начисления, частичные (isPartial=true) идут
-// одной строкой "Найм" целиком, без деления — делить пропорционально не просили.
-// Пеня — отдельно, из Payment.penaltyAmount (реальное разнесение, не начисление).
 function buildSummDetails(payment: PaymentForPush): { details: AccountingSummDetail[]; naimTotal: Prisma.Decimal; grandTotal: Prisma.Decimal } {
   let naim = new Decimal(0);
   let utilities = new Decimal(0);
@@ -83,11 +73,6 @@ export function buildAccountingPaymentPush(payment: PaymentForPush): AccountingP
     ContractName: payment.contract.number,
     ContractDate: formatDateOnlyIso(payment.contract.contractDate),
     Date: formatDateOnlyIso(payment.paidAt),
-    // Сумма разнесённого (найм+коммуналка+пеня), НЕ сырой payment.amount — они могут
-    // разойтись в обе стороны: платёж мог закрыть больше своей номинальной суммы за счёт
-    // Contract.creditBalance (см. payment-allocation.ts), или, наоборот, часть суммы могла
-    // осесть в creditBalance, если начислять было уже нечего. DocumentSummDetails должны
-    // всегда суммироваться ровно в DocumentSumm — иначе документ в 1С не сойдётся построчно.
     DocumentSumm: Number(grandTotal),
     DocumentSummNaim: Number(naimTotal),
     OplataContractor: payment.paymentIntent?.payerFullName ?? payment.contract.resident.fullName,

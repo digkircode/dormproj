@@ -8,10 +8,6 @@ import { BadRequestException } from '@nestjs/common';
 import { I18nContext } from 'nestjs-i18n';
 import type { ChatAttachmentKind } from '../../generated/prisma/client.js';
 
-// Persistent docker volume (см. docker-compose.yml — /app/uploads смонтирован как
-// chat_uploads), не слой контейнера — иначе файлы терялись бы на каждом
-// `docker compose up --build`. process.cwd() внутри контейнера — /app (см. Dockerfile,
-// WORKDIR /app, CMD запускает dist/src/main оттуда же).
 export const CHAT_UPLOADS_DIR = join(process.cwd(), 'uploads', 'chat');
 
 export function ensureUploadsDir(): void {
@@ -20,10 +16,6 @@ export function ensureUploadsDir(): void {
   }
 }
 
-// Разные потолки для фото/видео (по прямой просьбе) — multer.limits.fileSize ниже
-// умеет только ОДНУ общую границу на все файлы сразу, поэтому она выставлена в верхнюю
-// (видео), а точный лимит по типу проверяется постфактум после приёма, см.
-// validateAttachmentSizes в chat-attachments.ts.
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 export const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
 export const MAX_ATTACHMENTS_PER_MESSAGE = 5;
@@ -42,35 +34,19 @@ export function maxBytesForKind(kind: ChatAttachmentKind): number {
   return kind === 'IMAGE' ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES;
 }
 
-// Имя файла на диске — случайное, не оригинальное (то остаётся только в БД для
-// Content-Disposition/показа) — исключает path traversal и коллизии имён.
 function generateStorageKey(): string {
   return randomUUID();
 }
 
-// Сжатие фото при приёме (2026-08-24, по прямой просьбе — диск ограничен, 20 ГБ, вложения
-// чата никогда не удаляются, см. промпт проекта). GIF намеренно не трогаем — типичная
-// причина прислать .gif это анимация, а sharp.resize() по умолчанию берёт только первый
-// кадр, "сжатие" молча стёрло бы анимацию. Формат на выходе — тот же, что на входе (не
-// конвертируем всё в JPEG): storageKey/расширение на диске генерируются один раз при
-// приёме и потом никак не меняются, смена формата рассинхронила бы их с mimeType в БД.
 const COMPRESSIBLE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const MAX_IMAGE_DIMENSION = 1600;
 
-// Возвращает новый размер файла в байтах, если сжатие реально уменьшило файл (и
-// перезаписывает его на диске тем же путём/именем) — иначе null, оригинал остаётся как
-// есть (маленькое/уже оптимизированное фото пересжимать не в плюс, повреждённый файл —
-// не блокировать отправку остановкой на ошибке).
 export async function compressImageInPlace(filePath: string, mimeType: string): Promise<number | null> {
   if (!COMPRESSIBLE_IMAGE_TYPES.has(mimeType)) return null;
   try {
-    // sharp(filePath) (по пути, не по буферу) держит файл открытым/замаппированным на
-    // время всего пайплайна — writeFile() в ТОТ ЖЕ путь после этого падает с EBUSY/
-    // "unknown error" на Windows (реально словлено при проверке этого фикса локально).
-    // Читаем в буфer заранее — источник и назначение больше не пересекаются по хендлу.
     const original = await readFile(filePath);
     let pipeline = sharp(original)
-      .rotate() // на смартфонах ориентация чаще всего в EXIF, а не в самих пикселях
+      .rotate()
       .resize({ width: MAX_IMAGE_DIMENSION, height: MAX_IMAGE_DIMENSION, fit: 'inside', withoutEnlargement: true });
     pipeline =
       mimeType === 'image/png'

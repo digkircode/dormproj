@@ -4,9 +4,6 @@ import { useI18n } from 'vue-i18n'
 import { ChevronLeft, ChevronRight, X } from 'lucide-vue-next'
 import { chatAttachmentUrl, type ChatAttachment } from '@/lib/chat-api'
 
-// Простой самодельный лайтбокс (без сторонней библиотеки) — открывается поверх Dialog
-// (z-[60] против z-50 у components/ui/dialog), Teleport в body, чтобы не зависеть от
-// overflow/positioning родителя (сообщение внутри проскролливаемой ленты чата).
 const props = defineProps<{
   open: boolean
   attachments: ChatAttachment[]

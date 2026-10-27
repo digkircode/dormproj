@@ -17,11 +17,6 @@ export interface DormitoryInfo {
   updatedAt: string
 }
 
-// Общежитские поля — не характеристика конкретной комнаты (клик по корню дерева, не по
-// комнате, см. RoomTree.vue), поэтому у них нет открытого каталога, как у комнат
-// (RoomCharacteristicDefinition) — ровно эти 3, единственный источник правды на фронте.
-// room-characteristic-definitions-api.ts не трогаем — RoomCharacteristics.vue импортирует
-// имена отсюда только чтобы запретить заводить характеристику комнаты с таким названием.
 export const DORMITORY_INFO_FIELDS: { key: DormitoryInfoFieldKey; name: string; unit: string }[] = [
   { key: 'communalServicesCost', name: 'Коммунальные услуги', unit: '₽' },
   { key: 'dailyPaymentInternal', name: 'Суточная оплата (Вн. вуз.)', unit: '₽' },

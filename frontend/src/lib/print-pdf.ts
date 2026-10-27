@@ -1,12 +1,3 @@
-// Печать PDF "как будто нажал Ctrl+P" — грузим blob в скрытый iframe и сами вызываем
-// window.print() на нём, как только PDF отрисовался, вместо открытия отдельной вкладки,
-// где пользователю пришлось бы жать Ctrl+P самому (по прямой просьбе, доп. к обычному
-// скачиванию .docx/печати ZIP — не замена, см. downloadContractDocument/printContractsBatch
-// в contracts-api.ts).
-//
-// iframe не display:none — в части браузеров скрытый через display:none iframe не
-// печатает вообще (известная особенность, не баг в этом коде) — вместо этого уводим его
-// за пределы экрана 1x1px, оставляя реально отрендеренным.
 import { i18n } from '@/i18n'
 
 const PRINT_IFRAME_CLEANUP_MS = 60_000;
@@ -46,8 +37,6 @@ export async function printPdfBlob(blob: Blob): Promise<void> {
     win.print()
     printed = true
   } finally {
-    // No browser exposes a reliable "print dialog closed" event. Keep a successful
-    // preview briefly; on failure release the iframe and Blob URL immediately.
     if (printed) setTimeout(cleanup, PRINT_IFRAME_CLEANUP_MS)
     else cleanup()
   }

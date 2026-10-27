@@ -8,9 +8,6 @@ import { PrismaService } from '../prisma/prisma.service';
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 
-// fullName живёт в Individual, а не в Citizenship (см. schema.prisma) — ищем и сортируем
-// по нему через связь individual, остальные поля — напрямую. periodText — сгенерированная
-// БД колонка (DD.MM.YYYY), чтобы период искался тем же ILIKE, что и текст.
 const DIRECT_SEARCHABLE_FIELDS = ['country', 'countryCode', 'periodText', 'fizicheskoyeLitsoUid'] as const;
 
 const SORTABLE_FIELDS = ['fullName', 'period', 'country', 'countryCode'] as const;
@@ -20,8 +17,6 @@ function isSortableField(field: string): field is SortableField {
   return (SORTABLE_FIELDS as readonly string[]).includes(field);
 }
 
-// Только страна/код страны — практичные поля для мультивыбора (немного значений).
-// ФИО почти уникально на строку, период для чипов-фильтров неудобен.
 const FILTERABLE_FIELDS = ['country', 'countryCode'] as const;
 type FilterableField = (typeof FILTERABLE_FIELDS)[number];
 
@@ -65,7 +60,6 @@ export class CitizenshipController {
           }
         }
       } catch {
-        // Битый JSON в необязательном параметре — просто игнорируем фильтры, не 400'им весь запрос.
       }
     }
 

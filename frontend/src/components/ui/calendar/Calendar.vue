@@ -16,8 +16,6 @@ const delegatedProps = reactiveOmit(props, "class")
 
 const forwarded = useForwardPropsEmits(delegatedProps, emits)
 
-// Минимальный выбираемый год — 1900 во всех календарях приложения (по прямой просьбе),
-// если конкретный вызывающий явно не передал свой minValue.
 const minValue = computed(() => props.minValue ?? new CalendarDate(1900, 1, 1))
 </script>
 

@@ -1,8 +1,5 @@
 import { Prisma } from '../../generated/prisma/client.js';
 
-// Decimal -> number на выходе API — тот же приём, что уже в dormitory-info.controller.ts
-// и characteristic-value.ts, деньги на фронт отдаём обычными числами (расчёты остаются
-// только на backend, фронт их не пересчитывает).
 export function serializeAccrual(accrual: {
   id: number;
   periodStart: Date;
@@ -52,9 +49,6 @@ export function serializePayment(payment: {
   accounting1cDocumentUid?: string | null;
   accounting1cSyncError?: string | null;
   accounting1cSyncedAt?: Date | null;
-  // "Откуда | Описание | Период" (billing/payment-purpose.ts) — считается на чтении там,
-  // где загружены нужные связи (allocations/paymentIntent), не всегда доступно (например
-  // сразу после создания/сторно платежа в billing.controller.ts — там их не догружают).
   purpose?: string;
 }) {
   return {

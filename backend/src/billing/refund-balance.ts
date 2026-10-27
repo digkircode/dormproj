@@ -41,8 +41,6 @@ type ContractRefundInput = {
   asOf: Date;
 };
 
-// Переплата считается по всему договору: будущие начисления и неоплаченная пеня
-// сначала покрываются входящими платежами, уже зафиксированные возвраты вычитаются.
 export function contractOverpayment(input: ContractRefundInput): Prisma.Decimal {
   const active = input.accruals.filter((accrual) => !accrual.voidedAt);
   const penalty = computePenaltyBalance({ asOf: input.asOf, penaltyLogs: input.penaltyLogs, payments: input.payments });
@@ -54,9 +52,6 @@ export function contractOverpayment(input: ContractRefundInput): Prisma.Decimal 
   return Prisma.Decimal.max(received.minus(charged).minus(refundTotal(input.refunds, input.asOf)), new Decimal(0));
 }
 
-// Один возврат может включать остаток корректировки и свободный кредит договора.
-// Если переплата распределена по нескольким корректировкам, за один раз возвращаем
-// долю одной из них; после сохранения кнопка останется доступной для остатка.
 export function availableContractRefund(input: ContractRefundInput & { creditBalance: Prisma.Decimal }):
   { accrualId: number | null; amount: Prisma.Decimal; remainingCorrection: Prisma.Decimal } | null {
   const overpayment = contractOverpayment(input);
@@ -81,8 +76,6 @@ export function availableContractRefund(input: ContractRefundInput & { creditBal
       return { accrualId: accrual.id, amount, remainingCorrection: refundableCorrection };
     }
   }
-  // В обычном потоке свободные деньги лежат в creditBalance. Этот запасной путь
-  // покрывает и старые/ручные данные, где платёж остался сверх начисления без корректировки.
   for (const accrual of input.accruals.filter((row) => !row.voidedAt)) {
     const overallocated = Prisma.Decimal.max(
       accrualPaidNetOfRefunds(accrual, input.asOf).minus(accrual.rentAmount).minus(accrual.utilitiesAmount).minus(accrual.adjustmentAmount),
@@ -100,9 +93,6 @@ export function availableContractRefund(input: ContractRefundInput & { creditBal
   return amount.greaterThan(0) ? { accrualId: null, amount, remainingCorrection: new Decimal(0) } : null;
 }
 
-// Доступная сумма возврата делится по причине: оплаченная часть корректировки
-// и прочая переплата. Способ хранения денег (creditBalance или разноска по
-// начислению) не определяет причину возврата.
 export function refundSourceBreakdown(available: ReturnType<typeof availableContractRefund>) {
   const correctionAmount = available
     ? Prisma.Decimal.min(available.amount, available.remainingCorrection)

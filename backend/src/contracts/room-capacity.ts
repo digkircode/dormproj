@@ -19,7 +19,6 @@ export async function roomAvailability(tx: Prisma.TransactionClient, roomId: num
   return { capacity, occupied, available: Math.max(0, capacity - occupied) };
 }
 
-// Closed intervals: the departure day still occupies a place.
 export function peakOccupancy(start: Date, end: Date, stays: Stay[]): number {
   const events = new Map<number, number>();
   for (const stay of stays) {

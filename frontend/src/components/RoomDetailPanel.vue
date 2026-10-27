@@ -46,11 +46,6 @@ const { t, locale } = useI18n()
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
 const NO_SPINNER_CLASS = '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
-// Стартовые характеристики, которые всегда показываем (даже без значения — прочерком) —
-// то, что заведено миграциями и защищено от удаления (definition.isProtected), а не всё
-// подряд из открытого каталога. Тот же порядок используется и для сортировки истории.
-// "Стоимость (из/не из вуза)" — 2026-08-23, пустое значение у обеих означает "посуточная
-// комната" (112-2/410-2 на момент введения, см. billing/accrual-generation.ts).
 const CORE_ORDER = ['Этаж', 'Жилое помещение', 'Количество мест', 'Площадь', 'Стоимость (из вуза)', 'Стоимость (не из вуза)']
 
 const props = defineProps<{ roomId: number | null; showDormitoryInfo?: boolean }>()
@@ -63,16 +58,10 @@ const loadError = ref('')
 let roomRequestVersion = 0
 let dormitoryRequestVersion = 0
 
-// Общежитские поля (DORMITORY_INFO_FIELDS) не должны попадать в выбор при добавлении
-// характеристики комнаты — они не per-room, см. компактную карточку в шаблоне ниже.
-// Создать определение с таким именем и так нельзя (RoomCharacteristics.vue), но
-// фильтруем здесь тоже — на случай, если оно всё же появится в каталоге (сид/1С/старые
-// данные), список добавления не должен его показывать.
 const addableDefinitions = computed(() =>
   definitions.value.filter((d) => !DORMITORY_INFO_FIELDS.some((f) => f.name === d.name)),
 )
 
-// --- Общежитские поля (компактная карточка при клике на корень дерева) ---
 const dormitoryLoadError = ref('')
 const isDormitoryLoading = ref(false)
 const dormitoryEditValues = reactive<Record<DormitoryInfoFieldKey, string>>({
@@ -122,8 +111,6 @@ async function loadDormitoryInfo() {
   }
 }
 
-// Подгружаем при каждом переходе на карточку общежития — не кешируем между визитами,
-// чтобы не показать устаревшие значения, если их поменяли откуда-то ещё.
 watch(
   () => props.showDormitoryInfo,
   (show) => {
@@ -136,13 +123,7 @@ watch(
   { immediate: true },
 )
 
-// Автосохранение по полю (без общей кнопки "Сохранить") — по клику на @change (срабатывает
-// на blur/Enter, не на каждое нажатие клавиши). Успех — зелёная галочка на пару секунд,
-// не постоянный индикатор, чтобы не путать с текущим состоянием "сохранено вообще всегда".
 async function saveDormitoryField(field: (typeof DORMITORY_INFO_FIELDS)[number]) {
-  // v-model на <input type="number"> сам приводит значение к number на вводе (даже без
-  // модификатора .number) — dormitoryEditValues[field.key] бывает и строкой, и числом,
-  // String(...) перед trim() нужен, чтобы не словить "x.trim is not a function".
   const raw = String(dormitoryEditValues[field.key]).trim()
   let value: number | null
   if (raw === '') {
@@ -175,9 +156,6 @@ function sortByCore<T extends { name: string }>(items: T[]): T[] {
   return [...items].sort((a, b) => CORE_ORDER.indexOf(a.name) - CORE_ORDER.indexOf(b.name))
 }
 
-// Порядок для истории — сначала по самой характеристике (core-порядок, потом остальные
-// по алфавиту), потом по дате внутри неё, чтобы записи одной характеристики не шли
-// вразброс среди записей других характеристик.
 function compareByCharacteristic(a: { name: string }, b: { name: string }): number {
   const ai = CORE_ORDER.indexOf(a.name)
   const bi = CORE_ORDER.indexOf(b.name)
@@ -189,8 +167,6 @@ function compareByCharacteristic(a: { name: string }, b: { name: string }): numb
   return a.name.localeCompare(b.name, 'ru')
 }
 
-// При смене комнаты показываем каркас до ответа. refresh() после правок сохраняет
-// текущую карточку. Версия запроса не даёт позднему ответу заменить новую комнату.
 async function load(id: number) {
   const version = ++roomRequestVersion
   isLoading.value = true
@@ -252,8 +228,6 @@ function formatValue(entry: { valueType: CharacteristicValueType; value: Charact
   return entry.unit ? `${entry.value} ${entry.unit}` : String(entry.value)
 }
 
-// Синтетическая "пустая" строка для защищённой характеристики без значения — id
-// отрицательный (никогда не совпадёт с настоящим), чтобы отличать от реальной записи.
 interface DisplayCharacteristic extends Omit<RoomCharacteristic, 'period'> {
   period: string | null
   hasValue: boolean
@@ -285,9 +259,6 @@ const displayCharacteristics = computed<DisplayCharacteristic[]>(() => {
   return [...coreRows, ...customRows]
 })
 
-// История пустая у только что созданной комнаты — показываем те же 5 характеристик
-// прочерками вместо "Нет данных", а не молчим совсем. Итоговый порядок — сначала по
-// характеристике (compareByCharacteristic), внутри неё — свежие сверху.
 const displayHistory = computed<
   { id: number; definitionId: number; name: string; valueType: CharacteristicValueType; unit: string | null; period: string | null; value: CharacteristicValue; isProtected: boolean; hasValue: boolean }[]
 >(() => {
@@ -315,9 +286,6 @@ const displayHistory = computed<
   })
 })
 
-// Клик по характеристике в сетке "Текущие" фильтрует таблицу истории ниже только
-// по ней (повторный клик по той же — снимает фильтр), чтобы не листать всю историю
-// комнаты в поисках одной характеристики.
 function toggleCharacteristicFilter(definitionId: number) {
   selectedCharacteristicFilter.value = selectedCharacteristicFilter.value === definitionId ? null : definitionId
 }
@@ -330,7 +298,6 @@ const filteredHistory = computed(() =>
     : displayHistory.value.filter((h) => h.definitionId === selectedCharacteristicFilter.value),
 )
 
-// --- Удаление комнаты ---
 const deleteRoomConfirmOpen = ref(false)
 const isDeletingRoom = ref(false)
 const deleteRoomError = ref('')
@@ -350,7 +317,6 @@ async function confirmDeleteRoom() {
   }
 }
 
-// --- Добавление/редактирование значения характеристики ---
 const valueFormOpen = ref(false)
 const valueFormKind = ref<'add' | 'edit'>('add')
 const valueFormLocked = ref(false)
@@ -400,8 +366,6 @@ function openEditValue(entry: { id: number; definitionId: number; period: string
   valueFormOpen.value = true
 }
 
-// Смена характеристики в незалоченном Select — старое значение теряет смысл (другой
-// valueType), а не только визуально прячется за другим полем.
 function onCharacteristicSelect(v: string) {
   valueDialogDefinitionId.value = Number(v)
   valueDialogBoolValue.value = null
@@ -422,9 +386,6 @@ function buildValue(): boolean | number | string | null {
   const type = selectedDefinition.value?.valueType
   if (type === 'BOOLEAN') return valueDialogBoolValue.value
   if (type === 'NUMBER') {
-    // v-model на <input type="number"> сам приводит значение к number на вводе (даже
-    // без модификатора .number) — valueDialogNumberValue.value бывает и строкой (пусто),
-    // и числом, String(...) перед trim() нужен, чтобы не словить "x.trim is not a function".
     const raw = String(valueDialogNumberValue.value).trim()
     const num = Number(raw)
     return raw !== '' && Number.isFinite(num) ? num : null
@@ -466,7 +427,6 @@ async function submitValueForm() {
   }
 }
 
-// --- Удаление значения характеристики ---
 const deletingValueTarget = ref<{ id: number; name: string } | null>(null)
 
 function openDeleteValueConfirm(entry: { id: number; name: string }) {
@@ -481,8 +441,6 @@ async function confirmDeleteValue() {
   try {
     await deleteCharacteristicValue(detail.value.id, deletingValueTarget.value.id)
     await refresh()
-    // Под текущим фильтром могло не остаться ни одной записи (удалили последнее значение
-    // этой характеристики) — снимаем фильтр, а не оставляем пустую таблицу без объяснения.
     if (
       selectedCharacteristicFilter.value !== null &&
       !displayHistory.value.some((h) => h.definitionId === selectedCharacteristicFilter.value)
@@ -502,9 +460,6 @@ async function confirmDeleteValue() {
 
 <template>
   <div class="flex h-full min-w-0 flex-col">
-    <!-- Заголовок — фиксированная полоса (h-14, как хедер приложения) той же высоты и
-         кегля, что и заголовок "Комнаты" в дереве слева, чтобы обе панели выглядели
-         единой парой. Меняется только содержимое внутри неё, сама полоса не скачет. -->
     <div class="flex h-14 shrink-0 items-center gap-1 border-b px-4 md:px-6">
       <Transition
         mode="out-in"
@@ -541,12 +496,6 @@ async function confirmDeleteValue() {
         enter-active-class="animate-in fade-in-0 duration-200"
         leave-active-class="animate-out fade-out-0 duration-150"
       >
-        <!-- Компактная карточка общежитских полей — по прямой просьбе НЕ растягивается на
-             всю панель (max-w-sm, высота по контенту), в отличие от карточки комнаты ниже.
-             Стиль — тот же грид, что и у характеристик комнаты (border+px-3 py-2 строки,
-             метка слева, значение справа): значение — сразу input, без отдельной формы и
-             кнопки "Сохранить" — автосохранение по @change (blur/Enter), зелёная галочка
-             на пару секунд вместо статичного индикатора состояния. -->
         <div v-if="showDormitoryInfo" key="dormitory-info" class="flex h-full flex-col gap-4 p-4 md:p-6">
           <div class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
             <Building2 class="size-4 text-primary" />
@@ -554,9 +503,6 @@ async function confirmDeleteValue() {
           </div>
           <p v-if="dormitoryLoadError" class="text-sm text-red-500">{{ dormitoryLoadError }}</p>
           <div v-if="isDormitoryLoading" class="w-full max-w-md space-y-2" aria-hidden="true"><div v-for="n in 5" :key="n" class="h-10 animate-pulse rounded bg-muted motion-reduce:animate-none" /></div>
-          <!-- Метка занимает свободную ширину и при необходимости переносит текст;
-               поле суммы остаётся в одном правом столбце у каждой строки. Галочка
-               остаётся в DOM и меняет только opacity, чтобы ширина не прыгала. -->
           <div v-else-if="!dormitoryLoadError" class="w-full max-w-md rounded-md border">
             <div
               v-for="(field, index) in DORMITORY_INFO_FIELDS"
@@ -616,9 +562,6 @@ async function confirmDeleteValue() {
           </Tooltip>
         </div>
 
-        <!-- Клик по характеристике фильтрует историю ниже только по ней, повторный клик
-             снимает фильтр (см. RoomCharacteristicsGrid.vue — общий с RoomInfoTrigger.vue
-             компонент, там же разметка/сортировка/formatValue, вынесено 2026-08-28). -->
         <RoomCharacteristicsGrid
           class="shrink-0"
           :rows="displayCharacteristics"
@@ -646,12 +589,7 @@ async function confirmDeleteValue() {
         </div>
         <p v-if="historyError" class="shrink-0 text-sm text-red-500">{{ historyError }}</p>
 
-        <!-- min-h-0 обязателен — иначе flex-элемент с overflow-y-auto не сжимается
-             внутри родителя и скролл не работает. -->
         <div class="min-h-0 flex-1 overflow-y-auto rounded-md border">
-          <!-- Шапка и ширины колонок остаются на месте при выборе характеристики.
-               Обновляется только tbody: исчезает пауза между уходом старой таблицы
-               и появлением новой, из-за которой история заметно дёргалась. -->
           <table class="w-full table-fixed text-sm">
               <thead class="sticky top-0 z-10 bg-muted">
                 <tr>
@@ -694,7 +632,6 @@ async function confirmDeleteValue() {
     </Transition>
     </div>
 
-    <!-- Подтверждение удаления комнаты -->
     <Dialog :open="deleteRoomConfirmOpen" @update:open="(v) => (deleteRoomConfirmOpen = v)">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
@@ -718,7 +655,6 @@ async function confirmDeleteValue() {
       </DialogScrollContent>
     </Dialog>
 
-    <!-- Форма значения характеристики -->
     <Dialog :open="valueFormOpen" @update:open="(v) => (valueFormOpen = v)">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
@@ -727,9 +663,6 @@ async function confirmDeleteValue() {
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-2">
             <Label>{{ t('rooms.detail.characteristicLabel') }}</Label>
-            <!-- Reka UI Select — вернул как было. Настоящей причиной "Сохранить ничего не
-                 делает" был ReferenceError из-за порядка объявлений (см. историю), Select
-                 тут ни при чём. -->
             <Select
               v-if="!valueFormLocked"
               :model-value="valueDialogDefinitionId ? String(valueDialogDefinitionId) : undefined"
@@ -779,9 +712,6 @@ async function confirmDeleteValue() {
                 {{ t('boolean.no') }}
               </label>
             </div>
-            <!-- Обычный native input, не компонент Input.vue — та обёртка на type="number" не
-                 ловит v-model, а с ручным :value+@input через раз глотает нажатия.
-                 Классы скопированы из Input.vue вручную. -->
             <input
               v-else-if="selectedDefinition?.valueType === 'NUMBER'"
               v-model="valueDialogNumberValue"
@@ -795,9 +725,6 @@ async function confirmDeleteValue() {
               ]"
               @keydown="blockScientificNotationKeys"
             />
-            <!-- TEXT с закрытым списком значений (см. "Корпус"/options в
-                 room-characteristic-definitions-api.ts) — выбор вместо свободного ввода,
-                 чтобы нельзя было вписать значение мимо списка. Пустой options — обычное поле. -->
             <Select
               v-else-if="selectedDefinition?.valueType === 'TEXT' && selectedDefinition.options.length > 0"
               :model-value="valueDialogTextValue || undefined"
@@ -823,7 +750,6 @@ async function confirmDeleteValue() {
       </DialogScrollContent>
     </Dialog>
 
-    <!-- Подтверждение удаления значения -->
     <Dialog :open="deletingValueTarget !== null" @update:open="(v) => { if (!v) deletingValueTarget = null }">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>

@@ -31,8 +31,6 @@ const isLoading = ref(true)
 const loadError = ref('')
 const data = ref<MyPaymentsData | null>(null)
 
-// Несколько договоров на одного проживающего одновременно — переключатель, тот же
-// принцип, что и на карточке договора (MyContract.vue), добавлено 2026-08-25.
 const contracts = ref<MyContractSummary[]>([])
 const selectedContractId = ref<number | undefined>(undefined)
 
@@ -43,17 +41,6 @@ function formatMoney(value: number): string {
   return `${value.toLocaleString(dateLocaleTag(), { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
 }
 
-// --- Форма создания платежа — та же логика, что была на отдельной странице /student/payment
-// (см. историю MyPayment.vue), перенесена в модалку по прямой просьбе 2026-08-25: кнопка
-// "Оплатить" на карточке договора больше никуда не переходит, а сразу открывает эту форму. ---
-// Сумма — исключительно по выбранным начислениям (по прямой просьбе 2026-08-31 убрана
-// "своя сумма" и отдельный режим "только пеня" — раньше это были три переключаемых режима,
-// см. историю правок). Пеня (по прямой просьбе 2026-08-31, второй заход) — такой же
-// выбираемый пункт в этом же списке, как начисление (см. CollapsibleContent в шаблоне), не
-// обязательная надбавка: по умолчанию отмечена, если есть чем платить (penaltyBalance>0),
-// но снять галочку можно. Бэк сам разносит платёж (allocatePaymentFifo — сначала
-// наступившие начисления, потом пеня — если её отметили и прислали в сумме, см.
-// my-payments.controller.ts).
 const selectedAccrualIds = ref<number[]>([])
 const includePenalty = ref(true)
 
@@ -64,9 +51,6 @@ function toggleAccrual(id: number, checked: boolean) {
   selectedAccrualIds.value = checked ? [...selectedAccrualIds.value, id] : selectedAccrualIds.value.filter((v) => v !== id)
 }
 
-// Список начислений свёрнут по умолчанию — под выбором по умолчанию (последнее
-// неоплаченное, см. open()) обычно ничего менять не нужно, полный чек-лист занимает
-// место зря (по прямой просьбе 2026-08-25). Разворачивается по клику на сводку.
 const accrualPickerOpen = ref(false)
 const selectedAccrualsSummary = computed(() => {
   const selected = openAccruals.value.filter((a) => selectedAccrualIds.value.includes(a.id)).map((a) => monthLabel(a.periodStart))
@@ -74,8 +58,6 @@ const selectedAccrualsSummary = computed(() => {
   return selected.join(', ') || t('payment.createDialog.noAccrualsSelected')
 })
 
-// Пеня — часть той же суммы, что и выбранные начисления (не надбавка поверх неё, см.
-// комментарий выше) — учитывается, только если отмечена галочкой.
 const selectedAmount = computed(() => {
   const accrualsTotal = openAccruals.value.filter((a) => selectedAccrualIds.value.includes(a.id)).reduce((sum, a) => sum + a.balance, 0)
   return accrualsTotal + (includePenalty.value ? penaltyBalance.value : 0)
@@ -85,9 +67,6 @@ const finalAmount = computed(() => selectedAmount.value)
 const payerIsResident = ref(true)
 const representativeFullName = ref('')
 const payerEmail = ref('')
-// Красная рамка у email — только после первой попытки отправить (тот же приём, что
-// submitAttempted/computedInvalid в CreateIndividualDialog.vue), чтобы не встречать
-// пользователя ошибкой на ещё не тронутой форме.
 const submitAttempted = ref(false)
 const emailInvalid = computed(() => submitAttempted.value && !isValidEmailFormat(payerEmail.value.trim()))
 const representativeInvalid = computed(() => submitAttempted.value && !payerIsResident.value && !representativeFullName.value.trim())
@@ -103,16 +82,8 @@ const canSubmit = computed(() => {
 const isSubmitting = ref(false)
 const submitError = ref('')
 
-// silent — переключение договора уже открытой формы (см. switchContract): не прячем
-// текущие данные под "Загрузка…", просто приглушаем блок опacity, пока не придут новые
-// (было резко/дёргано — по прямой просьбе 2026-08-26), тот же приём, что в MyContract.vue.
 const isSwitching = ref(false)
 
-// Начисления сортируются от самого раннего к самому позднему (см. GET /my-payments) —
-// по умолчанию выбирается ПЕРВОЕ непогашенное (не последнее — по прямой просьбе
-// 2026-08-25, платёж должен закрывать долг по порядку, как и реальная разноска FIFO,
-// см. allocatePaymentFifo). Остаток по нему уже учитывает частичные платежи (balance =
-// total - сумма allocations, см. serializeAccrual) — не полную стоимость комнаты.
 async function loadPaymentsData(contractId: number | undefined, silent = false) {
   if (silent) isSwitching.value = true
   else isLoading.value = true
@@ -120,9 +91,6 @@ async function loadPaymentsData(contractId: number | undefined, silent = false) 
   try {
     data.value = await fetchMyPayments(contractId)
     selectedContractId.value = data.value.contract?.id
-    // Выбор начислений — сбрасываем при КАЖДОЙ загрузке данных (не только при открытии
-    // диалога через open()), иначе переключение договора оставляло выбранными id
-    // начислений от предыдущего договора.
     const firstUnpaid = data.value.openAccruals[0]
     selectedAccrualIds.value = firstUnpaid ? [firstUnpaid.id] : []
     includePenalty.value = true
@@ -137,7 +105,6 @@ async function loadPaymentsData(contractId: number | undefined, silent = false) 
 }
 
 async function switchContract(id: number) {
-  // Клик по уже выбранному договору — не перезагружать (та же логика, что в MyContract.vue).
   if (id === selectedContractId.value) return
   submitAttempted.value = false
   await loadPaymentsData(id, true)
@@ -154,13 +121,8 @@ async function open(contractId?: number) {
   submitError.value = ''
   isDialogOpen.value = true
 
-  // Список договоров грузим параллельно с основными данными, не после — та же причина,
-  // что и в MyContract.vue (иначе переключатель на пару кадров дорисовывается позже,
-  // видимый "скачок" чипа с обычного текста на кнопку со стрелкой).
   const contractsPromise = fetchMyContracts().catch(() => [])
   await loadPaymentsData(contractId)
-  // Переключатель просто не появится при ошибке (contractsPromise проглатывает её выше) —
-  // сама форма уже загружена и от списка не зависит (тот же принцип, что в MyContract.vue).
   contracts.value = await contractsPromise
 }
 defineExpose({ open })
@@ -240,18 +202,11 @@ async function submit() {
           <p class="text-sm font-medium">{{ t('payment.createDialog.amountSection') }}</p>
           <p class="text-xs text-muted-foreground">{{ t('payment.createDialog.taxDeductionNotice') }}</p>
 
-          <!-- Список остаётся пустым только если вообще нечем платить — ни начислений, ни
-               пени (пеня — тоже пункт списка, см. ниже, а не надбавка поверх него). -->
           <p v-if="!openAccruals.length && penaltyBalance <= 0" class="text-sm text-muted-foreground">
             {{ t('payment.createDialog.noOpenAccruals') }}
           </p>
           <Collapsible v-else v-model:open="accrualPickerOpen">
             <CollapsibleTrigger as-child>
-              <!-- min-w-0 + truncate на сводке — при выборе много начислений сразу (например
-                   все 12 месяцев) строка "сентябрь 2026 г., октябрь 2026 г., ..." переносилась
-                   на несколько строк и распирала кнопку по высоте (реальный баг, скриншот
-                   2026-08-28) — теперь одна строка с многоточием, shrink-0 на сумме/стрелке
-                   защищает их от сжатия при этом. -->
               <button
                 type="button"
                 :aria-invalid="amountInvalid"
@@ -264,10 +219,6 @@ async function submit() {
                 </span>
               </button>
             </CollapsibleTrigger>
-            <!-- max-h + overflow-y-auto — при большом числе начислений список раньше рос
-                 безгранично внутри и без того скроллящейся модалки (DialogScrollContent
-                 max-h-[80vh]), из-за чего в нём было легко потерять кнопку "Оплатить"
-                 далеко внизу; теперь длинный список скроллится сам в своих границах. -->
             <CollapsibleContent class="flex max-h-56 flex-col gap-1 overflow-y-auto pt-1">
               <label
                 v-for="accrual in openAccruals"
@@ -283,8 +234,6 @@ async function submit() {
                 </span>
                 <span class="font-medium">{{ formatMoney(accrual.balance) }}</span>
               </label>
-              <!-- Пеня — такой же пункт списка, как начисление (по прямой просьбе
-                   2026-08-31), не обязательная надбавка — можно снять галочку. -->
               <label
                 v-if="penaltyBalance > 0"
                 class="flex cursor-pointer items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-sm hover:bg-accent"

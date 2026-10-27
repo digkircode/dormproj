@@ -8,11 +8,6 @@ const props = defineProps<{ value: unknown; row?: unknown }>()
 
 const { t } = useI18n()
 
-// Proxy, не обычный объект — тот же приём, что STATUS_LABELS в contracts-format.ts,
-// реактивен к смене языка. ACTIVE/COMPLETED/TERMINATED — обычные переводы (см.
-// reports.registryBucket и в бэкенде, BUCKET_LABELS reports.controller.ts, те же ключи).
-// EXPIRING/OVERDUE здесь всегда идут с числом дней (см. label ниже), у них нет отдельного
-// bare-перевода — собираются целиком через reports.registry.expiringLabel/overdueLabel.
 const BUCKET_LABELS: Record<ContractRegistryBucket, string> = new Proxy({} as Record<ContractRegistryBucket, string>, {
   get: (_target, status: string) => t(`reports.registryBucket.${status}`),
 })
@@ -23,7 +18,6 @@ const BUCKET_ICON = {
   COMPLETED: PartyPopper,
   TERMINATED: CircleX,
 } as const satisfies Record<ContractRegistryBucket, unknown>
-// TERMINATED — красный (был серым/muted, как остальные), по прямой просьбе.
 const BUCKET_ICON_CLASS: Record<ContractRegistryBucket, string> = {
   ACTIVE: 'text-emerald-500',
   EXPIRING: 'text-orange-500',

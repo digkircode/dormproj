@@ -1,11 +1,5 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 
-// Антиспам конкретно для отправки сообщений проживающими (см. my-chat.controller.ts) —
-// не переиспользует общий ThrottlerModule/APP_GUARD (тот IP-based и на весь сайт разом,
-// см. app.module.ts), а отдельный sliding-window log по userId, тот же принцип "в памяти
-// процесса", что и ChatEventsService (один backend-контейнер, внешний стор не нужен).
-// Цифры — по прямой просьбе: не чаще раза в секунду, не больше 50 сообщений за 5 минут,
-// вложения отдельно — не больше 10 файлов за 10 минут (тяжелее по нагрузке на диск).
 const MESSAGE_WINDOW_MS = 5 * 60_000;
 const MESSAGE_LIMIT = 50;
 const MIN_INTERVAL_MS = 1_000;
@@ -25,7 +19,6 @@ export class ChatRateLimiterService {
   private readonly messageLog = new Map<number, number[]>();
   private readonly attachmentLog = new Map<number, number[]>();
 
-  // Лимит сообщений проверяется guard'ом до чтения multipart-тела и записи файлов.
   checkAndRecordMessage(userId: number): void {
     const now = Date.now();
 

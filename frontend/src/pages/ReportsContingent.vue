@@ -26,7 +26,6 @@ const columnLabels = computed<Record<string, string>>(() => ({
   kursNumber: t('reports.contingent.colKurs'),
   birthDate: t('reports.contingent.colBirthDate'),
   citizenship: t('reports.contingent.colCitizenship'),
-  // Фильтры без собственной колонки — та же схема, что bucket в ReportsContractsRegistry.vue.
   citizenshipGroup: t('reports.contingent.colCitizenship'),
   isOwnUniversity: t('reports.contingent.colOwnUniversity'),
 }))
@@ -59,9 +58,6 @@ const columns = computed(() =>
   ]),
 )
 
-// Отчёт "на дату" (по умолчанию сегодня) — тот же приём, что период в ReportsMovements.vue/
-// дата в ReportsDebt.vue: EntityTable сама не знает про внешний asOf, перезапрашиваем
-// страницу вручную через её exposed refresh() при смене даты.
 const asOf = ref(todayIso())
 
 function fetchPage(options: ListOptions, signal?: AbortSignal) {

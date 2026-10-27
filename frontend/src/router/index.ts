@@ -17,9 +17,6 @@ import Rooms from '@/pages/Rooms.vue'
 import RoomCharacteristics from '@/pages/RoomCharacteristics.vue'
 import Contracts from '@/pages/Contracts.vue'
 import ContractDetail from '@/pages/ContractDetail.vue'
-// Файл называется PaymentImports.vue (не переименован — тот же приём, что у
-// Students.vue/«Контингент студентов», см. промпт проекта), но роут/пункт сайдбара —
-// «Платежи» (флоу 1/2 обмена с 1С Бухгалтерией), подпункт группы «Финансы».
 import Finance from '@/pages/PaymentImports.vue'
 import ServiceProvisionDocuments from '@/pages/ServiceProvisionDocuments.vue'
 import ReportsOccupancy from '@/pages/ReportsOccupancy.vue'
@@ -38,28 +35,14 @@ import MyContract from '@/pages/MyContract.vue'
 import MyPayment from '@/pages/MyPayment.vue'
 import DemoStudentHome from '@/pages/DemoStudentHome.vue'
 
-// Первый этап ролевой модели (см. промпт проекта) — секция страницы определяет, кому
-// она видна: 'staff' — группа "Сотрудник" в сайдбаре (AppSidebar.vue/NavMain.vue),
-// 'admin' — группа "Администратор" (NavProjects.vue), без section — доступно всем
-// залогиненным независимо от роли (сейчас только "Главная"). Администратор видит всё.
 const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', name: 'home', component: Home, meta: { title: 'nav.home' } },
     { path: '/403', name: 'forbidden', component: Forbidden, meta: { title: 'nav.forbidden' } },
-    // Без section — доступна всем залогиненным независимо от роли (в т.ч. без роли
-    // вообще), тот же принцип, что у "Главной" — секция "Студент" в сайдбаре видна всем.
     { path: '/student/general-info', name: 'student-general-info', component: StudentGeneralInfo, meta: { title: 'nav.studentGeneralInfo' } },
-    // Временная демо-страница для показа покупателю (см. промпт проекта) — без
-    // meta.section, доступна любому залогиненному по прямой ссылке, в сайдбар не выведена.
-    // Удалить вместе с DemoStudentHome.vue, когда демонстрация больше не нужна.
     { path: '/demo/student-home', name: 'demo-student-home', component: DemoStudentHome, meta: { title: 'nav.demoStudentHome' } },
-    // section: 'resident' — не "доступно всем", как остальной раздел "Проживающий" выше,
-    // а только роли RESIDENT (плюс ADMIN по общему для приложения принципу "администратор
-    // видит всё") — уточнено с пользователем отдельно при планировании чата.
     { path: '/student/chat', name: 'student-chat', component: MyChat, meta: { title: 'nav.studentChat', section: 'resident' } },
-    // Свой договор — тот же гейт, что у чата (см. sectionAllowed ниже): доступ по
-    // individualUid из сессии на бэке (my-contract.controller.ts), без :id в маршруте.
     { path: '/student/contract', name: 'student-contract', component: MyContract, meta: { title: 'nav.studentContract', section: 'resident' } },
     { path: '/student/payment', name: 'student-payment', component: MyPayment, meta: { title: 'nav.studentPayment', section: 'resident' } },
     { path: '/students', name: 'students', component: Students, meta: { title: 'nav.students', section: 'admin' } },
@@ -159,17 +142,11 @@ const router = createRouter({
     { path: '/users-all', name: 'users-all', component: UsersList, meta: { title: 'nav.usersAll', section: 'admin' } },
     { path: '/audit-log', name: 'audit-log', component: AuditLog, meta: { title: 'nav.auditLog', section: 'admin' } },
 
-    // Catch-all — обязательно последним (vue-router matches по порядку регистрации при
-    // равной специфичности). Без section — sectionAllowed() ниже пропускает её как есть,
-    // тот же путь, что у "Главной"/"Общей информации", доступна любому залогиненному.
     { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFound, meta: { title: 'nav.notFound' } },
   ],
 })
 
 function sectionAllowed(roles: RoleName[] | undefined, section: unknown): boolean {
-  // 'resident' — отдельная ветка от 'staff'/'admin' ниже: там ADMIN проходит просто
-  // потому что не 'staff'/'admin', здесь — по тому же общему принципу "администратор
-  // видит всё", но явно, вместе с самой ролью RESIDENT.
   if (section === 'resident') return !!roles?.includes('ADMIN') || !!roles?.includes('RESIDENT')
   if (section !== 'staff' && section !== 'admin') return true
   if (!roles?.length) return false
@@ -177,10 +154,6 @@ function sectionAllowed(roles: RoleName[] | undefined, section: unknown): boolea
   return section === 'staff' && roles.includes('STAFF')
 }
 
-// currentUser===null здесь означает либо "ещё не авторизован" (App.vue сам уводит на
-// rosnou-id логин — дублировать это тут не нужно), либо "уже разлогинен" — в обоих
-// случаях просто пропускаем навигацию, решение не по роли, а по самой сессии остаётся
-// за App.vue.
 router.beforeEach(async (to) => {
   await ensureUserLoaded()
   if (!currentUser.value) return true

@@ -77,7 +77,8 @@
         "service-provision-send": "Отправка документов оказания услуг",
         "service-provision-recovery": "Восстановление документов при запуске",
         "contract-status": "Статусы договоров",
-        "penalties": "Начисление пеней"
+        "penalties": "Начисление пеней",
+        "penalty-reconciliation": "Сверка пеней после платежей"
       },
       "results": {
         "push": "Отправлено {sent}, успешно {succeeded}, ошибок {failed}",
@@ -88,6 +89,7 @@
         "recovery": "Проверены документы; отправлено {pushed}, успешно {succeeded}, ошибок {failed}, не готовы {blocked}",
         "contracts": "Проверено договоров {processed}, сменили статус {changed}",
         "penalties": "Проверено договоров {processed}, новых начислений {rows}",
+        "penaltyReconciliation": "Пересчитано договоров {processed}, изменено {changed}, ошибок {failed}",
         "portalUsers": "Получено {fetched}, добавлено {added}, обновлено {updated}, пропущено {skipped}",
         "roles": "Проверено аккаунтов {processed}, выдано ролей {granted}, снято {revoked}",
         "university": "Получено {fetched}, добавлено {added}, обновлено {updated}, удалено {removed}"
@@ -156,14 +158,18 @@
           "skippedExisting": "Уже учтены",
           "knownPairs": "Договоров с UID",
           "documentIds": "Подготовлено документов",
-          "skipped": "Отправка пропущена"
+          "skipped": "Отправка пропущена",
+          "processedContracts": "Пересчитано договоров",
+          "changedContracts": "Изменено договоров",
+          "failedContracts": "Ошибок"
         },
         "operations": {
           "CREATE_CURRENT_MONTH": "Создание документов за новый месяц",
           "DAILY_RECALCULATION": "Ежедневный пересчёт",
           "FINAL_RECALC_AND_SEND": "Финальный пересчёт и отправка",
           "RETRY_PREVIOUS_MONTH": "Повтор отправки прошлого месяца",
-          "STARTUP_RECOVERY": "Восстановление при запуске"
+          "STARTUP_RECOVERY": "Восстановление при запуске",
+          "HISTORICAL_RECALCULATION": "Сверка пеней с датами платежей"
         }
       }
     }

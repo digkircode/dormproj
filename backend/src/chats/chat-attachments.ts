@@ -20,13 +20,6 @@ export function attachmentCreateData(attachments: ValidatedAttachment[]) {
   }));
 }
 
-// fileFilter (см. chatAttachmentsMulterOptions) уже отсеивает недопустимые MIME-типы
-// при приёме — здесь точный лимит РАЗМЕРА по типу: multer.limits.fileSize — одна общая
-// граница на все файлы сразу (нет способа задать её по-разному для фото/видео), поэтому
-// она выставлена по видео (see MAX_VIDEO_BYTES), а фото проверяется постфактум. Заодно
-// сжимает фото (см. compressImageInPlace) — лимит по размеру проверяется ДО сжатия,
-// по оригиналу (не даём протащить туда файл больше заявленного лимита ещё до обработки),
-// а sizeBytes в БД — уже итоговый, после сжатия.
 export async function validateAttachmentSizes(files: Express.Multer.File[]): Promise<ValidatedAttachment[]> {
   if (files.reduce((total, file) => total + file.size, 0) > MAX_TOTAL_ATTACHMENT_BYTES) {
     throw new BadRequestException('chat.errors.totalFilesTooLarge');
@@ -69,9 +62,6 @@ export async function validateAttachmentSizes(files: Express.Multer.File[]): Pro
   return result;
 }
 
-// Удаляет уже записанные на диск файлы — вызывается, когда запрос отклоняется ПОСЛЕ
-// того, как multer их принял (превышен лимит размера/скорости отправки), чтобы не
-// оставлять сиротские файлы на диске.
 export async function cleanupUploadedFiles(files: Express.Multer.File[]): Promise<void> {
   await Promise.all(files.map((file) => fs.unlink(file.path).catch(() => {})));
 }

@@ -3,6 +3,7 @@ import { AuthModule } from '../auth/auth.module';
 import { Accounting1cModule } from '../accounting-1c/accounting-1c.module';
 import { BillingController } from './billing.controller';
 import { PenaltyScheduler } from './penalty.scheduler';
+import { PenaltyReconciliationScheduler } from './penalty-reconciliation.scheduler';
 import { PenaltyRecalculateService } from './penalty-recalculate.service';
 import { ContractStatusScheduler } from './contract-status.scheduler';
 import { Accounting1cPushService } from './accounting-1c-push.service';
@@ -15,6 +16,7 @@ import { ServiceProvisionDocScheduler } from './service-provision-doc.scheduler'
   controllers: [BillingController],
   providers: [
     PenaltyScheduler,
+    PenaltyReconciliationScheduler,
     PenaltyRecalculateService,
     ContractStatusScheduler,
     Accounting1cPushService,

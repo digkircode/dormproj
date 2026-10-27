@@ -49,8 +49,6 @@ const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
 
-// Отмена слияния — только ADMIN (см. backend#unmerge), тот же приём проверки роли, что
-// и в AppSidebar.vue.
 const isAdmin = computed(() => currentUser.value?.roles?.includes('ADMIN') ?? false)
 const uid = computed(() => String(route.params.uid))
 
@@ -61,8 +59,6 @@ const copiedField = ref<'uid' | 'code' | null>(null)
 const mappingDialogRef = ref<InstanceType<typeof Accounting1cMappingDialog> | null>(null)
 let copyResetTimeout: ReturnType<typeof setTimeout> | undefined
 
-// gender — свободный текст (см. individuals-api.ts), переводим только если совпадает
-// с одним из двух известных значений (как хранится в БД), иначе показываем как есть.
 const genderDisplay = computed(() => {
   if (detail.value?.gender === 'Мужской') return t('contracts.gender.male')
   if (detail.value?.gender === 'Женский') return t('contracts.gender.female')
@@ -90,15 +86,8 @@ function openAccounting1cMapping() {
 }
 
 const citizenship = computed(() => detail.value?.citizenships[0] ?? null)
-// Ручной ввод (detail.citizenship, см. schema.prisma) — только если нет синхронной записи
-// гражданства (у синхронизируемых физлиц она всегда есть, у ручных — никогда).
 const citizenshipDisplay = computed(() => citizenship.value?.country ?? detail.value?.citizenship ?? null)
 
-// Паспорт ручного ввода (см. schema.prisma) — не настоящая строка Passport (тот синхрон
-// никогда не трогает isManual-физлиц), поэтому синтетическая строка того же вида, только
-// для отображения в уже существующей PassportTable.vue. Реальные Passport из 1С (если
-// вдруг когда-то появятся у ручного физлица) в приоритете — синтетика только когда
-// настоящих документов нет вообще.
 const manualPassportRow = computed<IndividualPassport | null>(() => {
   if (!detail.value?.isManual || !detail.value.passportNumber) return null
   return {
@@ -127,9 +116,6 @@ function formatDate(iso: string | null | undefined): string {
   return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
 }
 
-// Type — свободный текст из 1С (см. contact-info-priority.ts на бэкенде), а не enum,
-// поэтому сопоставление с иконкой — по вхождению подстроки, не точное совпадение.
-// Незнакомый тип — просто без иконки, а не поломка вёрстки.
 function contactTypeIcon(type: string) {
   if (type.includes('Адрес')) return Home
   if (type.includes('Телефон')) return Phone
@@ -138,9 +124,6 @@ function contactTypeIcon(type: string) {
   return null
 }
 
-// На карточке нужны все 5 типов всегда, даже без данных у конкретного физлица —
-// а не только то, что реально пришло с бэкенда (тот отдаёт по одной актуальной
-// записи на тип, но только на те типы, что есть в источнике для этого человека).
 const CONTACT_TYPE_ORDER = ['Место рождения', 'Адрес по прописке', 'Адрес места проживания', 'Телефон мобильный', 'Email']
 
 interface ContactRow {
@@ -149,10 +132,6 @@ interface ContactRow {
   predstavleniye: string | null
 }
 
-// Поля ручного ввода (phone/email/address, см. schema.prisma) — не отдельные строки
-// сбоку, а подстановка в СВОЙ уже существующий тип синхронного блока контактов (иначе
-// значения бы дублировались или показывались не на своём месте). У синхронизируемых
-// физлиц эти поля всегда null, поэтому фолбэк ничего не меняет для них.
 const MANUAL_CONTACT_FALLBACK: Partial<Record<string, () => string | null | undefined>> = {
   'Телефон мобильный': () => detail.value?.phone,
   Email: () => detail.value?.email,
@@ -171,15 +150,8 @@ const contactRows = computed<ContactRow[]>(() => {
 
 const isSyncing = ref(false)
 const syncError = ref('')
-// На 2с после завершения — зелёная галочка/красный крестик вместо иконки обновления,
-// затем сама возвращается к обычному виду.
 const syncFeedback = ref<'success' | 'error' | null>(null)
 let syncFeedbackTimeout: ReturnType<typeof setTimeout> | undefined
-// disabled снимается синхронно с состоянием (isSyncing/syncFeedback), а иконка ещё
-// доигрывает fade out/in (mode="out-in", ~400мс) — без этого флага кнопка становится
-// кликабельной раньше, чем иконка успевает вернуться к обычному виду. Ставится в
-// before-leave (иконка начала меняться) и снимается в after-enter (новая иконка
-// полностью на месте) — см. Transition ниже.
 const isSyncIconAnimating = ref(false)
 
 const createDialogRef = ref<InstanceType<typeof CreateContractDialog> | null>(null)
@@ -187,14 +159,10 @@ const editDialogRef = ref<InstanceType<typeof EditIndividualDialog> | null>(null
 const historyDialogRef = ref<InstanceType<typeof IndividualHistoryDialog> | null>(null)
 const mergeDialogRef = ref<InstanceType<typeof MergeIndividualDialog> | null>(null)
 
-// После успешного слияния текущая карточка (источник) больше не актуальна — сразу
-// уходим на карточку той записи, в которую слили (см. merge() на бэкенде).
 function onMerged(targetUid: string) {
   router.replace(`/individuals/${targetUid}`)
 }
 
-// Отмена слияния — только ADMIN, см. isAdmin выше. uid здесь — источник (см. баннер
-// в шаблоне, кнопка видна только на слитой карточке), перечитываем ту же карточку.
 const isUnmerging = ref(false)
 const unmergeError = ref('')
 const unmergeWarning = ref('')
@@ -212,15 +180,10 @@ async function onUnmerge() {
   }
 }
 
-// После сохранения правки перечитываем всю карточку (проще, чем точечно
-// синхронизировать локальное состояние с тем, что реально записалось в БД).
 async function onIndividualSaved() {
   detail.value = await fetchIndividualDetail(uid.value)
 }
 
-// Перезапрашиваем всю карточку после успешной синхронизации — синхрон затрагивает
-// сразу 5 источников (студент/физлицо/гражданство/паспорт/контакты), проще перечитать
-// всё разом, чем точечно обновлять каждый раздел.
 async function runSync() {
   if (isSyncing.value) return
   isSyncing.value = true
@@ -247,15 +210,8 @@ async function copyValue(field: 'uid' | 'code', value: string | null | undefined
   copyResetTimeout = setTimeout(() => (copiedField.value = null), 1500)
 }
 
-// "Второй слой" слияния (см. промпт проекта) — тихая фоновая подсказка на карточке
-// ручного физлица, если среди синхронных нашлось что-то похожее по СНИЛС/паспорту/ФИО
-// (backend#mergeCandidates). Только подсказка — ничего не решает и не сливает сама,
-// сотрудник кликает и подтверждает вручную в диалоге, как и с самой кнопкой "Слить".
 const mergeHintCandidates = ref<IndividualMergeCandidate[]>([])
 
-// Функция, а не только onMounted — после слияния (см. onMerged выше) переход идёт на
-// тот же роут с другим :uid, Vue Router переиспользует уже смонтированный компонент
-// (onMounted второй раз не сработает), поэтому подписка на смену uid обязательна.
 async function loadDetail() {
   isLoading.value = true
   notFound.value = false
@@ -267,7 +223,6 @@ async function loadDetail() {
       try {
         mergeHintCandidates.value = await fetchIndividualMergeCandidates(uid.value)
       } catch {
-        // Не критично — это только подсказка, кнопка "Слить" всё равно работает сама по себе.
       }
     }
   } catch {
@@ -297,25 +252,18 @@ onUnmounted(() => {
 
     <template v-else-if="detail">
       <p v-if="unmergeWarning" class="rounded-md border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm">{{ unmergeWarning }}</p>
-      <!-- Источник слияния (см. MergeIndividualDialog.vue) — карточка сама больше не
-           актуальна, дальше работать нужно с той, в которую слили. Не скрываем остальной
-           контент карточки целиком (историческая справка всё ещё может понадобиться),
-           только явно предупреждаем и даём ссылку. -->
       <div v-if="detail.mergedIntoUid" class="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm">
         <TriangleAlert class="size-4 shrink-0 text-amber-500" />
         <span>{{ t('individuals.merge.mergedBanner') }}</span>
         <RouterLink :to="`/individuals/${detail.mergedIntoUid}`" class="font-medium text-primary underline underline-offset-2">
           {{ t('individuals.merge.mergedBannerLink') }}
         </RouterLink>
-        <!-- Только ADMIN, см. isAdmin — восстановление после ошибки, не рядовое действие. -->
         <Button v-if="isAdmin" variant="outline" size="sm" class="ml-auto" :loading="isUnmerging" @click="onUnmerge">
           {{ t('individuals.merge.undoButton') }}
         </Button>
         <p v-if="unmergeError" class="w-full text-sm text-red-500">{{ unmergeError }}</p>
       </div>
 
-      <!-- "Второй слой" — тихая подсказка о вероятном дубле (см. mergeHintCandidates
-           выше), не автоматическое действие, только приглашение проверить. -->
       <div v-else-if="mergeHintCandidates.length > 0" class="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
         <Combine class="size-4 shrink-0 text-primary" />
         <span>{{ t('individuals.merge.hintBanner', { count: mergeHintCandidates.length }) }}</span>
@@ -324,8 +272,6 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <!-- Обратная сторона баннера выше — без неё с карточки цели физически некуда перейти
-           на слитую запись (та скрыта из общего списка/поиска), чтобы отменить слияние. -->
       <div v-if="detail.mergedFrom.length > 0" class="flex flex-col gap-1.5 rounded-md border px-4 py-3 text-sm">
         <span class="flex items-center gap-2 font-medium text-muted-foreground">
           <Combine class="size-4 shrink-0 text-primary" />
@@ -341,19 +287,9 @@ onUnmounted(() => {
         </RouterLink>
       </div>
 
-      <!-- Card по умолчанию не flex-контейнер (см. заметки проекта) — здесь несколько
-           дочерних блоков подряд, поэтому flex flex-col обязателен, иначе gap/divide
-           между ними ничего не делает. Один Card с внутренним разделителем на 3 части
-           (не отдельные Card рядом) — по просьбе пользователя: слева личность+кнопки,
-           посередине атрибуты физлица, справа — контактная информация (без даты,
-           та осталась только у документов/обучения). -->
       <Card class="data-reveal flex flex-col divide-y divide-border p-6 lg:flex-row lg:divide-x lg:divide-y-0">
         <div class="flex flex-col gap-4 pb-4 lg:w-96 lg:shrink-0 lg:pb-0 lg:pr-6">
-          <!-- items-center для ручных физлиц — у них под ФИО нет строк копирования
-               uid/кода (см. v-if ниже), значение единственное в колонке, и ФИО должно
-               идти по центру аватарки, а не примыкать к её верху, как у синхронных. -->
           <div class="flex gap-4" :class="detail.isManual ? 'items-center' : 'items-start'">
-            <!-- Синхрона фотографий из 1С пока нет — заглушка с инициалами, как в NavUser -->
             <Avatar class="size-20">
               <AvatarFallback class="text-xl">{{ initials }}</AvatarFallback>
             </Avatar>
@@ -365,9 +301,6 @@ onUnmounted(() => {
                 </button>
                 <Accounting1cLinkedBadge v-else :linked="detail.accounting1cContractorUid !== null" />
               </div>
-              <!-- Копирование UID/кода 1С — только у синхронизируемых физлиц, у ручных
-                   (isManual) это не настоящий код/guid из 1С, а синтетический
-                   технический ключ, копировать его пользователю незачем. -->
               <template v-if="!detail.isManual">
                 <button
                   type="button"
@@ -406,14 +339,7 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- grid-cols-2 — все 4 кнопки одинаковой ширины (по самой длинной, "Синхронизировать")
-               и с одинаковыми отступами по обеим осям (gap-2), а не по содержимому, как раньше.
-               justify-start — иконка+подпись прижаты к левому краю кнопки, не по центру
-               (buttonVariants центрирует по умолчанию, тут переопределено). -->
           <div class="grid grid-cols-2 gap-2">
-            <!-- Ручные физлица не привязаны к реальному UID из 1С (fizicheskoyeLitsoUid —
-                 синтетический "manual-<uuid>") — синхронизация для них гарантированно падает
-                 500-кой на бэке (внешний API не находит такой UID), кнопку не показываем. -->
             <Button
               v-if="!detail.isManual"
               variant="outline"
@@ -447,8 +373,6 @@ onUnmounted(() => {
               <History class="text-primary" />
               {{ t('individuals.detail.history') }}
             </Button>
-            <!-- Только для ручных физлиц, ещё не слитых — слить синхронную запись саму
-                 с собой или уже слитую заново не даёт и бэкенд, кнопку тоже не показываем. -->
             <Button
               v-if="detail.isManual && !detail.mergedIntoUid"
               variant="outline"
@@ -463,9 +387,6 @@ onUnmounted(() => {
           <p v-if="syncError" class="text-sm text-red-500">{{ syncError }}</p>
         </div>
 
-        <!-- Контактная информация — тем же способом схлопнута бэкендом до одной
-             актуальной записи на тип (см. contactRows/pickLatestContactInfo), дата
-             здесь не нужна (она осталась только у документов/обучения). -->
         <div class="flex flex-col divide-y divide-border py-4 lg:min-w-0 lg:flex-1 lg:py-0 lg:px-6">
           <div
             v-for="contact in contactRows"
@@ -504,8 +425,6 @@ onUnmounted(() => {
         </div>
       </Card>
 
-      <!-- Заголовки вынесены за рамку карточки, как ФИО в шапке страницы, а не втиснуты
-           внутрь Card рядом с вкладками — тот же размер шрифта, что у ФИО (text-lg). -->
       <div class="text-lg font-medium">{{ t('individuals.detail.documentsTitle') }}</div>
 
       <Card class="data-reveal p-6">
@@ -533,8 +452,6 @@ onUnmounted(() => {
       <Card class="data-reveal p-6">
         <p v-if="!detail.students.length" class="text-sm text-muted-foreground">{{ t('individuals.detail.noData') }}</p>
 
-        <!-- Вкладка с номером зачётки — всегда, даже если зачётка одна, а не StudentFields
-           напрямую: так вкладка сама подписывает, какой зачётке принадлежат поля. -->
         <Tabs v-else :default-value="detail.students[0].zachetnayaKnigaUid">
           <TabsList class="h-auto flex-wrap">
             <TabsTrigger

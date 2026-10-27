@@ -61,6 +61,7 @@ const jobIcons: Record<string, Component> = {
   'service-provision-recovery': RotateCcw,
   'contract-status': ClipboardCheck,
   penalties: CirclePercent,
+  'penalty-reconciliation': RotateCcw,
 }
 let timer: ReturnType<typeof setTimeout> | undefined
 let disposed = false
@@ -119,6 +120,7 @@ function resultText(job: OverviewJob): string {
   if (job.id === 'service-provision-recovery') return t('sync.overview.results.recovery', { pushed: number(d, 'pushed') ?? 0, succeeded: number(d, 'succeeded') ?? 0, failed: number(d, 'failed') ?? 0, blocked: number(d, 'blocked') ?? 0 })
   if (job.id === 'contract-status') return t('sync.overview.results.contracts', { processed: number(d, 'processedContracts') ?? 0, changed: (number(d, 'toExpiring') ?? 0) + (number(d, 'toCompleted') ?? 0) + (number(d, 'toOverdue') ?? 0) })
   if (job.id === 'penalties') return t('sync.overview.results.penalties', { processed: number(d, 'processedContracts') ?? 0, rows: number(d, 'penaltyRowsCreated') ?? 0 })
+  if (job.id === 'penalty-reconciliation') return t('sync.overview.results.penaltyReconciliation', { processed: number(d, 'processedContracts') ?? 0, changed: number(d, 'changedContracts') ?? 0, failed: number(d, 'failedContracts') ?? 0 })
   if (job.id === 'portal-users') return t('sync.overview.results.portalUsers', { fetched: log.fetchedCount ?? 0, added: log.added ?? 0, updated: log.updated ?? 0, skipped: number(d, 'skipped') ?? 0 })
   if (job.id === 'resident-roles') return t('sync.overview.results.roles', { processed: number(d, 'processed') ?? log.fetchedCount ?? 0, granted: number(d, 'granted') ?? log.added ?? 0, revoked: number(d, 'revoked') ?? log.removed ?? 0 })
   return t('sync.overview.results.university', { fetched: log.fetchedCount ?? 0, added: log.added ?? 0, updated: log.updated ?? 0, removed: log.removed ?? 0 })

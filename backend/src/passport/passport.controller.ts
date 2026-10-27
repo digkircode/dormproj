@@ -8,9 +8,6 @@ import { PrismaService } from '../prisma/prisma.service';
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 
-// fullName живёт в Individual, а не в Passport (см. schema.prisma) — ищем и сортируем
-// по нему через связь individual, остальные поля — напрямую. periodText/dateStartText —
-// сгенерированные БД колонки (DD.MM.YYYY), чтобы даты искались тем же ILIKE, что и текст.
 const DIRECT_SEARCHABLE_FIELDS = [
   'type',
   'series',
@@ -40,8 +37,6 @@ function isSortableField(field: string): field is SortableField {
   return (SORTABLE_FIELDS as readonly string[]).includes(field);
 }
 
-// Тип/кем выдан/код подразделения — ограниченные по факту наборы значений, удобные
-// для мультивыбора. Серия/номер/системный номер почти уникальны на строку.
 const FILTERABLE_FIELDS = ['type', 'unit', 'codeUnit'] as const;
 type FilterableField = (typeof FILTERABLE_FIELDS)[number];
 
@@ -85,7 +80,6 @@ export class PassportController {
           }
         }
       } catch {
-        // Битый JSON в необязательном параметре — просто игнорируем фильтры, не 400'им весь запрос.
       }
     }
 

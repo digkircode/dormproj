@@ -53,44 +53,19 @@ const props = withDefaults(
     columnLabels: Record<string, string>
     filterableFields: string[]
     defaultSort: { id: string; desc: boolean }
-    // signal — необязательный, отдаётся при отмене устаревшего запроса (см. loadPage
-    // ниже); реализации на клиентских данных (client-list.ts) его просто игнорируют.
     fetchPage: (options: ListOptions, signal?: AbortSignal) => Promise<ListPage<TData>>
     fetchFacetValues: (field: string) => Promise<FacetOption[]>
-    // Изменение внешнего параметра отчёта (например, даты) сбрасывает варианты фасетов.
     facetCacheKey?: string
     getRowId: (row: TData) => string
     totalLabel: string
     cellText?: (columnId: string, value: unknown) => string
-    // Кастомный рендер конкретной колонки (иконка статуса и т.п.) вместо обычного текста —
-    // по умолчанию нет ни у одной колонки, остальные таблицы рендерятся как раньше.
-    // Компонент получает пропы value (cell.getValue()) и row (row.original).
     cellRenderers?: Record<string, Component>
     pageSizeOptions?: number[]
     hiddenByDefault?: string[]
-    // Стартовые значения фильтров (field -> values), применяются один раз при монтировании —
-    // тот же принцип, что hiddenByDefault, но для filterValues/activeFilterFields вместо
-    // columnVisibility. В отличие от hiddenByDefault не завязан на storageKey (фильтры и так
-    // никогда не персистятся в localStorage, см. комментарий у readStoredTableState) —
-    // применяется при каждом монтировании таблицы одинаково.
     defaultFilters?: Record<string, string[]>
-    // Необязательная колонка-кнопка в конце таблицы — по умолчанию не рендерится,
-    // чтобы остальные таблицы не менялись. getHref — внутренний роут, рендерится как
-    // RouterLink (обычный клик — переход внутри SPA без перезагрузки, колёсико/Ctrl+клик —
-    // родное поведение браузера, новая вкладка), onClick — произвольное действие
-    // (открыть модалку и т.п.); передаётся ровно один.
     rowAction?: { icon: Component; label: string; isVisible?: (row: TData) => boolean; getClass?: (row: TData) => string; getIcon?: (row: TData) => Component; getLabel?: (row: TData) => string; getHref?: (row: TData) => string; onClick?: (row: TData) => void }
-    // Чекбоксы выбора строк (массовая печать договоров и т.п.) — по умолчанию выключены,
-    // остальные таблицы не меняются. Выбор — только в рамках текущей отрисованной страницы
-    // (см. defineModel selected ниже), не копится между страницами/фильтрами/поиском —
-    // осознанно, по прямой просьбе при обсуждении фичи 2026-08-25.
     selectable?: boolean
-    // Если задан — видимость колонок и сортировка сохраняются в localStorage под этим
-    // ключом и восстанавливаются при следующем визите. Без ключа поведение как раньше.
     storageKey?: string
-    // Красит основные иконки таблицы (фильтр, настройка, кнопка rowAction) в text-primary —
-    // опционально. Остальные хромовые иконки (сортировка/пагинация/шеврон настройки/крестики
-    // фильтров) в accentIcons намеренно не входят, как и поиск и статусные ячейки (cellRenderers).
     accentIcons?: boolean
   }>(),
   {
@@ -105,10 +80,6 @@ const emit = defineEmits<{ loaded: [rows: TData[]] }>()
 
 const { t } = useI18n()
 
-// Выбранные строки (только при selectable) — модель наружу, чтобы страница-владелец
-// (Contracts.vue и т.п.) сама решала, что делать с выбором (печать пачкой и т.п.).
-// Объекты строк, не просто id — вызывающей стороне сразу доступны нужные поля (номер
-// договора и т.п.) без повторного похода в исходный список.
 const selected = defineModel<TData[]>('selected', { default: () => [] })
 
 const STORAGE_PREFIX = 'entity-table:'
@@ -125,17 +96,12 @@ function readStoredTableState(): { columnVisibility?: ColumnVisibilityState; sor
 
 const storedTableState = readStoredTableState()
 
-// Пусто = видны все колонки (в TanStack отсутствие записи значит "видима", не "скрыта") —
-// поэтому "скрыто по умолчанию" выражается явной записью false, а не просто отсутствием.
 const columnVisibility = ref<ColumnVisibilityState>({
   ...Object.fromEntries(props.hiddenByDefault.map((id) => [id, false])),
   ...(storedTableState?.columnVisibility ?? {}),
 })
 const pagination = ref<PaginationState>({ pageIndex: 0, pageSize: 20 })
 const sorting = ref<SortingState>(storedTableState?.sorting ?? [props.defaultSort])
-// columnSizing по умолчанию — неконтролируемое внутреннее состояние TanStack (не Vue ref),
-// наш computed на CSS-переменные его изменений не видит — без явного onColumnSizingChange
-// ресайз колонок визуально не работает (состояние обновляется, но рендер не реагирует).
 const columnSizing = ref<ColumnSizingState>({})
 const searchInput = ref('')
 const search = ref('')
@@ -148,13 +114,7 @@ watch(() => props.facetCacheKey, () => {
   facetOptions.value = {}
 })
 
-// Модалка работает с черновиком: пока не нажали "Готово", ничего не применяется
-// и фильтр не появляется в списке — иначе просто открыв и закрыв модалку,
-// получали бы висящий фильтр "любое значение".
 const filterModalField = ref<string | null>(null)
-// Отдельно от filterModalField — иначе обнуление поля при закрытии сразу очищает
-// filteredModalOptions/заголовок, и модалка на время exit-анимации успевает
-// мигнуть пустым состоянием ("Ничего не найдено") и схлопнуться в размере.
 const isFilterModalOpen = ref(false)
 const filterModalDraft = ref<string[]>([])
 const filterModalSearch = ref('')
@@ -168,21 +128,10 @@ const state = computed(() => ({
 
 const rows = ref<TData[]>([]) as Ref<TData[]>
 const total = ref(0)
-// true с самого начала — иначе на первом кадре (до onMounted) пустые rows[] на миг
-// показывают "Ничего не найдено" вместо "Загрузка…".
 const isLoading = ref(true)
 const errorText = ref('')
 
 const table = useAppTable({
-  // computed, не props.columns напрямую — useTable() (@tanstack/vue-table) следит за
-  // реактивностью опций через unref() внутри getReactiveOptionDeps(), т.е. ждёт именно Ref/
-  // ComputedRef, а не голое значение. props.columns снаружи — тоже computed (пересобирается
-  // при смене языка, см. columnLabels/columnHelper.columns() на страницах-потребителях), но
-  // передача его СНЯТОГО значения сюда лишала бы table-hook возможности подписаться на
-  // последующие изменения — заголовки застревали бы на переводе, актуальном на момент
-  // маунта, до следующей полной перезагрузки страницы. Обёртка возвращает актуальный
-  // props.columns на каждый вызов геттера — то же самое отслеживание, что и array-геттер
-  // ожидает.
   columns: computed(() => props.columns),
   data: rows,
   state,
@@ -208,21 +157,6 @@ const table = useAppTable({
   },
 })
 
-// CSS-переменные на ширины колонок вместо чтения column.getSize() в каждой ячейке —
-// при live-перетаскивании (columnResizeMode: onChange) это заметно дешевле.
-//
-// В процентах от ширины таблицы, а не в сырых пикселях из getSize() — иначе именно
-// во время "Загрузка…" (тело — один <td colspan>, а не по ячейке на колонку) браузер
-// не может пропорционально растянуть колонки под фактическую ширину таблицы (w-full)
-// и рисует <th> буквально по объявленным px (сумма < ширины контейнера, колонки уже
-// строк с данными) — это и есть "дёрганье", подтверждено замером getBoundingClientRect
-// в debug-харнессе: 256/128/192 при загрузке против 425/212/319 после. В процентах
-// результат идентичен в обоих состояниях, потому что не зависит от структуры тела.
-//
-// Чистый calc(100% * fraction) — БЕЗ вычитания (calc((100% - Xrem) * fraction)) и без
-// фиксированной px/rem-колонки среди процентных соседей: смешение ломает резолвинг
-// ширины <col> под table-layout:fixed (все колонки схлопываются в одинаковую ширину,
-// подтверждено замером — резерв под rowAction тоже приходится выражать долей, а не rem).
 const ROW_ACTION_UNITS = 48
 const SELECT_COLUMN_UNITS = 40
 const columnSizeVars = computed(() => {
@@ -245,14 +179,6 @@ const columnSizeVars = computed(() => {
   return vars
 })
 
-// Гонка устаревших ответов (была известная проблема, см. промпт проекта) — быстрая смена
-// поиска/фильтров/сортировки/страницы запускала loadPage() заново, не дожидаясь и не отменяя
-// предыдущий вызов; при медленной/неравномерной сети более старый ответ мог прилететь
-// ПОСЛЕ нового и молча перезаписать актуальные данные. Фикс — свой AbortController на
-// каждый вызов: предыдущий (если ещё не завершился) отменяется явно перед стартом нового,
-// а результат/ошибка применяются только если это всё ещё САМЫЙ ПОСЛЕДНИЙ запущенный вызов
-// (controller === activeController) — так отменённый вызов не может ни записать в rows,
-// ни погасить isLoading за уже стартовавший следом новый.
 let activeController: AbortController | undefined
 
 async function loadPage() {
@@ -278,13 +204,9 @@ async function loadPage() {
     if (controller.signal.aborted) return
     rows.value = page.data
     total.value = page.total
-    // Выбор — только в рамках уже показанной страницы (см. selectable выше), поэтому
-    // сбрасывается при любой перезагрузке данных: смена страницы, сортировки, поиска,
-    // фильтра — вместе с самими rows, откуда он и набирался.
     selected.value = []
     emit('loaded', page.data)
   } catch (error) {
-    // Отменённый нами же запрос — не показывать как ошибку пользователю (см. выше).
     if (controller.signal.aborted) return
     errorText.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -294,7 +216,6 @@ async function loadPage() {
 
 onBeforeUnmount(() => activeController?.abort())
 
-// --- Выбор строк чекбоксами (только при selectable, см. проп выше) ---
 function isRowSelected(row: TData): boolean {
   const id = props.getRowId(row)
   return selected.value.some((r) => props.getRowId(r) === id)
@@ -313,11 +234,6 @@ function toggleAllRows(checked: boolean) {
   selected.value = checked ? [...rows.value] : []
 }
 
-// Общий кусок "догрузить варианты для поля, если их ещё нет" — раньше жил только
-// внутри openFilterField (см. ниже), из-за чего чип фильтра, применённого через
-// defaultFilters (до первого клика по нему), показывал сырое значение поля
-// ("IMPORTED"/"NEEDS_REVIEW" и т.п.) вместо человекочитаемого лейбла. До ответа
-// facets используем cellText страницы, затем точную подпись из вариантов.
 async function ensureFacetOptions(field: string) {
   if (facetOptions.value[field]) return
   const version = facetVersion
@@ -331,9 +247,6 @@ async function ensureFacetOptions(field: string) {
   }
 }
 
-// Клик по полю в "Добавить фильтр" (новое поле) или по уже существующему чипу
-// (донастроить) — в обоих случаях открывает модалку с черновиком выбора,
-// ничего не меняя в применённых фильтрах, пока не подтвердят.
 async function openFilterField(field: string) {
   const version = facetVersion
   filterModalField.value = field
@@ -344,14 +257,10 @@ async function openFilterField(field: string) {
   isFilterModalOpen.value = true
 }
 
-// Закрытие крестиком/кликом вне/Escape — черновик просто отбрасывается.
-// filterModalField намеренно не трогаем — модалка ещё видна во время
-// exit-анимации, обнулять данные сейчас означало бы мигнуть пустым состоянием.
 function cancelFilterModal() {
   isFilterModalOpen.value = false
 }
 
-// Только "Готово" реально применяет фильтр — даже пустой выбор ("любое значение").
 function confirmFilterModal() {
   const field = filterModalField.value
   if (!field) return
@@ -405,17 +314,12 @@ onBeforeUnmount(() => {
   if (debounceTimer) clearTimeout(debounceTimer)
 })
 
-// Один watcher на все источники — если развести по отдельным watch(), правки,
-// которые меняют несколько ref'ов разом (например смена фильтра сбрасывает ещё
-// и pageIndex), бьют дублирующимися запросами вместо одного.
 watch([pagination, sorting, search, filterValues], loadPage, { deep: true })
 onMounted(() => {
   loadPage()
   for (const field of activeFilterFields.value) ensureFacetOptions(field)
 })
 
-// Только видимость колонок и сортировка — страница/поиск/фильтры каждый раз с чистого
-// листа, иначе можно неожиданно "приземлиться" на середине списка при следующем визите.
 watch([columnVisibility, sorting], () => {
   if (!props.storageKey) return
   try {
@@ -424,7 +328,6 @@ watch([columnVisibility, sorting], () => {
       JSON.stringify({ columnVisibility: columnVisibility.value, sorting: sorting.value }),
     )
   } catch {
-    // localStorage может быть недоступен (приватный режим и т.п.) — просто не сохраняем
   }
 }, { deep: true })
 
@@ -555,27 +458,11 @@ defineExpose({ refresh: loadPage })
       </DialogScrollContent>
     </Dialog>
 
-    <!-- h-[60vh] на мобильном — предыдущая попытка (md:min-h-0 вместо явной высоты)
-         полагалась на то, что вся цепочка flex/min-h-0 через много уровней предков
-         (страница → Tabs → TabsContent → этот компонент) даст Card настоящую firm-высоту
-         так же надёжно, как на десктопе — на реальном телефоне это не сработало: Card
-         схлопывалась, а её собственная пагинация (сосед Card внутри этого компонента)
-         рендерилась в неожиданном месте относительно общего футера сайта (реальный баг,
-         2026-08-28). Явная высота в vh не зависит от того, дал ли родитель firm-высоту —
-         тот же приём, что уже проверенно работает у списка начислений в модалке оплаты
-         (max-h-56) и у истории пени (max-height: 50vh) — просто гарантированная высота,
-         не хрупкая пропагация через flex. md:h-auto — на десктопе (и выше) возвращаемся
-         к прежней flex-заполняющей схеме без изменений. -->
     <Card class="flex h-[60vh] min-w-0 flex-col gap-0 py-0 md:h-auto md:min-h-0 md:flex-1">
       <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
         <div class="flex min-h-0 flex-1 flex-col transition-opacity" :class="{ 'opacity-60': isLoading }">
           <Table class="table-fixed" scroll-class="overflow-x-hidden" :style="columnSizeVars">
             <caption v-if="isLoading" class="sr-only">{{ t('entityTable.loading') }}</caption>
-            <!-- table-layout: fixed по спецификации должен брать ширины колонок из первой
-                 строки, но во время загрузки тело — один <td colspan> без индивидуальных
-                 ширин, и часть браузеров в этот момент пересчитывает ширины иначе, чем когда
-                 в строках уже есть реальные ячейки — колонки визуально "прыгают". colgroup
-                 задаёт ширины явно и не зависит от содержимого строк вообще. -->
             <colgroup>
               <col v-if="selectable" :style="{ width: 'var(--col-select-size)' }" />
               <col v-for="header in table.getFlatHeaders()" :key="header.id" :style="{ width: `var(--col-${header.column.id}-size)` }" />
@@ -598,10 +485,6 @@ defineExpose({ refresh: loadPage })
                   class="group/col relative select-none border-r border-border last:border-r-0"
                   :style="{ width: `var(--col-${header.column.id}-size)` }"
                 >
-                  <!-- Не у каждой колонки есть смысл сортировать (например чисто
-                       действийная "Действия" — см. Sync.vue) — enableSorting:false у
-                       такой колонки рендерит подпись без кнопки/стрелки, а не рабочую
-                       на вид, но по факту ничего не делающую сортировку. -->
                   <button
                     v-if="!header.isPlaceholder && header.column.getCanSort()"
                     type="button"
@@ -616,13 +499,6 @@ defineExpose({ refresh: loadPage })
                   <span v-else-if="!header.isPlaceholder" class="flex w-full min-w-0 truncate">
                     <FlexRender :header="header" />
                   </span>
-                  <!-- -right-1.5 центрирует хитбокс на границе колонки (удобно тянуть с обеих
-                       сторон) — для колонок с соседом справа лишние +6px просто перекрываются
-                       следующей ячейкой. У ПОСЛЕДНЕЙ колонки (когда нет rowAction-колонки
-                       после неё) сосседа справа нет — те же +6px вылезают за реальную ширину
-                       таблицы и держат постоянный горизонтальный скролл на 6px, даже когда
-                       контент вообще не переполняет таблицу. group-last/col:right-0 убирает
-                       именно этот вылет, не трогая ширину/удобство хитбокса у остальных колонок. -->
                   <div
                     v-if="header.column.getCanResize()"
                     class="group absolute -right-1.5 top-0 z-10 h-full w-3 cursor-col-resize touch-none select-none group-last/col:right-0"
@@ -705,11 +581,6 @@ defineExpose({ refresh: loadPage })
       </div>
     </Card>
 
-    <!-- flex-col на мобильном — исходный flex items-center justify-between без переноса
-         сжимал "N начислений" + селект строк/страницу + "страница X из Y" + 4 кнопки
-         навигации в одну неразрывную строку с gap-8 между блоками, на узком экране текст
-         переносился посреди слов и налезал на кнопки (реальный баг, поймано на телефоне
-         2026-08-28). sm: и выше — прежняя раскладка в одну строку. -->
     <div class="flex flex-col gap-2 px-1 sm:flex-row sm:items-center sm:justify-between">
       <div class="text-muted-foreground text-sm">
         {{ t('entityTable.total', { label: totalLabel, count: total }) }}

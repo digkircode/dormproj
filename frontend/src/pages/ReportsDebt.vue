@@ -38,17 +38,12 @@ import { dateLocaleTag, todayIso } from '@/lib/format-locale'
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
-// Вертикальные разделители колонок — тот же приём, что и в остальных таблицах
-// приложения (EntityTable.vue/ContractDetail.vue), для визуального единства.
 const CELL_BORDER_CLASS = 'border-r border-border last:border-r-0'
 
 const router = useRouter()
 const route = useRoute()
 const { t } = useI18n()
 
-// Переход с тайла "Должники" на "Главной" (StaffHomeDashboard.vue) — ?hasDebt=YES, чтобы
-// таблица сразу открывалась уже отфильтрованной, а не просто на весь список договоров
-// (по прямой просьбе 2026-09-05).
 const initialFilters = computed<Record<string, string[]>>(() => {
   const hasDebt = route.query.hasDebt
   const filters: Record<string, string[]> = {}
@@ -56,21 +51,16 @@ const initialFilters = computed<Record<string, string[]>>(() => {
   return filters
 })
 
-// computed, не const — header-текст берётся из t() (i18n), таблица (useTable в
-// EntityTable.vue) watch'ит props.columns реактивно и пересобирает заголовки при смене
-// языка, но только если columns — новая reactive-ссылка (см. тот же приём в Contracts.vue).
 const columnLabels = computed<Record<string, string>>(() => ({
   contractNumber: t('reports.debt.colContractNumber'),
   residentFullName: t('reports.debt.colResident'),
   room: t('reports.debt.colRoom'),
   status: t('reports.debt.colStatus'),
-  createdAt: t('reports.debt.colCreatedAt'),
+  contractDate: t('reports.debt.colContractDate'),
   totalAccrued: t('reports.debt.colAccrued'),
   totalPaid: t('reports.debt.colPaid'),
   penaltyBalance: t('reports.debt.colPenalty'),
   totalBalance: t('reports.debt.colDebt'),
-  // Псевдо-поля под фильтр — не настоящие колонки таблицы (см. reports.controller.ts,
-  // withDisplayStatus), по прямой просьбе 2026-08-27: "Только должники"/"Есть пеня".
   hasDebt: t('reports.debt.filterHasDebt'),
   hasPenalty: t('reports.debt.filterHasPenalty'),
 }))
@@ -98,7 +88,7 @@ function cellText(columnId: string, value: unknown): string {
   ) {
     return formatMoney(value)
   }
-  if (columnId === 'createdAt' && typeof value === 'string') {
+  if (columnId === 'contractDate' && typeof value === 'string') {
     return formatDateIso(value)
   }
   return String(value ?? '')
@@ -111,7 +101,7 @@ const columns = computed(() =>
     columnHelper.accessor('residentFullName', { header: columnLabels.value.residentFullName, size: 200, minSize: 160 }),
     columnHelper.accessor('room', { header: columnLabels.value.room, size: 100, minSize: 90 }),
     columnHelper.accessor('status', { header: columnLabels.value.status, size: 130, minSize: 110 }),
-    columnHelper.accessor('createdAt', { header: columnLabels.value.createdAt, size: 130, minSize: 110 }),
+    columnHelper.accessor('contractDate', { header: columnLabels.value.contractDate, size: 130, minSize: 110 }),
     columnHelper.accessor('totalAccrued', { header: columnLabels.value.totalAccrued, size: 130, minSize: 110 }),
     columnHelper.accessor('totalPaid', { header: columnLabels.value.totalPaid, size: 130, minSize: 110 }),
     columnHelper.accessor('penaltyBalance', { header: columnLabels.value.penaltyBalance, size: 110, minSize: 90 }),
@@ -119,9 +109,6 @@ const columns = computed(() =>
   ]),
 )
 
-// Отчёт "на дату" (по умолчанию сегодня) — тот же приём, что период в ReportsMovements.vue:
-// EntityTable сама не знает про внешний asOf, перезапрашиваем страницу и сводку вручную
-// через её exposed refresh() при смене даты.
 const asOf = ref(todayIso())
 
 function fetchPage(options: ListOptions, signal?: AbortSignal) {
@@ -151,8 +138,6 @@ watch(asOf, () => {
 })
 onMounted(loadSummary)
 
-// "Месяц" — крупно название месяца, мелко и в скобках короткий диапазон дат под ним
-// (неполные месяцы на границах договора всё равно остаются понятны по датам).
 function monthLabel(iso: string): string {
   const label = new Date(iso).toLocaleDateString(dateLocaleTag(), { month: 'long', year: 'numeric' })
   return label.charAt(0).toUpperCase() + label.slice(1)
@@ -163,7 +148,6 @@ function formatDateShort(iso: string): string {
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}`
 }
 
-// --- Структура долга по месяцам — открывается отдельной кнопкой-инфо в конце строки ---
 const breakdownOpen = ref(false)
 const breakdown = ref<DebtorBreakdown | null>(null)
 const breakdownLoading = ref(false)
@@ -186,7 +170,6 @@ async function openBreakdown(contractId: number) {
   }
 }
 
-// --- Расшифровка пени по дням — клик по значению "Пеня" в таблице ---
 const penaltyLogOpen = ref(false)
 const penaltyLog = ref<DebtorPenaltyLog | null>(null)
 const penaltyLogLoading = ref(false)
@@ -210,8 +193,6 @@ async function openPenaltyLog(contractId: number) {
 }
 provide('openPenaltyLog', openPenaltyLog)
 
-// --- Экспорт в Excel — учитывает только "на дату" (тот же asOf, что и у самого отчёта),
-// поиск/фильтры/сортировку колонок EntityTable не пробрасывает наружу (см. downloadFile).
 const isExporting = ref(false)
 const exportError = ref('')
 async function onExport() {
@@ -385,8 +366,6 @@ async function onExport() {
               </TableFooter>
             </Table>
           </div>
-          <!-- Пеня — единая на договор, не по месяцам (см. reports.controller.ts), поэтому
-               отдельной строкой итога, а не колонкой в помесячной разбивке. -->
           <div class="flex flex-col items-end gap-1 text-sm">
             <p v-if="breakdown.penaltyBalance > 0" class="text-red-500">
               {{ t('reports.debt.penaltyByContract', { amount: formatMoney(breakdown.penaltyBalance) }) }}
@@ -413,10 +392,6 @@ async function onExport() {
         <TableSkeleton v-if="penaltyLogLoading" :columns="3" :rows="5" class="min-h-0 flex-1" />
 
         <div v-if="penaltyLog" class="flex flex-col gap-3">
-          <!-- Максимум ~12 строк видно сразу, дальше — свой скролл (не растягивает
-               диалог до бесконечности), шапка "прилипает" (sticky), чтобы данные не
-               заезжали на неё при прокрутке — тот же приём, что у остальных таблиц
-               проекта (см. ContractDetail.vue). -->
           <div class="flex max-h-[28rem] flex-col overflow-hidden rounded-md border">
             <Table>
               <TableHeader class="sticky top-0 z-10 bg-muted">

@@ -28,9 +28,6 @@ const bodyError = ref('')
 const dialogTitle = computed(() => (editingId.value === null ? t('announcements.dialog.createTitle') : t('announcements.dialog.editTitle')))
 const submitLabel = computed(() => (editingId.value === null ? t('announcements.dialog.create') : t('announcements.dialog.save')))
 
-// existing не передан — создание нового; передан — редактирование (одна модалка с
-// переключением режима, не два отдельных диалога — тот же принцип, что и у остальных
-// форм в проекте, см. ловушку про Dialog-в-Dialog в промпте).
 function open(existing?: StaffAnnouncement) {
   dialogError.value = ''
   titleError.value = ''

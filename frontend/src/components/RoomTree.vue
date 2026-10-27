@@ -53,10 +53,6 @@ function isFloorOpen(key: string): boolean {
   return openFloors[key] ?? false
 }
 
-// Поиск по дереву — клиентский фильтр по уже загруженному списку (тот же приём, что
-// поиск комнаты в CreateContractDialog.vue). Выбор пункта эмитит тот же 'select', что
-// и клик по комнате в дереве, — реальный клик имитировать не нужно: ветка раскрывается
-// и комната подсвечивается сама, реактивно, через watch(selectedId) ниже.
 const searchQuery = ref('')
 const searchResults = ref<RoomTreeItem[]>([])
 function onTreeSearch(q: string) {
@@ -67,8 +63,6 @@ function pickSearchResult(item: RoomTreeItem) {
   emit('select', item.id)
 }
 
-// Выбор комнаты снаружи (например, сразу после создания) — разворачиваем ветку дерева,
-// в которой она лежит, чтобы подсветка была видна, а не пряталась в свёрнутом этаже.
 watch(
   () => props.selectedId,
   (id) => {
@@ -82,8 +76,6 @@ watch(
 
 <template>
   <div class="flex h-full min-w-0 flex-col">
-    <!-- h-14 + border-b — та же высота и кегль, что и заголовок карточки комнаты
-         справа (RoomDetailPanel.vue), чтобы обе панели выглядели единой парой. -->
     <div class="flex h-14 shrink-0 items-center justify-between border-b px-4">
       <div class="flex items-center gap-2">
         <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
@@ -106,9 +98,6 @@ watch(
     <div class="min-h-0 flex-1 overflow-y-auto p-2">
       <div v-if="isLoading" class="space-y-3 px-2 py-1.5" aria-hidden="true"><div v-for="n in 7" :key="n" class="h-8 animate-pulse rounded bg-muted motion-reduce:animate-none" /></div>
       <template v-else>
-        <!-- Корень больше не сворачивается (по прямой просьбе) — обычная кнопка выбора,
-             клик показывает компактную карточку с общежитскими полями в RoomDetailPanel
-             вместо списка комнат конкретного этажа. -->
         <button
           type="button"
           class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-medium transition-colors hover:bg-accent"

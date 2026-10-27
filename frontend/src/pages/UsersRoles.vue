@@ -110,9 +110,6 @@ async function submitCreate() {
         <DialogHeader>
           <DialogTitle>{{ t('users.roles.newRoleTitle') }}</DialogTitle>
         </DialogHeader>
-        <!-- Новая роль сама по себе ничего не разрешает — RolesGuard на бэкенде
-             проверяет конкретные строковые ключи (ADMIN/STAFF/RESIDENT), незнакомое
-             имя просто ляжет в справочник без единой проверки на него в коде. -->
         <div class="flex flex-col gap-2">
           <Label for="new-role-name">{{ t('users.roles.name') }}</Label>
           <Input id="new-role-name" v-model="newRoleName" :aria-invalid="!!roleNameError" :aria-describedby="roleNameError ? 'new-role-name-error' : undefined" @input="roleNameError = ''" @keyup.enter="submitCreate" />

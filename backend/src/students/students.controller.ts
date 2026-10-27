@@ -8,8 +8,6 @@ import { PrismaService } from '../prisma/prisma.service';
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 
-// Текстовые поля, по которым ищем — весь "человекочитаемый" набор плюс оба UID
-// (скрытые по умолчанию колонки в таблице всё равно должны находиться поиском).
 const SEARCHABLE_FIELDS = [
   'fullName',
   'zachetnayaKniga',
@@ -26,9 +24,6 @@ const SEARCHABLE_FIELDS = [
   'fizicheskoyeLitsoUid',
 ] as const;
 
-// Ключ — id колонки на фронте, значение — реальное поле для ORDER BY.
-// "Курс" на экране текстовый ("Первый"/"Второй"...), но сортировать его надо
-// по числовому kursNumber, иначе порядок будет алфавитным, а не по возрастанию курса.
 const SORTABLE_FIELDS: Record<string, string> = {
   fullName: 'fullName',
   zachetnayaKniga: 'zachetnayaKniga',
@@ -44,7 +39,6 @@ const SORTABLE_FIELDS: Record<string, string> = {
   uchebYear: 'uchebYear',
 };
 
-// Поля, по которым разрешён фильтр "выбрать несколько значений" — те же, что колонки таблицы.
 const FILTERABLE_FIELDS = [
   'fullName',
   'zachetnayaKniga',
@@ -98,8 +92,6 @@ export class StudentsController {
             const stringValues = values.filter((v): v is string => typeof v === 'string');
             if (stringValues.length === 0) continue;
             if (field === 'dot') {
-              // Prisma's BoolFilter has no `in` — with only two possible values,
-              // picking both means "no filter", picking one is a plain equality check.
               const boolValues = [...new Set(stringValues.map((v) => v === 'true'))];
               if (boolValues.length === 1) {
                 filterClauses.push({ dot: boolValues[0] });
@@ -110,7 +102,6 @@ export class StudentsController {
           }
         }
       } catch {
-        // Битый JSON в необязательном параметре — просто игнорируем фильтры, не 400'им весь запрос.
       }
     }
 
@@ -148,8 +139,6 @@ export class StudentsController {
     }
 
     if (field === 'kurs') {
-      // "Курс" — текст ("Первый"/"Второй"...), список значений нужен в естественном
-      // порядке (по kursNumber), а не в алфавитном ("Второй" раньше "Первого").
       const rows = await this.prisma.student.findMany({
         where: { kurs: { notIn: [''] } },
         select: { kurs: true, kursNumber: true },

@@ -29,7 +29,7 @@ const isPenalty = computed(() => entity.value?.slug === 'penalties')
 const isContractStatus = computed(() => entity.value?.slug === 'contract-status')
 const isPortal = computed(() => entity.value?.slug === 'portal-users')
 const isResidentRoles = computed(() => entity.value?.slug === 'resident-roles')
-const isOperational = computed(() => ['accounting-payment-push', 'accounting-payment-import', 'service-provision-preparation', 'service-provision-send', 'service-provision-recovery', 'service-provision-documents'].includes(entity.value?.slug ?? ''))
+const isOperational = computed(() => ['accounting-payment-push', 'accounting-payment-import', 'service-provision-preparation', 'service-provision-send', 'service-provision-recovery', 'service-provision-documents', 'penalty-reconciliation'].includes(entity.value?.slug ?? ''))
 const storageKey = computed(() => `sync-logs:${entity.value?.slug ?? 'unknown'}`)
 
 const selectedLog = ref<SyncLogEntry | null>(null)
@@ -47,11 +47,9 @@ const columnLabels = computed<Record<string, string>>(() => ({
   startedAt: t('sync.logs.colStartedAt'),
   finishedAt: t('sync.logs.colFinishedAt'),
 }))
-// У точечной синхронизации физлица Trigger всегда MANUAL — фильтр по нему бессмысленен.
 const filterableFields = computed(() => (entity.value?.showTargetUid ? ['status'] : ['status', 'trigger']))
 const cellRenderers = { status: SyncStatusCell }
 
-// Ключи details (см. IndividualSyncService) — подписи для модалки "Подробнее".
 const stepLabels = computed<Record<string, string>>(() => ({
   students: t('sync.logs.stepStudents'),
   individuals: t('sync.logs.stepIndividuals'),
@@ -96,7 +94,7 @@ const residentRoleDetails = computed(() => {
 const operationalDetails = computed(() => {
   const details = selectedLog.value?.details as Record<string, unknown> | null
   if (!details) return []
-  const keys = ['operation', 'period', 'previousMonthPeriod', 'sent', 'pushed', 'succeeded', 'failed', 'blocked', 'fetched', 'imported', 'skippedExisting', 'knownPairs', 'documentIds', 'skipped']
+  const keys = ['operation', 'period', 'previousMonthPeriod', 'sent', 'pushed', 'succeeded', 'failed', 'blocked', 'fetched', 'imported', 'skippedExisting', 'knownPairs', 'documentIds', 'skipped', 'processedContracts', 'changedContracts', 'failedContracts']
   return keys.filter((key) => details[key] !== undefined).map((key) => {
     const raw = details[key]
     const value = key === 'documentIds' && Array.isArray(raw) ? String(raw.length)
@@ -127,11 +125,6 @@ function cellText(columnId: string, value: unknown): string {
 
 const columnHelper = createAppColumnHelper<SyncLogEntry>()
 
-// id (сквозной по всей таблице SyncLog, партиционированной по всем типам синхронов)
-// сюда не выводим — в списке нужен порядковый номер именно для этого синхрона,
-// сам id остаётся доступен в модалке "Подробнее" (см. openLogDetails). У точечной
-// синхронизации физлица вместо "Тип" (Trigger всегда MANUAL, бесполезная колонка) —
-// UID синхронизированного физлица.
 const columns = computed(() =>
   columnHelper.columns([
     columnHelper.accessor('rowNumber', {
@@ -164,9 +157,6 @@ function openLogDetails(log: SyncLogEntry) {
 const POLL_INTERVAL_MS = 3000
 let pollTimeout: ReturnType<typeof setTimeout> | undefined
 
-// Пока последний запуск ещё "В процессе", опрашиваем таблицу заново через её же
-// refresh() — она сама решит, показывать ли лоадер, и не потеряет текущую страницу/
-// сортировку/фильтры пользователя (в отличие от полного ремаунта компонента).
 function onLogsLoaded(logs: SyncLogEntry[]) {
   if (selectedLog.value) {
     selectedLog.value = logs.find((log) => log.id === selectedLog.value?.id) ?? selectedLog.value
@@ -246,9 +236,6 @@ onUnmounted(() => clearTimeout(pollTimeout))
           </CollapsibleContent>
         </Collapsible>
 
-        <!-- Разбивка по шагам — только у точечной синхронизации физлица (details
-             заполняется лишь там, см. IndividualSyncService), раскрыта сразу при
-             открытии модалки (default-open), в отличие от errorStack выше. -->
         <Collapsible v-if="selectedLog.details && !isOperational && !isPenalty && !isContractStatus && !isPortal && !isResidentRoles" default-open v-slot="{ open }">
           <CollapsibleTrigger class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ChevronRight class="size-4 shrink-0 text-primary transition-transform" :class="{ 'rotate-90': open }" />

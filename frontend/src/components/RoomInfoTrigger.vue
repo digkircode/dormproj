@@ -21,9 +21,6 @@ const isLoading = ref(false)
 const loadError = ref('')
 let detailRequest = 0
 
-// Грузим ДО открытия диалога, не в watch(isOpen) после — иначе сетка на мгновение
-// показывала "Загрузка…" уже внутри открытого диалога (тот же фикс, что и в
-// ReportsOccupancy.vue). По прямой просьбе для карточки договора/списка договоров.
 async function openDialog() {
   if (!props.roomId) return
   const roomId = props.roomId
@@ -69,9 +66,6 @@ async function openDialog() {
       </DialogHeader>
       <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
       <RoomCharacteristicsSkeleton v-if="isLoading" />
-      <!-- Только просмотр — не кликабельная (см. RoomCharacteristicsGrid.vue), без кнопок
-           добавления/редактирования/истории: здесь нужна быстрая справка по комнате прямо
-           из карточки договора, а не полноценное управление ей. -->
       <RoomCharacteristicsGrid v-if="detail" :rows="detail.characteristics" />
     </DialogScrollContent>
   </Dialog>

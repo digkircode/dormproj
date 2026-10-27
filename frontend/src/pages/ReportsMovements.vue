@@ -63,8 +63,6 @@ const columns = computed(() =>
   ]),
 )
 
-// Дата начала периода пустая по умолчанию — тогда отчёт показывает всё "на дату
-// окончания" (без нижней границы, см. reports.controller.ts), не последний месяц.
 const from = ref('')
 const to = ref(todayIso())
 

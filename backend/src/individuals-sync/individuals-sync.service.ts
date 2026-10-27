@@ -75,8 +75,6 @@ export class IndividualsSyncService {
             });
           }
 
-          // Намеренно без deleteMany — в отличие от студентов, физлица не удаляются:
-          // пропавшая из ответа или помеченная DeleteMark=true запись остаётся как есть.
           return { added, updated };
         },
         { timeout: TRANSACTION_TIMEOUT_MS },
@@ -124,9 +122,6 @@ export class IndividualsSyncService {
     }
   }
 
-  // Точечная синхронизация одного физлица (кнопка на карточке) — тот же upsert, что и
-  // в общем прогоне, но по одному UID и без отдельного SyncLog (его ведёт вызывающий
-  // IndividualSyncService как один шаг общего лога).
   async syncOne(uid: string): Promise<{ fetchedCount: number; added: number; updated: number; records: unknown[] }> {
     const records = await this.externalApi.fetchIndividuals([uid]);
     const existing = await this.prisma.individual.findUnique({
@@ -213,10 +208,6 @@ export class IndividualsSyncService {
     return syncLogFacetValues(this.prisma, SYNC_TYPE_INDIVIDUALS, field);
   }
 
-  // UID берём не только из активных студентов, но и из уже засинканных физлиц —
-  // иначе после отчисления (студент пропадает из students при полной перезаписи)
-  // его физлицо переставало бы обновляться. isManual=true — записи, заведённые
-  // вручную на сайте, а не из 1С — их UID в источник не отправляем.
   private async collectUids(): Promise<string[]> {
     const [students, syncedIndividuals] = await Promise.all([
       this.prisma.student.findMany({

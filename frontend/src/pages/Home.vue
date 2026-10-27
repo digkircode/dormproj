@@ -5,14 +5,6 @@ import StaffHomeDashboard from '@/components/StaffHomeDashboard.vue'
 import ResidentHomeDashboard from '@/components/ResidentHomeDashboard.vue'
 import StudentGeneralInfo from '@/pages/StudentGeneralInfo.vue'
 
-// "Главная" — не одна и та же страница для всех (по прямой просьбе 2026-08-27): у
-// STAFF/ADMIN — реальный дашборд (см. StaffHomeDashboard.vue), у чистого RESIDENT —
-// приветственный дашборд с реальными данными (комната/оплата/чат, см.
-// ResidentHomeDashboard.vue — до 2026-08-28 тут был просто MyContract.vue целиком, заменено
-// по прямой просьбе после присланного пользователем референса дизайна), без роли вообще —
-// общая информация об общежитии (та же, что на /student/general-info). Гибридный аккаунт
-// (например STAFF+RESIDENT) получает дашборд сотрудника — тот же приоритет, что и в
-// сайдбаре/router-гварде (см. sectionAllowed в router/index.ts).
 const roles = computed(() => currentUser.value?.roles ?? [])
 const isStaff = computed(() => roles.value.includes('STAFF') || roles.value.includes('ADMIN'))
 const isResident = computed(() => roles.value.includes('RESIDENT'))

@@ -47,9 +47,6 @@ function parseId(idParam: string): number {
   return id;
 }
 
-// Личный чат проживающего с сотрудниками — ровно один диалог на аккаунт (по ТЗ "между
-// проживающими чата нет", см. промпт проекта). Доступ — только роль RESIDENT (не всем
-// залогиненным, как остальной раздел "Проживающий" — уточнено с пользователем отдельно).
 @Controller('my-chat')
 @UseGuards(AuthGuard, RolesGuard)
 @Roles('RESIDENT')
@@ -62,24 +59,12 @@ export class MyChatController {
 
   private async resolveIndividualUid(userId: number): Promise<string> {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { univerId: true } });
-    // Роль RESIDENT выдаётся только вместе с валидным univerId, совпадающим со Student
-    // (см. resident-role-sync.ts) — аккаунт без привязки к физлицу эту роль получить не
-    // может, поэтому это защитная проверка на непредвиденное рассинхронизированное состояние.
     if (!user?.univerId) {
       throw new BadRequestException('chat.errors.accountNotLinkedToIndividual');
     }
     return user.univerId;
   }
 
-  // Открытие своего чата = прочтение — бампает residentLastReadAt, отдельного
-  // POST /my-chat/read поэтому нет (был бы мёртвым кодом). Но ТОЛЬКО на первой странице
-  // (before не задан) — подгрузка истории по скроллу вверх (see ChatThread.vue) не
-  // должна каждый раз заново помечать диалог прочитанным. НЕ заводит диалог сам по себе,
-  // если его ещё нет (см. GET /my-chat/unread — тот же принцип) — раньше заводил через
-  // upsert, из-за чего у сотрудников появлялись "диалоги" от людей, которые просто
-  // открыли вкладку, ничего не написав (по прямой просьбе исправлено).
-  // unreadByMe считается по residentLastReadAt ДО бампа выше — снимок "что было
-  // непрочитано на момент открытия", тем же приёмом, что в ChatsController.
   @Get()
   async myChat(@Req() req: Request, @Query('before') beforeParam?: string) {
     if (!req.user) {
@@ -102,12 +87,6 @@ export class MyChatController {
     const hasMore = rows.length > MESSAGES_PAGE_SIZE;
     const page = hasMore ? rows.slice(0, MESSAGES_PAGE_SIZE) : rows;
 
-    // Бамп/эмит — ТОЛЬКО на первой странице (before не задан, не на каждой подгрузке
-    // истории по скроллу вверх) И только если реально было что читать — тот же guard,
-    // что в chats.controller.ts#markRead, той же причины ради: без него это был бы
-    // бесконечный пинг-понг SSE-событий между обеими открытыми в реальном времени
-    // сторонами одного диалога (каждая сторона рефетчит по чужому событию, попутно сама
-    // бампает и эмитит уже своё).
     const hasUnreadForResident = !existing.residentLastReadAt || existing.lastMessageAt > existing.residentLastReadAt;
     const shouldMarkRead = !before && hasUnreadForResident;
     const conversation = shouldMarkRead
@@ -135,11 +114,6 @@ export class MyChatController {
     };
   }
 
-  // Комната/договор самого проживающего — шапка его же чата (MyChat.vue), тем же видом,
-  // что у сотрудника (см. residentInfo в chats.controller.ts). contractId сюда специально
-  // не добавляли — /contracts/:id доступен только STAFF/ADMIN (router/index.ts), клик по
-  // номеру договора в MyChat.vue ведёт на СВОЮ страницу /student/contract (без :id,
-  // см. my-contract.controller.ts), не на эту.
   @Get('resident-info')
   async residentInfo(@Req() req: Request) {
     if (!req.user) {
@@ -153,10 +127,6 @@ export class MyChatController {
     };
   }
 
-  // Лёгкая проверка "есть ли непрочитанное", БЕЗ побочного эффекта пометки прочтения
-  // (в отличие от GET / выше) — нужна для бейджика в сайдбаре (AppSidebar.vue), который
-  // может дёргаться, когда пользователь вообще не на странице чата; вызов обычного GET /
-  // оттуда сразу пометил бы всё прочитанным, и бейджик не успевал бы показаться.
   @Get('unread')
   async unread(@Req() req: Request) {
     if (!req.user) {
@@ -171,9 +141,6 @@ export class MyChatController {
       return { unread: false, count: 0 };
     }
     const unread = !conversation.residentLastReadAt || conversation.lastMessageAt > conversation.residentLastReadAt;
-    // count — для плашки "Новых сообщений: N" на главной резидента (ResidentHomeDashboard.vue),
-    // не только факт наличия непрочитанного. Считаем только сообщения от STAFF — свои же
-    // сообщения резидента не в счёт (unread — это то, что ждёт его прочтения, не его собственный ввод).
     const count = unread
       ? await this.prisma.chatMessage.count({
           where: {
@@ -210,9 +177,6 @@ export class MyChatController {
       throw new BadRequestException('chat.errors.emptyMessage');
     }
 
-    // Всё, что может упасть ПОСЛЕ того, как multer уже записал файлы на диск —
-    // одним try/catch, чтобы ни один путь отказа (лимит скорости, размер, аккаунт без
-    // физлица, ошибка транзакции) не оставлял сиротские файлы.
     try {
       this.rateLimiter.checkAndRecordAttachments(req.user.id, files.length);
       const attachments = await validateAttachmentSizes(files);
@@ -246,8 +210,6 @@ export class MyChatController {
     }
   }
 
-  // Доступ — только к вложениям СВОЕГО диалога (в отличие от ChatsController, где
-  // сотрудник видит любые — там доступ уже ограничен ролью на весь контроллер).
   @Get('attachments/:id')
   async attachment(@Param('id') idParam: string, @Req() req: Request, @Res() res: Response) {
     if (!req.user) {

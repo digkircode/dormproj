@@ -10,7 +10,6 @@ import { ensureUserRecord } from '../users/ensure-user';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { zodErrorMessage } from '../i18n/zod-error-message';
 
-// Общежитие одно — ровно одна строка, id зафиксирован.
 const SINGLETON_ID = 1;
 
 const updateSchema = z.object({
@@ -50,8 +49,6 @@ export class DormitoryInfoController {
     private readonly auditLog: AuditLogService,
   ) {}
 
-  // upsert вместо findUnique — строка не сидится миграцией (см. migration.sql), первое
-  // чтение после миграции создаёт её сама, дальше always update {} — не изменяет её.
   @Get()
   async get() {
     const row = await this.prisma.dormitoryInfo.upsert({

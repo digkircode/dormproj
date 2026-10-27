@@ -5,11 +5,6 @@ import { buildDebtorRows } from '../reports/debtor-rows';
 import { fromStoredValue } from '../rooms/characteristic-value';
 import { currentResidentAssignments } from '../contracts/resident-assignments';
 
-// Название характеристик комнаты, по которым фильтруется рассылка — "Этаж" уже
-// существует (см. reports.controller.ts), "Корпус" в проекте изначально не заведён
-// вообще (комнаты — плоский список без уровня "корпус", см. промпт проекта) — заводится
-// сотрудниками вручную через уже существующий UI "Характеристики комнат", как обычная
-// (не защищённая) характеристика. Ищем по имени и корректно деградируем, если её ещё нет.
 const FLOOR_DEFINITION_NAME = 'Этаж';
 const CORPUS_DEFINITION_NAME = 'Корпус';
 
@@ -23,19 +18,10 @@ export interface ChatRecipient {
 }
 
 export interface ChatRecipientFilters {
-  // Несколько этажей сразу (по прямой просьбе — сотруднику может понадобиться разослать
-  // сразу на 2-3 этажа) — пусто/не задано = без фильтра. Корпус остался одиночным
-  // выбором, множественный не просили.
   floors?: string[];
   corpus?: string;
   debtorsOnly?: boolean;
   search?: string;
-  // Явный список получателей по ФИО-поиску ("написать 3 конкретным людям", по прямой
-  // просьбе) — если задан, ПОЛНОСТЬЮ заменяет собой floors/corpus/debtorsOnly/search
-  // (см. chatRecipients ниже), а не пересекается с ними: раз сотрудник вручную выбрал
-  // получателей, фильтры по этажу/долгу для них уже не имеют смысла. Не "доверие клиенту
-  // вслепую" — список всё равно пересекается с currentResidents на сервере, adresat не
-  // может оказаться человеком, которого там вообще нет.
   individualUids?: string[];
 }
 
@@ -56,8 +42,6 @@ interface CharacteristicRow {
   definition: { name: string; valueType: RoomCharacteristicValueType };
 }
 
-// "Актуальное" значение — макс. period на пару (room, definitionName), тот же приём,
-// что currentByRoom в public-info.controller.ts.
 function currentByRoom(rows: CharacteristicRow[], definitionName: string): Map<number, CharacteristicRow> {
   const result = new Map<number, CharacteristicRow>();
   for (const row of rows) {
@@ -70,8 +54,6 @@ function currentByRoom(rows: CharacteristicRow[], definitionName: string): Map<n
   return result;
 }
 
-// One chat per individual. Only debt filters and the debtors counter need a
-// financial calculation; ordinary recipient searches use the resident registry.
 async function currentResidents(prisma: PrismaService, includeBalance: boolean) {
   const asOf = dateOnly(new Date());
   const assignments = await currentResidentAssignments(prisma, asOf, true);
@@ -144,10 +126,6 @@ export async function chatRecipientFacets(prisma: PrismaService): Promise<ChatRe
   };
 }
 
-// Сервер сам пересчитывает получателей по фильтрам (не доверяет списку uid от клиента
-// вслепую — individualUids ниже всё равно пересекается с currentResidents) — и для
-// превью, и для реальной отправки вызывается одна и та же функция, чтобы список в
-// диалоге и фактические адресаты не могли разойтись.
 export async function chatRecipients(prisma: PrismaService, filters: ChatRecipientFilters): Promise<ChatRecipient[]> {
   const residents = await currentResidents(prisma, filters.debtorsOnly === true && !filters.individualUids?.length);
   const roomIds = [...new Set(residents.map((r) => r.roomId))];

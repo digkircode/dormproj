@@ -46,7 +46,6 @@ function formatMoney(value: number | null): string {
   return `${value.toLocaleString(dateLocaleTag(), { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
 }
 
-// ===== Таб "Из бухгалтерии" — очередь одобрения (флоу 2), см. промпт проекта =====
 
 const IMPORT_STATUS_LABELS: Record<PaymentImportRow['status'], string> = {
   NEEDS_REVIEW: t('paymentImports.status.NEEDS_REVIEW'),
@@ -73,11 +72,6 @@ function importCellText(columnId: string, value: unknown): string {
   return String(value ?? '-')
 }
 
-// Договор/ФИО — теперь отдельные кликабельные колонки (ContractLinkCell/ResidentLinkCell,
-// та же иконка+ссылка, что и в других таблицах проекта, см. отчёты), по прямой просьбе
-// 2026-09-04, вместо одной совмещённой "№X — ФИО" текстом. Пока запись не одобрена и
-// известен только suggestedContract (не matchedContract) — ссылка ведёт на ПРЕДЛОЖЕННЫЙ
-// договор, это не решение, сотрудник всё равно подтверждает явно в диалоге разбора.
 interface ImportTableRow extends PaymentImportRow {
   contractId: number | null
   contractNumberDisplay: string | null
@@ -145,7 +139,6 @@ async function submitReverseImport() {
   finally { isReversingImport.value = false }
 }
 
-// --- Массовое одобрение (чекбоксы) ---
 const selectedImportRows = ref<ImportTableRow[]>([])
 const bulkApproveOpen = ref(false)
 const bulkError = ref('')
@@ -177,10 +170,6 @@ async function submitBulkApprove() {
   }
 }
 
-// --- Разбор одной записи (approve) ---
-// "Отклонить" убрано целиком (по прямой просьбе 2026-09-03) — при неверных данных
-// сотрудник правит их в 1С, у нас перезапишется при следующем импорте, отдельного
-// "отказа" в жизненном цикле записи больше нет.
 const reviewOpen = ref(false)
 const reviewDetail = ref<PaymentImportDetail | null>(null)
 const reviewLoading = ref(false)
@@ -218,7 +207,6 @@ async function submitApprove() {
   }
 }
 
-// ===== Таб "С сайта" — WEBSITE-платежи (эквайринг) со статусом отправки в 1С (флоу 1) =====
 
 const WEBSITE_STATUS_LABELS: Record<WebsitePaymentRow['accounting1cSyncStatus'], string> = {
   NOT_SYNCED: t('paymentImports.statusWebsite.NOT_SYNCED'),
@@ -265,15 +253,8 @@ interface WebsiteTableRow {
   purpose: string
   contractNumber: string
   status: WebsitePaymentRow['accounting1cSyncStatus']
-  // Тот же принцип, что и в объединённом леджере резидента (MyContract.vue) — заглушка
-  // чека (касса ещё не подключена, см. промпт проекта «Онлайн-оплата»), не показываем
-  // только у сторнированных платежей.
   showReceiptButton: boolean
   fiscalReceiptUrl: string | null
-  // Договор/ФИО — кликабельные (ContractLinkCell/ResidentLinkCell, та же иконка+ссылка,
-  // что и в других таблицах проекта), по прямой просьбе 2026-09-04. Тут всегда есть
-  // реальный договор и резидент (флоу 1 — это уже проведённые платежи с сайта), в отличие
-  // от таба "1С Бухгалтерия", где до одобрения может не быть ни того, ни другого.
   contractId: number
   residentIndividualUid: string
   raw: WebsitePaymentRow
@@ -331,9 +312,6 @@ async function retryWebsitePayment(row: WebsiteTableRow) {
   await websiteTableRef.value?.refresh()
 }
 
-// --- Массовый повтор отправки (чекбоксы) — для тех, кто ещё не отправился/упал, по
-// прямой просьбе 2026-09-03. Без диалога — в отличие от одобрения, тут нечего уточнять,
-// просто дёргаем тот же ручной ретрай на каждой отмеченной строке. ---
 const selectedWebsiteRows = ref<WebsiteTableRow[]>([])
 const isBulkRetrying = ref(false)
 const bulkRetryTargets = computed(() => selectedWebsiteRows.value.filter((r) => r.status !== 'SYNCED'))
@@ -452,7 +430,6 @@ async function submitBulkRetry() {
       </TabsContent>
     </Tabs>
 
-    <!-- Массовое одобрение -->
     <Dialog :open="bulkApproveOpen" @update:open="(open) => (bulkApproveOpen = open)">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
@@ -504,7 +481,6 @@ async function submitBulkRetry() {
       </DialogScrollContent>
     </Dialog>
 
-    <!-- Разбор одной записи -->
     <Dialog :open="reviewOpen" @update:open="(open) => (reviewOpen = open)">
       <DialogScrollContent :class="['flex flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
@@ -550,8 +526,6 @@ async function submitBulkRetry() {
           </template>
         </template>
 
-        <!-- Ошибка — на уровне кнопок, не вперемешку с содержимым выше; конкретное
-             невалидное поле (например договор) дополнительно подсвечивается сам собой. -->
         <DialogFooter v-if="reviewDetail && isActionable" class="flex-col items-stretch gap-2 sm:flex-col">
           <p v-if="reviewError" class="text-sm text-red-500">{{ reviewError }}</p>
           <div class="flex justify-end gap-2">

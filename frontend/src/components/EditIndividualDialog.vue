@@ -13,11 +13,6 @@ import { updateIndividual, type IndividualDetail } from '@/lib/individuals-api'
 import { OKSM_COUNTRIES } from '@/lib/citizenship-list'
 import { blockNonDigitKeys, formatSnils, formatSubdivisionCode, parseApiError } from '@/lib/utils'
 
-// "Критическая правка" — пишет напрямую в синхронные таблицы физлица (ContactInfo/
-// Passport/Citizenship), не только в manual-поля Individual (см. backend/src/
-// individuals/individual-edit.ts). Ближайший ночной синхрон синхронизируемых физлиц
-// перезапишет эти значения обратно из 1С — предупреждение об этом в самом диалоге,
-// не только в комментариях, чтобы сотрудник не удивился на следующий день.
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
@@ -38,11 +33,6 @@ const name = ref('')
 const otchestvo = ref('')
 const birthDate = ref('')
 const gender = ref<'Мужской' | 'Женский' | ''>('')
-// Закрытый список (ОКСМ, см. lib/citizenship-list.ts) — значение из 1С (detail.citizenships)
-// может не совпасть буквально ни с одним пунктом списка (другой регистр/формулировка) —
-// тогда SearchSelect просто не покажет выбор как "применённый", сотруднику придётся
-// выбрать страну заново, прежде чем сохранить любую другую правку. Ожидаемое следствие
-// решения "гражданство — закрытый список", не баг.
 const citizenship = ref('')
 const citizenshipQuery = ref('')
 const citizenshipResults = ref<string[]>([])
@@ -69,8 +59,6 @@ const nameInvalid = computedInvalid(() => !name.value.trim())
 const birthDateInvalid = computedInvalid(() => !birthDate.value)
 const genderInvalid = computedInvalid(() => !gender.value)
 const citizenshipInvalid = computedInvalid(() => !citizenship.value.trim())
-// Email необязателен и без проверки формата (по прямой просьбе 2026-08-23) — только
-// серверные ошибки поля (если когда-нибудь появятся по другой причине) подсвечивают рамку.
 const emailInvalid = computedInvalid(() => serverFieldErrors.value.has('email'))
 const invalidClass = 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20'
 
@@ -109,10 +97,6 @@ function open(detail: IndividualDetail) {
   otchestvo.value = detail.otchestvo ?? ''
   birthDate.value = detail.birthDate ?? ''
   gender.value = (detail.gender as 'Мужской' | 'Женский' | null) ?? ''
-  // Значение из 1С может не совпасть буквально ни с одним пунктом закрытого списка ОКСМ
-  // (другой регистр/формулировка) — тогда только показываем его в поле поиска для
-  // контекста, а не как применённый выбор (см. citizenship выше), сотруднику нужно
-  // подтвердить страну заново.
   {
     const syncedCitizenship = detail.citizenships[0]?.country ?? detail.citizenship ?? ''
     const matched = OKSM_COUNTRIES.find((c) => c === syncedCitizenship.trim().toUpperCase())

@@ -22,13 +22,6 @@ export interface FacetOption {
   label: string
 }
 
-// Общая форма списочных эндпоинтов бэкенда: GET basePath?page=&pageSize=&search=&sortBy=&sortDir=&filters=[&extra]
-// extra — доп. параметры вроде asOf/from/to, которые EntityTable сама не знает (не часть
-// ListOptions) — родительская страница добавляет их сама, тот же приём, что уже был у
-// fetchMovementsPage, вынесен сюда, когда понадобился ещё в паре мест.
-// signal — опциональный AbortSignal (см. EntityTable.vue#loadPage): отменяет предыдущий
-// запрос при быстрой смене фильтров/сортировки/страницы, чтобы устаревший ответ не
-// перезаписал уже актуальные данные (была известная гонка, см. промпт проекта).
 export async function fetchListPage<T>(
   basePath: string,
   options: ListOptions,
@@ -56,7 +49,6 @@ export async function fetchListPage<T>(
   return response.json()
 }
 
-// Общая форма фасетов: GET basePath/facets/:field
 export async function fetchListFacets(basePath: string, field: string, extra?: Record<string, string>): Promise<FacetOption[]> {
   const params = new URLSearchParams(extra)
   const query = params.size ? `?${params}` : ''

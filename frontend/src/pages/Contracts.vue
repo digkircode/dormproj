@@ -21,9 +21,6 @@ const router = useRouter()
 const route = useRoute()
 const { t } = useI18n()
 
-// Выбор строк чекбоксами — только текущая страница списка (см. EntityTable.vue#selectable),
-// печать пачкой дёргает по одному id за раз на бэке (contracts.controller.ts#printBatch) и
-// отдаёт ZIP с отдельным .docx на каждый договор.
 const selectedContracts = ref<ContractListItem[]>([])
 const isPrinting = ref(false)
 const printError = ref('')
@@ -41,9 +38,6 @@ async function onPrintSelected() {
   }
 }
 
-// Печать через системный диалог (Ctrl+P) — доп. к печати ZIP-пачкой выше, не замена, см.
-// lib/print-pdf.ts. Один слитый PDF на все выбранные договоры (backend#printBatchPdf) —
-// лимит 50 договоров за раз (см. комментарий там же), а не 200, как у ZIP-варианта.
 const isPrintingPdf = ref(false)
 async function onPrintSelectedPdf() {
   if (!selectedContracts.value.length) return
@@ -65,7 +59,6 @@ function formatDateIso(iso: string): string {
   return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
 }
 
-// --- Список договоров ---
 const columnLabels = computed<Record<string, string>>(() => ({
   contractDate: t('contracts.list.colContractDate'),
   number: t('contracts.list.colNumber'),
@@ -95,9 +88,6 @@ function cellText(columnId: string, value: unknown): string {
 
 const columnHelper = createAppColumnHelper<ContractListItem>()
 
-// computed, не const — header-текст берётся из columnLabels (i18n), таблица (useTable в
-// EntityTable.vue) watch'ит props.columns реактивно и пересобирает заголовки при смене
-// языка, но только если сам массив колонок — новая reactive-ссылка, а не статичный const.
 const columns = computed(() =>
   columnHelper.columns([
     columnHelper.accessor('contractDate', { header: columnLabels.value.contractDate, size: 140, minSize: 110 }),

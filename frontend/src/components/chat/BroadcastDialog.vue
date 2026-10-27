@@ -87,7 +87,6 @@ const corpus = ref<string>('')
 const debtorsOnly = ref(false)
 const body = ref('')
 
-// Один набор файлов хранится физически один раз для всех адресатов рассылки.
 const pendingFiles = ref<File[]>([])
 const attachError = ref('')
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -107,9 +106,6 @@ function revokePreviewUrl(file: File) {
     objectUrls.delete(file)
   }
 }
-// Ключ для v-for ниже — тот же приём и по той же причине, что в ChatThread.vue: Ctrl+V
-// одного и того же файла дважды подряд даёт два File с одинаковыми name+size, коллизия
-// ключа ломает диффинг Vue (кнопка "убрать" у одного превью может удалить другой файл).
 let nextFileKey = 0
 const fileKeys = new WeakMap<File, number>()
 function keyFor(file: File): number {
@@ -163,9 +159,6 @@ function formatSize(bytes: number): string {
     : t('chat.thread.sizeKb', { size: Math.max(1, Math.round(bytes / 1024)) })
 }
 
-// Явно выбранные получатели по ФИО-поиску ("написать 3 конкретным людям", по прямой
-// просьбе) — если непусто, ПОЛНОСТЬЮ заменяет фильтры этаж/корпус/должники (не
-// пересекается с ними), см. submit()/refreshRecipients() ниже и chat-recipients.ts на бэке.
 const pickedIndividuals = ref<ChatRecipient[]>([])
 const hasExplicitPicks = computed(() => pickedIndividuals.value.length > 0)
 
@@ -211,8 +204,6 @@ function toggleFloor(value: string, checked: boolean) {
 async function refreshRecipients() {
   if (!isDialogOpen.value || activeJob.value) return
   const request = ++recipientsRequest
-  // Явные выборы уже полный список сам по себе — доп. запрос не нужен, повторно
-  // используем то, что уже есть на руках (см. pickPerson/removePerson).
   if (hasExplicitPicks.value) {
     isLoadingRecipients.value = false
     recipients.value = [...pickedIndividuals.value]

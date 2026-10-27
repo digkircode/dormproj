@@ -45,8 +45,6 @@ export async function reversePayment(paymentId: number): Promise<PaymentRow> {
   return response.json()
 }
 
-// Ручной повтор отправки в 1С Бухгалтерию (флоу 1) — только для платежей с сайта
-// (source==='WEBSITE'), см. billing.controller.ts#syncPaymentToAccounting1c.
 export async function syncPaymentToAccounting1c(paymentId: number): Promise<PaymentRow> {
   const response = await apiFetch(`/payments/${paymentId}/sync-to-1c`, { method: 'POST' })
   if (!response.ok) {
@@ -56,8 +54,6 @@ export async function syncPaymentToAccounting1c(paymentId: number): Promise<Paym
   return response.json()
 }
 
-// Ручной пересчёт пени (2026-09-05) — перестраивает журнал пени договора с нуля тем же
-// дневным расчётом, что и ночной крон, см. billing.controller.ts#recalculatePenalty.
 export interface RecalculatePenaltyResult {
   rowsCreated: number
   totalAdded: number

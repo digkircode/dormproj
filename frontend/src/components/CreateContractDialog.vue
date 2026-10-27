@@ -25,16 +25,9 @@ const { t, te, locale } = useI18n()
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
-// Скрывает нативные стрелочки +/- у <input type="number"> (Chrome/Safari + Firefox) —
-// та же константа, что в Rooms.vue/RoomDetailPanel.vue.
 const NO_SPINNER_CLASS = '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
-// Те же классы, что и у components/ui/input/Input.vue — для голых <input> с собственной
-// маской (СНИЛС/код подразделения родителя), см. соответствующие поля ниже и
-// CreateIndividualDialog.vue (тот же приём).
 const MASK_INPUT_CLASS =
   'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground transition-shadow focus-visible:outline-none focus-visible:border-ring/50 focus-visible:ring-4 focus-visible:ring-ring/20 focus-visible:shadow-sm disabled:cursor-not-allowed disabled:opacity-50'
-// Тот же fade, что и у переключения содержимого в RoomDetailPanel.vue — единообразная
-// анимация появления полей по всему приложению.
 const REVEAL_TRANSITION = {
   enterActiveClass: 'animate-in fade-in-0 duration-200',
   leaveActiveClass: 'animate-out fade-out-0 duration-150',
@@ -46,8 +39,6 @@ function formatDateIso(iso: string): string {
   return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
 }
 
-// СНИЛС/код подразделения родителя — цифровая маска с разделителями, тот же приём
-// (formatSnils/formatSubdivisionCode, см. lib/utils.ts), что и в CreateIndividualDialog.vue.
 function onLegalRepSnilsInput(event: Event) {
   const input = event.target as HTMLInputElement
   const formatted = formatSnils(input.value)
@@ -64,8 +55,6 @@ function onLegalRepPassportIssuedCodeInput(event: Event) {
 const isDialogOpen = ref(false)
 const isSaving = ref(false)
 const dialogError = ref('')
-// Ставится в true при первой неудачной попытке сохранить — до этого поля не подсвечиваем
-// красным, чтобы не встречать пользователя ошибками на ещё не тронутой форме.
 
 const number = ref('')
 const contractDate = ref('')
@@ -89,20 +78,10 @@ watch([roomId, startDate, endDate, locale], async ([room, start, end], _, onClea
     if (!cancelled) availabilityError.value = error instanceof Error && error.message ? error.message : t('contracts.createDialog.validation.availabilityFailed')
   }
 })
-// Полная месячная стоимость договора. По умолчанию берётся из карточки комнаты, но
-// сотрудник может изменить её перед сохранением; в ContractTerms сохраняются части.
 const roomCost = ref<number | undefined>(undefined)
 const rentAmount = ref<number | undefined>(undefined)
-// Характеристики выбранной комнаты — храним, чтобы пересчитать суммы при смене
-// dailyRateCategory без повторного похода на бэк (см. applyRoomPrice/watch ниже).
 const roomCharacteristics = ref<{ name: string; value: unknown }[]>([])
-// Комната без ОБЕИХ характеристик "Стоимость (из/не из вуза)" — целиком посуточная
-// (112-2/410-2 на момент введения, но список комнат нигде не хардкодится, см. applyRoomPrice
-// и backend/src/billing/accrual-generation.ts). Месячная "Стоимость" для таких комнат не
-// показывается вообще — весь срок начисляется по суточной ставке (dailyRateAmount).
 const isDailyOnlyRoom = ref(false)
-// Коммунальная часть берётся из карточки общежития, а найм — остаток полной стоимости
-// комнаты после её вычитания. Сервер повторяет этот расчёт по данным БД.
 const utilitiesAmount = ref<number | undefined>(undefined)
 
 function onRoomCostInput() {
@@ -112,13 +91,9 @@ function onRoomCostInput() {
   }
   rentAmount.value = roomCost.value - utilitiesAmount.value
 }
-// Выбор причины проживания задаёт категорию цены. Запись в Контингенте только
-// подставляет «Обучение в РосНОУ», а отсутствие записи не запрещает выбрать его вручную.
 const dailyRateCategory = ref<DailyRateCategory | null>(null)
 const dailyRateAmount = ref<number | undefined>(undefined)
-// Свободный текст печатается в п.1.2 бланка только для варианта «Другая».
 const residenceReason = ref('')
-// Срок оплаты в форме не показываем и не даём менять — всегда 5 число месяца.
 const paymentDueDay = ref(5)
 
 const legalRepName = ref('')
@@ -152,20 +127,12 @@ function calculateAge(birthDateIso: string, referenceIso: string): number {
   return age
 }
 
-// Несовершеннолетие — не чекбокс, а автоматический расчёт по дате рождения выбранного
-// проживающего на дату договора (а не "сегодня" — юридически значим момент подписания).
-// От него зависит, какая часть блока "Информация о родителе" показывается и обязательна —
-// ФИО/телефон нужны всегда, остальное (паспорт, мат.капитал) только для несовершеннолетних.
 const isMinor = computed(() => {
   const birthDate = selectedIndividual.value?.birthDate
   if (!birthDate) return false
   return calculateAge(birthDate, contractDate.value || new Date().toISOString().slice(0, 10)) < 18
 })
 
-// parseApiError — общий хелпер (см. lib/utils.ts), тут только серверные ошибки конкретной
-// формы. Поля, на которые сервер пожаловался типом/форматом в последней попытке сохранить —
-// например пустая "Стоимость" уходит как "" (см. известный баг v-model.number на
-// очищенном поле), а не undefined, и клиентская проверка это не ловит.
 const fieldErrors = ref<Record<string, string>>({})
 const formMessage = computed(() => Object.keys(fieldErrors.value).length ? '' : dialogError.value)
 const nonnegative = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0
@@ -209,7 +176,6 @@ function fieldError(value: string | undefined): string {
     ? t(`contracts.createDialog.validation.${value}`) : value ?? ''
 }
 
-// --- Поиск проживающего (SearchSelect) ---
 const individualQuery = ref('')
 const individualResults = ref<Individual[]>([])
 const selectedIndividual = ref<Individual | null>(null)
@@ -228,8 +194,6 @@ for (const [key, source] of Object.entries({ number, contractDate, roomId, start
 watch(useMatCapital, () => {
   for (const key of Object.keys(fieldErrors.value)) if (key.startsWith('matCapital')) delete fieldErrors.value[key]
 })
-// Пока запрос не отработал (в т.ч. во время debounce) — "Ничего не найдено" не
-// показываем, иначе оно мелькает при каждом нажатии клавиши ещё до самого поиска.
 const individualSearching = ref(false)
 let individualSearchTimeout: ReturnType<typeof setTimeout> | undefined
 
@@ -257,22 +221,13 @@ async function pickIndividual(ind: Individual) {
   individualResults.value = []
   dailyRateCategory.value = null
   residenceReason.value = ''
-  // Известным студентам подставляем РосНОУ. Для остальных основание выбирают вручную:
-  // будущий студент мог ещё не появиться в 1С.
   try {
     const detail = await fetchIndividualDetail(ind.fizicheskoyeLitsoUid)
     if (selectedIndividual.value?.fizicheskoyeLitsoUid === ind.fizicheskoyeLitsoUid &&
       dailyRateCategory.value === null && detail.students.length > 0) dailyRateCategory.value = 'OWN_UNIVERSITY'
-  } catch { /* Если 1С недоступна, сотрудник всё равно может указать основание. */ }
+  } catch { }
 }
 
-// Автоподстановка родителя — если у ЭТОГО проживающего родитель уже вводился на
-// предыдущем договоре, заполняем пустые поля блока родителя его данными. ФИО/телефон
-// обязательны у любого договора (см. isMinor ниже — не только у несовершеннолетних), но
-// раньше автоподстановка срабатывала только когда isMinor становился true — для
-// совершеннолетних не срабатывала вообще (по прямой просьбе 2026-08-26 — теперь по
-// выбору проживающего, независимо от возраста). Не перетираем то, что сотрудник уже
-// успел ввести вручную.
 watch(selectedIndividual, async (individual) => {
   if (!individual) return
   const prefill = await fetchLegalRepPrefill(individual.fizicheskoyeLitsoUid).catch(() => null)
@@ -291,14 +246,11 @@ watch(selectedIndividual, async (individual) => {
   if (!legalRepAddress.value.trim() && prefill.legalRepAddress) legalRepAddress.value = prefill.legalRepAddress
 })
 
-// --- Поиск комнаты (SearchSelect, список уже загружен целиком — фильтр на клиенте) ---
 const rooms = ref<RoomTreeItem[]>([])
 const roomQuery = ref('')
 const roomResults = ref<RoomTreeItem[]>([])
 
 function onRoomSearch(q: string) {
-  // Как и у ФИО — не показываем список, пока не начали печатать, и редактирование текста
-  // сбрасывает уже выбранную комнату (см. watch(roomId) ниже — вместе с ней сбросится и цена).
   roomId.value = null
   const query = q.trim().toLowerCase()
   roomResults.value = query ? rooms.value.filter((r) => r.room.toLowerCase().includes(query)) : []
@@ -316,11 +268,6 @@ const dormInfo = ref<{ communalServicesCost: number | null; dailyPaymentInternal
   dailyPaymentOther: null,
 })
 
-// Договор не может длиться больше года — дата окончания всегда 30.08, того же года,
-// если старт до этой даты включительно, иначе уже следующего (учебный/арендный год
-// заканчивается 30 августа). Сравнение по строке 'YYYY-MM-DD' напрямую, не через
-// new Date(...), чтобы не словить сдвиг на часовой пояс между UTC-парсингом ISO-строки
-// и локальной конструкцией даты.
 function defaultEndDate(from: string): string {
   const [yearStr, monthStr, dayStr] = from.split('-')
   const year = Number(yearStr)
@@ -328,14 +275,10 @@ function defaultEndDate(from: string): string {
   return `${isBeforeOrOnAug30 ? year : year + 1}-08-30`
 }
 
-// Дата окончания подставляется автоматически при каждом выборе даты начала —
-// по прямой просьбе, сотрудник может поправить её вручную после подстановки.
 watch(startDate, (value) => {
   if (value) endDate.value = defaultEndDate(value)
 })
 
-// prefillIndividual — открытие диалога сразу с выбранным проживающим (карточка физлица,
-// кнопка "Создать договор") — минует шаг поиска, дальше форма ведёт себя как обычно.
 async function open(prefillIndividual?: Individual) {
   fieldErrors.value = {}
   dialogError.value = ''
@@ -392,8 +335,6 @@ async function open(prefillIndividual?: Individual) {
 
 defineExpose({ open })
 
-// Категория определяет, какая суточная ставка по умолчанию (см. DormitoryInfo) — при
-// смене категории обновляем подстановку (поле не показывается, но участвует в расчёте пени).
 function updateDailyRateAmount() {
   dailyRateAmount.value =
     (dailyRateCategory.value === 'OWN_UNIVERSITY' ? dormInfo.value.dailyPaymentInternal
@@ -401,8 +342,6 @@ function updateDailyRateAmount() {
 }
 watch(dailyRateCategory, updateDailyRateAmount)
 
-// Стоимость комнаты — полная сумма найма и коммунальных услуг. По умолчанию подставляем
-// характеристику комнаты, но оставляем поле редактируемым для цены конкретного договора.
 function applyRoomPrice() {
   if (!dailyRateCategory.value) {
     roomCost.value = undefined
@@ -439,14 +378,10 @@ function applyRoomPrice() {
   }
 }
 
-// Категория определяется асинхронно (после выбора проживающего, см. pickIndividual) и может
-// смениться уже после того, как комната выбрана — пересчитываем подстановку в обоих случаях.
 watch(dailyRateCategory, applyRoomPrice)
 
 watch(roomId, async (id) => {
   if (id === null) {
-    // Комнату убрали (очистили поле поиска) — подставленная по ней цена больше не
-    // относится к делу, оставлять её как есть было бы обманчиво.
     roomCost.value = undefined
     rentAmount.value = undefined
     utilitiesAmount.value = dormInfo.value.communalServicesCost ?? undefined
@@ -464,8 +399,6 @@ async function submitCreate() {
   dialogError.value = ''
 
 
-  // validate() у телефона — сайд-эффект (подсвечивает сам виджет), поэтому вызывается
-  // безусловно, а не только внутри && (short-circuit пропустил бы его).
   const phoneValid = phoneInputRef.value?.validate() ?? true
   validateFields(phoneValid)
   if (Object.keys(fieldErrors.value).length) return
@@ -634,8 +567,6 @@ async function submitCreate() {
               </div>
             </div>
 
-            <!-- Комната без месячной "Стоимости" (112-2/410-2 на момент введения) — целиком
-                 посуточная, поле не показываем вообще (см. isDailyOnlyRoom/applyRoomPrice). -->
             <p v-if="availability" class="text-sm" :class="availability.available === 0 ? 'text-destructive' : 'text-muted-foreground'">
               {{ t('contracts.createDialog.validation.availabilitySummary', { available: availability.available, capacity: availability.capacity }) }}
               {{ t('contracts.createDialog.validation.departureDayOccupied') }}
@@ -674,8 +605,6 @@ async function submitCreate() {
             {{ t('contracts.createDialog.sectionParentInfo') }}
           </p>
           <div class="flex flex-col gap-4 rounded-md border p-4">
-            <!-- ФИО и телефон — всегда, остальное (паспорт, мат.капитал) только для
-                 несовершеннолетних (см. isMinor). -->
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div class="flex flex-col gap-2">
                 <Label>{{ t('contracts.createDialog.fieldFullName') }}</Label>
@@ -694,8 +623,6 @@ async function submitCreate() {
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div class="flex flex-col gap-2">
                     <Label>{{ t('contracts.createDialog.fieldGender') }}</Label>
-                    <!-- :value остаётся русским литералом ("Мужской"/"Женский") — так хранится
-                         в БД (Contract.legalRepGender), переводится только видимый текст. -->
                     <Select
                       :model-value="legalRepGender || undefined"
                       @update:model-value="(v) => (legalRepGender = v as 'Мужской' | 'Женский')"
@@ -717,9 +644,6 @@ async function submitCreate() {
                   </div>
                   <div class="flex flex-col gap-2">
                     <Label>{{ t('contracts.createDialog.fieldSnils') }}</Label>
-                    <!-- Голый <input>, не обёртка Input.vue — та держит свой внутренний
-                         v-model на том же нативном 'input'-событии, что и наш @input-хендлер
-                         маски — гонка (та же ловушка, что и в DatePickerField.vue). -->
                     <input
                       :value="legalRepSnils"
                       :class="MASK_INPUT_CLASS"

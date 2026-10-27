@@ -6,8 +6,6 @@ type ExistingStay = {
   contract: { startDate: Date; endDate: Date; actualEndDate: Date | null };
 };
 
-// A shared departure/arrival date is allowed for a move; an overlap beyond
-// that boundary means the resident would occupy two different rooms.
 export function hasConflictingStay(start: Date, end: Date, stays: ExistingStay[]): boolean {
   return stays.some((stay) => {
     const occupiedFrom = Math.max(stay.fromDate.getTime(), stay.contract.startDate.getTime());

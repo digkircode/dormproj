@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, FileText, DoorClosed } from 'lucide-vue-next'
+import { ArrowLeft, Clock, FileText, DoorClosed } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { goBack } from '@/lib/utils'
@@ -36,12 +36,6 @@ const hasMoreOlder = ref(false)
 const isLoadingOlder = ref(false)
 const residentInfo = ref<ResidentInfo | null>(null)
 const broadcastDialogRef = ref<InstanceType<typeof BroadcastDialog> | null>(null)
-// ChatThread.vue снимает "первое непрочитанное" один раз при монтировании из своего
-// messages-пропа — если смонтировать его СРАЗУ по клику (пока messages ещё не
-// подгрузились с сервера), он захватит пустой/чужой (от предыдущего диалога) список.
-// Это отдельный флаг, а не просто messages.value.length>0 — у диалога может не быть
-// сообщений вовсе, тогда length всегда 0, но "загрузка для этого id завершилась" всё
-// равно наступает.
 const messagesLoadedFor = ref<number | null>(null)
 const conversationError = ref('')
 let selectionVersion = 0
@@ -64,8 +58,6 @@ async function loadConversations() {
 }
 
 async function selectConversation(id: number) {
-  // Клик по уже открытому диалогу — не гонять сеть заново (перезагрузка сообщений/
-  // resident-info/повторная пометка прочитанным без надобности, см. известный баг проекта).
   if (id === selectedId.value && !conversationError.value) return
   const version = ++selectionVersion
   selectedId.value = id
@@ -101,9 +93,6 @@ async function selectConversation(id: number) {
   }
 }
 
-// Подгрузка истории по скроллу вверх (см. ChatThread.vue) — курсор от самого старого уже
-// загруженного сообщения. Не трогает hasMoreOlder/messages, если запрос уже идёт (защита
-// от повторного триггера тем же скролл-событием, пока первый ответ ещё не пришёл).
 async function loadOlderMessages() {
   if (!selectedId.value || !hasMoreOlder.value || isLoadingOlder.value) return
   const id = selectedId.value
@@ -121,13 +110,6 @@ async function loadOlderMessages() {
   }
 }
 
-// id только что отправленных нами сообщений, ещё не подтверждённых своим же эхом по SSE
-// (см. useChatStream ниже) — тот же поток /chats/stream шлёт сотруднику АБСОЛЮТНО все
-// события, включая эхо его собственной отправки. Раньше по этому эху SSE-обработчик
-// параллельно с onSend() запускал ЕЩЁ ОДИН fetchConversationMessages того же диалога —
-// гонка двух почти одновременных фетчей одного и того же (поймано на "дважды
-// отправляется"). Теперь onSend() помечает "это моё", SSE-обработчик такое эхо просто
-// пропускает — apendNewMessages/loadConversations уже отработали в onSend().
 const pendingSelfSentIds = new Set<number>()
 
 async function onSend(body: string, files: File[]) {
@@ -143,13 +125,6 @@ async function onSend(body: string, files: File[]) {
   await loadConversations()
 }
 
-// Любое ЧУЖОЕ событие из SSE-потока (см. промпт проекта — реалтайм без перезагрузки)
-// рефетчит список диалогов целиком (порядок/непрочитанность) — при небольшом числе
-// диалогов общежития проще и надёжнее, чем инкрементальный мердж состояния на клиенте.
-// Если событие относится к открытому диалогу — дозагружает только НОВЫЕ сообщения (не
-// всю историю заново, см. appendNewMessages — раньше полный рефетч затирал бы уже
-// подгруженные по пагинации старые страницы) и сразу помечает прочитанным (сотрудник уже
-// смотрит на экран).
 useChatStream('/chats/stream', async (event: ChatStreamEvent) => {
   if (event.messageId != null && pendingSelfSentIds.delete(event.messageId)) return
   await loadConversations()
@@ -176,12 +151,35 @@ function openBroadcast() {
   broadcastDialogRef.value?.open()
 }
 
+function mobileBack() {
+  if (selectedId.value === null) {
+    goBack(router, '/')
+    return
+  }
+  selectionVersion++
+  selectedId.value = null
+  messagesLoadedFor.value = null
+  messages.value = []
+  residentInfo.value = null
+  conversationError.value = ''
+}
+
 onMounted(loadConversations)
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
-    <div class="flex shrink-0 items-center gap-2">
+  <div class="flex h-[100dvh] min-w-0 shrink-0 flex-col gap-3 p-3 sm:p-4 md:h-full md:min-h-0 md:flex-1 md:shrink md:gap-4 md:p-6">
+    <div class="flex shrink-0 items-center gap-2 md:hidden">
+      <Button variant="outline" size="icon" class="size-10 shrink-0 rounded-full bg-card shadow-sm" @click="mobileBack">
+        <ArrowLeft class="size-4 text-primary" />
+        <span class="sr-only">{{ t('chat.back') }}</span>
+      </Button>
+      <span class="flex min-w-0 items-center gap-2 rounded-full border bg-card px-3 py-2 text-xs text-muted-foreground shadow-sm">
+        <Clock class="size-4 shrink-0 text-primary" />
+        <span class="whitespace-nowrap">{{ t('chat.resident.officeHoursShort') }}</span>
+      </span>
+    </div>
+    <div class="hidden shrink-0 items-center gap-2 md:flex">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
         <span class="sr-only">{{ t('chat.back') }}</span>
@@ -189,13 +187,10 @@ onMounted(loadConversations)
       <h1 class="text-lg font-medium">{{ t('chat.staff.title') }}</h1>
     </div>
 
-    <Card class="flex min-h-0 flex-1 flex-row gap-0 overflow-hidden py-0">
+    <Card class="flex min-h-0 min-w-0 flex-1 flex-row gap-0 overflow-hidden py-0">
       <ConversationList :conversations="conversations" :selected-id="selectedId" :is-loading="isLoadingConversations" :error="conversationsError" @select="selectConversation" @new-message="openBroadcast" />
 
-      <div class="flex min-h-0 flex-1 flex-col">
-        <!-- Та же "рецептура" высоты, что у строки поиска слева (ConversationList.vue —
-             p-3 снаружи + h-10 содержимое), чтобы шапка выровнялась по высоте с ней
-             пиксель в пиксель, а не подгонялась на глаз константой. -->
+      <div class="min-h-0 min-w-0 flex-1 flex-col" :class="selectedId ? 'flex' : 'hidden md:flex'">
         <div v-if="selectedId" class="flex shrink-0 items-center gap-4 border-b p-3 text-sm text-muted-foreground">
           <Skeleton v-if="messagesLoadedFor !== selectedId" class="h-10 w-64" />
           <RouterLink

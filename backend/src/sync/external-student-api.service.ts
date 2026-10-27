@@ -25,9 +25,6 @@ export class ExternalStudentApiService {
     return validateStudentApiResponse(raw, this.logger);
   }
 
-  // Тот же эндпоинт, что и полный список, но с фильтром по одному физлицу — источник
-  // сам возвращает только его действующие зачётки (может быть 0, если человек сейчас
-  // не студент). Используется точечной ручной синхронизацией с карточки физлица.
   async fetchActiveStudentsByUid(uid: string): Promise<StudentApiRecord[]> {
     const raw = await this.fetchWithRetry({ FizicheskoyeLitsoUID: uid });
     return validateStudentApiResponse(raw, this.logger);
@@ -51,8 +48,6 @@ export class ExternalStudentApiService {
             retry({
               count: MAX_ATTEMPTS - 1,
               delay: (error, retryCount) => {
-                // Логируем только message, а не сам error/response — в config axios-ошибки
-                // лежит Authorization-заголовок, и его нельзя писать в лог.
                 this.logger.warn(
                   `Попытка ${retryCount}/${MAX_ATTEMPTS - 1} получить данные из внешнего API не удалась: ${getErrorMessage(error)}`,
                 );

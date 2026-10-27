@@ -1,12 +1,6 @@
 import { Prisma } from '../../generated/prisma/client.js';
 import { computeAccrualAmounts, computeDailyOnlyAccrualAmount } from './accrual-generation';
 
-// При досрочном расторжении: начисления полностью в будущем от даты выезда не нужны —
-// помечаем voidedAt (не удаляем физически, чтобы не терять историю того, что вообще
-// планировалось). Начисление, на границу которого попадает дата выезда, не отменяется и
-// не мутируется напрямую — пересчитывается по сокращённым дням, а разница с исходно
-// выставленной суммой оформляется adjustmentAmount, чтобы не переписывать то, что реально
-// было выставлено человеку.
 export async function recalcAccrualsForTermination(
   tx: Prisma.TransactionClient,
   contractId: number,
@@ -23,7 +17,6 @@ export async function recalcAccrualsForTermination(
       continue;
     }
     if (accrual.periodEnd <= actualEndDate) {
-      // Полностью в прошлом от даты выезда — уже наступивший период, трогать не нужно.
       continue;
     }
 
@@ -34,9 +27,6 @@ export async function recalcAccrualsForTermination(
     if (!terms) continue;
 
     const shortened = { periodStart: accrual.periodStart, periodEnd: actualEndDate, isFullMonth: false };
-    // rentAmount=0 и utilitiesAmount=0 одновременно на ContractTerms — только у полностью
-    // посуточных комнат (см. contracts.controller.ts#create, isDailyOnlyRoom): обычная комната
-    // всегда имеет ненулевую месячную "Стоимость". Пересчёт по той же ветке, что и генерация.
     const isDailyOnly = terms.rentAmount.isZero() && terms.utilitiesAmount.isZero();
     const { rentAmount, utilitiesAmount } = isDailyOnly
       ? { rentAmount: computeDailyOnlyAccrualAmount(shortened, terms.dailyRateAmount), utilitiesAmount: new Prisma.Decimal(0) }

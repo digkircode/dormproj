@@ -5,15 +5,6 @@ import intlTelInput, { NUMBER_FORMAT, type Iti } from 'intl-tel-input'
 import 'intl-tel-input/styles'
 import { PhoneNumberUtil } from 'google-libphonenumber'
 
-// Локаль ru/en у intl-tel-input поставляется только с типами общего "бандла" (все языки
-// сразу), не конкретного файла — импорт default оттуда не совпадает с рантаймом
-// (несоответствие в типах пакета). Проще и надёжнее взять реально нужные строки вручную.
-// Виджет инициализируется один раз в onMounted (см. ниже) под язык, актуальный на момент
-// открытия диалога — переключение языка интерфейса, пока диалог уже открыт, не
-// переинициализирует сам виджет (сознательно, без watch/remount): PhoneInput живёт внутри
-// модалки, а повторная инициализация intl-tel-input поверх портала Dialog — ровно тот
-// класс хрупкости с фокус-трапом/pointer-events, что уже задокументирован в промпте
-// проекта как известная ловушка, рисковать им ради секундного окна на лету не стали.
 const UI_TRANSLATIONS = {
   ru: {
     selectedCountryAriaLabel: 'Изменить страну для номера телефона',
@@ -32,16 +23,10 @@ const UI_TRANSLATIONS = {
 }
 
 const props = defineProps<{ placeholder?: string; required?: boolean }>()
-// Храним не сырой текст поля, а нормализованный номер (getNumber) — при
-// separateDialCode код страны показывается отдельно от инпута, поэтому raw
-// input.value самого "+7" не содержит, а в БД должен уйти номер целиком.
 const model = defineModel<string>({ default: '' })
 
 const { locale } = useI18n()
 const inputRef = ref<HTMLInputElement | null>(null)
-// Ошибка показывается только по явному validate() (родитель вызывает его при нажатии
-// "Сохранить"), не на blur — поле обязательно только для части договоров (несовершеннолетний),
-// и мешать бы мигало ошибкой ещё до того, как стало понятно, что оно вообще нужно.
 const touched = ref(false)
 const isValid = ref(true)
 let iti: Iti | null = null
@@ -52,9 +37,6 @@ function syncModelFromInput() {
   model.value = iti.getNumber(NUMBER_FORMAT.INTERNATIONAL) || inputRef.value?.value.trim() || ''
 }
 
-// Валидность — через google-libphonenumber (не через встроенный в intl-tel-input
-// isValidNumber): парсим E164-представление и проверяем его же валидатором Google.
-// Пустое поле — валидно, если только оно не required (тогда пустота сама по себе ошибка).
 function checkValidity(): boolean {
   if (!iti || !inputRef.value?.value.trim()) return !props.required
   const e164 = iti.getNumber(NUMBER_FORMAT.E164)
@@ -71,7 +53,6 @@ function onInput() {
   if (touched.value) isValid.value = checkValidity()
 }
 
-// Вызывается родителем при попытке сохранить форму.
 function validate(): boolean {
   touched.value = true
   isValid.value = checkValidity()
@@ -86,10 +67,6 @@ onMounted(() => {
     separateDialCode: true,
     countryNameLocale: locale.value,
     uiTranslations: UI_TRANSLATIONS[locale.value as 'ru' | 'en'] ?? UI_TRANSLATIONS.ru,
-    // Без dropdownParent — список стран остаётся внутри .iti (внутри модалки).
-    // Вынос в document.body ломает выбор страны: фокус-трап/pointer-events Dialog
-    // (см. известную ловушку с вложенными Reka-порталами в промпте проекта) блокирует
-    // клики по элементам, оказавшимся вне DOM самого диалога.
     loadUtils: () => import('intl-tel-input/utils'),
   })
   if (model.value) iti.setNumber(model.value)
@@ -119,9 +96,6 @@ onBeforeUnmount(() => {
 </template>
 
 <style>
-/* Глобально (не scoped) — intl-tel-input оборачивает наш <input> собственным DOM
-   вне рендера Vue (.iti, .iti__country-container и т.д.), scoped-атрибут туда не
-   попадёт. Namespace через .phone-input, чтобы не задеть другие места на странице. */
 .phone-input .iti {
   display: block;
   width: 100%;

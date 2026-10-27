@@ -6,8 +6,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SESSION_COOKIE_NAME, SESSION_MAX_AGE_MS, SESSION_TTL } from './auth.constants';
 import type { RosnouIdUser, SessionUser } from './types';
 
-// Secure: false — пока dormproj живёт по http:// на голом IP, без домена/TLS
-// (см. CONTEXT_HANDOFF). Переключить на true, когда появится настоящий HTTPS.
 const COOKIE_OPTIONS: CookieOptions = {
   httpOnly: true,
   sameSite: 'lax',
@@ -19,8 +17,6 @@ const COOKIE_OPTIONS: CookieOptions = {
 export class SessionService {
   constructor(private readonly jwt: JwtService, private readonly prisma: PrismaService) {}
 
-  // roles сюда не входят — RosnouIdUser их не знает, они добавляются отдельно
-  // (см. auth.controller.ts callback: fetchRoles() из БД) перед sign().
   toSessionUser(user: RosnouIdUser): Omit<SessionUser, 'roles'> {
     return {
       id: user.id,

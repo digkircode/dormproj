@@ -32,7 +32,7 @@
     "colFullName": "ФИО",
     "colRoom": "Комната",
     "colStatus": "Статус",
-    "colCreatedAt": "Дата создания",
+    "colContractDate": "Дата договора",
     "colAccrued": "Начислено",
     "colPaid": "Оплачено",
     "colPenalty": "Пеня",

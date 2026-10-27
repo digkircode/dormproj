@@ -1,7 +1,5 @@
 import type { PrismaService } from '../prisma/prisma.service';
 
-// A room is occupied through its departure day. Keep the same date rules for
-// the registry and chat, and resolve equal move-in dates deterministically.
 export async function currentResidentAssignments(prisma: PrismaService, asOf: Date, liveOnly = false, residentUid?: string) {
   const assignments = await prisma.roomAssignment.findMany({
     where: {
@@ -22,7 +20,7 @@ export async function currentResidentAssignments(prisma: PrismaService, asOf: Da
           id: true, number: true, residentIndividualUid: true, startDate: true,
           resident: {
             select: {
-              fullName: true, birthDate: true,
+              fullName: true, birthDate: true, citizenship: true,
               citizenships: { orderBy: { period: 'desc' }, take: 1, select: { country: true } },
             },
           },

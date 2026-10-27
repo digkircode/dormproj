@@ -1,13 +1,7 @@
 export interface SyncEntity {
   slug: string
-  // Ключ i18n, не готовый текст — резолвится через t() в месте использования (см.
-  // SyncLogs.vue), чтобы название реагировало на смену языка (тот же приём, что
-  // nameKey в useSyncRow.ts).
   nameKey: string
   basePath: string
-  // Только у точечной синхронизации физлица — у неё Trigger всегда MANUAL (бессмысленно
-  // показывать/фильтровать колонку "Тип"), вместо неё показываем UID синхронизированного
-  // физлица (см. SyncLogs.vue).
   showTargetUid?: boolean
 }
 
@@ -22,6 +16,7 @@ export const SYNC_ENTITIES: SyncEntity[] = [
   { slug: 'individual', nameKey: 'sync.individualEntityName', basePath: '/sync/individual', showTargetUid: true },
   { slug: 'service-provision-documents', nameKey: 'sync.serviceProvisionDocumentsEntityName', basePath: '/sync/service-provision-documents' },
   { slug: 'penalties', nameKey: 'sync.penaltiesEntityName', basePath: '/sync/penalties' },
+  { slug: 'penalty-reconciliation', nameKey: 'sync.overview.jobs.penalty-reconciliation', basePath: '/sync/overview/jobs/penalty-reconciliation' },
   { slug: 'contract-status', nameKey: 'sync.contractStatusEntityName', basePath: '/sync/contract-status' },
   { slug: 'accounting-payment-push', nameKey: 'sync.overview.jobs.accounting-payment-push', basePath: '/sync/overview/jobs/accounting-payment-push' },
   { slug: 'accounting-payment-import', nameKey: 'sync.overview.jobs.accounting-payment-import', basePath: '/sync/overview/jobs/accounting-payment-import' },

@@ -84,7 +84,7 @@ export class PortalUsersApiService {
     const seenIds = new Set<number>();
     let expectedTotal: number | null = null;
     for (let page = 1; page <= MAX_PAGES; page++) {
-      if (page > 1) await delay(1_100); // API портала ограничен 60 запросами в минуту.
+      if (page > 1) await delay(1_100);
       const url = new URL(usersUrl);
       url.searchParams.set('page', String(page));
       const response = await fetch(url, {

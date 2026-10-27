@@ -42,16 +42,9 @@ import { NotificationsModule } from './notifications/notifications.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
     ScheduleModule.forRoot(),
-    // Глобальный лимит на все эндпоинты — 100 запросов в минуту с одного IP.
-    // Публичного API без авторизации это не заменяет, но защищает от простого
-    // скрипта, который бьёт запросами напрямую (см. обсуждение — эндпоинты открыты всем).
     ThrottlerModule.forRoot({
       throttlers: [{ ttl: 60000, limit: 100 }],
     }),
-    // i18n/ рядом с templates/ (не под src/) — Dockerfile копирует dist/+templates/, но не
-    // src/, тот же принцип, что у печатных бланков (см. contract-document.ts). Язык
-    // резолвится из Accept-Language, который фронт шлёт на каждый запрос (см. api-base.ts) —
-    // без изменений в сессии/БД, язык остаётся клиентским выбором, не серверной настройкой.
     I18nModule.forRoot({
       fallbackLanguage: 'ru',
       loaderOptions: { path: path.join(process.cwd(), 'i18n'), watch: process.env.NODE_ENV !== 'production' },

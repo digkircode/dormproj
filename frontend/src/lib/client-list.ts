@@ -1,11 +1,5 @@
 import type { FacetOption, ListOptions, ListPage } from './list-api'
 
-// EntityTable.vue построена вокруг серверной пагинации (fetchPage всегда бьёт по сети) —
-// для полностью загруженного в память массива (начисления/платежи одного резидента,
-// GET /my-payments и GET /my-contract уже отдают их разом, без постраничности) готового
-// клиентского адаптера в проекте не было (см. промпт задачи, MyContract.vue — первая
-// такая таблица, добавлено 2026-08-26). Здесь — тот же контракт ListOptions/ListPage,
-// но поиск/фильтр/сортировка/пагинация считаются локально, без единого сетевого запроса.
 export interface ClientListConfig<T> {
   searchText: (item: T) => string
   sortValue: (item: T, sortBy: string) => string | number

@@ -1,12 +1,3 @@
-// Одноразовый seed для презентации флоу 1 (отправка WEBSITE-платежей в 1С Бухгалтерию,
-// см. промпт проекта) на странице /payment-imports — реальных боевых реквизитов 1С нет,
-// поэтому три Payment(source=WEBSITE) заводятся напрямую, с уже проставленным
-// accounting1cSyncStatus (как будто ночной крон уже отработал), без PaymentAllocation —
-// тот же приём и по той же причине, что в backfill-demo-payment-ledger.ts (период найма
-// по демо-договору начинается только с 2026-09-01, привязывать искусственные суммы
-// физически не к чему). Идемпотентно по externalRef (DEMO-WEBSITE-PAYMENT-*).
-//
-// Запуск (из backend/, после `npm run build`): node dist/scripts/seed-demo-website-payments.js [--force]
 
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';

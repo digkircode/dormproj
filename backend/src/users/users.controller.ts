@@ -16,11 +16,6 @@ const MAX_PAGE_SIZE = 100;
 
 const SEARCHABLE_FIELDS = ['fullName', 'email'] as const;
 
-// "Список пользователей" (Администратор → Пользователи) — сырые users+users_roles без
-// фильтра "хотя бы одна не-RESIDENT роль" (в отличие от list() ниже, той под "Сотрудники")
-// — здесь реально ВСЕ строки users, включая чистых "Проживающих" и записи вообще без
-// единой роли. По прямой просьбе 2026-08-23 — нужно видеть/чинить bind_id/azure_id/
-// univer_id вручную, тот список их не показывает вообще.
 const ALL_USERS_SEARCHABLE_FIELDS = ['fullName', 'email', 'bindId', 'azureId', 'univerId'] as const;
 const ALL_USERS_SORTABLE_FIELDS: Record<string, string> = {
   fullName: 'fullName',
@@ -51,8 +46,6 @@ function parseIdParam(idParam: string): number {
   return id;
 }
 
-// Страница "Сотрудники" (Администратор → Пользователи) — только ADMIN, тот же
-// принцип, что и у остальных admin-контроллеров (см. промпт проекта).
 @Controller('users')
 @UseGuards(AuthGuard, RolesGuard)
 @Roles('ADMIN')
@@ -73,10 +66,6 @@ export class UsersController {
     return { id: user.id, fullName: user.fullName, email: user.email, roles: user.roles.map((r) => r.role) };
   }
 
-  // Список — только пользователи, у которых есть хотя бы одна роль (по прямой
-  // просьбе): аккаунт без роли появляется тут не раньше, чем ему что-то выдадут
-  // через "Выдать роль" (см. search() ниже — та ищет среди ВСЕХ пользователей,
-  // не только уже имеющих роль, иначе некому было бы выдать первую роль).
   @Get()
   async list(
     @Query('page') pageParam?: string,
@@ -103,7 +92,6 @@ export class UsersController {
           }
         }
       } catch {
-        // Битый JSON в необязательном параметре — просто игнорируем фильтр, не 400'им весь запрос.
       }
     }
 
@@ -114,10 +102,6 @@ export class UsersController {
     const where: Prisma.UserWhereInput = {
       AND: [
         { roles: roleNames.length ? { some: { role: { name: { in: roleNames } } } } : { some: {} } },
-        // Скрываем только ЧИСТЫХ проживающих (единственная роль — RESIDENT) — сотрудник,
-        // который сам живёт в общежитии (RESIDENT + STAFF/ADMIN), в списке остаётся, по
-        // прямой просьбе. "Есть хотя бы одна НЕ-RESIDENT роль" — то же самое, что "не
-        // единственная роль RESIDENT", без отдельного count-запроса.
         { roles: { some: { role: { name: { not: 'RESIDENT' } } } } },
         ...(searchClause ? [searchClause] : []),
       ],
@@ -138,10 +122,6 @@ export class UsersController {
     return { data, total, page, pageSize };
   }
 
-  // "Список пользователей" — все строки users как есть, без фильтра по наличию роли
-  // (см. константы выше). Регистрируется раньше ":id"-подобных маршрутов ниже не нужно —
-  // 'all' литеральный путь, Nest не спутает его с параметром (та же логика, что у 'search'/
-  // 'facets' выше).
   @Get('all')
   async listAll(
     @Query('page') pageParam?: string,
@@ -157,9 +137,6 @@ export class UsersController {
     const sortField = ALL_USERS_SORTABLE_FIELDS[sortByParam ?? ''] ?? 'fullName';
     const sortDir: Prisma.SortOrder = sortDirParam === 'desc' ? 'desc' : 'asc';
 
-    // Фильтр по роли — по прямой просьбе 2026-08-31, тот же приём, что уже есть в list()
-    // выше ("Сотрудники"), но здесь без исключения чистых RESIDENT — эта страница
-    // показывает ВСЕХ пользователей как есть.
     let roleNames: string[] = [];
     if (filtersParam) {
       try {
@@ -171,7 +148,6 @@ export class UsersController {
           }
         }
       } catch {
-        // Битый JSON в необязательном параметре — просто игнорируем фильтр, не 400'им весь запрос.
       }
     }
 
@@ -210,10 +186,6 @@ export class UsersController {
     return { data, total, page, pageSize };
   }
 
-  // Ручная правка привязки к 1С/Azure — по прямой просьбе 2026-08-23, единственное место
-  // в проекте, где эти поля вообще редактируются через UI (иначе только разовым импортом,
-  // см. промпт проекта). univerId — настоящий FK на Individual.fizicheskoyeLitsoUid,
-  // несуществующий uid Prisma отклонит сам (P2003) — понятная ошибка вместо сырого кода.
   @Patch(':id')
   async updateLinks(@Param('id') idParam: string, @Body() body: unknown, @Req() req: Request) {
     const id = parseIdParam(idParam);
@@ -260,14 +232,10 @@ export class UsersController {
   @Get('facets/:field')
   async facets(@Param('field') field: string) {
     if (field !== 'role') return [];
-    // RESIDENT остаётся в фильтре — сотрудник, который сам проживает (RESIDENT+STAFF/
-    // ADMIN), в списке есть (см. where в list() выше), фильтр по RESIDENT найдёт именно таких.
     const roles = await this.prisma.role.findMany({ orderBy: { name: 'asc' } });
     return roles.map((r) => ({ value: r.name, label: r.name }));
   }
 
-  // Поиск среди ВСЕХ пользователей (не только уже имеющих роль) — для диалога
-  // выдачи роли: нужно найти и того, кому роль ещё никогда не назначали.
   @Get('search')
   async search(@Query('q') q?: string) {
     const query = (q ?? '').trim();
@@ -332,13 +300,6 @@ export class UsersController {
     ]);
     if (!user) throw new NotFoundException('users.errors.userNotFound');
 
-    // Самоблокировка админа — вызывающий не может отозвать сам у себя роль ADMIN. У одного
-    // пользователя ровно одна запись на роль (составной PK UserRole в schema.prisma), так
-    // что "своя единственная роль ADMIN" здесь — не частный случай, а всегда весь доступ
-    // целиком. Роли проверяются живьём на каждый запрос (см. auth.guard.ts), поэтому эффект
-    // был бы мгновенным и без права на откат иначе, чем руками через psql. Не мешает
-    // ОСТАЛЬНЫМ администраторам отзывать ADMIN друг у друга — это осознанный размен
-    // (см. известную проблему в промпте проекта, исправлено 2026-08-28).
     if (role?.name === 'ADMIN' && id === req.user.id) {
       throw new BadRequestException('users.errors.cannotRevokeOwnAdminRole');
     }

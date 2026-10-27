@@ -33,9 +33,6 @@ export interface RoomHistoryEntry {
   isProtected: boolean
 }
 
-// characteristics — по одной (самой актуальной по period) записи на каждую встретившуюся
-// характеристику, history — вся история значений этой комнаты, см. pickCurrentCharacteristics
-// на бэкенде.
 export interface RoomDetail extends Room {
   characteristics: RoomCharacteristic[]
   history: RoomHistoryEntry[]
@@ -47,7 +44,6 @@ export function fetchRooms(options: ListOptions, signal?: AbortSignal): Promise<
   return fetchListPage<Room>('/rooms', options, undefined, signal)
 }
 
-// Для дерева "Общежитие → этажи → комнаты" — все комнаты разом, без пагинации.
 export interface RoomTreeItem {
   id: number
   room: string

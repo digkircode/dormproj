@@ -1,10 +1,3 @@
-// Общий контракт списочных эндпоинтов (page/pageSize/search/sortBy/sortDir/filters →
-// {data, total, page, pageSize}, см. lib/list-api.ts на фронте) — здесь та же форма,
-// но применяется к уже посчитанному в памяти массиву (JOIN'ы отчётов собираются в JS
-// поверх нескольких таблиц — RoomAssignment+Contract+Student+Citizenship и т.п. — не
-// одним Prisma-запросом), а не транслируется в SQL where/orderBy/skip/take. На текущем
-// объёме данных (один корпус, контингент — сотни, не десятки тысяч записей) это
-// оправданный компромисс, тот же, что уже описан в промпте проекта про индексы.
 
 export interface InMemoryListOptions {
   page: number;
@@ -42,7 +35,6 @@ export function parseListOptions(
         }
       }
     } catch {
-      // Битый JSON в необязательном параметре — просто игнорируем фильтры, не 400'им весь запрос.
     }
   }
 
@@ -65,9 +57,6 @@ export interface ListPage<T> {
   pageSize: number;
 }
 
-// Общая часть paginateInMemory/filterAndSortInMemory — поиск+фильтры+сортировка без
-// среза по странице, чтобы экспорт в Excel (см. excel-export.ts) мог получить ВСЕ
-// отфильтрованные строки, а не только текущую страницу таблицы.
 function filterAndSort<T extends object>(
   items: T[],
   options: InMemoryListOptions,
@@ -113,8 +102,6 @@ export function paginateInMemory<T extends object>(
   return { data: sorted.slice(start, start + options.pageSize), total, page: options.page, pageSize: options.pageSize };
 }
 
-// То же самое, но без пагинации — для экспорта в Excel (см. excel-export.ts): весь
-// отфильтрованный и отсортированный набор, каким бы он показался на всех страницах разом.
 export function filterAndSortInMemory<T extends object>(
   items: T[],
   options: InMemoryListOptions,

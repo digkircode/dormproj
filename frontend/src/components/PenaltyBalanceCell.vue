@@ -4,10 +4,6 @@ import { dateLocaleTag } from '@/lib/format-locale'
 
 const props = defineProps<{ value: unknown; row?: { contractId: number } }>()
 
-// EntityTable отдаёт cellRenderer только {value, row} — без возможности прокинуть свой
-// колбэк конкретной колонке (генерик-компонент этого не знает). provide/inject — самый
-// простой способ дотянуться до родительской страницы (ReportsDebt.vue), не расширяя
-// контракт EntityTable ради одной колонки.
 const openPenaltyLog = inject<(contractId: number) => void>('openPenaltyLog')
 
 function formatMoney(value: number): string {

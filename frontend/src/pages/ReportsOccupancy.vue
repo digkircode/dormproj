@@ -20,8 +20,6 @@ const { t } = useI18n()
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
-// Тот же порядок, что и в RoomInfoTrigger.vue/RoomDetailPanel.vue — сначала стартовые
-// защищённые характеристики в фиксированном порядке, потом остальные по алфавиту.
 const CORE_ORDER = ['Этаж', 'Жилое помещение', 'Количество мест', 'Площадь', 'Стоимость (из вуза)', 'Стоимость (не из вуза)']
 
 const report = ref<OccupancyReport | null>(null)
@@ -42,8 +40,6 @@ async function load() {
 
 onMounted(load)
 
-// Фильтр по занятости — по умолчанию "Все", справа от вкладок Новый/Старый/Все, той же
-// иконкой ListFilter, что и фильтры таблиц (EntityTable.vue).
 const occupancyFilter = ref<'all' | 'free' | 'occupied'>('all')
 function roomMatchesFilter(room: OccupancyRoom): boolean {
   if (occupancyFilter.value === 'all') return true
@@ -57,8 +53,6 @@ const filteredFloors = computed(() => {
     .filter((group) => group.rooms.length > 0)
 })
 
-// Этажи по умолчанию свёрнуты — раскрываются по клику на заголовок, состояние держим
-// по строковому ключу (номер этажа или 'none'), а не по индексу — устойчивее к перезагрузке данных.
 const expandedFloors = reactive<Record<string, boolean>>({})
 function floorKey(floor: number | null): string {
   return floor === null ? 'none' : String(floor)
@@ -79,24 +73,12 @@ function barClass(room: OccupancyRoom): string {
   return 'bg-emerald-500'
 }
 
-// Диалог комнаты — открытость и данные разнесены по разным ref намеренно: если
-// обнулять selectedRoom прямо в обработчике закрытия, v-if внутри диалога схлопывает
-// содержимое мгновенно, ещё до того как доигрывает анимация исчезновения самого
-// диалога (см. тот же приём с isTerminateOpen/isPaymentOpen в ContractDetail.vue —
-// там данные тоже не обнуляются при закрытии, только флаг открытости).
 const roomDialogOpen = ref(false)
 const selectedRoom = ref<OccupancyRoom | null>(null)
 
-// Характеристики комнаты в диалоге — та же сетка (вертикальные/горизонтальные полосы),
-// что и на странице "Комнаты" (RoomDetailPanel.vue/RoomInfoTrigger.vue), вместо текстового
-// "Занято X из Y, свободно Z". Грузим ДО открытия диалога (не в watch(roomDialogOpen) —
-// тот срабатывал уже после открытия, и сетка на мгновение показывала "Загрузка…") —
-// по прямой просьбе диалог теперь открывается уже с готовыми данными.
 const roomDetail = ref<RoomDetail | null>(null)
 const roomDetailLoading = ref(false)
 const roomDetailError = ref('')
-// Кнопки комнат блокируем на время загрузки — иначе повторный клик по другой комнате
-// во время ещё идущего запроса мог бы открыть диалог с чужими данными.
 const loadingRoomId = ref<number | null>(null)
 let roomRequest = 0
 
@@ -142,8 +124,6 @@ function formatPercent(value: number): string {
   return `${Math.round(value * 100)}%`
 }
 
-// Переключатель "Новый/Старый/Все" — пока чисто визуальный, ни на выборку комнат,
-// ни на запрос не влияет (добавлено по прямой просьбе, логика будет позже).
 const roomsView = ref<'new' | 'old' | 'all'>('all')
 </script>
 
@@ -273,8 +253,6 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
           <DialogTitle>{{ t('roomInfo.dialogTitle', { room: selectedRoom?.room }) }}</DialogTitle>
         </DialogHeader>
         <div v-if="selectedRoom" class="flex flex-col gap-4 text-sm">
-          <!-- Проживающие — над характеристиками (по прямой просьбе 2026-09-05), тот же
-               приём блока (иконка+подпись, потом содержимое), что и у характеристик ниже. -->
           <div class="flex flex-col gap-2">
             <div class="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
               <Users class="size-4 text-primary" />
@@ -302,10 +280,6 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
             </div>
             <p v-if="roomDetailError" class="text-sm text-red-500">{{ roomDetailError }}</p>
             <RoomCharacteristicsSkeleton v-else-if="roomDetailLoading" />
-            <!-- Та же сетка характеристик и тот же приём линий, что в RoomDetailPanel.vue/
-                 RoomInfoTrigger.vue (вертикальный разделитель по чётности индекса,
-                 горизонтальный — border-t от второй строки). Нечётное количество —
-                 невидимая ячейка-заглушка во второй колонке последней строки. -->
             <div v-else-if="roomDetail" class="grid grid-cols-1 gap-0 overflow-hidden rounded-md border sm:grid-cols-2">
               <div
                 v-for="(c, index) in sortedCharacteristics(roomDetail.characteristics)"

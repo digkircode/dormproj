@@ -74,8 +74,6 @@ export class NotificationsService {
     }
   }
 
-  // Production currently has no public HTTPS endpoint. Long polling receives
-  // /start links over the outbound Telegram API connection instead.
   @Interval(1000)
   async pollTelegram() {
     if (this.pollingTelegram || Date.now() < this.nextTelegramPollAt || !this.configured('TELEGRAM')) return;

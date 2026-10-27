@@ -19,8 +19,6 @@ const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
 
 const isOpen = ref(false)
-// Пришли с готовым пользователем (клик по строке в таблице) — шаг поиска пропускаем,
-// как prefillIndividual в CreateContractDialog.vue.
 const isLocked = ref(false)
 
 const selectedUser = ref<UserRow | null>(null)
@@ -136,11 +134,6 @@ async function onRevoke(roleId: number) {
         {{ selectedUser?.fullName }}
       </div>
 
-      <!-- Секции ниже отрисовываются сразу, даже пока пользователь не выбран (по прямой
-           просьбе 2026-09-01) — не только когда пришли с готовым (isLocked), но и в самом
-           обычном сценарии поиска: без этого высота диалога скакала между "только поиск" и
-           "поиск + роли", теперь она стабильна с самого открытия. Пока пользователь не
-           выбран — вместо пилюль ролей предупреждение, а сам селект недоступен. -->
       <div class="flex flex-col gap-2">
         <Label>{{ t('users.manageDialog.currentRoles') }}</Label>
         <p v-if="!selectedUser" class="flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-400">

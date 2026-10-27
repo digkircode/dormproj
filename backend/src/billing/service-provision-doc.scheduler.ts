@@ -34,9 +34,6 @@ function isAfterFinalSendTime(now: Date): boolean {
   return hour > 23 || (hour === 23 && minute >= 55);
 }
 
-// Текущий месяц создаётся при старте приложения и пересчитывается каждый день в 03:00
-// МСК. В 23:55 последнего календарного дня выполняется ещё один пересчёт и сразу после
-// него отправляются все три документа текущего месяца через ServProvisionDoc.
 @Injectable()
 export class ServiceProvisionDocScheduler implements OnApplicationBootstrap {
   private readonly logger = new Logger(ServiceProvisionDocScheduler.name);
@@ -88,14 +85,10 @@ export class ServiceProvisionDocScheduler implements OnApplicationBootstrap {
       const currentMonth = moscowCalendarDate(now);
       await this.service.computeAndSave(currentMonth);
 
-      // Если приложение перезапустилось уже после конца предыдущего месяца, закрываем
-      // пропущенную отправку. Отправляются только документы, которые ещё не SYNCED.
       const previousMonth = new Date(Date.UTC(currentMonth.getUTCFullYear(), currentMonth.getUTCMonth() - 1, 1));
       await this.service.computeAndSave(previousMonth);
       const retry = await this.service.retryUnsyncedMonth(previousMonth);
 
-      // Если сервер поднялся после 23:55 в последний день, cron уже прошёл — выполняем
-      // тот же финальный прогон сразу при старте.
       if (isLastCalendarDay(currentMonth) && isAfterFinalSendTime(now)) {
         const result = await this.service.run(currentMonth);
         return {
@@ -136,8 +129,6 @@ export class ServiceProvisionDocScheduler implements OnApplicationBootstrap {
       return;
     }
 
-    // Ежедневно повторяем пропущенную отправку прошлого месяца, если предыдущий
-    // финальный запуск не состоялся из-за перезапуска или временной ошибки 1С.
     const previousMonth = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
     await this.runLogged('RETRY_PREVIOUS_MONTH', async () => ({ period: previousMonth.toISOString().slice(0, 7), ...(await this.service.retryUnsyncedMonth(previousMonth)) }));
   }

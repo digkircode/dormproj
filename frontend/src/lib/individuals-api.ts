@@ -16,9 +16,6 @@ export interface Individual {
   snils: string | null
   photoCode: string | null
   isManual: boolean
-  // Поля ручного ввода (см. schema.prisma) — только у физлиц, заведённых через форму
-  // "Новое физическое лицо" или как родитель несовершеннолетнего; у синхронизируемых
-  // из 1С физлиц всегда null (их контакты/документы — в contactInfos/passports).
   phone: string | null
   email: string | null
   address: string | null
@@ -28,15 +25,10 @@ export interface Individual {
   passportIssuedCode: string | null
   passportIssuedAt: string | null
   citizenship: string | null
-  // Слияние ручного физлица в синхронную запись (см. IndividualDetail.vue/merge-*) —
-  // mergedIntoUid не null означает "эта запись больше не актуальна, работать нужно с той,
-  // в которую слили".
   mergedIntoUid: string | null
   mergedAt: string | null
   createdAt: string
   updatedAt: string
-  // Известен ли 1С Бухгалтерии ContractorUID этого человека (флоу 1/2/3, см. промпт
-  // проекта) — не null только после первой успешной отправки платежа в 1С.
   accounting1cContractorUid: string | null
   accounting1cMatched: boolean
 }
@@ -87,10 +79,6 @@ export interface IndividualStudent {
   period: string
 }
 
-// citizenships — максимум один элемент (последний по period, см. бэкенд), passports —
-// все документы, отсортированы так, что первый в списке и есть актуальный. contactInfos —
-// по одной (самой актуальной) записи на каждый встретившийся Type, см. pickLatestContactInfo
-// на бэкенде. students — все зачётные книжки физлица (может быть несколько за разные периоды).
 export interface IndividualMergedFrom {
   fizicheskoyeLitsoUid: string
   fullName: string
@@ -103,8 +91,6 @@ export interface IndividualDetail extends Individual {
   passports: IndividualPassport[]
   contactInfos: IndividualContactInfo[]
   students: IndividualStudent[]
-  // Обратная сторона слияния — записи, слитые В эту (см. mergedIntoUid выше). Без этого
-  // списка с карточки цели некуда перейти на слитую запись, чтобы отменить слияние.
   mergedFrom: IndividualMergedFrom[]
 }
 
@@ -173,10 +159,6 @@ export async function updateIndividualAccounting1cMapping(uid: string, contracto
   return response.json()
 }
 
-// "Критическая правка" — пишет напрямую в синхронные таблицы (ContactInfo/Passport/
-// Citizenship), не в manual-поля Individual (см. backend/src/individuals/individual-edit.ts).
-// Осознанный аварийный костыль: ближайший ночной синхрон синхронизируемых физлиц
-// перезапишет эти значения обратно из 1С — это ожидаемо, не баг.
 export interface UpdateIndividualInput {
   surname: string
   name: string
@@ -237,8 +219,6 @@ export interface IndividualSyncResult {
   finishedAt: string
 }
 
-// Кнопка "Синхронизировать" на карточке — единственное место, откуда запускается
-// этот синхрон (см. бэкенд: у него нет общего /sync/individual без UID).
 export async function syncIndividual(uid: string): Promise<IndividualSyncResult> {
   const response = await apiFetch(`/individuals/${encodeURIComponent(uid)}/sync`, { method: 'POST' })
   if (!response.ok) {
@@ -248,8 +228,6 @@ export async function syncIndividual(uid: string): Promise<IndividualSyncResult>
   return response.json()
 }
 
-// Слияние ручного физлица в синхронную запись — см. IndividualDetail.vue, только по
-// явному действию сотрудника, ничего автоматического (backend/individuals.controller.ts#merge).
 export interface IndividualMergeCandidate {
   fizicheskoyeLitsoUid: string
   fullName: string
@@ -258,8 +236,6 @@ export interface IndividualMergeCandidate {
   code: string | null
 }
 
-// Только подсказка (ФИО и дата рождения) — сотрудник сам решает, сливать ли, и может
-// выбрать любое другое физлицо через поиск, не только из этого списка.
 export async function fetchIndividualMergeCandidates(uid: string): Promise<IndividualMergeCandidate[]> {
   const response = await apiFetch(`/individuals/${encodeURIComponent(uid)}/merge-candidates`)
   if (!response.ok) {
@@ -281,8 +257,6 @@ export async function mergeIndividual(uid: string, targetUid: string): Promise<I
   return response.json()
 }
 
-// Отмена слияния — только ADMIN (см. backend#unmerge), восстановление после ошибки
-// сотрудника, не рядовое действие. uid — та самая слитая (источник) карточка.
 export async function unmergeIndividual(uid: string): Promise<IndividualDetail> {
   const response = await apiFetch(`/individuals/${encodeURIComponent(uid)}/unmerge`, { method: 'POST' })
   if (!response.ok) {

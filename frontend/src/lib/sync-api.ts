@@ -17,8 +17,6 @@ export interface SyncLogEntry {
   errorMessage: string | null
   errorStack: string | null
   targetUid: string | null
-  // Разбивка по шагам (студент/физлицо/гражданство/паспорт/контакты) — только у
-  // точечной синхронизации физлица и только при успехе, у остальных 5 типов — null.
   details: Record<
     string,
     { fetchedCount: number; added: number; updated?: number; removed?: number; records: unknown[] }
@@ -36,9 +34,6 @@ export function fetchSyncLogFacets(basePath: string, field: string): Promise<Fac
   return fetchListFacets(`${basePath}/logs`, field)
 }
 
-// Обзорная таблица на /sync (Sync.vue/useSyncRow.ts) хочет только самый последний лог
-// для статуса/времени/длительности строки — не переиспользует полный список логов,
-// просто просит первую страницу по 1 записи в убывающем порядке у того же эндпоинта.
 export async function fetchSyncLogs(basePath: string): Promise<SyncLogEntry[]> {
   const page = await fetchSyncLogsPage(basePath, {
     page: 1,

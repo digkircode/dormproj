@@ -19,8 +19,6 @@ import { goBack, parseApiError } from '@/lib/utils'
 const router = useRouter()
 const { t } = useI18n()
 
-// Клик по ячейке "Роли" открывает выдачу/отзыв — единственный rowAction EntityTable уже
-// занят правкой bind/azure/univer id (см. openEdit ниже), см. комментарий в UserRolesCell.vue.
 const rolesDialogRef = ref<InstanceType<typeof ManageUserRolesDialog> | null>(null)
 provide(USER_ROLES_CLICK_KEY, (row) => rolesDialogRef.value?.open(row as AllUsersRow))
 
@@ -39,8 +37,6 @@ const columnLabels = computed<Record<string, string>>(() => ({
   linkSource: t('users.list.colLinkSource'),
   roles: t('users.list.colRoles'),
   createdAt: t('users.list.colCreatedAt'),
-  // 'role' — фильтр, не колонка (сама колонка называется 'roles', см. ниже) — та же
-  // схема, что в UsersStaff.vue.
   role: t('users.list.colRole'),
 }))
 const filterableFields = ['role']
@@ -67,10 +63,6 @@ const columns = computed(() =>
 
 const tableRef = ref<{ refresh: () => void | Promise<void> } | null>(null)
 
-// Правка bind_id/azure_id/univer_id вручную — по прямой просьбе 2026-08-23, больше
-// нигде в проекте это не редактируется (только разовый импорт, см. промпт проекта).
-// univerId — настоящий FK на Individual, несуществующий uid бэкенд отклонит понятной
-// ошибкой (см. users.controller.ts#updateLinks).
 const isEditOpen = ref(false)
 const isSaving = ref(false)
 const editError = ref('')

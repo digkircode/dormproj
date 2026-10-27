@@ -9,8 +9,6 @@ const TEENS = [
 const TENS = ['', '', 'двадцать', 'тридцать', 'сорок', 'пятьдесят', 'шестьдесят', 'семьдесят', 'восемьдесят', 'девяносто'];
 const HUNDREDS = ['', 'сто', 'двести', 'триста', 'четыреста', 'пятьсот', 'шестьсот', 'семьсот', 'восемьсот', 'девятьсот'];
 
-// Стандартный русский выбор формы по числительному: 1 -> forms[0], 2-4 -> forms[1],
-// 0/5-20 -> forms[2] (11-14 всегда forms[2], даже когда последняя цифра 1-4).
 function pluralForm(n: number, forms: [string, string, string]): string {
   const hundredRem = n % 100;
   if (hundredRem >= 11 && hundredRem <= 14) return forms[2];
@@ -36,7 +34,6 @@ function groupToWords(n: number, feminine: boolean): string[] {
   return words;
 }
 
-// Поддержка до миллиардов с запасом — реальные суммы найма в разы меньше.
 function integerToWords(n: number): string {
   if (n === 0) return 'ноль';
   const parts: string[] = [];
@@ -61,29 +58,18 @@ function capitalize(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
 
-// "Девять тысяч пятьсот" — целая часть суммы прописью, БЕЗ слова "рубль/рубля/рублей"
-// (то печатается отдельным тегом снаружи скобок в бланке, см. rublesCurrencyWord и
-// contract-document-data.ts — раньше "рублей" было внутри скобок вместе с числом, по
-// просьбе 2026-08-24 вынесено наружу). Первая буква заглавная.
 export function rublesInWords(rubles: number): string {
   return capitalize(integerToWords(rubles));
 }
 
-// "рублей" — склонение по числу рублей, печатается отдельным тегом СНАРУЖИ скобок
-// с числом прописью (см. rublesInWords).
 export function rublesCurrencyWord(rubles: number): string {
   return pluralForm(rubles, ['рубль', 'рубля', 'рублей']);
 }
 
-// "9 500" — целая часть суммы цифрами с разбивкой по разрядам, без суффикса валюты
-// (валюта и копейки печатаются отдельными тегами в шаблоне, см. contract-document-data.ts).
 export function formatRublesDigits(rubles: number): string {
   return rubles.toLocaleString('ru-RU', { maximumFractionDigits: 0 });
 }
 
-// Decimal(12,2) -> целые рубли + копейки как двузначная строка. Prisma.Decimal не
-// склонен к бинарным ошибкам округления float, но toDecimalPlaces(2) на всякий случай
-// нормализует значение перед разбиением на разряды.
 export function splitRublesAndKopecks(value: Prisma.Decimal): { rubles: number; kopecksText: string } {
   const normalized = value.toDecimalPlaces(2);
   const rubles = Math.trunc(normalized.toNumber());

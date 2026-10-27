@@ -13,12 +13,8 @@ import {
 
 const DEFAULT_BASE_URL = 'https://fiscalization.evotor.ru';
 const REQUEST_TIMEOUT_MS = 15_000;
-// Токен живёт 24ч на стороне сервиса (см. "Получение токена" в документации Эвотор) —
-// перезапрашиваем чуть раньше, с запасом, а не ровно по истечении.
 const TOKEN_TTL_MS = 23 * 60 * 60_000;
 
-// payment_object=10, НДС "без обложения" — по прямой просьбе (2026-08-25), см. ту же
-// заметку в gazprombank-acquiring.provider.ts.
 const PAYMENT_OBJECT = 10;
 
 interface GetTokenResponse {
@@ -48,10 +44,6 @@ function formatTimestamp(date: Date): string {
   return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
-// Единственная реализация FiscalProvider — Цифровая касса Эвотор (коннектор АТОЛ Онлайн,
-// https://docs.evotor.online). Скелет по документации, ни разу не выполнялся против
-// реального сервиса (нет боевого логина/пароля/group_code) — сверить с логами первого
-// же вызова, когда реквизиты появятся.
 @Injectable()
 export class AtolFiscalProvider implements FiscalProvider {
   private readonly logger = new Logger(AtolFiscalProvider.name);
@@ -167,9 +159,6 @@ export class AtolFiscalProvider implements FiscalProvider {
     if (data.status === 'wait') return { state: 'WAIT', raw: data };
     if (data.status === 'fail') return { state: 'FAIL', raw: data, failureReason: data.error?.text };
 
-    // done — ofd_receipt_url отдаётся не всегда (см. документацию), собираем ссылку
-    // на просмотр чека сами из fn/fp/i по тому же шаблону, что и прислали в задаче:
-    // https://lk.platformaofd.ru/web/noauth/cheque/search?fn=...&fp=...&i=...
     const payload = data.payload;
     const receiptUrl =
       payload?.ofd_receipt_url ??

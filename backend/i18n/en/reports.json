@@ -32,7 +32,7 @@
     "colFullName": "Full name",
     "colRoom": "Room",
     "colStatus": "Status",
-    "colCreatedAt": "Created",
+    "colContractDate": "Contract date",
     "colAccrued": "Accrued",
     "colPaid": "Paid",
     "colPenalty": "Penalty",

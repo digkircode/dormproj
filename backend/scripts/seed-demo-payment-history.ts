@@ -1,15 +1,4 @@
-// Одноразовый seed для презентации функционала "Онлайн-оплата" — заполняет "Историю
-// оплат" (/student/payment) правдоподобными записями PaymentIntent для конкретного
-// демо-аккаунта (users.id=818), т.к. в проекте нет ни живой оплаты (эквайринг без
-// реквизитов), ни импорта платежей из 1С. Идемпотентно: если у договора уже есть
-// PaymentIntent — ничего не делает, если не передан --force (тогда пересоздаёт).
-// Не для повторного использования — конкретный демо-аккаунт и сценарий зашиты внутри.
-//
-// Запуск (из backend/): npx ts-node -r tsconfig-paths/register scripts/seed-demo-payment-history.ts [--force]
 
-// Голый ts-node не умеет резолвить nodenext-стиль импортов Prisma-клиента (.js-specifier
-// на самом деле .ts-файл) рекурсивно по всему дереву — поэтому запускать этот скрипт
-// нужно СКОМПИЛИРОВАННЫМ: `npm run build`, затем `node dist/scripts/seed-demo-payment-history.js`.
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient, Prisma } from '../generated/prisma/client.js';
@@ -61,9 +50,6 @@ async function main() {
 
   const terms = contract.terms[0];
   const monthlyAmount = terms ? Number(terms.rentAmount) + Number(terms.utilitiesAmount) : 0;
-  // Полностью посуточный договор (см. DormProjPrompt.md "Полностью посуточные договоры") —
-  // rentAmount/utilitiesAmount всегда 0, месячной суммы не существует — берём условную
-  // сумму от суточной ставки только для правдоподобия демо-цифр.
   const fallbackAmount = terms ? Number(terms.dailyRateAmount) * 30 : 5000;
   const baseAmount = monthlyAmount > 0 ? monthlyAmount : fallbackAmount;
 
@@ -97,9 +83,6 @@ async function main() {
       createdAt: monthsAgo(1),
       updatedAt: monthsAgo(1),
     },
-    // Пеня — отдельным платежом (бизнес-правило: не совмещается с оплатой начисления),
-    // тот же принцип, что в my-payments.controller.ts#createIntent — includePenalty
-    // допустим, только когда открытых начислений уже не осталось.
     {
       contractId: contract.id,
       amount: new Decimal(87.4),

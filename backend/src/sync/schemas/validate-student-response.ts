@@ -4,9 +4,6 @@ import {
   type StudentApiRecord,
 } from './student-api-record.schema';
 
-// Если провалилось больше этой доли записей — считаем, что источник поменял формат
-// ответа, а не что попалась пара битых записей. В этом случае лучше прервать
-// синхронизацию целиком, чем молча закинуть в базу мусор или почти пустой список.
 const MAX_INVALID_RATIO = 0.1;
 
 export class StudentApiFormatError extends Error {}

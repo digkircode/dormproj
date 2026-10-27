@@ -14,9 +14,6 @@ function parseId(idParam: string): number {
   return id;
 }
 
-// Лента объявлений для проживающего (ResidentHomeDashboard.vue) — видна ВСЕМ с ролью
-// RESIDENT без таргетинга (не как рассылка в чате с фильтрами по этажу/корпусу — по
-// прямой просьбе пользователя 2026-08-30, "у всех проживающих").
 @Controller('my-announcements')
 @UseGuards(AuthGuard, RolesGuard)
 @Roles('RESIDENT')
@@ -30,8 +27,6 @@ export class MyAnnouncementsController {
     }
     const userId = req.user.id;
     const [rows, reads] = await Promise.all([
-      // updatedAt, не createdAt (по прямой просьбе 2026-08-30, тот же принцип, что и в
-      // AnnouncementsController#list) — отредактированное объявление всплывает наверх.
       this.prisma.announcement.findMany({ orderBy: { updatedAt: 'desc' } }),
       this.prisma.announcementRead.findMany({ where: { userId }, select: { announcementId: true, readAt: true } }),
     ]);
@@ -45,17 +40,11 @@ export class MyAnnouncementsController {
         body: row.body,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
-        // Отредактированное после последнего прочтения объявление снова непрочитано —
-        // readAt сравнивается с updatedAt, не с createdAt (см. схему/AnnouncementsController#update).
         unread: !readAt || readAt < row.updatedAt,
       };
     });
   }
 
-  // Отмечается кликом по конкретному объявлению (открытием модалки на фронте), НЕ
-  // автоматически при загрузке списка выше — в отличие от GET /my-chat, где открытие
-  // диалога само по себе и есть прочтение. Здесь на одной "Главной" сразу несколько
-  // объявлений, открыть модалку с текстом — осознанное действие по каждому отдельно.
   @Post(':id/read')
   async markRead(@Param('id') idParam: string, @Req() req: Request) {
     if (!req.user) {

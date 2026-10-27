@@ -56,11 +56,6 @@ async function load() {
 
 onMounted(load)
 
-// --- Перетаскивание строк мышью (vue-draggable-plus, обёртка над SortableJS —
-// плавная FLIP-анимация перестановки вместо резких прыжков нативного HTML5 DnD).
-// Порядок меняется оптимистично (v-model на definitions), при ошибке сохранения
-// откатывается перезагрузкой с сервера. Перетаскивать можно только за ручку
-// (handle=".drag-handle"), не за всю строку — иначе конфликтует с кликом по меню действий.
 const reorderError = ref('')
 
 async function onDragEnd() {
@@ -73,14 +68,6 @@ async function onDragEnd() {
   }
 }
 
-// force-fallback обязателен — без него нативный HTML5 DnD браузера сам решает, как
-// рисовать курсор/drag-image (значок "копирования", задвоенный снимок строки поверх
-// ghost-плейсхолдера) — контролировать это кросс-браузерно нельзя. Но fallback-клон —
-// это cloneNode() исходного <tr>, а <td> внутри него без явной inline-width рендерятся
-// не по table-layout: fixed колонкам исходной таблицы, а по своему контенту — отсюда
-// был "прыжок" ширины строки. Снимаем текущую ширину каждой ячейки в px на choose и
-// снимаем инлайн-стиль обратно на unchoose — клон наследует те же px через cloneNode
-// и колонки больше не скачут.
 function freezeRowCellWidths(evt: DraggableEvent) {
   const row = evt.item as unknown as HTMLTableRowElement
   for (const cell of Array.from(row.cells)) {
@@ -94,13 +81,6 @@ function unfreezeRowCellWidths(evt: DraggableEvent) {
   }
 }
 
-// Sortable (fallback-режим) двигает плавающий клон через `transform: matrix(...)`,
-// где 5-й/6-й компоненты — сдвиг по X/Y от точки захвата, обновляется на каждый
-// mousemove/touchmove на document. Своей listener на choose добавляем ПОСЛЕ
-// внутреннего (он навешивается раньше, до эмита события choose, см. библиотеку) —
-// значит наш обработчик всегда отрабатывает следующим в том же событии и может
-// поверх переписать transform, обнулив X и оставив Y как есть: визуально драг
-// становится строго вертикальным, без "прыжков в сторону" от неровной руки.
 let verticalDragLockHandler: (() => void) | null = null
 
 function lockDragToVertical() {
@@ -121,16 +101,12 @@ function unlockDragVertical() {
   verticalDragLockHandler = null
 }
 
-// --- Создание/редактирование ---
 const isDialogOpen = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
 const editingId = ref<number | null>(null)
 const formName = ref('')
 const formValueType = ref<CharacteristicValueType>('TEXT')
 const formUnit = ref('')
-// Закрытый список значений (только для TEXT) — вводится через запятую, как самый
-// простой вариант редактирования короткого списка (2-5 значений типа "Новый, Старый"),
-// не отдельный чиповый редактор — не оправдан для такого объёма.
 const formOptions = ref('')
 const dialogError = ref('')
 const isSaving = ref(false)
@@ -196,7 +172,6 @@ async function submitDialog() {
   }
 }
 
-// --- Удаление (с подтверждением) ---
 const deleteTarget = ref<RoomCharacteristicDefinition | null>(null)
 const isDeleting = ref(false)
 const deleteError = ref('')
@@ -248,12 +223,6 @@ async function confirmDelete() {
     <p v-if="deleteError" class="text-sm text-red-500">{{ deleteError }}</p>
 
     <Card class="min-w-0 gap-0 py-0">
-      <!-- [transform:translateZ(0)] — не визуальный эффект (нулевой сдвиг), а способ сделать
-           этот div containing block для потомков с position: fixed (по спецификации CSS —
-           только у предка с transform/filter/perspective position: fixed считается уже не от
-           viewport, а от него). Плавающий клон драга (force-fallback, см. ниже) — как раз
-           position: fixed, поэтому вместе с overflow-hidden это визуально не даёт вынести его
-           за границы таблицы вверх/вниз, куда бы ни укатилась мышь. -->
       <div class="overflow-hidden rounded-lg border [transform:translateZ(0)]">
         <TableSkeleton v-if="isLoading" :columns="4" :rows="7" :bordered="false" class="min-h-80" />
         <p v-else-if="!definitions.length" class="p-6 text-sm text-muted-foreground">{{ t('rooms.definitions.noneYet') }}</p>
@@ -281,12 +250,6 @@ async function confirmDelete() {
             @unchoose="(evt: DraggableEvent) => { unfreezeRowCellWidths(evt); unlockDragVertical() }"
             @end="onDragEnd"
           >
-            <!-- Ручка и название — одна ячейка, не две с общей границей: расстояние между
-                 иконкой и текстом задаёт только gap-1.5 у внутреннего flex, не зависит от
-                 padding соседних table-колонок — так гарантированно "впритык", как в референсе.
-                 Без Tooltip на ручке — всплывала посреди драга (курсор всё это время технически
-                 "наведён" на элемент-триггер), а не только при обычном hover. Иконка
-                 самообъясняющая (cursor-grab), подсказка не нужна. -->
             <TableRow v-for="d in definitions" :key="d.id" class="select-none">
               <TableCell class="border-r border-border">
                 <div class="flex items-center gap-1.5">
@@ -302,9 +265,6 @@ async function confirmDelete() {
               </TableCell>
               <TableCell>{{ d.unit ?? '-' }}</TableCell>
               <TableCell class="py-2 pl-1 pr-3 text-right">
-                <!-- Без Tooltip на самом триггере — вложенность Tooltip+DropdownMenuTrigger
-                     на одной кнопке рискует тем же классом багов с зависающими Reka UI
-                     порталами, что уже ловили на Select/Dialog-в-Dialog, см. CONTEXT_HANDOFF.md. -->
                 <DropdownMenu>
                   <DropdownMenuTrigger as-child>
                     <Button variant="ghost" size="icon" class="size-7">
@@ -395,9 +355,6 @@ async function confirmDelete() {
 </template>
 
 <style scoped>
-/* Плейсхолдер на месте перетаскиваемой строки — пустая заглушка (только фон), не
-   полупрозрачный дубль текста/значений: с dimmed-текстом рядом с плывущим за курсором
-   клоном читалось как "два экземпляра строки одновременно". */
 .sortable-ghost {
   background-color: var(--muted);
 }
@@ -408,10 +365,6 @@ async function confirmDelete() {
   cursor: grabbing;
   user-select: none;
 }
-/* Плывущий за курсором клон — та же подсветка, что hover:bg-muted/50 у обычной строки.
-   Псевдокласс :hover тут не сработает: Sortable ставит клону pointer-events: none (чтобы
-   события мыши долетали до строки под ним, а не до самого клона), а без hit-test'а элемент
-   не может считаться "наведённым" — фон приходится задавать явно. */
 .sortable-drag {
   opacity: 1;
   user-select: none;

@@ -20,8 +20,6 @@ export class ExternalCitizenshipApiService {
     private readonly config: ConfigService<Env, true>,
   ) {}
 
-  // uids — FizicheskoyeLitsoUID из таблицы individuals (кроме isManual), а не полный
-  // список от источника: этот эндпоинт 1С тоже отдаёт данные только по запрошенным UID.
   async fetchCitizenships(uids: string[]): Promise<CitizenshipApiRecord[]> {
     if (uids.length === 0) {
       return [];
@@ -53,8 +51,6 @@ export class ExternalCitizenshipApiService {
             retry({
               count: MAX_ATTEMPTS - 1,
               delay: (error, retryCount) => {
-                // Логируем только message, а не сам error/response — в config axios-ошибки
-                // лежит Authorization-заголовок, и его нельзя писать в лог.
                 this.logger.warn(
                   `Попытка ${retryCount}/${MAX_ATTEMPTS - 1} получить данные гражданства из внешнего API не удалась: ${getErrorMessage(error)}`,
                 );

@@ -12,10 +12,6 @@ import { zodErrorMessage } from '../i18n/zod-error-message';
 
 const createRoleSchema = z.object({ name: z.string().trim().min(1).max(50) });
 
-// Справочник ролей — только ADMIN. Создание новой роли тут не даёт ей автоматически
-// никаких прав — @Roles()/RolesGuard по коду проверяют конкретные строковые ключи
-// ('ADMIN'/'STAFF'/'RESIDENT'), новое имя роли просто ляжет в таблицу без единой
-// проверки на неё нигде в приложении, пока это не допишут отдельно.
 @Controller('roles')
 @UseGuards(AuthGuard, RolesGuard)
 @Roles('ADMIN')

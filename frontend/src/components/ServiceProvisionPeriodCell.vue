@@ -2,10 +2,6 @@
 import { useI18n } from 'vue-i18n'
 import { dateLocaleTag } from '@/lib/format-locale'
 
-// row.isCurrent — самый свежий периодStart среди уже посчитанных документов (см.
-// ServiceProvisionDocuments.vue), не обязательно "прямо сейчас идущий" месяц — это
-// последний ЗАКОНЧИВШИЙСЯ месяц, за который вообще есть подсчёт (тот же месяц, что
-// считает computeAndSave() на бэке по умолчанию).
 defineProps<{ value: unknown; row: { isCurrent: boolean } }>()
 const { t } = useI18n()
 

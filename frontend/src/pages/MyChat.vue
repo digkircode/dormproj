@@ -16,21 +16,12 @@ import { goBack } from '@/lib/utils'
 const router = useRouter()
 const { t } = useI18n()
 
-// Один диалог на аккаунт — "между проживающими чата нет" (см. промпт проекта), поэтому
-// в отличие от Chats.vue здесь нет списка слева, только сама переписка.
 const messages = ref<ChatMessage[]>([])
 const hasMoreOlder = ref(false)
 const isLoadingOlder = ref(false)
 const isLoading = ref(true)
 const loadError = ref('')
-// Шапка — та же информация и тот же вид, что у сотрудника в Chats.vue (договор/комната),
-// плюс часы работы администрации (по прямой просьбе — статика, тот же текст, что и на
-// "Общая информация", см. StudentGeneralInfo.vue).
 const residentInfo = ref<MyResidentInfo | null>(null)
-// Пока не известно, что первая загрузка прошла успешно — SSE не открываем (см.
-// useChatStream): аккаунт может быть не привязан к физлицу (например тестовый ADMIN,
-// которому вручную выдали роль RESIDENT без Individual) — тогда /my-chat/stream
-// вечно отвечал бы 400, и без этого флага страница держала бы бесконечный ретрай.
 const streamEnabled = ref(false)
 
 async function load() {
@@ -41,8 +32,6 @@ async function load() {
     hasMoreOlder.value = chat.hasMore
     residentInfo.value = info
     streamEnabled.value = true
-    // Открытие страницы = прочтение (fetchMyChat() уже бампнул residentLastReadAt на
-    // бэке) — сбрасываем бейджик в сайдбаре сразу, не дожидаясь следующего SSE-события.
     hasUnreadResidentChat.value = false
     residentUnreadCount.value = 0
   } catch (error) {
@@ -52,9 +41,6 @@ async function load() {
   }
 }
 
-// Подгрузка истории по скроллу вверх — курсор от самого старого уже загруженного
-// сообщения, не бампает residentLastReadAt (см. my-chat.controller.ts — только первая
-// страница, before не задан).
 async function loadOlderMessages() {
   if (!hasMoreOlder.value || isLoadingOlder.value) return
   const oldestId = messages.value[0]?.id
@@ -69,12 +55,6 @@ async function loadOlderMessages() {
   }
 }
 
-// id только что отправленных нами сообщений, ещё не подтверждённых своим же эхом по SSE
-// (см. useChatStream ниже) — /my-chat/stream шлёт резиденту эхо и его собственной
-// отправки тоже (фильтр там только по individualUid, тот совпадает с самим собой).
-// Раньше по этому эху SSE-обработчик параллельно с onSend() запускал ЕЩЁ ОДИН
-// fetchMyChat того же диалога — гонка двух почти одновременных фетчей одного и того же
-// (поймано на "дважды отправляется" на стороне сотрудника, тот же класс гонки и здесь).
 const pendingSelfSentIds = new Set<number>()
 
 async function onSend(body: string, files: File[]) {
@@ -84,11 +64,6 @@ async function onSend(body: string, files: File[]) {
   messages.value = appendNewMessages(messages.value, chat.messages)
 }
 
-// ЧУЖОЕ SSE-событие (сообщение от сотрудника, либо факт прочтения — см. промпт проекта) —
-// только новые/обновлённые поля (не полный load(), тот заменил бы весь массив и стёр уже
-// подгруженную по пагинации историю, см. appendNewMessages). fetchMyChat() без before
-// бампает residentLastReadAt при каждом вызове — резидент уже смотрит на экран, это
-// корректно и здесь.
 useChatStream(
   '/my-chat/stream',
   async (event: ChatStreamEvent) => {
@@ -110,8 +85,18 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisible))
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-4 p-3 sm:p-4 md:p-6">
-    <div class="flex items-center gap-2">
+  <div class="flex h-[100dvh] min-w-0 shrink-0 flex-col gap-3 p-3 sm:p-4 md:h-full md:min-h-0 md:flex-1 md:shrink md:gap-4 md:p-6">
+    <div class="flex shrink-0 items-center gap-2 md:hidden">
+      <Button variant="outline" size="icon" class="size-10 shrink-0 rounded-full bg-card shadow-sm" @click="goBack(router, '/')">
+        <ArrowLeft class="size-4 text-primary" />
+        <span class="sr-only">{{ t('chat.back') }}</span>
+      </Button>
+      <span class="flex min-w-0 items-center gap-2 rounded-full border bg-card px-3 py-2 text-xs text-muted-foreground shadow-sm">
+        <Clock class="size-4 shrink-0 text-primary" />
+        <span class="whitespace-nowrap">{{ t('chat.resident.officeHoursShort') }}</span>
+      </span>
+    </div>
+    <div class="hidden items-center gap-2 md:flex">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
         <span class="sr-only">{{ t('chat.back') }}</span>
@@ -122,17 +107,7 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisible))
       <ChatThreadSkeleton v-if="isLoading" header />
       <p v-else-if="loadError" class="m-auto max-w-md text-center text-sm text-red-500">{{ loadError }}</p>
       <template v-else>
-        <!-- Та же строка/ширина, что в шапке диалога у сотрудника (Chats.vue) — плюс
-             часы работы администрации (по прямой просьбе). -->
-        <div class="flex shrink-0 flex-wrap items-center gap-2 border-b p-3 text-sm text-muted-foreground sm:gap-4">
-          <!-- Кликабельно только когда договор есть — ведёт на свою же страницу
-               "Информация о договоре" (см. router/index.ts: /student/contract, доступна
-               той же роли RESIDENT, что и сам чат, без :id — "чужой по ссылке" не
-               посмотреть, см. my-contract.controller.ts). -->
-          <!-- hidden md:flex — на телефоне номер договора/комната убраны из шапки чата (по
-               прямой просьбе 2026-08-28: занимали место в узкой строке, сам договор/комната
-               и так доступны со страницы "Информация о договоре"/на карточке договора) —
-               с планшета и выше показываются как раньше. -->
+        <div class="hidden shrink-0 flex-wrap items-center gap-2 border-b p-3 text-sm text-muted-foreground md:flex md:gap-4">
           <RouterLink
             v-if="residentInfo?.contractNumber"
             to="/student/contract"

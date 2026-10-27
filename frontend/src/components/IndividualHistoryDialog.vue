@@ -24,9 +24,6 @@ const ACTION_ICON_CLASS: Record<string, string> = {
   DELETE: 'text-red-500',
 }
 
-// Те же имена полей, что в AUDITED_INDIVIDUAL_FIELDS/AUDITED_INDIVIDUAL_UPDATE_FIELDS на
-// бэкенде (individuals.controller.ts) — иначе они показывались бы как есть по-английски
-// (см. известное упрощение в /audit-log, здесь решили сразу сделать по-русски).
 const FIELD_LABELS = computed<Record<string, string>>(() => ({
   fullName: t('individuals.history.fieldFullName'),
   surname: t('individuals.history.fieldSurname'),
@@ -55,8 +52,6 @@ const isOpen = ref(false)
 const isLoading = ref(false)
 const loadError = ref('')
 const entries = ref<IndividualAuditLogEntry[]>([])
-// Таблица изменений по умолчанию свёрнута (по прямой просьбе) — раскрывается по клику
-// на саму запись, id записи в наборе = раскрыта. Сбрасывается при каждом открытии диалога.
 const expandedIds = ref<Set<number>>(new Set())
 let historyRequest = 0
 

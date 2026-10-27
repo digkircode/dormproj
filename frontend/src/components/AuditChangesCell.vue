@@ -104,8 +104,6 @@ function fieldLabel(field: string): string {
 function formatOperation(value: string): string {
   if (value === 'PENALTY_RECALC_NO_CHANGE') return t('audit.penaltyRecalculationNoChange')
   if (value === 'PENALTY_TERMINATION_RECALC_NO_CHANGE') return t('audit.penaltyTerminationRecalculationNoChange')
-  // В старых записях нет признака полного совпадения дневного журнала. Когда
-  // отсутствуют изменения суммы и числа строк, можно утверждать только это.
   if (value === 'Ручной пересчёт пени'
     && !('_penaltyRowsCount' in (props.row.changes ?? {}))
     && !('_penaltyTotal' in (props.row.changes ?? {}))) {
@@ -159,7 +157,6 @@ function formatValue(value: unknown, field: string): string {
   if (field === '_penaltyTotal' && typeof value === 'number') {
     return `${new Intl.NumberFormat(dateLocaleTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)} ₽`
   }
-  // ISO-строка (дата/дата-время) — те же паттерны, что и во всём приложении.
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(T|$)/.test(value)) {
     const date = new Date(value)
     return date.toLocaleDateString(dateLocaleTag())

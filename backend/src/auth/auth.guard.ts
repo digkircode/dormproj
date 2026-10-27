@@ -24,16 +24,6 @@ export class AuthGuard implements CanActivate {
     } catch {
       throw new UnauthorizedException('auth.sessionExpired');
     }
-    // Роли — больше НЕ снимок из JWT (2026-08-24, по прямой просьбе, закрывает известную
-    // проблему проекта "роль применяется только после перелогина/до 24ч") — живой SELECT
-    // на каждый запрос, тот же приём, что и при логине (см. fetchUserRoles). JWT из куки
-    // по-прежнему несёт roles на момент подписи (auth.controller.ts#callback), но это
-    // значение больше нигде не читается для авторизации — только identity (id/email/ФИО)
-    // из токена остаётся достоверным без пересчёта. RolesGuard ничего не знает про эту
-    // подмену, читает request.user.roles как раньше. Один лишний SELECT на каждый
-    // авторизованный запрос — при масштабе проекта (внутренний инструмент) не требует
-    // кеша; если нагрузка когда-то вырастет — см. вариант с версией ролей, обсуждали и
-    // сознательно не стали делать сразу.
     const roles = await fetchUserRoles(this.prisma, sessionUser.id);
     request.user = { ...sessionUser, roles };
     return true;

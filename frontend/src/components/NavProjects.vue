@@ -36,9 +36,6 @@ const { t } = useI18n()
 const { state, isMobile, setOpen } = useSidebar()
 const openGroups = reactive<Record<string, boolean>>({})
 
-// Свёрнутый (иконочный) сайдбар прячет CollapsibleContent целиком — тоггл открытости
-// группы там визуально ничего не даёт, выглядит как "кнопка не работает". В этом
-// состоянии клик по группе должен разворачивать сам сайдбар, а не открывать группу.
 function handleGroupClick(name: string, isActive?: boolean) {
   if (state.value === 'collapsed' && !isMobile.value) {
     setOpen(true)

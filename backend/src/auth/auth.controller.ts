@@ -31,14 +31,6 @@ export class AuthController {
     private readonly prisma: PrismaService,
   ) {}
 
-  // Автопрописка/обновление users при каждом логине — без своего UI (см. известные
-  // проблемы проекта), но именно это и есть точка входа под будущую users_roles:
-  // если строки с этим id ещё нет, роли назначить некому. email/fullName берём из
-  // фолбека rosnou-id (SessionUser) — другого источника личных данных сотрудника
-  // (не физлица из 1С) в проекте нет. Ошибку апсёрта не даём завалить сам логин —
-  // это вспомогательная прописка, не критичный для входа шаг. fullName обновляется
-  // тоже (не только email) — по прямой просьбе 2026-08-23, раньше при смене ФИО на
-  // стороне rosnou-id запись в users так и оставалась со старым именем навсегда.
   private async upsertUser(sessionUser: Omit<SessionUser, 'roles'>): Promise<void> {
     try {
       await this.prisma.user.upsert({
@@ -46,21 +38,12 @@ export class AuthController {
         create: { id: sessionUser.id, fullName: sessionUser.fullName, email: sessionUser.email },
         update: { fullName: sessionUser.fullName, email: sessionUser.email },
       });
-        // Роль "Проживающий" пересчитывается по договорам для залогинившегося;
-        // массовый пересчёт выполняет отдельная синхронизация ролей.
-      // Не должна ронять логин при сбое — тот же принцип, что у апсёрта выше.
       await syncResidentRoles(this.prisma, { userId: sessionUser.id });
     } catch (error) {
       this.logger.error(`Не удалось прописать/обновить users при логине (id=${sessionUser.id})`, error instanceof Error ? error.stack : error);
     }
   }
 
-  // Роли на момент логина — кладутся в JWT (см. types.ts) для истории/фолбэка, но
-  // с 2026-08-24 это уже не единственный источник: AuthGuard на каждом следующем запросе
-  // перечитывает роли живьём из БД тем же fetchUserRoles (см. auth.guard.ts) — то,
-  // что здесь, влияет только на самый первый ответ сразу после логина. Ошибку тоже не
-  // даём завалить логин — просто человек временно останется без ролей до следующего
-  // успешного запроса (тот уже пойдёт через живую проверку в AuthGuard).
   private async fetchRoles(userId: number): Promise<RoleName[]> {
     try {
       return await fetchUserRoles(this.prisma, userId);
@@ -108,10 +91,6 @@ export class AuthController {
     return req.user;
   }
 
-  // Чистим только куку dormproj недостаточно — сессия на rosnou-id остаётся живой,
-  // и следующий /auth/rosnou/login тут же залогинит обратно без формы входа (уже
-  // одобренный клиент + активная сессия там). rosnou-id сам даёт для этого выход
-  // с редиректом обратно (см. routes/web.php: logout-portal).
   @Get('rosnou/logout')
   async logout(@Req() req: Request, @Res() res: Response): Promise<void> {
     await this.sessions.revoke(req.cookies?.[SESSION_COOKIE_NAME]);

@@ -48,12 +48,6 @@ export class SyncService {
     try {
       const records = await this.externalApi.fetchActiveStudents();
 
-      // Полная очистка + перезапись вместо построчного upsert/diff — источник всегда
-      // отдаёт полный список активных студентов, поэтому промежуточное состояние
-      // (кто добавился/обновился) не нужно, а bulk-запись быстрее N апсертов.
-      // Guard от аномального падения количества остаётся: если пришло заметно меньше,
-      // чем сейчас в базе, это больше похоже на сбой источника, чем на массовое
-      // отчисление — прерываем транзакцию без удаления данных.
       const { added, removed } = await this.prisma.$transaction(
         async (tx) => {
           const existingCount = await tx.student.count();
@@ -125,19 +119,6 @@ export class SyncService {
     }
   }
 
-  // Точечная синхронизация одного физлица (кнопка на карточке) — без guard'а от
-  // падения количества (тот защищает полный слепок; здесь 0 записей у человека,
-  // переставшего быть активным студентом, — легитимный исход, а не сбой источника).
-  // Отдельного SyncLog не пишет — это шаг общего лога, который ведёт IndividualSyncService.
-  //
-  // Держит ТОТ ЖЕ лок SYNC_TYPE_STUDENTS, что и runSync() — раньше не держала вообще
-  // (только внешний SYNC_TYPE_INDIVIDUAL у IndividualSyncService, который синка студентов
-  // никак не защищает), из-за чего ночной крон (runSync) и точечный синк с карточки могли
-  // одновременно писать в таблицу student: либо точечный синк молча перезатирался полным
-  // слепком, либо оба upsert'а сталкивались на уникальном ключе необработанной 500-кой
-  // (см. известную проблему в промпте проекта, исправлено 2026-08-28). Теперь при коллизии
-  // точечный синк просто получает SyncAlreadyRunningError → 409 с понятным сообщением
-  // (см. individuals.controller.ts#sync), вместо порчи данных/500.
   async syncOne(uid: string): Promise<{ fetchedCount: number; added: number; removed: number; records: unknown[] }> {
     await this.acquireLock();
     try {
@@ -200,8 +181,6 @@ export class SyncService {
           data: { type: SYNC_TYPE_STUDENTS },
         });
       } catch (raceError) {
-        // Ещё один процесс мог перехватить зависший лок в этот же момент — тогда
-        // это уже не наша синхронизация, а обычный "уже выполняется".
         if (
           raceError instanceof Prisma.PrismaClientKnownRequestError &&
           raceError.code === 'P2002'

@@ -47,9 +47,6 @@ interface StoredServiceProvisionDetail {
   MissingMappings: ('CONTRACTOR' | 'CONTRACT')[];
 }
 
-// The accrual already contains the charge for the whole period (including any
-// daily-rate calculation and termination adjustment). Only split that total
-// between the two service documents; never multiply the daily rate again.
 export function splitServiceProvisionTotal(
   total: Prisma.Decimal,
   monthlyUtilities: Prisma.Decimal,
@@ -64,17 +61,6 @@ export function splitServiceProvisionTotal(
   return { rent: total.minus(utilities), utilities };
 }
 
-// Флоу 3 (см. промпт проекта) — собирает три сводных документа за календарный месяц:
-// "Найм" и "Коммуналка" — по всем договорам, у которых есть
-// неотменённое начисление за этот месяц (см. collectContractLines — статус договора
-// намеренно не смотрим, см. комментарий там), независимо от того, оплачены начисления
-// или нет. "Пени" — по журналу фактических начислений за дни этого месяца.
-// Все три типа отправляются через ServProvisionDoc.
-//
-// Документ на сайте строится по нашим начислениям и включает договоры независимо от
-// наличия связки с 1С. Отсутствующие ContractorUID/ContractUID сохраняются в детализации
-// как явная несопоставленная строка. Отправлять такой документ частично нельзя: итоговая
-// сумма разошлась бы с детализацией, поэтому он ждёт сопоставления всех строк.
 @Injectable()
 export class ServiceProvisionDocService {
   private readonly logger = new Logger(ServiceProvisionDocService.name);
@@ -84,19 +70,6 @@ export class ServiceProvisionDocService {
     @Inject(ACCOUNTING_1C_PROVIDER) private readonly provider: Accounting1cProvider,
   ) {}
 
-  // НЕ фильтруем по Contract.status (ACTIVE/EXPIRING/OVERDUE/...) — по прямой просьбе
-  // 2026-09-04 обсуждали именно так, но при повторной проверке выяснилось: этот крон
-  // запускается 1-го числа В 03:00, УЖЕ ПОСЛЕ ночного contract-status.scheduler.ts (01:30) —
-  // то есть у любого договора, чей срок закончился ровно в только что прошедшем месяце
-  // (обычный, самый частый случай — конец учебного года и т.п.), статус к этому моменту
-  // уже COMPLETED, а не ACTIVE. Фильтр по статусу СИСТЕМАТИЧЕСКИ вырезал бы из документа
-  // ИМЕННО последний, самый важный месяц проживания у каждого завершившегося договора.
-  // Начисление (Accrual) — куда более надёжный сигнал "комната реально занималась этот
-  // месяц": оно генерируется один раз на весь срок при создании договора и не переоценивается
-  // по статусу задним числом; при досрочном расторжении voidedAt снимает только БУДУЩИЕ
-  // периоды, а начисление на месяц самого расторжения не воидится, а пересчитывается
-  // (adjustmentAmount) — см. termination.ts. Поэтому фильтруем прямо по наличию
-  // неотменённого начисления за целевой месяц, статус договора вообще не смотрим.
   private async collectContractLines(monthStart: Date, nextMonthStart: Date): Promise<ContractLine[]> {
     const [contracts, dormitoryInfo] = await Promise.all([
       this.prisma.contract.findMany({
@@ -127,9 +100,6 @@ export class ServiceProvisionDocService {
     const lines: ContractLine[] = [];
     for (const contract of contracts) {
       if (contract.accruals.length === 0) continue;
-      // One line per contract and month. The accrual is the source of the total
-      // even for partial/daily periods and early termination; its existing split
-      // can be proportional and is not the split required by these documents.
       const total = contract.accruals.reduce(
         (sum, accrual) => sum.plus(accrual.rentAmount).plus(accrual.utilitiesAmount).plus(accrual.adjustmentAmount),
         new Decimal(0),
@@ -137,9 +107,6 @@ export class ServiceProvisionDocService {
       const firstPeriod = contract.accruals[0];
       const terms = contract.terms.find((item) => item.validFrom <= firstPeriod.periodStart
         && (item.validTo === null || item.validTo > firstPeriod.periodStart));
-      // New contracts have a fixed utilities amount in their terms. Older
-      // contracts and daily-only rooms have zero there, so use the dormitory
-      // setting, as the printed contract already does for legacy contracts.
       const monthlyUtilities = terms?.utilitiesAmount.greaterThan(0)
         ? terms.utilitiesAmount
         : dormitoryInfo?.communalServicesCost;
@@ -235,9 +202,6 @@ export class ServiceProvisionDocService {
     return { details, total };
   }
 
-  // Документ всегда ограничен полуинтервалом [первое число месяца; первое число
-  // следующего месяца). Поэтому ручной пересчёт августа после создания сентябрьских
-  // документов не может захватить ни одно сентябрьское начисление.
   async computeAndSave(
     targetMonth: Date = new Date(),
     requestedTypes: ServiceProvisionType[] = ['RENT', 'UTILITIES', 'PENALTY'],
@@ -349,9 +313,6 @@ export class ServiceProvisionDocService {
     };
   }
 
-  // Отправляет ровно выбранные сохранённые документы и не пересчитывает их скрыто.
-  // Это позволяет повторно отправить август после появления сентябрьских строк, не
-  // затронув сентябрь, и делает GET списка полностью read-only.
   async sendDocuments(ids: number[]): Promise<{ pushed: number; succeeded: number; failed: number; blocked: number; skipped: boolean }> {
     const uniqueIds = [...new Set(ids)];
     const rows = await this.prisma.serviceProvisionDocument.findMany({
@@ -379,9 +340,6 @@ export class ServiceProvisionDocService {
       results = await this.provider.pushServiceProvisionDocs(items);
     } catch (error) {
       if (error instanceof Accounting1cNotConfiguredError) return { pushed: 0, succeeded: 0, failed: 0, blocked, skipped: true };
-      // Сеть/сервис недоступны целиком — статусы строк не трогаем (остаются в прежнем
-      // состоянии — NOT_SYNCED при первой попытке, или прежний статус при повторе),
-      // следующий автоматический прогон (или ручной повтор) попробует заново.
       this.logger.error(`Не удалось отправить документы "оказание услуг" в 1С: ${getErrorMessage(error)}`);
       return { pushed: items.length, succeeded: 0, failed: 0, blocked, skipped: false };
     }
@@ -428,8 +386,6 @@ export class ServiceProvisionDocService {
     return this.sendDocuments(documents.map((document) => document.id));
   }
 
-  // Финальный автоматический прогон: пересчитывает и отправляет только документы
-  // переданного месяца. По умолчанию это текущий календарный месяц.
   async run(targetMonth: Date = new Date()): Promise<{ pushed: number; succeeded: number; failed: number; blocked: number; skipped: boolean }> {
     const { documentIds } = await this.computeAndSave(targetMonth);
     return this.sendDocuments(documentIds);

@@ -4,7 +4,6 @@ import {
   type CitizenshipApiRecord,
 } from './citizenship-api-record.schema';
 
-// Тот же порог, что у студентов/физлиц (см. sync/schemas/validate-student-response.ts).
 const MAX_INVALID_RATIO = 0.1;
 
 export class CitizenshipApiFormatError extends Error {}

@@ -28,8 +28,6 @@ const columnLabels = computed<Record<string, string>>(() => ({
   zachetnayaKnigaUid: t('individuals.systemTables.students.colZachetnayaKnigaUid'),
   fizicheskoyeLitsoUid: t('individuals.systemTables.colUid'),
 }))
-// ФИО/зачётка/группа — почти уникальны на строку, для мультивыбора не годятся.
-// UID-поля — технические, для фильтра-мультивыбора бессмысленны в принципе.
 const NON_FILTERABLE_FIELDS = new Set([
   'fullName',
   'zachetnayaKniga',
@@ -40,8 +38,6 @@ const NON_FILTERABLE_FIELDS = new Set([
 const filterableFields = Object.keys(columnLabels.value).filter((f) => !NON_FILTERABLE_FIELDS.has(f))
 const hiddenByDefault = ['zachetnayaKnigaUid', 'fizicheskoyeLitsoUid']
 
-// Текст ячейки — должен совпадать с тем, что реально отрисовано, а не с сырым
-// значением (у profilSpec/dot свой формат), используется и в теле, и в тултипе.
 function cellText(columnId: string, value: unknown): string {
   if (columnId === 'profilSpec') return (value as string | null) || '-'
   if (columnId === 'dot') return value ? t('boolean.yes') : t('boolean.no')

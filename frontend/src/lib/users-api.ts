@@ -22,8 +22,6 @@ export async function fetchUsersFacets(field: string): Promise<FacetOption[]> {
   }))
 }
 
-// Ищет среди ВСЕХ пользователей (не только уже имеющих роль, см. бэкенд) — для
-// диалога выдачи роли: нужно найти в том числе того, у кого роли ещё нет.
 export async function searchUsers(q: string): Promise<UserRow[]> {
   if (!q.trim()) return []
   const response = await apiFetch(`/users/search?q=${encodeURIComponent(q)}`)
@@ -55,8 +53,6 @@ export async function revokeRole(userId: number, roleId: number): Promise<UserRo
   return response.json()
 }
 
-// "Список пользователей" — сырые users+users_roles, ВСЕ строки (не только с ролью,
-// см. бэкенд) — для страницы /users/all, отдельно от "Сотрудники" (UsersStaff.vue).
 export interface AllUsersRow {
   id: number
   bindId: string | null

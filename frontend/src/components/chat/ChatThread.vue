@@ -19,24 +19,11 @@ import {
 import { dateLocaleTag } from '@/lib/format-locale'
 import MediaLightbox from './MediaLightbox.vue'
 
-// Общий для обеих сторон компонент — какая сторона выравнивается вправо ("свои"
-// сообщения), определяет viewerRole, а не жёстко STAFF/RESIDENT. Имя отправителя
-// показывается всегда, над каждым сообщением, независимо от того, чьё оно (по прямому
-// требованию ТЗ) — это позволяет в общем инбоксе сотрудников видеть, кто именно из
-// команды ответил, а не только "Сотрудник".
-// onSend — асинхронная функция, а не emit: emit() не дожидается промиса слушателя,
-// поэтому isSending/очистка черновика не могли бы отражать реальный результат отправки
-// (индикатор гас бы мгновенно, а текст/файлы стирались бы даже при ошибке сети).
 const props = defineProps<{
   messages: ChatMessage[]
   viewerRole: ChatSenderRole
   onSend: (body: string, files: File[]) => Promise<void>
-  // '/chats/attachments' у сотрудников или '/my-chat/attachments' у проживающего —
-  // доступ к файлу проверяется по-разному на бэке (см. chats.controller.ts/my-chat.controller.ts).
   attachmentBasePath: string
-  // Пагинация истории (2026-08-24) — родитель (Chats.vue/MyChat.vue) владеет массивом
-  // messages и знает, есть ли более старая страница; этот компонент только просит
-  // подгрузить её по скроллу вверх, см. loadOlder() ниже.
   hasMoreOlder?: boolean
   onLoadOlder?: () => Promise<void>
   disabled?: boolean
@@ -54,18 +41,8 @@ const scrollEl = ref<HTMLDivElement | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 
-// Оптимистичное сообщение — рисуется сразу при нажатии "Отправить", пока идёт запрос
-// (статус "sending", 1 невзрачная галочка). clientKey/beforeIds — не для отображения, а
-// чтобы потом опознать "то самое" настоящее сообщение среди props.messages и подменить
-// его БЕЗ анимации, см. resolvedKeys/watch ниже. beforeIds — снимок id'шников ДО отправки
-// (не сравнение по времени: часы клиента и сервера не синхронизированы, сравнение
-// createdAt клиента с created сервера в первой версии этого фикса не срабатывало
-// практически никогда — pending так и не находил себе пару, "перезагрузка" оставалась).
 const pending = ref<{ clientKey: string; body: string; hasFiles: boolean; beforeIds: Set<number> } | null>(null)
 let sendSeq = 0
-// messageId -> ключ, под которым это сообщение уже показывалось как pending. Не reactive
-// (обычный Map, не ref) — читается только внутри renderable, который и так пересчитается
-// вместе с обнулением pending.value ниже в том же тике.
 const resolvedKeys = new Map<number, string>()
 
 interface RenderableMessage {
@@ -81,11 +58,6 @@ interface RenderableMessage {
 
 const renderable = computed<RenderableMessage[]>(() => {
   const items: RenderableMessage[] = props.messages.map((m) => ({
-    // Сообщение, которое только что было pending-пузырём — рендерим под ТЕМ ЖЕ ключом,
-    // что и pending (см. resolvedKeys/watch ниже). Иначе TransitionGroup видит смену
-    // ключа 'pending' -> 'm-<id>' как удаление одного элемента и вставку другого — и
-    // проигрывает enter-анимацию (всплытие+масштаб) на настоящем сообщении, хотя оно
-    // визуально должно было просто "проявиться на месте" без скачка.
     key: resolvedKeys.get(m.id) ?? `m-${m.id}`,
     id: m.id,
     body: m.body,
@@ -101,10 +73,6 @@ const renderable = computed<RenderableMessage[]>(() => {
       id: null,
       body: pending.value.body || (pending.value.hasFiles ? t('chat.thread.sendingFile') : ''),
       senderRole: props.viewerRole,
-      // Своё же ФИО — то же самое, что подставит настоящее сообщение после отправки
-      // (senderFullName от сервера будет тем же именем). Раньше здесь была пустая строка,
-      // из-за чего аватарка+подпись отсутствовали у pending-пузыря и "выскакивали" только
-      // у настоящего сообщения — заметный скачок вёрстки при подмене.
       senderFullName: currentUser.value?.fullName ?? '',
       createdAt: new Date().toISOString(),
       attachments: [],
@@ -140,11 +108,6 @@ const groupedByDay = computed(() => {
   return groups
 })
 
-// Снимок "первое непрочитанное лично мной" — считается ОДИН РАЗ при открытии диалога
-// (props.messages на момент создания компонента; т.к. родитель монтирует ChatThread
-// заново на каждый выбранный диалог через :key, это и есть "на момент открытия"), не
-// пересчитывается по ходу сессии — иначе разделитель "прыгал" бы при каждом новом
-// сообщении, которое сам же родитель считает уже прочитанным (see chats.controller.ts).
 const firstUnreadId = ref<number | null>(props.messages.find((m) => m.unreadByMe)?.id ?? null)
 
 function scrollToBottom() {
@@ -153,30 +116,19 @@ function scrollToBottom() {
   })
 }
 
-// При открытии — либо к первому непрочитанному (если есть), либо, как раньше, в самый
-// низ. scrollIntoView сразу без плавной анимации (block:'start') — это открытие
-// диалога, не жест пользователя, дёрганый smooth-скролл тут ни к чему. Цель —
-// САМ разделитель "Новые сообщения" (data-unread-divider), а не сообщение под ним:
-// тот рендерится ПЕРЕД сообщением в разметке, и scrollIntoView по самому сообщению
-// уводил разделитель выше верхней границы видимой области — он существовал, но не был
-// виден при открытии (реальный баг, "точка входа есть, а подписи над ней не видно").
 onMounted(() => {
   nextTick(() => {
     const target =
       scrollEl.value?.querySelector<HTMLElement>('[data-unread-divider]') ??
       (firstUnreadId.value != null ? scrollEl.value?.querySelector<HTMLElement>(`[data-message-id="${firstUnreadId.value}"]`) : null)
-    if (target) {
-      target.scrollIntoView({ block: 'start' })
+    if (target && scrollEl.value) {
+      scrollEl.value.scrollTop += target.getBoundingClientRect().top - scrollEl.value.getBoundingClientRect().top
     } else {
       scrollToBottom()
     }
   })
 })
 
-// Автоскролл вниз при появлении НОВОГО сообщения (не истории сверху, см. isLoadingOlder
-// ниже) — только если пользователь и так был у низа переписки (isNearBottom). Если он
-// отлистал вверх читать историю, новое сообщение снизу не должно дёргать его скролл —
-// вместо этого появляется кнопка "вниз" (см. showScrollToBottomButton).
 watch(
   () => props.messages,
   (next, prev) => {
@@ -186,13 +138,6 @@ watch(
   },
 )
 
-// Убирает оптимистичное сообщение, как только родитель дозагрузил реальный список
-// (messages.length выросло), И одновременно запоминает, под каким ключом настоящее
-// сообщение должно унаследовать вид pending-пузыря (см. resolvedKeys/renderable выше) —
-// это и убирает "скачок как будто перезагрузилось": TransitionGroup видит один и тот же
-// ключ до и после, значит просто патчит содержимое элемента на месте, без enter/leave-
-// анимации. Совпадение — по id, которого не было в beforeIds (снимок ДО отправки) И
-// своей роли (senderRole), а не по времени — сравнение часов клиента/сервера ненадёжно.
 watch(
   () => props.messages.length,
   (next, prev) => {
@@ -204,7 +149,6 @@ watch(
   },
 )
 
-// --- Скролл: подгрузка истории вверх + кнопка "вниз" ---
 const isLoadingOlder = ref(false)
 const isNearBottom = ref(true)
 const NEAR_BOTTOM_THRESHOLD = 120
@@ -219,9 +163,6 @@ async function loadOlder() {
   try {
     await props.onLoadOlder()
     await nextTick()
-    // Подгруженные сверху сообщения увеличили scrollHeight — без коррекции видимая
-    // область визуально "прыгнула" бы вниз на эту разницу. Компенсируем, чтобы то же
-    // сообщение осталось под курсором/взглядом.
     if (el) el.scrollTop = prevScrollTop + (el.scrollHeight - prevScrollHeight)
   } finally {
     isLoadingOlder.value = false
@@ -255,8 +196,6 @@ function attachmentUrl(attachment: ChatAttachment): string {
   return chatAttachmentUrl(props.attachmentBasePath, attachment.id)
 }
 
-// Лайтбокс открывается на файлах конкретного сообщения (не всей переписки сразу) —
-// проще предсказать, что покажут стрелки "вперёд/назад".
 const lightboxOpen = ref(false)
 const lightboxAttachments = ref<ChatAttachment[]>([])
 const lightboxIndex = ref(0)
@@ -266,9 +205,6 @@ function openLightbox(attachments: ChatAttachment[], index: number) {
   lightboxOpen.value = true
 }
 
-// Только для превью В КОМПОЗЕРЕ (см. pendingFiles ниже) — object URL живёт, пока файл
-// не отправлен/не убран, освобождается явно (revokeObjectURL), иначе течёт память при
-// долгой сессии с частым выбором/отменой файлов.
 const objectUrls = new Map<File, string>()
 function previewUrlFor(file: File): string {
   let url = objectUrls.get(file)
@@ -278,13 +214,6 @@ function previewUrlFor(file: File): string {
   }
   return url
 }
-// Ключ для v-for ниже — `file.name + file.size` коллизирует, если один и тот же файл
-// вставлен из буфера дважды подряд (Ctrl+V даёт одинаковое generic-имя вроде "image.png"
-// И одинаковый размер для одного и того же скопированного изображения — в отличие от
-// выбора через системный диалог, тут это совсем не редкий случай). Дубликат ключа ломает
-// диффинг Vue: кнопка "убрать" у одного превью может начать удалять другой файл. Ключ
-// присваивается по ссылке на File (как и objectUrls выше), стабилен, пока сам файл лежит
-// в pendingFiles.
 let nextFileKey = 0
 const fileKeys = new WeakMap<File, number>()
 function keyFor(file: File): number {
@@ -312,8 +241,6 @@ function openFilePicker() {
   fileInputRef.value?.click()
 }
 
-// Общая точка входа для файлов, откуда бы они ни пришли (выбор через диалог, вставка
-// из буфера обмена) — та же валидация количества/типа/размера в обоих случаях.
 function addFiles(selected: File[]) {
   attachError.value = ''
   if (selected.length === 0) return
@@ -345,10 +272,6 @@ function onFilesSelected(event: Event) {
   addFiles(selected)
 }
 
-// Ctrl+V в поле ввода — скриншот/фото/видео из буфера обмена превращается в такое же
-// вложение, как выбранное через "скрепку". Обычная вставка текста (сама текстовая часть
-// clipboardData, если она есть параллельно с файлом) не трогается — preventDefault только
-// когда в буфере реально нашёлся файл, иначе событие идёт своим чередом как обычно.
 function onPaste(event: ClipboardEvent) {
   const items = event.clipboardData?.items
   if (!items) return
@@ -368,8 +291,6 @@ function removePendingFile(file: File) {
   pendingFiles.value = pendingFiles.value.filter((f) => f !== file)
 }
 
-// Растёт вслед за текстом до 8 строк примерно (см. MAX_TEXTAREA_HEIGHT), дальше —
-// внутренний скролл самого поля, не бесконечное разрастание композера.
 const MAX_TEXTAREA_HEIGHT = 160
 function autoGrowTextarea() {
   const el = textareaRef.value
@@ -391,25 +312,15 @@ async function send() {
     hasFiles: files.length > 0,
     beforeIds: new Set(props.messages.map((m) => m.id)),
   }
-  // Очищаем поле сразу, не дожидаясь ответа сервера (как в любом мессенджере) — раньше
-  // текст пропадал только ПОСЛЕ await props.onSend(), а если тот падал уже после
-  // фактической отправки (например на дозагрузке списка диалогов), поле так и оставалось
-  // с уже отправленным текстом.
   draft.value = ''
   for (const file of files) revokePreviewUrl(file)
   pendingFiles.value = []
-  // Своя отправка — всегда к низу, даже если до этого читали историю выше.
   isNearBottom.value = true
   scrollToBottom()
   try {
     await props.onSend(body, files)
-    // pending.value уже обнулён (или вот-вот обнулится) watch'ем на props.messages.length
-    // выше — не трогаем его здесь, иначе снова словим ключ 'pending-N', уже не совпадающий
-    // с тем, что достался настоящему сообщению.
   } catch (error) {
     sendError.value = error instanceof Error ? error.message : String(error)
-    // А вот тут обнулить обязательно — если запрос не долетел, watch никогда не сработает
-    // (messages.length не изменится), пузырь иначе завис бы в "отправляется" навсегда.
     pending.value = null
   } finally {
     isSending.value = false
@@ -428,15 +339,7 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
 
 <template>
   <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-    <!-- relative — якорь для абсолютно спозиционированной кнопки "вниз" внутри именно
-         области сообщений (не всего композера/подвала). -->
     <div class="relative flex min-h-0 flex-1 flex-col">
-      <!-- Лёгкая tint-подложка под primary — по прямой просьбе, полотно переписки не должно
-           сливаться с bg-background/bg-card основного тела сайта. bg-muted тут не годится —
-           "непрочитанные"/"чужие" пузыри и так уже bg-muted (см. ниже), сплошной bg-muted на
-           подложке слил бы их с фоном. Оттенок primary/5 — не соревнуется с серой парой
-           muted/accent/background (см. известную ловушку проекта — они почти неотличимы), а
-           работает и в тёмной теме без отдельного dark:-варианта. -->
       <div ref="scrollEl" class="flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-auto bg-primary/5 p-2 sm:p-4" @scroll="onScroll">
         <div v-if="isLoadingOlder" class="flex items-center gap-2 py-2" role="status" :aria-label="t('entityTable.loading')">
           <Skeleton class="size-10 shrink-0 rounded-full" />
@@ -445,13 +348,6 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
         </div>
         <p v-if="renderable.length === 0" class="m-auto text-sm text-muted-foreground">{{ t('chat.thread.noMessagesYet') }}</p>
 
-        <!-- Обёртка на каждую дату обязательна (не bare <template>) — sticky-заголовок
-             "прилипает" в пределах ближайшего блочного предка, а не просто scroll-контейнера.
-             Без общей обёртки заголовок+сообщения все даты делят один и тот же containing
-             block (сам scrollEl) и несколько прилипших плашек могли встать друг на друга
-             одновременно (реальный баг, поймано на скриншоте — две плашки дат внахлёст).
-             С обёрткой на каждую группу плашка естественно выталкивается началом следующей
-             группы, ровно как задумано. -->
         <div v-for="(group, groupIndex) in groupedByDay" :key="group.label">
           <div class="sticky top-0 z-10 my-3 flex justify-center" :class="groupIndex === 0 ? 'mt-0' : ''">
             <span class="rounded-full border bg-background/95 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur-sm">
@@ -461,8 +357,6 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
 
           <TransitionGroup name="message-pop" tag="div" class="flex flex-col gap-3">
             <template v-for="message in group.items" :key="message.key">
-              <!-- Разделитель "новые сообщения" — перед тем сообщением, что было первым
-                   непрочитанным на момент открытия (см. firstUnreadId, снимок один раз). -->
               <div
                 v-if="firstUnreadId !== null && message.id === firstUnreadId"
                 key="unread-divider"
@@ -476,7 +370,7 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
 
               <div
                 :data-message-id="message.id"
-                class="flex items-end gap-2"
+                class="flex min-w-0 items-end gap-2"
                 :class="message.senderRole === viewerRole ? 'flex-row-reverse' : ''"
               >
                 <Avatar v-if="message.senderFullName" size="sm" :class="avatarColorClasses(message.senderFullName)" class="mb-4 shrink-0">
@@ -484,16 +378,9 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
                 </Avatar>
                 <div v-else class="w-8 shrink-0" />
 
-                <!-- max-w — 85% на узком экране (65% от 375px читалось бы слишком тесно
-                     для многострочных сообщений), обратно к прежним 65% с чуть более
-                     широкого экрана, где это уже не проблема. -->
-                <div class="flex max-w-[85%] flex-col gap-1 sm:max-w-[65%]" :class="message.senderRole === viewerRole ? 'items-end' : 'items-start'">
-                  <span v-if="message.senderFullName" class="px-1 text-xs font-medium text-muted-foreground">{{ shortName(message.senderFullName) }}</span>
+                <div class="flex min-w-0 max-w-[85%] flex-col gap-1 sm:max-w-[65%]" :class="message.senderRole === viewerRole ? 'items-end' : 'items-start'">
+                  <span v-if="message.senderFullName" class="max-w-full truncate px-1 text-xs font-medium text-muted-foreground">{{ shortName(message.senderFullName) }}</span>
 
-                  <!-- Вложения + подпись — единое "облачко" (по прямой просьбе, как в Telegram):
-                       картинка/видео и текст под ней делят одну и ту же ширину контейнера, а не
-                       раздельные пузыри разной ширины (текстовый — по длине текста, вложение — по
-                       своему intrinsic-размеру). -->
                   <div
                     v-if="message.attachments.length"
                     class="w-64 max-w-full overflow-hidden rounded-2xl"
@@ -533,13 +420,7 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
                       </button>
                     </div>
 
-                    <!-- Время/галочки — float-right: контейнер тут ФИКСИРОВАННОЙ ширины (w-64,
-                         под вложение), поэтому короткая подпись с inline-span "сразу после
-                         текста" (как у текстового пузыря ниже, тот сам сжимается по контенту)
-                         оставляла бы время висеть посреди пустой синей полосы, а не у правого
-                         края. float у времени + обычный текст ПОСЛЕ него в разметке — текст
-                         обтекает время, прижимая его к правому краю на своей строке. -->
-                    <div v-if="message.body" class="px-3 pt-2 pb-1.5 text-sm whitespace-pre-wrap">
+                    <div v-if="message.body" class="min-w-0 px-3 pt-2 pb-1.5 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]">
                       <span class="float-right mt-0.5 ml-2 inline-flex items-center gap-0.5 text-[10px] whitespace-nowrap opacity-70">
                         {{ formatTime(message.createdAt) }}
                         <template v-if="message.senderRole === viewerRole">
@@ -562,7 +443,7 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
 
                   <div
                     v-else-if="message.body"
-                    class="min-w-0 break-words rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap"
+                    class="min-w-0 max-w-full rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]"
                     :class="
                       message.senderRole === viewerRole
                         ? 'rounded-tr-sm bg-primary text-primary-foreground'
@@ -588,11 +469,6 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
         </div>
       </div>
 
-      <!-- Кнопка "вниз" — по прямой просьбе, появляется, когда пользователь отлистал от
-           низа переписки (см. isNearBottom/onScroll). Размер и отступ — как у аватарок
-           сообщений (Avatar size="sm" = size-10, см. avatarVariant в ui/avatar/index.ts)
-           и того же p-4/mb-4, что и у самих сообщений — кнопка визуально встаёт на место,
-           где была бы аватарка последнего сообщения. -->
       <button
         v-if="!isNearBottom"
         type="button"
@@ -628,8 +504,6 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
 
     <div class="border-t p-3">
       <input ref="fileInputRef" type="file" multiple accept="image/*,video/*" class="hidden" @change="onFilesSelected" />
-      <!-- Кнопки прикрепления/отправки — внутри самого поля (по прямой просьбе), не
-           соседи-флексбоксы: textarea получает padding под них, кнопки — absolute. -->
       <div class="relative flex items-end rounded-md border border-input bg-background transition-shadow focus-within:border-ring/50 focus-within:ring-4 focus-within:ring-ring/20">
         <button
           type="button"
@@ -674,8 +548,6 @@ const canSend = computed(() => !props.disabled && (draft.value.trim().length > 0
 </template>
 
 <style scoped>
-/* Новое сообщение всплывает и подрастает, а не появляется мгновенным "скачком" —
-   то самое "оживление" интерфейса. */
 .message-pop-enter-active {
   transition: all 0.25s ease;
 }

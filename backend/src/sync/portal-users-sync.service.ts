@@ -51,8 +51,6 @@ export class PortalUsersSyncService {
     return this.runWithLock(trigger);
   }
 
-  // Полный запрос портала занимает несколько минут. Ручной запуск отвечает сразу,
-  // а ход и результат остаются видны в SyncLog.
   async startManual(): Promise<{ status: 'RUNNING' }> {
     await this.acquireLock();
     void this.runWithLock('MANUAL').catch((error: unknown) => {

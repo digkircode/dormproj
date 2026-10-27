@@ -15,9 +15,6 @@ import { LOCALE_STORAGE_KEY } from '@/i18n'
 import { currentUser } from '@/lib/auth-state'
 import { syncNotificationLocale } from '@/lib/notifications-api'
 
-// Названия языков в списке — всегда на самих себе ("Русский"/"English"), не переводятся
-// вместе с остальным интерфейсом: стандартный паттерн для переключателя языка, человек,
-// не читающий текущий язык интерфейса, должен всё равно узнать свой в списке.
 const localeOptions: { value: AppLocale; label: string }[] = [
   { value: 'ru', label: 'Русский' },
   { value: 'en', label: 'English' },
@@ -25,13 +22,10 @@ const localeOptions: { value: AppLocale; label: string }[] = [
 const { t, locale } = useI18n()
 const localeLabel = computed(() => localeOptions.find((o) => o.value === locale.value)?.label ?? '')
 
-// Accept-Language на бэкенд читается напрямую из localStorage (см. api-base.ts) — не из
-// реактивного locale, поэтому смена языка сохраняется сразу, до следующего запроса.
 watch(locale, (value) => {
   try {
     localStorage.setItem(LOCALE_STORAGE_KEY, value)
   } catch {
-    // localStorage может быть недоступен (приватный режим и т.п.) — выбор просто не переживёт перезагрузку
   }
   document.documentElement.lang = value
 }, { immediate: true })
@@ -40,8 +34,6 @@ watch([locale, currentUser], ([value, user]) => {
   if (user?.roles?.includes('RESIDENT')) void syncNotificationLocale(value as AppLocale).catch(() => {})
 }, { immediate: true })
 
-// Пути и брендовые цвета — из simple-icons (VK 0077FF, Telegram 26A5E4). У себя
-// используем цвет из TeamSwitcher.vue (тот же логотип RosNOU в сайдбаре).
 const socialLinks = [
   {
     href: 'https://vk.ru/rosnou',

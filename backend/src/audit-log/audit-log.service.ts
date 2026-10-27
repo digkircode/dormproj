@@ -9,12 +9,8 @@ interface LogParams {
   entityType: string;
   entityId: string | number;
   entityLabel: string;
-  // Полные "до"/"после" объекты — сервис сам вырежет из них только fields и сравнит.
-  // Для CREATE before обычно null, для DELETE — null after.
   before?: Record<string, unknown> | null;
   after?: Record<string, unknown> | null;
-  // Только эти поля участвуют в diff'е — иначе в историю попадали бы служебные значения
-  // вроде updatedAt/технических id, которые меняются при любом действии без исключения.
   fields: string[];
 }
 
@@ -26,9 +22,6 @@ function serializeValue(value: unknown): unknown {
 
 @Injectable()
 export class AuditLogService {
-  // tx — Prisma.TransactionClient | PrismaService (у обоих есть .auditLog.create) — вызывающий
-  // код пишет лог внутри той же транзакции, где меняет сами данные (см. контроллеры), чтобы
-  // запись истории не рассинхронизировалась с реальным изменением при ошибке на полпути.
   async log(tx: Prisma.TransactionClient, params: LogParams): Promise<void> {
     const changes: Record<string, { before: unknown; after: unknown }> = {};
     for (const field of params.fields) {
@@ -38,8 +31,6 @@ export class AuditLogService {
         changes[field] = { before: beforeValue, after: afterValue };
       }
     }
-    // Нечего писать (действие не поменяло ни одно из отслеживаемых полей, например
-    // "reorder" без реального изменения порядка) — не плодим пустые записи в истории.
     if (Object.keys(changes).length === 0) return;
 
     await tx.auditLog.create({

@@ -14,9 +14,6 @@ function formatDateShort(date: Date | string | null | undefined): string {
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
 }
 
-// Заменяет собой ВЕСЬ блок «__»_______________202_ г. в шапке бланка (включая кавычки
-// и "г.") — не завязываемся на захардкоженный в оригинале "202_" (не переживёт другое
-// десятилетие).
 function formatDateLong(date: Date | string | null | undefined): string {
   if (!date) return '';
   const d = new Date(date);
@@ -28,10 +25,6 @@ function formatMoney(value: Prisma.Decimal | number | null | undefined): string 
   return `${Number(value).toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} руб.`;
 }
 
-// "кем и когда выдан" одной строкой — только для полей без запасной строки-ячейки в
-// бланке (см. residentPassportIssuedInfo у "Проживающего" в бланке несовершеннолетнего,
-// там и так широкая ячейка). Там, где есть запасная строка (см. buildDocumentData),
-// печатаем раздельно: кем выдан — своей строкой, код+дата — своей, каждая с рамкой.
 function formatIssuedInfo(issuedBy: string | null, issuedCode: string | null, issuedAt: Date | string | null): string {
   const dateShort = formatDateShort(issuedAt);
   const parts = [issuedBy, issuedCode ? `КП: ${issuedCode}` : null, dateShort ? `Дата: ${dateShort}` : null].filter(Boolean);
@@ -44,27 +37,16 @@ function formatIssuedCodeDateLine(issuedCode: string | null, issuedAt: Date | st
   return parts.join(', ');
 }
 
-// "Институт, курс" в бланке — курс сразу рядом с меткой, институт отдельной строкой
-// ниже (см. эталонный заполненный договор) — либо в двух разных ячейках (std), либо
-// в одной ячейке с переносом (minor, см. buildDocumentData).
 function formatCourseLine(kursNumber: number | null): string {
   return kursNumber ? `${kursNumber} курс` : '';
 }
 
-// Фамилия отдельно от имени/отчества — первая строка ячейки "Ф.И.О. (полностью)"
-// содержит только фамилию, имя и отчество печатаются строкой ниже (см. эталон).
 function splitSurnameRest(fullName: string): { surname: string; rest: string } {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return { surname: '', rest: '' };
   return { surname: parts[0], rest: parts.slice(1).join(' ') };
 }
 
-// Адрес — в две зарезервированные строки-ячейки со своими рамками (как ФИО), а не
-// перенос Word'ом внутри одной ячейки — иначе у первой визуальной строки нет своей
-// границы (та же причина, что была у "кем и когда выдан"). Разбивка по границе слова
-// ближе к ширине широкой ячейки (~8.7-9 см, ~40 символов при 11pt Times New Roman) —
-// имитирует естественный перенос, не разбивает через запятую как раньше (то давало
-// слишком много коротких строк).
 function splitAddressTwoLines(address: string, maxLineLength = 40): { line1: string; line2: string } {
   const trimmed = address.trim();
   if (trimmed.length <= maxLineLength) return { line1: trimmed, line2: '' };
@@ -79,16 +61,11 @@ function splitAddressTwoLines(address: string, maxLineLength = 40): { line1: str
   return { line1, line2: words.slice(i).join(' ') };
 }
 
-// {rentAmount}/{rentAmountWords}/{rentAmountCurrency}/{rentAmountKopecks} и аналоги —
-// цифрами, прописью (без "рублей" — то печатается отдельным тегом currency СНАРУЖИ скобок
-// в бланке, см. rublesInWords) и копейками отдельными тегами (см. п.4.1/5.1 бланка).
 function moneyBreakdown(value: Prisma.Decimal): { digits: string; words: string; currency: string; kopecksText: string } {
   const { rubles, kopecksText } = splitRublesAndKopecks(value);
   return { digits: formatRublesDigits(rubles), words: rublesInWords(rubles), currency: rublesCurrencyWord(rubles), kopecksText };
 }
 
-// "Фамилия И.О." — для строки подписи в самом низу бланка (подписано "Фамилия,
-// инициалы", не полное ФИО, в отличие от строки "Ф.И.О. (полностью)" выше по документу).
 export function surnameWithInitials(fullName: string): string {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return '';
@@ -97,9 +74,6 @@ export function surnameWithInitials(fullName: string): string {
   return initials ? `${surname} ${initials}` : surname;
 }
 
-// Номер хранится в международном формате intl-tel-input ("+7 999 123-45-67", см.
-// PhoneInput.vue) — для печати приводим к привычному российскому виду с круглыми
-// скобками на код города/оператора. Нероссийский/нераспознанный номер выводится как есть.
 function formatRussianPhone(phone: string | null | undefined): string {
   if (!phone) return '';
   const digits = phone.replace(/\D/g, '');
@@ -141,14 +115,6 @@ interface TermsLike {
   dailyRateCategory: string;
 }
 
-// Плоский набор {tag} -> значение для docxtemplater — единый и для обычного бланка (там
-// "Наниматель" = сам проживающий, легалреп — только информационная строка ФИО+телефон),
-// и для бланка несовершеннолетних (там "Наниматель" = родитель, "Проживающий" = резидент).
-// Незаполненные строковые теги отдаются пустой строкой — docxtemplater иначе падает на
-// unresolved tag; isOwnUniversity — единственный булев тег, инлайн-секция
-// {#isOwnUniversity}...{/isOwnUniversity} внутри абзаца п.1.2 показывает или прячет
-// строку "Категория/форма обучения" (см. contract-document.ts) — не отдельным абзацем
-// (paragraphLoop не убирает пустой абзац целиком, только опустошает его текст).
 export function buildDocumentData(
   contract: ContractLike,
   resident: ResidentSnapshot,
@@ -164,9 +130,6 @@ export function buildDocumentData(
       : '';
 
   const emptyBreakdown = { digits: '', words: '', currency: '', kopecksText: '' };
-  // Старые договоры сохраняли всю стоимость комнаты в rentAmount и ноль в
-  // utilitiesAmount. Для них сохраняем прежний безопасный fallback печати; новые
-  // договоры используют уже разделённые суммы из ContractTerms напрямую.
   const isLegacyCombinedAmount = !!terms && terms.utilitiesAmount.isZero() && terms.rentAmount.greaterThan(0);
   const legacyUtilities = isLegacyCombinedAmount && communalServicesCost
     ? (communalServicesCost.lessThan(terms.rentAmount) ? communalServicesCost : terms.rentAmount)
@@ -215,12 +178,7 @@ export function buildDocumentData(
     residentBirthDateShort: formatDateShort(resident.birthDate),
     residentPassportSeries: resident.passportSeries ?? '',
     residentPassportNumber: resident.passportNumber ?? '',
-    // Комбинированная строка — только для "Проживающего" в бланке несовершеннолетнего
-    // (там одна широкая ячейка без запасной строки над ней, см. transform-templates).
     residentPassportIssuedInfo: formatIssuedInfo(resident.passportIssuedBy, resident.passportIssuedCode, resident.passportIssuedAt),
-    // Раздельно на 2 строки — для обычного бланка и "Наниматель" в бланке
-    // несовершеннолетнего, там есть запасная строка-ячейка над полем (см. эталон: кем
-    // выдан — своей строкой, код+дата — своей).
     residentPassportIssuedByLine: resident.passportIssuedBy ?? '',
     residentPassportIssuedCodeDateLine: formatIssuedCodeDateLine(resident.passportIssuedCode, resident.passportIssuedAt),
     residentAddress: resident.address ?? '',
@@ -230,9 +188,6 @@ export function buildDocumentData(
     residentPhone: formatRussianPhone(resident.phone),
     residentCourseLine,
     residentFacultetLine,
-    // Бланк несовершеннолетнего печатает курс+институт в одной широкой ячейке (нет
-    // отдельной строки-заготовки под институт, как в обычном бланке) — одной строкой
-    // (было переносом на 2 строки, поправлено по просьбе 2026-08-23).
     residentInstituteCourseStacked: [residentCourseLine, residentFacultetLine].filter(Boolean).join(', '),
     residentFormObuch: resident.formObuch ?? '',
 

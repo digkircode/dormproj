@@ -8,9 +8,6 @@ import { PrismaService } from '../prisma/prisma.service';
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 
-// fullName живёт в Individual, а не в ContactInfo (см. schema.prisma) — ищем и сортируем
-// по нему через связь individual. xml/json намеренно не участвуют ни в поиске, ни в
-// сортировке — это сырые дубли остальных полей, огромные и бесполезные для ILIKE/ORDER BY.
 const DIRECT_SEARCHABLE_FIELDS = [
   'type',
   'predstavleniye',
@@ -42,8 +39,6 @@ function isSortableField(field: string): field is SortableField {
   return (SORTABLE_FIELDS as readonly string[]).includes(field);
 }
 
-// Тип/страна/регион/город — ограниченные по факту наборы значений, удобные для
-// мультивыбора. Представление/email/телефон/XML/JSON почти уникальны на строку.
 const FILTERABLE_FIELDS = ['type', 'country', 'region', 'city'] as const;
 type FilterableField = (typeof FILTERABLE_FIELDS)[number];
 
@@ -87,7 +82,6 @@ export class ContactInfoController {
           }
         }
       } catch {
-        // Битый JSON в необязательном параметре — просто игнорируем фильтры, не 400'им весь запрос.
       }
     }
 

@@ -20,8 +20,6 @@ export class ExternalPassportApiService {
     private readonly config: ConfigService<Env, true>,
   ) {}
 
-  // uids — FizicheskoyeLitsoUID из таблицы individuals (кроме isManual), а не полный
-  // список от источника: этот эндпоинт 1С тоже отдаёт данные только по запрошенным UID.
   async fetchPassports(uids: string[]): Promise<PassportApiRecord[]> {
     if (uids.length === 0) {
       return [];
@@ -53,8 +51,6 @@ export class ExternalPassportApiService {
             retry({
               count: MAX_ATTEMPTS - 1,
               delay: (error, retryCount) => {
-                // Логируем только message, а не сам error/response — в config axios-ошибки
-                // лежит Authorization-заголовок, и его нельзя писать в лог.
                 this.logger.warn(
                   `Попытка ${retryCount}/${MAX_ATTEMPTS - 1} получить паспортные данные из внешнего API не удалась: ${getErrorMessage(error)}`,
                 );

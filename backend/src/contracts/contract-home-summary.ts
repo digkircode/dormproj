@@ -4,9 +4,6 @@ import { computePenaltyBalance } from '../billing/penalty-balance';
 import { dateOnly } from '../billing/period-utils';
 import { pickCurrentCharacteristics } from '../rooms/current-characteristics';
 
-// Та же характеристика, что читает полная карточка договора (my-contract.controller.ts —
-// Корпус/Этаж/Вместимость) — здесь только она: "Главная" показывает номер комнаты (из
-// самой RoomAssignment, без похода в EAV) и этаж, не корпус/вместимость.
 const FLOOR_DEFINITION_NAME = 'Этаж';
 
 export interface ContractHomeSummary {
@@ -17,11 +14,6 @@ export interface ContractHomeSummary {
   nextAccrual: { dueDate: Date; balance: number } | null;
 }
 
-// Общая лёгкая сводка для "Главной" (комната+этаж, номер договора/дата создания, общий
-// долг+ближайший платёж) — используется и резидентом про свой собственный договор
-// (my-contract.controller.ts#myContractSummary, where по residentIndividualUid из сессии),
-// и демо-предпросмотром для сотрудника (contracts.controller.ts#demoHomeSummary, where по
-// фиксированному номеру демо-договора) — тот же запрос/подсчёт, разный отбор договора.
 export async function buildContractHomeSummary(
   prisma: PrismaService,
   where: Prisma.ContractWhereInput,
@@ -60,16 +52,8 @@ export async function buildContractHomeSummary(
     return { dueDate: a.dueDate, balance: total.minus(paid) };
   });
   const totalDebt = accrualBalances.reduce((sum, a) => sum.plus(a.balance), new Prisma.Decimal(0));
-  // Тот же порядок, что и allocatePaymentFifo (FIFO) — самое старое непогашенное
-  // начисление и есть "следующий платёж", accruals уже отсортированы по periodStart.
   const unpaidAccruals = accrualBalances.filter((a) => a.balance.greaterThan(0));
   const nextAccrual = unpaidAccruals[0] ?? null;
-  // Если САМОЕ старое непогашенное начисление уже просрочено (срок прошёл, а резидент
-  // ещё не заплатил) — по прямой просьбе 2026-09-05 показываем сумму вместе со следующим
-  // по очереди начислением, а не только просроченную часть саму по себе: иначе резидент
-  // видит маленький "старый" долг и не понимает, что вот-вот добавится ещё один платёж.
-  // Дата в выдаче остаётся датой именно просроченного начисления — сама просрочка не
-  // становится "менее просроченной" от того, что к ней приплюсовали будущую сумму.
   let nextAccrualBalance = nextAccrual?.balance ?? null;
   if (nextAccrual && nextAccrual.dueDate < dateOnly(new Date()) && unpaidAccruals[1]) {
     nextAccrualBalance = nextAccrual.balance.plus(unpaidAccruals[1].balance);

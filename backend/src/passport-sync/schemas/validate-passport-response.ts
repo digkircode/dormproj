@@ -4,7 +4,6 @@ import {
   type PassportApiRecord,
 } from './passport-api-record.schema';
 
-// Тот же порог, что у остальных синхронов (см. sync/schemas/validate-student-response.ts).
 const MAX_INVALID_RATIO = 0.1;
 
 export class PassportApiFormatError extends Error {}

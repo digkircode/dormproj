@@ -16,8 +16,6 @@ const emit = defineEmits<{ read: [id: number] }>()
 const { t } = useI18n()
 
 const isDialogOpen = ref(false)
-// Несколько объявлений могут быть раскрыты одновременно (по клику каждое переключается
-// независимо) — не единый accordion "только одно открыто за раз", т.к. так не оговорено.
 const expandedIds = ref<Set<number>>(new Set())
 
 function open() {
@@ -36,7 +34,6 @@ async function toggle(announcement: ResidentAnnouncement) {
         await markAnnouncementRead(announcement.id)
         emit('read', announcement.id)
       } catch {
-        // best-effort — раскрытие текста не должно блокироваться сетевой ошибкой
       }
     }
   }
@@ -56,9 +53,6 @@ function formatDate(value: string): string {
       </DialogHeader>
 
       <p v-if="!props.announcements.length" class="text-sm text-muted-foreground">{{ t('home.resident.announcementsEmpty') }}</p>
-      <!-- Тот же "невзрачный" фон + синий hover, что и в превью на ResidentHomeDashboard.vue
-           (по прямой просьбе 2026-08-30) — gap между блоками вместо divide-y, кнопка и
-           раскрывающийся текст внутри ОДНОГО скруглённого блока, не разделены рамкой. -->
       <div v-else class="flex flex-col gap-2 overflow-y-auto">
         <div
           v-for="a in props.announcements"
@@ -70,21 +64,13 @@ function formatDate(value: string): string {
               <Newspaper class="size-4" :class="iconBadgeColorClasses(a.id).icon" />
             </div>
             <p class="min-w-0 flex-1 truncate text-sm font-semibold">{{ a.title }}</p>
-            <!-- Дата слева от точки (не над/под ней), группа центрирована по высоте ряда
-                 (items-center на кнопке выше). Точка не исчезает после прочтения — становится
-                 серой (тот же приём, что в ResidentHomeDashboard.vue). -->
             <div class="flex shrink-0 items-center gap-1.5">
               <span class="text-xs text-muted-foreground">{{ formatDate(a.createdAt) }}</span>
               <span class="size-2 shrink-0 rounded-full" :class="a.unread ? 'bg-blue-500' : 'bg-muted-foreground/40'" />
             </div>
           </button>
-          <!-- Плавное раскрытие через grid-template-rows 0fr→1fr (без замера высоты в JS) —
-               тот же приём, что уже используется в проекте (RoomDetailPanel.vue/
-               RoomInfoTrigger.vue, см. промпт). -->
           <div class="grid transition-[grid-template-rows] duration-200" :style="{ gridTemplateRows: expandedIds.has(a.id) ? '1fr' : '0fr' }">
             <div class="overflow-hidden">
-              <!-- break-words — длинное "слово" без пробелов иначе распирает модалку по
-                   ширине вместо переноса (по прямой просьбе 2026-08-30). -->
               <p class="px-3 pb-3 pl-[3.25rem] text-sm whitespace-pre-wrap text-muted-foreground break-words">{{ a.body }}</p>
             </div>
           </div>

@@ -9,19 +9,12 @@ import { iconBadgeColorClasses } from '@/lib/avatar-color'
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
 
-// Отдельная событие 'read' (не мутируем announcement-проп напрямую) — родитель сам решает,
-// как обновить свой список (ResidentHomeDashboard.vue), тот же принцип явного
-// однонаправленного потока данных, что и у остальных диалогов проекта.
 const emit = defineEmits<{ read: [id: number] }>()
 
 const isDialogOpen = ref(false)
 const current = ref<ResidentAnnouncement | null>(null)
 const iconColors = ref(iconBadgeColorClasses(0))
 
-// Открытие = прочтение (тот же принцип, что GET /my-chat) — по прямой просьбе
-// пользователя: точка становится серой сразу при открытии модалки, не по отдельному
-// действию внутри неё. Ошибку API молча игнорируем — это read-receipt, не блокирующее
-// действие, пользователь уже увидел текст независимо от результата запроса.
 async function open(announcement: ResidentAnnouncement) {
   current.value = announcement
   iconColors.value = iconBadgeColorClasses(announcement.id)
@@ -31,7 +24,6 @@ async function open(announcement: ResidentAnnouncement) {
       await markAnnouncementRead(announcement.id)
       emit('read', announcement.id)
     } catch {
-      // best-effort — не мешаем чтению текста ошибкой сети
     }
   }
 }
@@ -57,10 +49,6 @@ function formatDate(value: string): string {
           </div>
         </div>
       </DialogHeader>
-      <!-- break-words — иначе одно длинное "слово" без пробелов (URL, склеенный текст без
-           переносов и т.п.) распирает модалку по ширине вместо переноса, по прямой просьбе
-           2026-08-30. whitespace-pre-wrap сам по себе переносит только по пробелам/явным
-           \n, не внутри непрерывного токена. -->
       <p v-if="current" class="text-sm whitespace-pre-wrap break-words">{{ current.body }}</p>
     </DialogScrollContent>
   </Dialog>

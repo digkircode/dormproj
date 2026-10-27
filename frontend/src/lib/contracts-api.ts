@@ -75,11 +75,7 @@ export interface PaymentRow {
   rawComment: string | null
   reversedAt: string | null
   createdAt: string
-  // "Откуда | Описание | Период" (billing/payment-purpose.ts) — готовая строка с бэка,
-  // не пересобирается на фронте.
   purpose?: string
-  // Актуально только для source==='WEBSITE' — остальные источники всегда NOT_SYNCED и
-  // никогда не отправляются (см. billing/accounting-1c-push.service.ts).
   accounting1cSyncStatus?: Accounting1cSyncStatus
   accounting1cDocumentUid?: string | null
   accounting1cSyncError?: string | null
@@ -98,8 +94,6 @@ export interface ContractDetail {
   residentFullName: string
   residentIndividualUid: string
   currentRoom: { id: number; room: string } | null
-  // Известна ли 1С Бухгалтерии пара ContractorUID/ContractUID по этому договору (флоу 1/2/3,
-  // см. промпт проекта) — не null только после первой успешной отправки платежа в 1С.
   accounting1cUid: string | null
   accounting1cContractorUid: string | null
   legalRepName: string | null
@@ -118,14 +112,10 @@ export interface ContractDetail {
   matCapitalCoveredTo: string | null
   matCapitalAmount: number | null
   matCapitalDeferredUntil: string | null
-  // Пеня — единая сумма на договор (не по начислениям), penaltyBalance — сколько из неё
-  // ещё не покрыто платежами (см. contracts.controller.ts/penalty-balance.ts).
   penaltyAmount: number
   penaltyPaid: number
   penaltyBalance: number
   creditBalance: number
-  // История начисления пени по дням — та же форма, что и у резидента (MyContractDetail
-  // ниже), для клика по тайлу "Пени" на карточке (ContractDetail.vue), добавлено 2026-09-05.
   penaltyLog: PenaltyLogRow[]
   terms: ContractTerms[]
   accruals: AccrualRow[]
@@ -133,17 +123,9 @@ export interface ContractDetail {
   refunds: ContractRefundRow[]
   refundableAmount: number
   refundSources: { correctionAmount: number; overpaymentAmount: number }
-  // Определяет доступность "Удалить договор" — после первой же оплаты (даже
-  // сторнированной) удаление блокируется навсегда, см. contracts.controller.ts.
   hasPayments: boolean
 }
 
-// Договор самого проживающего (GET /my-contract, RESIDENT-only, без :id в маршруте —
-// см. backend/src/contracts/my-contract.controller.ts) — заметно уже ContractDetail:
-// без legalRep*/matCapital (административные поля не для этого вида) и без hasPayments
-// (странице резидента не нужны кнопки удаления/печати/платежей).
-// Одна строка журнала начисления пени за конкретный день (см. GET /my-contract) — для
-// раскрытия тайла "Пени" на карточке договора резидента (MyContract.vue): amount = overdueBase * 0.14%/день.
 export interface PenaltyLogRow {
   date: string
   amount: number
@@ -159,9 +141,6 @@ export interface MyContractDetail {
   actualEndDate: string | null
   status: ContractStatus
   createdAt: string
-  // corpus/floor/capacity — характеристики комнаты (EAV, см. промпт проекта), не поля
-  // самой Room; null, если у комнаты нет соответствующей характеристики заведено вообще
-  // (например "Корпус" по факту проставлен не на все комнаты, см. известные ограничения).
   currentRoom: { id: number; room: string; corpus: string | null; floor: number | null; capacity: number | null } | null
   penaltyAmount: number
   penaltyPaid: number
@@ -173,10 +152,6 @@ export interface MyContractDetail {
   payments: PaymentRow[]
 }
 
-// null — у резидента вообще нет ни одного договора (не ошибка, штатный случай — страница
-// показывает соответствующее сообщение, см. MyContract.vue). contractId — явный выбор из
-// переключателя договоров (см. fetchMyContracts ниже, добавлено 2026-08-25 под поддержку
-// нескольких одновременных договоров на одного человека); без него — самый свежий.
 export async function fetchMyContract(contractId?: number): Promise<MyContractDetail | null> {
   const response = await apiFetch(contractId ? `/my-contract?contractId=${contractId}` : '/my-contract')
   if (!response.ok) {
@@ -186,10 +161,6 @@ export async function fetchMyContract(contractId?: number): Promise<MyContractDe
   return data.contract
 }
 
-// Лёгкая сводка для "Главной" резидента (ResidentHomeDashboard.vue, GET /my-contract/summary) —
-// раньше эта страница дёргала fetchMyContract() целиком (все начисления/платежи/пеня-лог/
-// terms), хотя показывает только комнату+этаж, номер договора/дату создания и долг+ближайший
-// платёж. Отдельный тип/эндпоинт с узкой выборкой полей.
 export interface MyContractHomeSummary {
   number: string
   createdAt: string
@@ -207,10 +178,6 @@ export async function fetchMyContractHomeSummary(): Promise<MyContractHomeSummar
   return data.contract
 }
 
-// Временно, для DemoStudentHome.vue (показ покупателю "Главной" проживающего с реальными
-// данными без переключения ролей на аккаунте сотрудника, см. промпт проекта) — та же форма
-// ответа, что и fetchMyContractHomeSummary выше, но STAFF/ADMIN-эндпоинт с фиксированным
-// demo-договором вместо сессии резидента. Удалить вместе с DemoStudentHome.vue.
 export async function fetchDemoContractHomeSummary(): Promise<MyContractHomeSummary | null> {
   const response = await apiFetch('/contracts/demo-home-summary')
   if (!response.ok) {
@@ -220,8 +187,6 @@ export async function fetchDemoContractHomeSummary(): Promise<MyContractHomeSumm
   return data.contract
 }
 
-// Краткая сводка по ВСЕМ договорам резидента (не только самому свежему) — питает
-// переключатель на карточке договора и в модалке оплаты, см. GET /my-contract/list.
 export interface MyContractSummary {
   id: number
   number: string
@@ -356,9 +321,6 @@ export async function deleteContract(id: number): Promise<void> {
   }
 }
 
-// Последний договор этого резидента с уже заведённым родителем (см. legal-rep/:residentUid
-// в contracts.controller.ts) — для автоподстановки в форму нового договора. null, если
-// у этого несовершеннолетнего родитель ещё ни разу не вводился.
 export async function fetchLegalRepPrefill(residentUid: string): Promise<LegalRepPrefill | null> {
   const response = await apiFetch(`/contracts/legal-rep/${residentUid}`)
   if (!response.ok) {
@@ -367,8 +329,6 @@ export async function fetchLegalRepPrefill(residentUid: string): Promise<LegalRe
   return response.json()
 }
 
-// Скачивание заполненного .docx — apiFetch не подходит для обычной ссылки (нужна кука
-// авторизации), поэтому сами получаем blob и эмулируем клик по <a download>.
 export async function downloadContractDocument(id: number, contractNumber: string): Promise<void> {
   const response = await apiFetch(`/contracts/${id}/document`)
   if (!response.ok) {
@@ -385,8 +345,6 @@ export async function downloadContractDocument(id: number, contractNumber: strin
   URL.revokeObjectURL(url)
 }
 
-// Массовая печать — ZIP с отдельным .docx на каждый выбранный договор (тот же бланк,
-// что и у printContractDocument, см. contracts.controller.ts#printBatch), не единый файл.
 export async function printContractsBatch(ids: number[]): Promise<void> {
   const response = await apiFetch('/contracts/print-batch', {
     method: 'POST',
@@ -408,8 +366,6 @@ export async function printContractsBatch(ids: number[]): Promise<void> {
   URL.revokeObjectURL(url)
 }
 
-// Печать через системный диалог (Ctrl+P) — доп. к скачиванию .docx выше, не замена, см.
-// lib/print-pdf.ts. Бэкенд сам конвертирует уже собранный .docx-бланк в PDF (soffice).
 export async function fetchContractDocumentPdf(id: number): Promise<Blob> {
   const response = await apiFetch(`/contracts/${id}/document/pdf`)
   if (!response.ok) {
@@ -418,8 +374,6 @@ export async function fetchContractDocumentPdf(id: number): Promise<Blob> {
   return response.blob()
 }
 
-// То же самое пачкой — один слитый PDF на все выбранные договоры (не ZIP, см.
-// contracts.controller.ts#printBatchPdf), чтобы диалог печати открылся сразу на всю пачку.
 export async function fetchContractsBatchPdf(ids: number[]): Promise<Blob> {
   const response = await apiFetch('/contracts/print-batch/pdf', {
     method: 'POST',

@@ -77,7 +77,8 @@
         "service-provision-send": "Send service documents",
         "service-provision-recovery": "Recover service documents on startup",
         "contract-status": "Contract statuses",
-        "penalties": "Penalty accrual"
+        "penalties": "Penalty accrual",
+        "penalty-reconciliation": "Penalty reconciliation after payments"
       },
       "results": {
         "push": "Sent {sent}, succeeded {succeeded}, failed {failed}",
@@ -88,6 +89,7 @@
         "recovery": "Documents checked; sent {pushed}, succeeded {succeeded}, failed {failed}, blocked {blocked}",
         "contracts": "Contracts checked {processed}, status changed {changed}",
         "penalties": "Contracts checked {processed}, new accruals {rows}",
+        "penaltyReconciliation": "Contracts recalculated {processed}, changed {changed}, failed {failed}",
         "portalUsers": "Fetched {fetched}, added {added}, updated {updated}, skipped {skipped}",
         "roles": "Accounts checked {processed}, roles granted {granted}, revoked {revoked}",
         "university": "Fetched {fetched}, added {added}, updated {updated}, removed {removed}"
@@ -156,14 +158,18 @@
           "skippedExisting": "Already recorded",
           "knownPairs": "Contracts with UIDs",
           "documentIds": "Documents prepared",
-          "skipped": "Sending skipped"
+          "skipped": "Sending skipped",
+          "processedContracts": "Contracts recalculated",
+          "changedContracts": "Contracts changed",
+          "failedContracts": "Failures"
         },
         "operations": {
           "CREATE_CURRENT_MONTH": "Create new month documents",
           "DAILY_RECALCULATION": "Daily recalculation",
           "FINAL_RECALC_AND_SEND": "Final recalculation and send",
           "RETRY_PREVIOUS_MONTH": "Retry previous month",
-          "STARTUP_RECOVERY": "Startup recovery"
+          "STARTUP_RECOVERY": "Startup recovery",
+          "HISTORICAL_RECALCULATION": "Reconcile penalties with payment dates"
         }
       }
     }

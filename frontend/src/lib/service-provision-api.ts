@@ -4,8 +4,6 @@ import type { Accounting1cSyncStatus } from './payment-imports-api'
 
 export type ServiceProvisionType = 'RENT' | 'UTILITIES' | 'PENALTY'
 
-// Флоу 3 (см. промпт проекта) — только чтение + ручной повтор, своего одобрения/правки
-// нет: суммы собираются автоматически из начислений, сотрудник ничего тут не вводит.
 export interface ServiceProvisionDocumentRow {
   id: number
   periodStart: string
@@ -32,10 +30,6 @@ export interface ServiceProvisionRecalculateResult {
   recalculated: number
 }
 
-// Одна строка сводного документа — конкретный договор внутри него (см.
-// billing.controller.ts#getServiceProvisionDocument). contractNumber/residentFullName —
-// null, если договор с тех пор потерял привязку к 1С Бухгалтерии (отвязан/удалён) —
-// сумма всё равно показывается, просто без опознания, кому она принадлежит.
 export interface ServiceProvisionDocumentLine {
   contractId: number | null
   contractNumber: string | null

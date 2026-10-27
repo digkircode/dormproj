@@ -10,15 +10,11 @@ import { zodErrorMessage } from '../i18n/zod-error-message';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
-// Тот же максимум, что MAX_BODY_LENGTH в chats.controller.ts, для согласованности —
-// объявления не длиннее одного сообщения чата.
 const announcementSchema = z.object({
   title: z.string().trim().min(1).max(200),
   body: z.string().trim().min(1).max(4000),
 });
 
-// Только эти поля участвуют в diff'е истории изменений (см. AuditLogService.log) —
-// authorUserId/createdAt/updatedAt не отслеживаем, они не редактируются напрямую.
 const AUDITED_ANNOUNCEMENT_FIELDS = ['title', 'body'];
 
 function parseId(idParam: string): number {
@@ -29,9 +25,6 @@ function parseId(idParam: string): number {
   return id;
 }
 
-// Управление объявлениями — секция на "Главной" сотрудника (StaffHomeDashboard.vue).
-// Без markdown/HTML (см. обсуждение с пользователем) — body хранится и рендерится как
-// обычный текст, тот же принцип, что и у остального сайта (v-html нигде не используется).
 @Controller('announcements')
 @UseGuards(AuthGuard, RolesGuard)
 @Roles('STAFF', 'ADMIN')
@@ -44,10 +37,6 @@ export class AnnouncementsController {
 
   @Get()
   async list() {
-    // updatedAt, не createdAt (по прямой просьбе 2026-08-30) — только что отредактированное
-    // объявление тоже всплывает наверх, не только только что созданное. @updatedAt сам
-    // проставляется равным createdAt в момент создания, так что для нетронутых объявлений
-    // порядок не отличается от сортировки по дате создания.
     const rows = await this.prisma.announcement.findMany({
       orderBy: { updatedAt: 'desc' },
       include: { author: { select: { fullName: true } } },
@@ -110,8 +99,6 @@ export class AnnouncementsController {
 
     await this.prisma.$transaction(async (tx) => {
       const userId = await ensureUserRecord(tx, req.user!);
-      // updatedAt (авто через @updatedAt) — единственный сигнал "непрочитано после правки"
-      // для AnnouncementRead, отдельного флага/события специально не заводили.
       const updated = await tx.announcement.update({
         where: { id },
         data: { title: parsed.data.title, body: parsed.data.body },

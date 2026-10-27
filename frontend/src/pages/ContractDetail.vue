@@ -64,8 +64,6 @@ import { printPdfBlob } from '@/lib/print-pdf'
 
 const DIALOG_ANIMATE_CLASS =
   'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
-// Вертикальные разделители колонок — тот же приём, что и в общей таблице (EntityTable.vue),
-// для визуального единства всех таблиц в приложении.
 const CELL_BORDER_CLASS = 'border-r border-border last:border-r-0'
 
 const { t } = useI18n()
@@ -108,8 +106,6 @@ onUnmounted(() => {
   breadcrumbOverride.value = null
 })
 
-// Пеня — единая сумма на договор (не входит в accrual.balance, см. penalty-balance.ts на
-// бэке) — добавляем её отдельно, иначе общий баланс не совпадал бы с реальным долгом.
 const totalBalance = computed(() =>
   contract.value ? contract.value.accruals.filter((a) => !a.voidedAt).reduce((sum, a) => sum + a.balance, 0) + contract.value.penaltyBalance - contract.value.creditBalance : 0,
 )
@@ -120,11 +116,6 @@ const correctionTotal = computed(() => contract.value?.accruals
 const refundedTotal = computed(() => contract.value?.refunds.reduce((sum, row) => sum + row.amount, 0) ?? 0)
 const refundedCorrection = computed(() => contract.value?.refunds.reduce((sum, row) => sum + row.adjustmentAmount, 0) ?? 0)
 
-// История начисления пени по дням — раскрывается кликом по тайлу "Пени" (тот же приём,
-// что и у резидента, см. MyContract.vue), плюс кнопка "Пересчитать" для сотрудника
-// (2026-09-05, billing.controller.ts#recalculatePenalty) — полная пересборка журнала пени
-// договора с нуля тем же дневным расчётом, что и ночной крон (нужно для договоров, чью
-// историю пени крон мог посчитать неверно ДО фикса дневного расчёта, см. промпт проекта).
 const isPenaltyDialogOpen = ref(false)
 const PENALTY_DAILY_RATE_PERCENT = '0,14%'
 const isRecalculatingPenalty = ref(false)
@@ -150,19 +141,12 @@ async function submitRecalculatePenalty() {
 const rentAmount = computed(() => contract.value?.terms[0]?.rentAmount ?? 0)
 const utilitiesAmount = computed(() => contract.value?.terms[0]?.utilitiesAmount ?? 0)
 const roomCost = computed(() => rentAmount.value + utilitiesAmount.value)
-// rentAmount=0 и utilitiesAmount=0 одновременно — только у полностью посуточных комнат
-// (112-2/410-2 на момент введения, см. backend/src/contracts/contracts.controller.ts
-// #isDailyOnlyRoom), обычная комната всегда имеет ненулевую месячную "Стоимость".
 const isDailyOnlyContract = computed(
   () => (contract.value?.terms[0]?.rentAmount ?? 0) === 0 && (contract.value?.terms[0]?.utilitiesAmount ?? 0) === 0,
 )
 
-// Блок родителя на карточке договора — плавно раскрывается по клику, не модалка.
 const showParentInfo = ref(false)
 
-// --- Сортировка таблиц (локальная, без похода на бэкенд — строк на договор мало) ---
-// Ключ сортировки — string, не keyof T: колонок мало и они описаны прямо тут же в
-// массиве ниже, полная дженерик-типизация была бы избыточна ради пары маленьких таблиц.
 function useLocalSort<T extends object>(rows: () => T[], initialId: string) {
   const sort = ref({ id: initialId, desc: false })
   const sorted = computed(() => {
@@ -194,9 +178,6 @@ const ACCRUAL_COLUMNS = computed<{ id: keyof AccrualRow; label: string }[]>(() =
   { id: 'paid', label: t('contracts.detail.colPaid') },
   { id: 'balance', label: t('contracts.detail.colBalance') },
 ])
-// Свободная часть платежей хранится на договоре, а не в строке начисления.
-// Для таблицы относим её к последней переплаченной строке (или к последней
-// активной строке), чтобы сумма «Остатков» совпадала с балансом без пени.
 const displayedAccruals = computed<AccrualRow[]>(() => {
   const currentContract = contract.value
   if (!currentContract?.creditBalance) return currentContract?.accruals ?? []
@@ -342,7 +323,6 @@ function formatMoney(value: number): string {
   return `${value.toLocaleString(dateLocaleTag(), { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
 }
 
-// --- Расторжение ---
 const isTerminateOpen = ref(false)
 const actualEndDate = ref('')
 const terminateError = ref('')
@@ -371,9 +351,6 @@ async function submitTerminate() {
   }
 }
 
-// --- Удаление договора ---
-// Доступно, только пока по договору не было ни одной оплаты (contract.hasPayments,
-// см. contracts.controller.ts) — после первой же оплаты кнопка блокируется навсегда.
 const isDeleteOpen = ref(false)
 const deleteError = ref('')
 const isDeleting = ref(false)
@@ -395,7 +372,6 @@ async function submitDelete() {
   }
 }
 
-// --- Печать договора ---
 const isDownloading = ref(false)
 const downloadError = ref('')
 async function downloadDocument() {
@@ -411,8 +387,6 @@ async function downloadDocument() {
   }
 }
 
-// Печать через системный диалог (Ctrl+P) — доп. к скачиванию .docx выше, не замена, см.
-// lib/print-pdf.ts.
 const isPrintingPdf = ref(false)
 async function printDocumentPdf() {
   if (!contract.value) return
@@ -428,7 +402,6 @@ async function printDocumentPdf() {
   }
 }
 
-// --- Сторнирование платежа ---
 const reversingPayment = ref<PaymentRow | null>(null)
 const isReversing = ref(false)
 const reverseError = ref('')
@@ -464,9 +437,6 @@ async function confirmReversePayment() {
       <button v-if="contract" type="button" class="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" @click="openAccounting1cMapping">
         <Accounting1cLinkedBadge :linked="contract.accounting1cUid !== null && contract.accounting1cContractorUid !== null" />
       </button>
-      <!-- Меню действий — тут же, на уровне номера договора (было отдельной тонкой строкой
-           над карточкой, легко теряющейся), с текстовой подписью — заметнее, чем голая
-           иконка (по прямой просьбе 2026-08-26). -->
       <DropdownMenu v-if="contract">
         <DropdownMenuTrigger as-child>
           <Button variant="outline" size="sm" class="ml-auto flex items-center gap-1.5">
@@ -487,8 +457,6 @@ async function confirmReversePayment() {
             <Ban class="text-red-500" />
             {{ t('contracts.detail.terminateContract') }}
           </DropdownMenuItem>
-          <!-- Удаление доступно, только пока по договору не было ни одной оплаты — см.
-               contract.hasPayments (backend блокирует то же самое на DELETE /contracts/:id). -->
           <DropdownMenuItem :disabled="contract.hasPayments" @click="openDelete">
             <Trash2 class="text-red-500" />
             {{ t('contracts.detail.deleteContract') }}
@@ -520,8 +488,6 @@ async function confirmReversePayment() {
               <CalendarRange class="size-4 shrink-0 text-primary" />
               {{ formatDate(contract.startDate) }} - {{ formatDate(contract.actualEndDate ?? contract.endDate) }}
             </span>
-            <!-- Дата создания — тут же, в карточке (была в общем заголовке страницы, но
-                 там теперь меню действий, по прямой просьбе 2026-08-26). -->
             <span class="ml-auto flex items-center gap-1.5 text-muted-foreground">
               <History class="size-4 shrink-0 text-primary" />
               {{ t('contracts.detail.createdOn', { date: formatDate(contract.createdAt) }) }}
@@ -574,8 +540,6 @@ async function confirmReversePayment() {
                 <p class="text-lg font-medium">{{ formatMoney(contract.terms[0]?.dailyRateAmount ?? 0) }}</p>
               </div>
             </div>
-            <!-- Кликабельна только сама сумма (открывает историю начисления по дням),
-                 не весь тайл — тот же приём, что у резидента (MyContract.vue). -->
             <div class="flex items-center gap-3">
               <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-500/15">
                 <Percent class="size-5 text-orange-600 dark:text-orange-400" />
@@ -604,9 +568,6 @@ async function confirmReversePayment() {
               {{ t('contracts.detail.parentInfo') }}
               <ChevronRight class="size-3.5 transition-transform" :class="showParentInfo ? '' : 'rotate-90'" />
             </button>
-            <!-- Раскрывается вбок, а не вниз — grid-template-columns 0fr→1fr, тот же приём,
-                 что и для вертикального раскрытия (grid-template-rows), только по другой оси:
-                 высота содержимого не важна, а ширину неоткуда взять заранее без замера в JS. -->
             <div
               class="grid transition-[grid-template-columns] duration-200 ease-out"
               :class="showParentInfo ? 'grid-cols-[1fr]' : 'grid-cols-[0fr]'"
@@ -736,8 +697,6 @@ async function confirmReversePayment() {
                     <TableCell :class="`${CELL_BORDER_CLASS} break-words`">{{ p.purpose ?? '-' }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">{{ p.rawComment ?? '-' }}</TableCell>
                     <TableCell :class="CELL_BORDER_CLASS">
-                      <!-- Только для платежей с сайта (эквайринг) — MANUAL/IMPORTED_1C
-                           никогда не отправляются этим потоком, см. billing/accounting-1c-push.service.ts. -->
                       <Accounting1cStatusPill
                         v-if="p.source === 'WEBSITE'"
                         :status="p.accounting1cSyncStatus ?? 'NOT_SYNCED'"
