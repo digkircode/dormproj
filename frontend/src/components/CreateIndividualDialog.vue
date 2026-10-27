@@ -29,6 +29,7 @@ const dialogError = ref('')
 const submitAttempted = ref(false)
 const serverFieldErrors = ref<Set<string>>(new Set())
 const phoneInvalid = ref(false)
+const emailTouched = ref(false)
 
 const surname = ref('')
 const name = ref('')
@@ -65,8 +66,9 @@ const citizenshipInvalid = computedInvalid(() => !citizenship.value.trim())
 const addressInvalid = computedInvalid(() => !address.value.trim())
 const passportNumberInvalid = computedInvalid(() => !passportNumber.value.trim())
 const passportIssuedAtInvalid = computedInvalid(() => !passportIssuedAt.value)
-const emailInvalid = computedInvalid(
-  () => serverFieldErrors.value.has('email') || (!!email.value.trim() && !isValidEmailFormat(email.value.trim())),
+const emailInvalid = computed(() =>
+  (submitAttempted.value || emailTouched.value) &&
+  (serverFieldErrors.value.has('email') || (!!email.value.trim() && !isValidEmailFormat(email.value.trim()))),
 )
 const invalidClass = 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20'
 watch(phone, () => { phoneInvalid.value = false })
@@ -100,6 +102,7 @@ async function open() {
   submitAttempted.value = false
   serverFieldErrors.value = new Set()
   phoneInvalid.value = false
+  emailTouched.value = false
   surname.value = ''
   name.value = ''
   otchestvo.value = ''
@@ -257,8 +260,10 @@ async function submitCreate() {
               </div>
               <div class="flex flex-col gap-2">
                 <Label>{{ t('individuals.editDialog.email') }}</Label>
-                <Input v-model="email" type="email" :aria-invalid="emailInvalid" :class="emailInvalid ? invalidClass : ''" />
-                <p v-if="emailInvalid" class="text-xs text-destructive">{{ t('individuals.editDialog.emailInvalid') }}</p>
+                <Input v-model="email" type="email" inputmode="email" autocomplete="email" placeholder="name@example.com" maxlength="254"
+                  :aria-invalid="emailInvalid" :aria-describedby="emailInvalid ? 'create-individual-email-error' : undefined"
+                  :class="emailInvalid ? invalidClass : ''" @blur="emailTouched = true" />
+                <p v-if="emailInvalid" id="create-individual-email-error" class="text-xs text-destructive">{{ t('individuals.editDialog.emailInvalid') }}</p>
               </div>
               <div class="col-span-2 flex flex-col gap-2">
                 <Label>{{ t('individuals.createDialog.address') }}</Label>

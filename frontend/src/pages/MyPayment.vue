@@ -82,7 +82,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">
+  <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-4 p-3 sm:p-4 md:p-6">
     <div class="flex items-center gap-2">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/student/contract')">
         <ArrowLeft class="text-primary" />
@@ -96,7 +96,7 @@ onMounted(async () => {
 
     <Card
       v-if="returningIntent"
-      class="flex items-center gap-3 p-4"
+      class="flex flex-wrap items-center gap-3 p-3 sm:p-4"
       :class="{
         'border-emerald-500/40 bg-emerald-500/5': returningIntent.status === 'SUCCEEDED',
         'border-red-500/40 bg-red-500/5': returningIntent.status === 'FAILED',

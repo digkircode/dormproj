@@ -61,6 +61,7 @@ const props = withDefaults(
     cellText?: (columnId: string, value: unknown) => string
     cellRenderers?: Record<string, Component>
     pageSizeOptions?: number[]
+    minTableWidth?: number
     hiddenByDefault?: string[]
     defaultFilters?: Record<string, string[]>
     rowAction?: { icon: Component; label: string; isVisible?: (row: TData) => boolean; getClass?: (row: TData) => string; getIcon?: (row: TData) => Component; getLabel?: (row: TData) => string; getHref?: (row: TData) => string; onClick?: (row: TData) => void }
@@ -70,7 +71,7 @@ const props = withDefaults(
   }>(),
   {
     cellText: (_columnId: string, value: unknown) => String(value ?? ''),
-    pageSizeOptions: () => [10, 20, 30, 50, 100],
+    pageSizeOptions: () => [20, 30, 50, 100],
     hiddenByDefault: () => [],
     defaultFilters: () => ({}),
   },
@@ -461,7 +462,8 @@ defineExpose({ refresh: loadPage })
     <Card class="flex h-[60vh] min-w-0 flex-col gap-0 py-0 md:h-auto md:min-h-0 md:flex-1">
       <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
         <div class="flex min-h-0 flex-1 flex-col transition-opacity" :class="{ 'opacity-60': isLoading }">
-          <Table class="table-fixed" scroll-class="overflow-x-hidden" :style="columnSizeVars">
+          <Table class="table-fixed" :scroll-class="minTableWidth ? 'overflow-x-auto' : 'overflow-x-hidden'"
+            :style="{ ...columnSizeVars, minWidth: minTableWidth ? `${minTableWidth}px` : undefined }">
             <caption v-if="isLoading" class="sr-only">{{ t('entityTable.loading') }}</caption>
             <colgroup>
               <col v-if="selectable" :style="{ width: 'var(--col-select-size)' }" />

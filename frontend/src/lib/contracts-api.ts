@@ -164,8 +164,10 @@ export async function fetchMyContract(contractId?: number): Promise<MyContractDe
 export interface MyContractHomeSummary {
   number: string
   createdAt: string
+  contractDate: string
   currentRoom: { room: string; floor: number | null } | null
   totalBalance: number
+  overdueBalance: number
   nextAccrual: { dueDate: string; balance: number } | null
 }
 

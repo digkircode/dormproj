@@ -50,7 +50,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 </script>
 
 <template>
-  <section class="relative z-10 w-full min-w-0 rounded-2xl bg-card p-4 text-card-foreground shadow-sm" :aria-label="t('home.resident.notificationsHeading')">
+  <section class="relative z-10 w-full min-w-0 rounded-2xl bg-card p-3 text-card-foreground shadow-sm sm:p-4" :aria-label="t('home.resident.notificationsHeading')">
     <div class="flex items-start gap-3">
       <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400">
         <Bell class="size-4" />
@@ -75,7 +75,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
             {{ item.connected ? t('home.resident.notificationsConnected') : item.available ? t('home.resident.notificationsNotConnected') : t('home.resident.notificationsSoon') }}
           </p>
         </div>
-        <Button size="sm" :variant="item.connected ? 'ghost' : 'outline'" :loading="busy === item.channel" :disabled="props.demo || busy !== null || !item.available" class="ml-auto" @click="toggle(item)">
+        <Button size="sm" :variant="item.connected ? 'ghost' : 'outline'" :loading="busy === item.channel" :disabled="props.demo || busy !== null || !item.available" class="ml-auto max-[380px]:w-full" @click="toggle(item)">
           {{ item.connected ? t('home.resident.notificationsDisconnect') : item.available ? t('home.resident.notificationsConnect') : t('home.resident.notificationsSoon') }}
         </Button>
       </div>

@@ -59,9 +59,8 @@ onMounted(() => {
   }).catch(() => { announcementsState.value = 'error' })
 })
 
-const totalBalance = computed(() => contract.value?.totalBalance ?? 0)
+const overdueBalance = computed(() => contract.value?.overdueBalance ?? 0)
 const nextAccrual = computed(() => contract.value?.nextAccrual ?? null)
-const isNextPaymentOverdue = computed(() => !!nextAccrual.value && new Date(nextAccrual.value.dueDate).getTime() < Date.now())
 
 function formatMoney(value: number): string {
   return `${value.toLocaleString(dateLocaleTag(), { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
@@ -72,8 +71,8 @@ function formatDate(value: string): string {
 </script>
 
 <template>
-  <div class="flex min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">
-    <Card class="relative flex flex-col items-start gap-4 overflow-hidden px-5 pt-6 sm:px-10 lg:flex-row lg:items-center lg:gap-8 lg:px-[80px]">
+  <div class="flex min-w-0 flex-1 flex-col gap-3 p-3 sm:gap-4 sm:p-4 md:p-6">
+    <Card class="relative flex flex-col items-start gap-3 overflow-hidden px-5 pt-5 sm:gap-4 sm:px-10 sm:pt-6 lg:flex-row lg:items-center lg:gap-8 lg:px-[80px]">
       <div class="pointer-events-none absolute inset-0" aria-hidden="true">
         <div class="absolute top-[8%] left-[6%] aspect-square w-[6%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
         <div class="absolute top-[38%] left-[16%] aspect-square w-[4%] rounded-full bg-sky-100 dark:bg-sky-400/15" />
@@ -93,12 +92,12 @@ function formatDate(value: string): string {
       </div>
 
       <div class="relative z-10 w-full max-w-xl min-w-0">
-        <h1 class="text-2xl font-semibold">
+        <h1 class="break-words text-xl font-semibold leading-tight sm:text-2xl">
           <span class="font-emoji">👋</span>
           {{ firstName ? t('home.resident.greetingTitle', { name: firstName }) : t('home.resident.greetingTitleFallback') }}
         </h1>
-        <p class="mt-3 text-base text-muted-foreground">{{ t('home.resident.greetingBody1') }}</p>
-        <p class="mt-3 text-base text-muted-foreground">{{ t('home.resident.greetingBody2') }}</p>
+        <p class="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">{{ t('home.resident.greetingBody1') }}</p>
+        <p class="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">{{ t('home.resident.greetingBody2') }}</p>
         <div class="mt-4">
           <Button @click="paymentDialog?.open()">
             <CreditCard class="size-4" />
@@ -107,20 +106,20 @@ function formatDate(value: string): string {
         </div>
       </div>
 
-      <div class="relative z-10 flex shrink-0 items-center gap-1 lg:ml-auto">
+      <div class="relative z-10 flex shrink-0 self-end items-center gap-1 lg:ml-auto lg:self-auto">
         <div class="relative hidden max-w-[220px] rounded-2xl border bg-background px-3 py-2 text-base shadow-sm lg:block">
           {{ t('home.resident.mascotBubble') }}
           <span class="absolute top-1/2 -right-1.5 size-3 -translate-y-1/2 rotate-45 border-t border-r bg-background" />
         </div>
-        <div class="relative h-[150px] -translate-x-2 overflow-hidden sm:h-[240px] sm:-translate-x-3 lg:h-[326px]">
-          <img :src="mascotSrc" alt="" class="h-[166px] w-auto sm:h-[267px] lg:h-[363px]" />
+        <div class="relative h-[120px] -translate-x-2 overflow-hidden sm:h-[240px] sm:-translate-x-3 lg:h-[326px]">
+          <img :src="mascotSrc" alt="" class="h-[135px] w-auto sm:h-[267px] lg:h-[363px]" />
         </div>
       </div>
       <CreatePaymentDialog ref="paymentDialog" />
     </Card>
 
     <div class="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
-      <Card class="flex min-w-0 flex-col gap-3 rounded-2xl border-0 p-4">
+      <Card class="flex min-w-0 flex-col gap-3 rounded-2xl border-0 p-3 sm:p-4">
         <div class="flex items-start gap-3">
           <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-500/20">
             <DoorOpen class="size-4 text-sky-600 dark:text-sky-400" />
@@ -152,8 +151,8 @@ function formatDate(value: string): string {
                 <p class="break-all font-medium">{{ contract.number }}</p>
               </div>
               <div>
-                <p class="text-xs text-muted-foreground">{{ t('home.resident.contractCreatedLabel') }}</p>
-                <p class="font-medium">{{ formatDate(contract.createdAt) }}</p>
+                <p class="text-xs text-muted-foreground">{{ t('home.resident.contractDateLabel') }}</p>
+                <p class="font-medium">{{ formatDate(contract.contractDate) }}</p>
               </div>
             </div>
           </div>
@@ -170,7 +169,7 @@ function formatDate(value: string): string {
         </template>
       </Card>
 
-      <Card class="flex min-w-0 flex-col gap-3 rounded-2xl border-0 p-4">
+      <Card class="flex min-w-0 flex-col gap-3 rounded-2xl border-0 p-3 sm:p-4">
         <div class="flex items-start gap-3">
           <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-green-100 dark:bg-green-500/20">
             <Wallet class="size-4 text-green-600 dark:text-green-400" />
@@ -185,16 +184,16 @@ function formatDate(value: string): string {
         <template v-else-if="contract">
           <div
             class="flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-2"
-            :class="totalBalance > 0 ? 'bg-red-50 dark:bg-red-500/10' : 'bg-green-50 dark:bg-green-500/10'"
+            :class="overdueBalance > 0 ? 'bg-red-50 dark:bg-red-500/10' : 'bg-green-50 dark:bg-green-500/10'"
           >
             <div>
               <p class="text-xs text-muted-foreground">{{ t('home.resident.debtLabel') }}</p>
-              <p class="text-xl font-semibold" :class="totalBalance > 0 ? 'text-red-500' : 'text-green-600'">
-                {{ formatMoney(totalBalance) }}
+              <p class="text-xl font-semibold" :class="overdueBalance > 0 ? 'text-red-500' : 'text-green-600'">
+                {{ formatMoney(overdueBalance) }}
               </p>
             </div>
             <span
-              v-if="isNextPaymentOverdue"
+              v-if="overdueBalance > 0"
               class="shrink-0 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400"
             >
               {{ t('home.resident.overdue') }}
@@ -203,10 +202,10 @@ function formatDate(value: string): string {
           <div>
             <p class="text-xs text-muted-foreground">{{ t('home.resident.nextPaymentHeading') }}</p>
             <div v-if="nextAccrual" class="mt-1 flex flex-wrap items-center justify-between gap-1.5 text-sm">
-              <span :class="isNextPaymentOverdue ? 'font-medium text-red-500' : ''">
+              <span>
                 {{ t('home.resident.nextPaymentDue', { date: formatDate(nextAccrual.dueDate) }) }}
               </span>
-              <span class="font-medium" :class="isNextPaymentOverdue ? 'text-red-500' : ''">{{ formatMoney(nextAccrual.balance) }}</span>
+              <span class="font-medium">{{ formatMoney(nextAccrual.balance) }}</span>
             </div>
             <p v-else class="mt-1 text-sm text-muted-foreground">{{ t('home.resident.noOpenAccruals') }}</p>
           </div>
@@ -226,7 +225,7 @@ function formatDate(value: string): string {
     </div>
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)]">
-      <Card class="flex min-w-0 flex-col gap-3 rounded-2xl border-0 p-4">
+      <Card class="flex min-w-0 flex-col gap-3 rounded-2xl border-0 p-3 sm:p-4">
         <div class="flex items-start gap-3">
           <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-violet-100 dark:bg-violet-500/20">
             <Megaphone class="size-4 text-violet-600 dark:text-violet-400" />

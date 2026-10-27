@@ -1,7 +1,7 @@
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service';
 import { computePenaltyBalance } from '../billing/penalty-balance';
-import { dateOnly } from '../billing/period-utils';
+import { moscowDateOnly } from '../billing/period-utils';
 import { pickCurrentCharacteristics } from '../rooms/current-characteristics';
 
 const FLOOR_DEFINITION_NAME = 'Этаж';
@@ -9,8 +9,10 @@ const FLOOR_DEFINITION_NAME = 'Этаж';
 export interface ContractHomeSummary {
   number: string;
   createdAt: Date;
+  contractDate: Date;
   currentRoom: { room: string; floor: number | null } | null;
   totalBalance: number;
+  overdueBalance: number;
   nextAccrual: { dueDate: Date; balance: number } | null;
 }
 
@@ -24,6 +26,7 @@ export async function buildContractHomeSummary(
     select: {
       number: true,
       createdAt: true,
+      contractDate: true,
       creditBalance: true,
       roomAssignments: { orderBy: { fromDate: 'desc' }, select: { toDate: true, room: { select: { id: true, room: true } } } },
       accruals: {
@@ -39,8 +42,9 @@ export async function buildContractHomeSummary(
     return null;
   }
 
+  const today = moscowDateOnly(new Date());
   const { penaltyBalance } = computePenaltyBalance({
-    asOf: dateOnly(new Date()),
+    asOf: today,
     penaltyLogs: contract.penaltyLogs,
     payments: contract.payments,
   });
@@ -52,12 +56,18 @@ export async function buildContractHomeSummary(
     return { dueDate: a.dueDate, balance: total.minus(paid) };
   });
   const totalDebt = accrualBalances.reduce((sum, a) => sum.plus(a.balance), new Prisma.Decimal(0));
-  const unpaidAccruals = accrualBalances.filter((a) => a.balance.greaterThan(0));
-  const nextAccrual = unpaidAccruals[0] ?? null;
-  let nextAccrualBalance = nextAccrual?.balance ?? null;
-  if (nextAccrual && nextAccrual.dueDate < dateOnly(new Date()) && unpaidAccruals[1]) {
-    nextAccrualBalance = nextAccrual.balance.plus(unpaidAccruals[1].balance);
-  }
+  const overduePrincipal = accrualBalances
+    .filter((a) => a.dueDate < today && a.balance.greaterThan(0))
+    .reduce((sum, a) => sum.plus(a.balance), new Prisma.Decimal(0));
+  const upcomingAccruals = accrualBalances
+    .filter((a) => a.dueDate >= today && a.balance.greaterThan(0))
+    .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+  const nextDueDate = upcomingAccruals[0]?.dueDate ?? null;
+  const nextDueBalance = nextDueDate
+    ? upcomingAccruals
+      .filter((a) => a.dueDate.getTime() === nextDueDate.getTime())
+      .reduce((sum, a) => sum.plus(a.balance), new Prisma.Decimal(0))
+    : new Prisma.Decimal(0);
 
   const rawCurrentRoom = contract.roomAssignments.find((a) => a.toDate === null)?.room ?? contract.roomAssignments[0]?.room ?? null;
   let currentRoom: { room: string; floor: number | null } | null = null;
@@ -74,8 +84,13 @@ export async function buildContractHomeSummary(
   return {
     number: contract.number,
     createdAt: contract.createdAt,
+    contractDate: contract.contractDate,
     currentRoom,
     totalBalance: Number(totalDebt.plus(penaltyBalance).minus(contract.creditBalance)),
-    nextAccrual: nextAccrual ? { dueDate: nextAccrual.dueDate, balance: Number(nextAccrualBalance) } : null,
+    overdueBalance: Number(Prisma.Decimal.max(0, overduePrincipal.plus(penaltyBalance).minus(contract.creditBalance))),
+    nextAccrual: nextDueDate ? {
+      dueDate: nextDueDate,
+      balance: Number(Prisma.Decimal.max(0, overduePrincipal.plus(nextDueBalance).minus(contract.creditBalance))),
+    } : null,
   };
 }

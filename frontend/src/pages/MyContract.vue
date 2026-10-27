@@ -221,7 +221,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
 </script>
 
 <template>
-  <div class="flex min-w-0 flex-1 flex-col gap-4 p-4 md:min-h-0 md:p-6">
+  <div class="flex min-w-0 flex-1 flex-col gap-4 p-3 sm:p-4 md:min-h-0 md:p-6">
     <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
       <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
         <ArrowLeft class="text-primary" />
@@ -231,7 +231,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
         <DropdownMenuTrigger as-child>
           <button
             type="button"
-            class="flex max-w-full min-w-0 items-center gap-1.5 rounded-md border bg-background px-2.5 py-1 text-lg font-medium hover:bg-accent"
+            class="flex max-w-full min-w-0 items-center gap-1.5 rounded-md border bg-background px-2.5 py-1 text-base font-medium hover:bg-accent sm:text-lg"
           >
             <span class="truncate">{{ t('contracts.detail.titleWithNumber', { number: contract.number }) }}</span>
             <ChevronDown class="size-4 shrink-0 text-muted-foreground" />
@@ -248,7 +248,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
       </h1>
       <ContractStatusPill v-if="contract" :status="contract.status" />
       <Loader v-if="isSwitching" class="size-4 shrink-0 animate-spin text-muted-foreground" />
-      <Button v-if="contract" size="sm" class="ml-auto flex items-center gap-2" @click="paymentDialog?.open(contract.id)">
+      <Button v-if="contract" size="sm" class="w-full justify-center gap-2 sm:ml-auto sm:w-auto" @click="paymentDialog?.open(contract.id)">
         <CreditCard class="size-4 shrink-0" />
         {{ t('nav.sidebarPay') }}
       </Button>
@@ -268,7 +268,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
 
     <template v-if="contract">
       <div class="data-reveal flex flex-1 flex-col gap-4 transition-opacity duration-200 md:min-h-0" :class="isSwitching ? 'opacity-50' : ''">
-      <Card class="flex flex-col gap-4 p-4">
+      <Card class="flex min-w-0 flex-col gap-4 p-3 sm:p-4">
         <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           <span v-if="contract.currentRoom" class="flex items-center gap-1.5">
             <DoorOpen class="size-4 shrink-0 text-primary" />
@@ -278,13 +278,13 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
             <CalendarRange class="size-4 shrink-0 text-primary" />
             {{ formatDate(contract.startDate) }} - {{ formatDate(contract.actualEndDate ?? contract.endDate) }}
           </span>
-          <span class="ml-auto flex items-center gap-1.5 text-muted-foreground">
+          <span class="flex w-full items-center gap-1.5 text-muted-foreground sm:ml-auto sm:w-auto">
             <History class="size-4 shrink-0 text-primary" />
             {{ t('contracts.detail.createdOn', { date: formatDate(contract.createdAt) }) }}
           </span>
         </div>
 
-        <div class="grid grid-cols-1 gap-4 border-t pt-4 min-[390px]:grid-cols-2 xl:grid-cols-4">
+        <div class="grid grid-cols-1 gap-4 border-t pt-4 sm:grid-cols-2 xl:grid-cols-4">
           <div class="flex min-w-0 items-center gap-3">
             <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-green-100 dark:bg-green-500/15">
               <Wallet class="size-5 text-green-600 dark:text-green-400" />
@@ -334,14 +334,14 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
       </Card>
 
       <Tabs default-value="accruals" class="flex min-w-0 flex-1 flex-col md:min-h-0">
-        <TabsList class="max-w-full self-start overflow-x-auto">
-          <TabsTrigger value="accruals">
+        <TabsList class="w-full max-w-full overflow-x-auto sm:w-auto sm:self-start">
+          <TabsTrigger value="accruals" class="min-w-0 flex-1 sm:flex-none">
             <span class="flex items-center gap-1.5">
               <Receipt class="size-4 text-primary" />
               {{ t('contracts.detail.tabAccruals') }}
             </span>
           </TabsTrigger>
-          <TabsTrigger value="payments">
+          <TabsTrigger value="payments" class="min-w-0 flex-1 sm:flex-none">
             <span class="flex items-center gap-1.5">
               <Wallet class="size-4 text-primary" />
               {{ t('contracts.detail.tabPayments') }}
@@ -363,6 +363,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
             :cell-text="accrualCellText"
             :cell-renderers="accrualCellRenderers"
             :hidden-by-default="accrualHiddenByDefault"
+            :min-table-width="isMobile ? 360 : undefined"
             storage-key="my-contract-accruals"
             accent-icons
           />
@@ -382,6 +383,7 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
             :cell-text="paymentCellText"
             :cell-renderers="paymentCellRenderers"
             :hidden-by-default="paymentHiddenByDefault"
+            :min-table-width="isMobile ? 360 : undefined"
             :default-filters="paymentDefaultFilters"
             storage-key="my-contract-payments"
             accent-icons
