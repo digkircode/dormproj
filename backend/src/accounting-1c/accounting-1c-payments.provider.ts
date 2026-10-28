@@ -12,6 +12,10 @@ import {
   type AccountingRawImportedPayment,
   type AccountingServiceProvisionPush,
   type AccountingServiceProvisionPushResult,
+  type AccountingContractorCreate,
+  type AccountingContractorCreateResult,
+  type AccountingContractCreate,
+  type AccountingContractCreateResult,
 } from './accounting-1c.types';
 
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -109,5 +113,41 @@ export class Accounting1cPaymentsProvider implements Accounting1cProvider {
       ),
     );
     return response.data;
+  }
+
+  private hasCredentials(): boolean {
+    return Boolean(this.config.get('ACCOUNTING_1C_LOGIN', { infer: true }) && this.config.get('ACCOUNTING_1C_PASSWORD', { infer: true }));
+  }
+
+  private async postCreate<TInput, TResult>(url: string, items: TInput[]): Promise<TResult[]> {
+    if (items.length === 0) return [];
+    const response = await firstValueFrom(this.http.post<TResult[]>(url, items, {
+      auth: {
+        username: this.config.get('ACCOUNTING_1C_LOGIN', { infer: true })!,
+        password: this.config.get('ACCOUNTING_1C_PASSWORD', { infer: true })!,
+      },
+      timeout: REQUEST_TIMEOUT_MS,
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    }));
+    if (!Array.isArray(response.data)) throw new Error('1С вернула неверный формат ответа на создание записи');
+    return response.data;
+  }
+
+  isContractorCreateConfigured(): boolean {
+    return this.hasCredentials() && Boolean(this.config.get('ACCOUNTING_1C_CONTRACTOR_CREATE_URL', { infer: true }));
+  }
+
+  createContractors(items: AccountingContractorCreate[]): Promise<AccountingContractorCreateResult[]> {
+    if (!this.isContractorCreateConfigured()) throw new Accounting1cNotConfiguredError();
+    return this.postCreate(this.config.get('ACCOUNTING_1C_CONTRACTOR_CREATE_URL', { infer: true })!, items);
+  }
+
+  isContractCreateConfigured(): boolean {
+    return this.hasCredentials() && Boolean(this.config.get('ACCOUNTING_1C_CONTRACT_CREATE_URL', { infer: true }));
+  }
+
+  createContracts(items: AccountingContractCreate[]): Promise<AccountingContractCreateResult[]> {
+    if (!this.isContractCreateConfigured()) throw new Accounting1cNotConfiguredError();
+    return this.postCreate(this.config.get('ACCOUNTING_1C_CONTRACT_CREATE_URL', { infer: true })!, items);
   }
 }

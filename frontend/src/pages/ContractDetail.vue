@@ -8,6 +8,7 @@ import {
   ArrowUp,
   ArrowUpDown,
   Ban,
+  Check,
   CalendarClock,
   CalendarRange,
   ChevronDown,
@@ -47,6 +48,7 @@ import DatePickerField from '@/components/DatePickerField.vue'
 import RoomInfoTrigger from '@/components/RoomInfoTrigger.vue'
 import {
   fetchContractDetail,
+  approveContract,
   terminateContract,
   deleteContract,
   downloadContractDocument,
@@ -76,6 +78,26 @@ const contract = ref<ContractDetail | null>(null)
 const isLoading = ref(true)
 const loadError = ref('')
 const mappingDialogRef = ref<InstanceType<typeof Accounting1cMappingDialog> | null>(null)
+const isMatCapitalDialogOpen = ref(false)
+const isApproving = ref(false)
+const approveError = ref('')
+const approveSuccess = ref('')
+
+async function submitApprove() {
+  if (!contract.value || isApproving.value) return
+  isApproving.value = true
+  approveError.value = ''
+  approveSuccess.value = ''
+  try {
+    contract.value = await approveContract(contract.value.id)
+    approveSuccess.value = t('contracts.detail.approveSuccess')
+  } catch (error) {
+    await load()
+    approveError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    isApproving.value = false
+  }
+}
 
 function openAccounting1cMapping() {
   if (!contract.value) return
@@ -453,6 +475,10 @@ async function confirmReversePayment() {
             <Download class="text-primary" />
             {{ t('contracts.detail.downloadContract') }}
           </DropdownMenuItem>
+          <DropdownMenuItem :disabled="isApproving || contract.status === 'TERMINATED' || (!!contract.accounting1cUid && !!contract.accounting1cContractorUid)" @click="submitApprove">
+            <Check class="text-emerald-600" />
+            {{ contract.accounting1cUid && contract.accounting1cContractorUid ? t('contracts.detail.approvedContract') : t('contracts.detail.approveContract') }}
+          </DropdownMenuItem>
           <DropdownMenuItem :disabled="contract.status === 'TERMINATED'" @click="openTerminate">
             <Ban class="text-red-500" />
             {{ t('contracts.detail.terminateContract') }}
@@ -470,6 +496,8 @@ async function confirmReversePayment() {
       <Button variant="outline" size="sm" @click="load">{{ t('errors.retry') }}</Button>
     </div>
     <p v-if="downloadError" class="text-sm text-red-500">{{ downloadError }}</p>
+    <p v-if="approveError" role="alert" class="text-sm text-red-500">{{ approveError }}</p>
+    <p v-if="approveSuccess" role="status" class="text-sm text-emerald-600">{{ approveSuccess }}</p>
     <TableSkeleton v-if="isLoading && !contract" :columns="6" :rows="8" class="min-h-[60vh]" />
 
     <template v-if="contract">
@@ -488,6 +516,11 @@ async function confirmReversePayment() {
               <CalendarRange class="size-4 shrink-0 text-primary" />
               {{ formatDate(contract.startDate) }} - {{ formatDate(contract.actualEndDate ?? contract.endDate) }}
             </span>
+            <button v-if="contract.matCapitalAmount != null && contract.matCapitalAmount > 0" type="button"
+              class="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-700 hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:border-violet-500/40 dark:bg-violet-500/15 dark:text-violet-300 dark:hover:bg-violet-500/25"
+              @click="isMatCapitalDialogOpen = true">
+              {{ t('contracts.detail.matCapitalBadge') }}
+            </button>
             <span class="ml-auto flex items-center gap-1.5 text-muted-foreground">
               <History class="size-4 shrink-0 text-primary" />
               {{ t('contracts.detail.createdOn', { date: formatDate(contract.createdAt) }) }}
@@ -938,6 +971,23 @@ async function confirmReversePayment() {
             <Skeleton v-for="index in Math.min(visiblePenaltyLog.length, 8)" :key="index" class="h-14 w-full" />
           </div>
         </div>
+      </DialogScrollContent>
+    </Dialog>
+    <Dialog :open="isMatCapitalDialogOpen" @update:open="(open) => (isMatCapitalDialogOpen = open)">
+      <DialogScrollContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{{ t('contracts.detail.matCapitalTitle') }}</DialogTitle>
+        </DialogHeader>
+        <dl v-if="contract" class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-3 text-sm">
+          <dt class="text-muted-foreground">{{ t('contracts.detail.matCapitalAmount') }}</dt>
+          <dd class="text-right font-medium">{{ formatMoney(contract.matCapitalAmount ?? 0) }}</dd>
+          <dt class="text-muted-foreground">{{ t('contracts.detail.matCapitalFrom') }}</dt>
+          <dd class="text-right font-medium">{{ formatDate(contract.matCapitalCoveredFrom) }}</dd>
+          <dt class="text-muted-foreground">{{ t('contracts.detail.matCapitalTo') }}</dt>
+          <dd class="text-right font-medium">{{ formatDate(contract.matCapitalCoveredTo) }}</dd>
+          <dt class="text-muted-foreground">{{ t('contracts.detail.matCapitalDeferredUntil') }}</dt>
+          <dd class="text-right font-medium">{{ formatDate(contract.matCapitalDeferredUntil) }}</dd>
+        </dl>
       </DialogScrollContent>
     </Dialog>
     <Accounting1cMappingDialog ref="mappingDialogRef" @saved="load" />

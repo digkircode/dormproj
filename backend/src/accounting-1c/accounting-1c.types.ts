@@ -79,6 +79,31 @@ export interface AccountingServiceProvisionPushResult {
   ERROR?: string;
 }
 
+export interface AccountingContractorCreate {
+  ContractorID: string;
+  ContractorFIO: string;
+}
+
+export interface AccountingContractorCreateResult extends AccountingContractorCreate {
+  ContractorUID?: string;
+  FinalStatus: boolean;
+  ERROR?: string;
+}
+
+export interface AccountingContractCreate {
+  DogovorID: number;
+  ContractName: string;
+  ContractDate: string;
+  DocumentSummNaim: number;
+  ContractorUID: string;
+}
+
+export interface AccountingContractCreateResult extends AccountingContractCreate {
+  ContractUID?: string;
+  FinalStatus: boolean;
+  ERROR?: string;
+}
+
 export interface Accounting1cProvider {
   isConfigured(): boolean;
   pushPayments(items: AccountingPaymentPush[]): Promise<AccountingPaymentPushResult[]>;
@@ -86,6 +111,10 @@ export interface Accounting1cProvider {
   fetchPayments(pairs: AccountingContractPair[]): Promise<AccountingRawImportedPayment[]>;
   isServiceProvisionConfigured(): boolean;
   pushServiceProvisionDocs(items: AccountingServiceProvisionPush[]): Promise<AccountingServiceProvisionPushResult[]>;
+  isContractorCreateConfigured(): boolean;
+  createContractors(items: AccountingContractorCreate[]): Promise<AccountingContractorCreateResult[]>;
+  isContractCreateConfigured(): boolean;
+  createContracts(items: AccountingContractCreate[]): Promise<AccountingContractCreateResult[]>;
 }
 
 export const ACCOUNTING_1C_PROVIDER = Symbol('ACCOUNTING_1C_PROVIDER');

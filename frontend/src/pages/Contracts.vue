@@ -11,6 +11,7 @@ import ContractStatusCell from '@/components/ContractStatusCell.vue'
 import ResidentLinkCell from '@/components/ResidentLinkCell.vue'
 import RoomCell from '@/components/RoomCell.vue'
 import Accounting1cMatchCell from '@/components/Accounting1cMatchCell.vue'
+import ContractNumberCell from '@/components/ContractNumberCell.vue'
 import CreateContractDialog from '@/components/CreateContractDialog.vue'
 import { createAppColumnHelper } from '@/lib/table'
 import { goBack } from '@/lib/utils'
@@ -68,8 +69,9 @@ const columnLabels = computed<Record<string, string>>(() => ({
   endDate: t('contracts.list.colEnd'),
   status: t('contracts.list.colStatus'),
   accounting1cMatched: t('contracts.list.colMapping'),
+  matCapital: t('contracts.list.colMatCapital'),
 }))
-const filterableFields = ['status']
+const filterableFields = ['status', 'matCapital']
 const initialFilters = computed<Record<string, string[]>>(() => {
   const status = route.query.status
   const filters: Record<string, string[]> = {}
@@ -77,7 +79,7 @@ const initialFilters = computed<Record<string, string[]>>(() => {
   return filters
 })
 const hiddenByDefault = ['accounting1cMatched']
-const cellRenderers = { residentFullName: ResidentLinkCell, status: ContractStatusCell, room: RoomCell, accounting1cMatched: Accounting1cMatchCell }
+const cellRenderers = { number: ContractNumberCell, residentFullName: ResidentLinkCell, status: ContractStatusCell, room: RoomCell, accounting1cMatched: Accounting1cMatchCell }
 
 function cellText(columnId: string, value: unknown): string {
   if ((columnId === 'contractDate' || columnId === 'startDate' || columnId === 'endDate') && typeof value === 'string') {

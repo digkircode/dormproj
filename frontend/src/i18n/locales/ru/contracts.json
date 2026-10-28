@@ -14,7 +14,8 @@
       "reversePaymentFailed": "Не удалось сторнировать платёж ({status})",
       "syncPaymentToAccounting1cFailed": "Не удалось отправить платёж в 1С ({status})",
       "recalculatePenaltyFailed": "Не удалось пересчитать пеню ({status})",
-      "mappingSaveFailed": "Не удалось сохранить сопоставление ({status})"
+      "mappingSaveFailed": "Не удалось сохранить сопоставление ({status})",
+      "approveFailed": "Не удалось утвердить договор в 1С ({status})"
     },
     "status": {
       "ACTIVE": "Действует",
@@ -34,6 +35,7 @@
       "colEnd": "Окончание",
       "colStatus": "Статус",
       "colMapping": "Сопоставление",
+      "colMatCapital": "Материнский капитал",
       "totalLabel": "договоров",
       "openContract": "Открыть договор",
       "newContract": "Новый договор",
@@ -46,6 +48,15 @@
       "actions": "Действия",
       "printContract": "Печать договора",
       "downloadContract": "Скачать договор",
+      "approveContract": "Утвердить договор",
+      "approvedContract": "Утверждён в 1С",
+      "approveSuccess": "Связи контрагента и договора с 1С сохранены",
+      "matCapitalBadge": "МК",
+      "matCapitalTitle": "Оплата материнским капиталом",
+      "matCapitalAmount": "Сумма",
+      "matCapitalFrom": "Период с",
+      "matCapitalTo": "Период по",
+      "matCapitalDeferredUntil": "Отсрочка до",
       "addPayment": "Внести платёж",
       "recordRefund": "Зафиксировать возврат",
       "refundMethod": "Корректировка",

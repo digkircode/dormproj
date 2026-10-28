@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 const portalHttpsUrl = z.url().refine((value) => new URL(value).protocol === 'https:', 'Требуется HTTPS');
+const optionalAccountingText = z.preprocess((value) => value === '' ? undefined : value, z.string().min(1).optional());
+const optionalAccountingUrl = z.preprocess((value) => value === '' ? undefined : value, z.url().optional());
 
 export const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
@@ -45,11 +47,13 @@ export const envSchema = z.object({
   ATOL_KASSA_COMPANY_SNO: z.string().min(1).optional(),
   ATOL_KASSA_PAYMENT_ADDRESS: z.string().min(1).optional(),
 
-  ACCOUNTING_1C_LOGIN: z.string().min(1).optional(),
-  ACCOUNTING_1C_PASSWORD: z.string().min(1).optional(),
-  ACCOUNTING_1C_SEND_PAYMENTS_URL: z.url().optional(),
-  ACCOUNTING_1C_GET_PAYMENTS_URL: z.url().optional(),
-  ACCOUNTING_1C_SERVICE_PROVISION_URL: z.url().optional(),
+  ACCOUNTING_1C_LOGIN: optionalAccountingText,
+  ACCOUNTING_1C_PASSWORD: optionalAccountingText,
+  ACCOUNTING_1C_SEND_PAYMENTS_URL: optionalAccountingUrl,
+  ACCOUNTING_1C_GET_PAYMENTS_URL: optionalAccountingUrl,
+  ACCOUNTING_1C_SERVICE_PROVISION_URL: optionalAccountingUrl,
+  ACCOUNTING_1C_CONTRACTOR_CREATE_URL: optionalAccountingUrl,
+  ACCOUNTING_1C_CONTRACT_CREATE_URL: optionalAccountingUrl,
 });
 
 export type Env = z.infer<typeof envSchema>;

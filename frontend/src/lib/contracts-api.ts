@@ -19,6 +19,7 @@ export interface ContractListItem {
   room: string | null
   roomId: number | null
   accounting1cMatched: boolean
+  matCapital: 'YES' | 'NO'
 }
 
 export type ContractsPage = ListPage<ContractListItem>
@@ -286,6 +287,15 @@ export async function updateContractAccounting1cMapping(
   if (!response.ok) {
     const body: { message?: string } = await response.json().catch(() => ({}))
     throw new Error(body.message ?? i18n.global.t('contracts.errors.mappingSaveFailed', { status: response.status }))
+  }
+  return response.json()
+}
+
+export async function approveContract(id: number): Promise<ContractDetail> {
+  const response = await apiFetch(`/contracts/${id}/approve`, { method: 'POST' })
+  if (!response.ok) {
+    const body: { message?: string } = await response.json().catch(() => ({}))
+    throw new Error(typeof body.message === 'string' ? body.message : i18n.global.t('contracts.errors.approveFailed', { status: response.status }))
   }
   return response.json()
 }

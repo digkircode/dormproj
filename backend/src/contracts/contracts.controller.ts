@@ -46,6 +46,7 @@ import { ContractStatus } from '../../generated/prisma/client.js';
 import { zodErrorMessage } from '../i18n/zod-error-message';
 import { roomAvailability } from './room-capacity';
 import { conflictingRoomAssignment } from './room-conflict';
+import { ContractApprovalService } from './contract-approval.service';
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -56,7 +57,7 @@ function isSortableField(field: string): field is SortableField {
   return (SORTABLE_FIELDS as readonly string[]).includes(field);
 }
 
-const FILTERABLE_FIELDS = ['status'] as const;
+const FILTERABLE_FIELDS = ['status', 'matCapital'] as const;
 type FilterableField = (typeof FILTERABLE_FIELDS)[number];
 function isFilterableField(field: string): field is FilterableField {
   return (FILTERABLE_FIELDS as readonly string[]).includes(field);
@@ -169,6 +170,7 @@ export class ContractsController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
+    private readonly approval: ContractApprovalService,
   ) {}
 
   @Get('room-availability')
@@ -206,8 +208,13 @@ export class ContractsController {
             }
             const stringValues = values.filter((v): v is string => typeof v === 'string');
             if (stringValues.length === 0) continue;
-            const statusClause = buildStatusFilterClause(stringValues);
-            if (statusClause) filterClauses.push(statusClause);
+            if (field === 'status') {
+              const statusClause = buildStatusFilterClause(stringValues);
+              if (statusClause) filterClauses.push(statusClause);
+            } else if (field === 'matCapital' && stringValues.length === 1) {
+              if (stringValues[0] === 'YES') filterClauses.push({ matCapitalAmount: { gt: 0 } });
+              if (stringValues[0] === 'NO') filterClauses.push({ OR: [{ matCapitalAmount: null }, { matCapitalAmount: { lte: 0 } }] });
+            }
           }
         }
       } catch {
@@ -257,6 +264,7 @@ export class ContractsController {
         room: c.roomAssignments[0]?.room.room ?? null,
         roomId: c.roomAssignments[0]?.room.id ?? null,
         accounting1cMatched: Boolean(c.accounting1cUid && c.resident.accounting1cContractorUid),
+        matCapital: c.matCapitalAmount !== null && c.matCapitalAmount.greaterThan(0) ? 'YES' : 'NO',
       })),
       total,
       page,
@@ -275,6 +283,10 @@ export class ContractsController {
     if (!isFilterableField(field)) {
       return [];
     }
+    if (field === 'matCapital') return [
+      { value: 'YES', label: 'Материнский капитал' },
+      { value: 'NO', label: 'Без материнского капитала' },
+    ];
     return Object.entries(STATUS_FACET_LABELS).map(([value, label]) => ({ value, label }));
   }
 
@@ -422,6 +434,14 @@ export class ContractsController {
       });
     });
 
+    return this.detail(String(id));
+  }
+
+  @Post(':id/approve')
+  async approve(@Param('id') idParam: string, @Req() req: Request) {
+    if (!req.user) throw new BadRequestException('contracts.errors.sessionUserNotFound');
+    const id = parseIdParam(idParam);
+    await this.approval.approve(id, req.user);
     return this.detail(String(id));
   }
 

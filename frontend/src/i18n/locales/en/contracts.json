@@ -14,7 +14,8 @@
       "reversePaymentFailed": "Failed to reverse the payment ({status})",
       "syncPaymentToAccounting1cFailed": "Failed to send the payment to 1C ({status})",
       "recalculatePenaltyFailed": "Failed to recalculate the penalty ({status})",
-      "mappingSaveFailed": "Failed to save mapping ({status})"
+      "mappingSaveFailed": "Failed to save mapping ({status})",
+      "approveFailed": "Failed to approve the contract in 1C ({status})"
     },
     "status": {
       "ACTIVE": "Active",
@@ -34,6 +35,7 @@
       "colEnd": "End",
       "colStatus": "Status",
       "colMapping": "Mapping",
+      "colMatCapital": "Maternity capital",
       "totalLabel": "contracts",
       "openContract": "Open contract",
       "newContract": "New contract",
@@ -46,6 +48,15 @@
       "actions": "Actions",
       "printContract": "Print contract",
       "downloadContract": "Download contract",
+      "approveContract": "Approve contract",
+      "approvedContract": "Approved in 1C",
+      "approveSuccess": "Contractor and contract links to 1C have been saved",
+      "matCapitalBadge": "MC",
+      "matCapitalTitle": "Maternity capital payment",
+      "matCapitalAmount": "Amount",
+      "matCapitalFrom": "Covered from",
+      "matCapitalTo": "Covered through",
+      "matCapitalDeferredUntil": "Deferred until",
       "addPayment": "Add payment",
       "recordRefund": "Record refund",
       "refundMethod": "Adjustment",
