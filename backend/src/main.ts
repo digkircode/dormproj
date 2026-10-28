@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import type { Env } from './config/env.schema';
+import { warmUpPdfConverter } from './contracts/docx-to-pdf';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -14,6 +15,7 @@ async function bootstrap() {
     credentials: true,
   });
 
+  await warmUpPdfConverter();
   await app.listen(process.env.PORT ?? 3000);
 }
 bootstrap();

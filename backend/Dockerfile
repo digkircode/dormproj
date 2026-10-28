@@ -18,6 +18,7 @@ COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
 COPY prisma ./prisma
 COPY prisma.config.ts ./prisma.config.ts
 COPY templates ./templates
+COPY scripts/uno-convert.py ./scripts/uno-convert.py
 COPY i18n ./i18n
 
 EXPOSE 3000

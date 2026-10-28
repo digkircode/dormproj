@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Logger } from '@nestjs/common';
 import { PdfConversionCache } from './pdf-conversion-cache';
+import { ensureOfficeListener } from './office-listener';
 
 const logger = new Logger('DocxToPdf');
 
@@ -11,13 +12,6 @@ let queue: Promise<unknown> = Promise.resolve();
 const pdfCache = new PdfConversionCache();
 
 const CONVERT_TIMEOUT_MS = 60_000;
-
-const PROFILE_DIR = join(tmpdir(), 'dormproj-lo-profile');
-let profileDirReady: Promise<void> | null = null;
-function ensureProfileDir(): Promise<void> {
-  if (!profileDirReady) profileDirReady = mkdir(PROFILE_DIR, { recursive: true }).then(() => undefined);
-  return profileDirReady;
-}
 
 export function runSoffice(args: string[], timeoutMs = CONVERT_TIMEOUT_MS, executable = 'soffice'): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -56,26 +50,25 @@ export function runSoffice(args: string[], timeoutMs = CONVERT_TIMEOUT_MS, execu
 }
 
 async function convertOnce(buffer: Buffer): Promise<Buffer> {
-  await ensureProfileDir();
-  await unlink(join(PROFILE_DIR, '.lock')).catch(() => {});
-
   const workDir = await mkdtemp(join(tmpdir(), 'dormproj-docx2pdf-'));
   const inputPath = join(workDir, 'input.docx');
   const outputPath = join(workDir, 'input.pdf');
   try {
     await writeFile(inputPath, buffer);
-    await runSoffice([
-      '--headless',
-      '--norestore',
-      '--nologo',
-      '--nofirststartwizard',
-      `-env:UserInstallation=file://${PROFILE_DIR}`,
-      '--convert-to',
-      'pdf:writer_pdf_Export',
-      '--outdir',
-      workDir,
-      inputPath,
-    ]);
+    try {
+      if (process.platform !== 'linux') throw new Error('UNO доступен только в серверном контейнере');
+      const port = await ensureOfficeListener();
+      await runSoffice([join(process.cwd(), 'scripts', 'uno-convert.py'), String(port), inputPath, outputPath], CONVERT_TIMEOUT_MS, 'python3');
+    } catch (error) {
+      logger.warn(`UNO-конвертация недоступна, использую разовый запуск: ${error instanceof Error ? error.message : String(error)}`);
+      const fallbackProfile = join(workDir, 'profile');
+      await mkdir(fallbackProfile);
+      await runSoffice([
+        '--headless', '--norestore', '--nologo', '--nofirststartwizard',
+        `-env:UserInstallation=file://${fallbackProfile}`,
+        '--convert-to', 'pdf:writer_pdf_Export', '--outdir', workDir, inputPath,
+      ]);
+    }
     return await readFile(outputPath);
   } finally {
     await rm(workDir, { recursive: true, force: true }).catch(() => {});
@@ -84,6 +77,16 @@ async function convertOnce(buffer: Buffer): Promise<Buffer> {
 
 export function convertDocxToPdf(buffer: Buffer): Promise<Buffer> {
   return pdfCache.getOrCreate(buffer, () => enqueueConversion(buffer));
+}
+
+export async function warmUpPdfConverter(): Promise<void> {
+  if (process.env.NODE_ENV !== 'production') return;
+  try {
+    const template = await readFile(join(process.cwd(), 'templates', 'contract-standard.docx'));
+    await convertDocxToPdf(template);
+  } catch (error) {
+    logger.warn(`Прогрев PDF-конвертера не удался: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 function enqueueConversion(buffer: Buffer): Promise<Buffer> {
