@@ -200,7 +200,10 @@ async function submit() {
 
         <div class="flex flex-col gap-3 rounded-lg border p-3">
           <p class="text-sm font-medium">{{ t('payment.createDialog.amountSection') }}</p>
-          <p class="text-xs text-muted-foreground">{{ t('payment.createDialog.taxDeductionNotice') }}</p>
+          <p class="flex items-start gap-1.5 text-xs text-muted-foreground">
+            <Info class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+            <span>{{ t('payment.createDialog.taxDeductionNotice') }}</span>
+          </p>
 
           <p v-if="!openAccruals.length && penaltyBalance <= 0" class="text-sm text-muted-foreground">
             {{ t('payment.createDialog.noOpenAccruals') }}
@@ -251,11 +254,11 @@ async function submit() {
 
         <div class="flex flex-col gap-3 rounded-lg border p-3">
           <p class="text-sm font-medium">{{ t('payment.createDialog.payerSection') }}</p>
-          <div class="flex flex-wrap items-center gap-1 rounded-md border p-0.5">
-            <Button :variant="payerIsResident ? 'default' : 'ghost'" size="sm" @click="payerIsResident = true">
+          <div class="grid grid-cols-1 gap-1 rounded-md border bg-muted/30 p-1 sm:grid-cols-2" role="group" :aria-label="t('payment.createDialog.payerSection')">
+            <Button class="h-auto min-h-9 w-full whitespace-normal px-2 py-1.5 text-center leading-snug" :variant="payerIsResident ? 'default' : 'ghost'" size="sm" :aria-pressed="payerIsResident" @click="payerIsResident = true">
               {{ t('payment.createDialog.payerIsResident') }}
             </Button>
-            <Button :variant="!payerIsResident ? 'default' : 'ghost'" size="sm" @click="payerIsResident = false">
+            <Button class="h-auto min-h-9 w-full whitespace-normal px-2 py-1.5 text-center leading-snug" :variant="!payerIsResident ? 'default' : 'ghost'" size="sm" :aria-pressed="!payerIsResident" @click="payerIsResident = false">
               {{ t('payment.createDialog.payerIsOther') }}
             </Button>
           </div>

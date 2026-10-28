@@ -35,7 +35,7 @@ import { fetchMyContract, fetchMyContracts, type AccrualRow, type MyContractDeta
 import { STATUS_LABELS as CONTRACT_STATUS_LABELS } from '@/lib/contracts-format'
 import {
   fetchMyPayments,
-  UNIFIED_PAYMENT_STATUS_LABELS,
+  paymentStatusLabel,
   type PaymentIntentRow,
   type UnifiedPaymentRow,
   type UnifiedPaymentStatus,
@@ -216,7 +216,7 @@ const fetchPaymentsPage = createClientFetchPage(() => unifiedPayments.value, {
 const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
   () => unifiedPayments.value,
   (row, field) => (field === 'status' ? row.status : ''),
-  (field, value) => (field === 'status' ? UNIFIED_PAYMENT_STATUS_LABELS[value as UnifiedPaymentStatus] : value),
+  (field, value) => (field === 'status' ? paymentStatusLabel(value as UnifiedPaymentStatus) : value),
 )
 </script>
 
@@ -385,6 +385,8 @@ const fetchPaymentFacets = createClientFacetValues<UnifiedPaymentRow>(
             :hidden-by-default="paymentHiddenByDefault"
             :min-table-width="isMobile ? 360 : undefined"
             :default-filters="paymentDefaultFilters"
+            :initial-page-size="50"
+            hide-pagination
             storage-key="my-contract-payments"
             accent-icons
           />

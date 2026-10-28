@@ -353,7 +353,7 @@ export class ReportsController {
     const rooms = await this.prisma.room.findMany({
       orderBy: { room: 'asc' },
       include: {
-        characteristicValues: { where: { definitionId: { in: defIds } }, orderBy: { period: 'desc' } },
+        characteristicValues: { where: { definitionId: { in: defIds }, period: { lt: addDays(asOf, 1) } }, orderBy: { period: 'desc' } },
         roomAssignments: {
           where: { fromDate: { lte: asOf }, OR: [{ toDate: null }, { toDate: { gte: asOf } }] },
           include: { contract: { select: { id: true, number: true, resident: { select: { fullName: true } } } } },

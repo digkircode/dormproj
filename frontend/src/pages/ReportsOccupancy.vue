@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, ChevronRight, DoorClosed, DoorOpen, FileText, Home, Layers, ListFilter, Percent, SlidersHorizontal, Users } from 'lucide-vue-next'
@@ -11,9 +11,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenu
 import ReportKpiTile from '@/components/ReportKpiTile.vue'
 import RoomCharacteristicsSkeleton from '@/components/RoomCharacteristicsSkeleton.vue'
 import { Skeleton } from '@/components/ui/skeleton'
+import DatePickerField from '@/components/DatePickerField.vue'
 import { fetchOccupancy, type OccupancyReport, type OccupancyRoom } from '@/lib/reports-api'
-import { fetchRoomDetail, type RoomDetail } from '@/lib/rooms-api'
+import { fetchRoomDetail, type RoomCharacteristic, type RoomDetail } from '@/lib/rooms-api'
 import { goBack } from '@/lib/utils'
+import { todayIso } from '@/lib/format-locale'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -23,28 +25,39 @@ const DIALOG_ANIMATE_CLASS =
 const CORE_ORDER = ['Этаж', 'Жилое помещение', 'Количество мест', 'Площадь', 'Стоимость (из вуза)', 'Стоимость (не из вуза)']
 
 const report = ref<OccupancyReport | null>(null)
+const asOf = ref(todayIso())
 const isLoading = ref(true)
 const loadError = ref('')
+let loadVersion = 0
 
 async function load() {
+  const version = ++loadVersion
   isLoading.value = true
   loadError.value = ''
   try {
-    report.value = await fetchOccupancy()
+    const result = await fetchOccupancy(asOf.value)
+    if (version === loadVersion) report.value = result
   } catch (error) {
-    loadError.value = error instanceof Error ? error.message : String(error)
+    if (version === loadVersion) loadError.value = error instanceof Error ? error.message : String(error)
   } finally {
-    isLoading.value = false
+    if (version === loadVersion) isLoading.value = false
   }
 }
 
 onMounted(load)
+watch(asOf, (value) => {
+  if (!value) {
+    asOf.value = todayIso()
+    return
+  }
+  void load()
+})
 
 const occupancyFilter = ref<'all' | 'free' | 'occupied'>('all')
 function roomMatchesFilter(room: OccupancyRoom): boolean {
   if (occupancyFilter.value === 'all') return true
-  const free = room.free ?? 0
-  return occupancyFilter.value === 'free' ? free > 0 : free <= 0
+  if (room.free === null) return false
+  return occupancyFilter.value === 'free' ? room.free > 0 : room.free === 0
 }
 const filteredFloors = computed(() => {
   if (!report.value) return []
@@ -81,6 +94,21 @@ const roomDetailLoading = ref(false)
 const roomDetailError = ref('')
 const loadingRoomId = ref<number | null>(null)
 let roomRequest = 0
+const roomCharacteristicsAtDate = computed<RoomCharacteristic[]>(() => {
+  if (!roomDetail.value) return []
+  const latest = new Map<number, RoomCharacteristic>()
+  for (const entry of roomDetail.value.history) {
+    if (entry.period.slice(0, 10) > asOf.value) continue
+    const previous = latest.get(entry.definitionId)
+    if (!previous || entry.period > previous.period) latest.set(entry.definitionId, entry)
+  }
+  return [...latest.values()]
+})
+
+watch(asOf, () => {
+  roomRequest++
+  roomDialogOpen.value = false
+})
 
 async function openRoom(room: OccupancyRoom) {
   const request = ++roomRequest
@@ -129,12 +157,18 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
 
 <template>
   <div class="flex min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
-    <div class="flex items-center gap-2">
-      <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
-        <ArrowLeft class="text-primary" />
-        <span class="sr-only">{{ t('reports.common.back') }}</span>
-      </Button>
-      <h1 class="text-lg font-medium">{{ t('reports.occupancy.title') }}</h1>
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-2">
+        <Button variant="ghost" size="icon" class="size-7" @click="goBack(router, '/')">
+          <ArrowLeft class="text-primary" />
+          <span class="sr-only">{{ t('reports.common.back') }}</span>
+        </Button>
+        <h1 class="text-lg font-medium">{{ t('reports.occupancy.title') }}</h1>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="whitespace-nowrap text-sm text-muted-foreground">{{ t('reports.common.asOf') }}</span>
+        <DatePickerField v-model="asOf" />
+      </div>
     </div>
 
     <p v-if="loadError" class="text-sm text-red-500">{{ loadError }}</p>
@@ -186,9 +220,9 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
       <div class="flex items-center gap-2">
         <Tabs v-model="roomsView">
           <TabsList class="w-fit">
+            <TabsTrigger value="all">{{ t('reports.occupancy.tabAll') }}</TabsTrigger>
             <TabsTrigger value="new">{{ t('reports.occupancy.tabNew') }}</TabsTrigger>
             <TabsTrigger value="old">{{ t('reports.occupancy.tabOld') }}</TabsTrigger>
-            <TabsTrigger value="all">{{ t('reports.occupancy.tabAll') }}</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -248,7 +282,7 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
     </template>
 
     <Dialog :open="roomDialogOpen" @update:open="(v) => (roomDialogOpen = v)">
-      <DialogScrollContent :class="['flex h-[min(80vh,32rem)] flex-col gap-4', DIALOG_ANIMATE_CLASS]">
+      <DialogScrollContent :class="['flex max-h-[80dvh] flex-col gap-4', DIALOG_ANIMATE_CLASS]">
         <DialogHeader>
           <DialogTitle>{{ t('roomInfo.dialogTitle', { room: selectedRoom?.room }) }}</DialogTitle>
         </DialogHeader>
@@ -282,7 +316,7 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
             <RoomCharacteristicsSkeleton v-else-if="roomDetailLoading" />
             <div v-else-if="roomDetail" class="grid grid-cols-1 gap-0 overflow-hidden rounded-md border sm:grid-cols-2">
               <div
-                v-for="(c, index) in sortedCharacteristics(roomDetail.characteristics)"
+                v-for="(c, index) in sortedCharacteristics(roomCharacteristicsAtDate)"
                 :key="c.id"
                 class="flex items-center justify-between gap-2 px-3 py-2 text-sm"
                 :class="[
@@ -295,7 +329,7 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
                 <span class="font-medium">{{ formatCharacteristicValue(c) }}</span>
               </div>
               <div
-                v-if="sortedCharacteristics(roomDetail.characteristics).length % 2 === 1"
+                v-if="sortedCharacteristics(roomCharacteristicsAtDate).length % 2 === 1"
                 aria-hidden="true"
                 class="hidden border-l border-t border-border sm:block"
               />

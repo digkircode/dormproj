@@ -61,6 +61,8 @@ const props = withDefaults(
     cellText?: (columnId: string, value: unknown) => string
     cellRenderers?: Record<string, Component>
     pageSizeOptions?: number[]
+    initialPageSize?: number
+    hidePagination?: boolean
     minTableWidth?: number
     hiddenByDefault?: string[]
     defaultFilters?: Record<string, string[]>
@@ -101,7 +103,7 @@ const columnVisibility = ref<ColumnVisibilityState>({
   ...Object.fromEntries(props.hiddenByDefault.map((id) => [id, false])),
   ...(storedTableState?.columnVisibility ?? {}),
 })
-const pagination = ref<PaginationState>({ pageIndex: 0, pageSize: 20 })
+const pagination = ref<PaginationState>({ pageIndex: 0, pageSize: props.initialPageSize ?? 20 })
 const sorting = ref<SortingState>(storedTableState?.sorting ?? [props.defaultSort])
 const columnSizing = ref<ColumnSizingState>({})
 const searchInput = ref('')
@@ -587,7 +589,7 @@ defineExpose({ refresh: loadPage })
       <div class="text-muted-foreground text-sm">
         {{ t('entityTable.total', { label: totalLabel, count: total }) }}
       </div>
-      <div class="flex flex-wrap items-center gap-x-4 gap-y-2 sm:w-fit sm:gap-8">
+      <div v-if="!hidePagination || total > pagination.pageSize" class="flex flex-wrap items-center gap-x-4 gap-y-2 sm:w-fit sm:gap-8">
         <div class="flex items-center gap-2">
           <Label for="rows-per-page" class="text-sm font-medium">{{ t('entityTable.rowsPerPage') }}</Label>
           <Select

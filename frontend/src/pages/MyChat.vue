@@ -91,9 +91,9 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisible))
         <ArrowLeft class="size-4 text-primary" />
         <span class="sr-only">{{ t('chat.back') }}</span>
       </Button>
-      <span class="flex min-w-0 items-center gap-2 rounded-full border bg-card px-3 py-2 text-xs text-muted-foreground shadow-sm">
+      <span class="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-full border bg-card px-3 text-xs text-muted-foreground shadow-sm">
         <Clock class="size-4 shrink-0 text-primary" />
-        <span class="whitespace-nowrap">{{ t('chat.resident.officeHoursShort') }}</span>
+        <span class="min-w-0 truncate">{{ t('chat.resident.officeHoursShort') }}</span>
       </span>
     </div>
     <div class="hidden items-center gap-2 md:flex">

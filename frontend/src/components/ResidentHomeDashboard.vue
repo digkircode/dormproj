@@ -106,7 +106,7 @@ function formatDate(value: string): string {
         </div>
       </div>
 
-      <div class="relative z-10 flex shrink-0 self-end items-center gap-1 lg:ml-auto lg:self-auto">
+      <div class="relative z-10 hidden shrink-0 self-end items-center gap-1 md:flex lg:ml-auto lg:self-auto">
         <div class="relative hidden max-w-[220px] rounded-2xl border bg-background px-3 py-2 text-base shadow-sm lg:block">
           {{ t('home.resident.mascotBubble') }}
           <span class="absolute top-1/2 -right-1.5 size-3 -translate-y-1/2 rotate-45 border-t border-r bg-background" />

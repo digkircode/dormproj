@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import TableSkeleton from '@/components/TableSkeleton.vue'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
-import { fetchMyPayments, fetchPaymentIntent, type MyPaymentsData, type PaymentIntentRow, type PaymentIntentStatus } from '@/lib/my-payments-api'
+import { fetchMyPayments, fetchPaymentIntent, paymentStatusLabel, type MyPaymentsData, type PaymentIntentRow, type PaymentIntentStatus } from '@/lib/my-payments-api'
 import { dateLocaleTag } from '@/lib/format-locale'
 import { goBack } from '@/lib/utils'
 
@@ -59,9 +59,6 @@ async function pollIntent(id: number) {
 }
 onUnmounted(() => clearTimeout(pollTimeout))
 
-const STATUS_LABELS: Record<PaymentIntentStatus, string> = new Proxy({} as Record<PaymentIntentStatus, string>, {
-  get: (_target, status: string) => t(`payment.status.${status}`),
-})
 const STATUS_ICON = { CREATED: Clock, PENDING_BANK: Clock, SUCCEEDED: Check, FAILED: X, CANCELED: X, EXPIRED: X } as const
 const STATUS_ICON_CLASS: Record<PaymentIntentStatus, string> = {
   CREATED: 'text-muted-foreground',
@@ -106,7 +103,7 @@ onMounted(async () => {
       <component :is="STATUS_ICON[returningIntent.status]" v-else class="size-5 shrink-0" :class="STATUS_ICON_CLASS[returningIntent.status]" />
       <div class="flex flex-col">
         <p class="text-sm font-medium">
-          {{ returningIntent.status === 'PENDING_BANK' ? t('payment.myPayment.waitingBank') : STATUS_LABELS[returningIntent.status] }}
+          {{ returningIntent.status === 'PENDING_BANK' ? t('payment.myPayment.waitingBank') : paymentStatusLabel(returningIntent.status) }}
         </p>
         <p v-if="returningIntent.failureReason" class="text-sm text-muted-foreground">{{ returningIntent.failureReason }}</p>
       </div>
@@ -129,7 +126,7 @@ onMounted(async () => {
               <span class="font-semibold">{{ formatMoney(row.amount) }}</span>
               <span class="flex items-center gap-1.5 text-xs">
                 <component :is="STATUS_ICON[row.status]" class="size-3.5" :class="STATUS_ICON_CLASS[row.status]" />
-                {{ STATUS_LABELS[row.status] }}
+                {{ paymentStatusLabel(row.status) }}
               </span>
             </div>
             <p class="mt-2 break-words">{{ row.description }}</p>
@@ -160,7 +157,7 @@ onMounted(async () => {
               <TableCell>
                 <span class="flex items-center gap-1.5">
                   <component :is="STATUS_ICON[row.status]" class="size-3.5" :class="STATUS_ICON_CLASS[row.status]" />
-                  {{ STATUS_LABELS[row.status] }}
+                  {{ paymentStatusLabel(row.status) }}
                 </span>
               </TableCell>
               <TableCell>

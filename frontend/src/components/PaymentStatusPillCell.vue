@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Check, CircleMinus, Clock, X } from 'lucide-vue-next'
-import { UNIFIED_PAYMENT_STATUS_LABELS, type UnifiedPaymentRow, type UnifiedPaymentStatus } from '@/lib/my-payments-api'
+import { paymentStatusLabel, type UnifiedPaymentRow, type UnifiedPaymentStatus } from '@/lib/my-payments-api'
 
 defineProps<{ value: unknown; row: UnifiedPaymentRow }>()
 
@@ -28,6 +28,6 @@ const STATUS_ICON_CLASS: Record<UnifiedPaymentStatus, string> = {
 <template>
   <span class="inline-flex w-fit max-w-full items-center gap-1 rounded-full border border-border bg-background px-2.5 py-0.5 text-xs font-normal text-muted-foreground">
     <component :is="STATUS_ICON[row.status]" class="size-3.5 shrink-0" :class="STATUS_ICON_CLASS[row.status]" />
-    <span class="min-w-0 truncate">{{ UNIFIED_PAYMENT_STATUS_LABELS[row.status] }}</span>
+    <span class="min-w-0 truncate">{{ paymentStatusLabel(row.status) }}</span>
   </span>
 </template>

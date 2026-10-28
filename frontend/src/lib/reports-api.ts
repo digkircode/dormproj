@@ -201,8 +201,8 @@ export function fetchUpcomingPayments(days = 7): Promise<UpcomingPaymentRow[]> {
   return getJson(`/reports/upcoming-payments?days=${days}`)
 }
 
-export function fetchOccupancy(): Promise<OccupancyReport> {
-  return getJson('/reports/occupancy')
+export function fetchOccupancy(asOf?: string): Promise<OccupancyReport> {
+  return getJson(`/reports/occupancy${asOf ? `?asOf=${encodeURIComponent(asOf)}` : ''}`)
 }
 
 export function fetchContingentPage(options: ListOptions, asOf: string, signal?: AbortSignal): Promise<ListPage<ContingentRow>> {

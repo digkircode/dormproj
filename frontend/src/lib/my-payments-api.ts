@@ -42,10 +42,9 @@ export interface UnifiedPaymentRow {
   fiscalReceiptUrl: string | null
 }
 
-export const UNIFIED_PAYMENT_STATUS_LABELS: Record<UnifiedPaymentStatus, string> = new Proxy(
-  {} as Record<UnifiedPaymentStatus, string>,
-  { get: (_target, status: string) => i18n.global.t(`payment.status.${status}`) },
-)
+export function paymentStatusLabel(status: UnifiedPaymentStatus | PaymentIntentStatus): string {
+  return i18n.global.t(`payment.status.${status}`)
+}
 
 export interface CreateIntentInput {
   contractId?: number | null
