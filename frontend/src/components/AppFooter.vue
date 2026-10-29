@@ -51,7 +51,7 @@ const socialLinks = [
 </script>
 
 <template>
-  <footer class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-4 border-t bg-card px-4 py-3 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:px-6">
+  <footer class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-4 border-t bg-card px-4 py-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:px-6">
     <div class="col-start-1 row-start-1 flex flex-col items-start gap-1">
       <a
         href="/documents/privacy-policy-rosnou.pdf"
@@ -64,7 +64,7 @@ const socialLinks = [
       <span class="hidden text-xs text-muted-foreground md:inline">{{ t('footer.copyright') }}</span>
     </div>
 
-    <div class="col-span-2 row-start-2 flex items-center justify-center gap-4 md:col-span-1 md:col-start-2 md:row-start-1 md:gap-3">
+    <div class="col-span-2 row-start-2 flex items-center justify-center gap-4 md:col-span-1 md:col-start-3 md:row-start-1 md:gap-3">
       <a
         v-for="social in socialLinks"
         :key="social.label"
@@ -83,9 +83,9 @@ const socialLinks = [
         target="_blank"
         rel="noopener noreferrer"
         aria-label="MAX"
-        class="flex size-9 items-center justify-center rounded-full transition-opacity hover:opacity-75 md:size-7"
+        class="group flex size-9 items-center justify-center rounded-full transition-colors hover:bg-muted md:size-7"
       >
-        <img src="/max-logo.png" alt="" class="size-5" />
+        <img src="/max-logo.png" alt="" class="size-5 grayscale transition-[filter] group-hover:grayscale-0" />
       </a>
       <a
         href="https://rosnou.ru/"
@@ -101,7 +101,7 @@ const socialLinks = [
       </a>
     </div>
 
-    <div class="col-start-2 row-start-1 justify-self-end md:col-start-3">
+    <div class="col-start-2 row-start-1 justify-self-end">
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
           <Button variant="outline" size="sm" class="w-36 justify-start">
