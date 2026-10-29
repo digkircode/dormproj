@@ -39,9 +39,19 @@ interface OverviewJob {
   manualPath: string | null
 }
 
+type SchedulerTaskState = 'REGISTERED' | 'NOT_REGISTERED' | 'DISABLED' | 'WAITING' | 'RECORDED' | 'MISSED'
+interface SchedulerStatus {
+  state: 'NOT_REGISTERED' | 'WAITING' | 'RECORDED' | 'MISSED'
+  registeredCount: number
+  expectedCount: number
+  startedAt: string
+  tasks: { name: string; jobId: string | null; registered: boolean; state: SchedulerTaskState; lastCronAt: string | null; expectedAt: string | null }[]
+}
+
 const router = useRouter()
 const { t } = useI18n()
 const jobs = ref<OverviewJob[]>([])
+const scheduler = ref<SchedulerStatus | null>(null)
 const loading = ref(true)
 const loadError = ref(false)
 const runningIds = ref<string[]>([])
@@ -133,9 +143,15 @@ async function refresh() {
   try {
     const response = await apiFetch('/sync/overview')
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
-    const data = await response.json() as OverviewJob[]
+    const [data, schedulerResponse] = await Promise.all([
+      response.json() as Promise<OverviewJob[]>,
+      apiFetch('/sync/overview/scheduler'),
+    ])
+    if (!schedulerResponse.ok) throw new Error(`HTTP ${schedulerResponse.status}`)
+    const schedulerData = await schedulerResponse.json() as SchedulerStatus
     if (disposed) return
     jobs.value = data
+    scheduler.value = schedulerData
     loadError.value = false
   } catch (error) {
     console.error('Не удалось загрузить обзор синхронизации', error)
@@ -205,6 +221,28 @@ onUnmounted(() => { disposed = true; clearTimeout(timer) })
     </div>
     <p v-if="loadError" class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{{ t('sync.overview.loadError') }}</p>
     <div class="min-h-0 flex-1 overflow-y-auto pb-1">
+      <section v-if="scheduler" class="mb-5 rounded-xl border bg-card p-4 shadow-sm" :aria-label="t('sync.overview.scheduler.title')">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <CalendarClock class="size-5 text-primary" />
+            <h2 class="font-semibold">{{ t('sync.overview.scheduler.title') }}</h2>
+          </div>
+          <span class="rounded-full px-2 py-1 text-xs font-medium" :class="scheduler.state === 'MISSED' || scheduler.state === 'NOT_REGISTERED' ? 'bg-red-100 text-red-800' : scheduler.state === 'WAITING' ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'">
+            {{ t(`sync.overview.scheduler.states.${scheduler.state}`) }}
+          </span>
+        </div>
+        <p class="mt-1 text-xs text-muted-foreground">{{ t('sync.overview.scheduler.registered', { registered: scheduler.registeredCount, expected: scheduler.expectedCount }) }}</p>
+        <div class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          <div v-for="task in scheduler.tasks" :key="task.name" class="rounded-lg border bg-muted/30 px-3 py-2 text-xs">
+            <div class="flex items-start justify-between gap-2">
+              <span class="font-medium">{{ task.jobId ? t(`sync.overview.jobs.${task.jobId}`) : t('sync.overview.scheduler.monthly') }}</span>
+              <span :class="task.state === 'MISSED' || task.state === 'NOT_REGISTERED' ? 'text-red-700' : 'text-muted-foreground'">{{ task.state === 'WAITING' && !task.lastCronAt ? t('sync.overview.scheduler.firstRun') : t(`sync.overview.scheduler.states.${task.state}`) }}</span>
+            </div>
+            <p v-if="task.lastCronAt" class="mt-1 text-muted-foreground">{{ t('sync.overview.scheduler.lastCron') }}: {{ formatMoscowDateTime(task.lastCronAt) }}</p>
+            <p v-if="task.expectedAt && (task.state === 'WAITING' || task.state === 'MISSED')" class="mt-1 text-muted-foreground">{{ t('sync.overview.scheduler.expected') }}: {{ formatMoscowDateTime(task.expectedAt) }}</p>
+          </div>
+        </div>
+      </section>
       <div v-if="loading && !jobs.length" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <div v-for="index in 6" :key="index" class="h-52 animate-pulse rounded-xl border bg-muted/40" />
       </div>

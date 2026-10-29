@@ -28,7 +28,7 @@ export const envSchema = z.object({
   TELEGRAM_WEBHOOK_SECRET: z.string().min(5).optional(),
   MAX_BOT_TOKEN: z.string().min(1).optional(),
   MAX_BOT_USERNAME: z.string().min(1).optional(),
-  MAX_WEBHOOK_SECRET: z.string().min(5).optional(),
+  MAX_WEBHOOK_SECRET: z.string().regex(/^[A-Za-z0-9_-]{5,256}$/, 'Секрет MAX: 5–256 символов A-Z, a-z, 0-9, _ или -').optional(),
 
   GPB_ACQUIRING_BASE_URL: z.url().optional(),
   GPB_ACQUIRING_PORTAL_ID: z.string().min(1).optional(),

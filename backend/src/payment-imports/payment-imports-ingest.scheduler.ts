@@ -12,7 +12,7 @@ export class PaymentImportsIngestScheduler {
   private readonly logger = new Logger(PaymentImportsIngestScheduler.name);
   constructor(private readonly ingestService: PaymentImportsIngestService, private readonly prisma: PrismaService) {}
 
-  @Cron('0 3 * * *', { timeZone: 'Europe/Moscow' })
+  @Cron('0 3 * * *', { name: 'sync-accounting-payment-import', timeZone: 'Europe/Moscow' })
   async ingest(): Promise<void> {
     try {
       if (!await isAccountingAutoRunEnabled(this.prisma, ACCOUNTING_PAYMENT_IMPORT_SYNC_TYPE)) return;

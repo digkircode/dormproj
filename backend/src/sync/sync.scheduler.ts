@@ -26,7 +26,7 @@ export class SyncScheduler {
     private readonly prisma: PrismaService,
   ) {}
 
-  @Cron('0 1 * * *', { timeZone: 'Europe/Moscow' })
+  @Cron('0 1 * * *', { name: 'sync-students', timeZone: 'Europe/Moscow' })
   async handleDailySync(): Promise<void> {
     await this.warnIfPreviousRunMissed();
     let studentsReady = false;

@@ -1,5 +1,7 @@
 import { BadRequestException, Body, Controller, Get, Inject, NotFoundException, Param, Patch, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
+import { SchedulerRegistry } from '@nestjs/schedule';
+import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -9,6 +11,7 @@ import { listSyncLogs, syncLogFacetValues, type SyncLogsListQuery } from './sync
 import { dailyScheduleWindow, nextMonthStartMoscow, SYNC_JOBS, syncJobWhere } from './sync-overview.jobs';
 import { PortalUsersSyncService } from './portal-users-sync.service';
 import { ACCOUNTING_AUTO_RUN_JOBS } from './accounting-auto-run';
+import { monthlyRunState, SCHEDULED_CRON_JOBS, scheduledRunState } from './scheduler-monitor';
 
 const overviewLogSelect = {
   status: true,
@@ -26,10 +29,13 @@ const overviewLogSelect = {
 @UseGuards(AuthGuard, RolesGuard)
 @Roles('ADMIN')
 export class SyncOverviewController {
+  private readonly monitorStartedAt = new Date();
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(ACCOUNTING_1C_PROVIDER) private readonly accounting: Accounting1cProvider,
     private readonly portalUsers: PortalUsersSyncService,
+    private readonly schedulerRegistry: SchedulerRegistry,
   ) {}
 
   private job(id: string) {
@@ -80,6 +86,49 @@ export class SyncOverviewController {
         manualPath: job.manualPath ?? null,
       };
     }));
+  }
+
+  @Get('scheduler')
+  async schedulerStatus() {
+    const now = new Date();
+    const registered = this.schedulerRegistry.getCronJobs();
+    const settings = await this.prisma.syncJobSetting.findMany({ select: { jobId: true, enabled: true } });
+    const disabled = new Set(settings.filter((setting) => !setting.enabled).map((setting) => setting.jobId));
+    const tasks = await Promise.all(SCHEDULED_CRON_JOBS.map(async (task) => {
+      const isRegistered = registered.has(task.name);
+      const jobId = task.jobId ?? 'service-provision-preparation';
+      const job = this.job(jobId);
+      const enabled = !disabled.has(jobId);
+      const operation = task.jobId === null ? 'CREATE_CURRENT_MONTH'
+        : task.jobId === 'service-provision-preparation' ? 'DAILY_RECALCULATION' : null;
+      const where: Prisma.SyncLogWhereInput = operation
+        ? { type: job.type, details: { path: ['operation'], equals: operation } }
+        : syncJobWhere(job);
+      const lastCron = await this.prisma.syncLog.findFirst({
+        where: { AND: [where, { trigger: 'CRON' }] },
+        orderBy: { startedAt: 'desc' }, select: { startedAt: true },
+      });
+      const run = task.jobId === null
+        ? monthlyRunState(now, this.monitorStartedAt, lastCron?.startedAt ?? null)
+        : scheduledRunState(now, this.monitorStartedAt, lastCron?.startedAt ?? null, task.hour, task.minute);
+      return {
+        name: task.name, jobId: task.jobId, registered: isRegistered,
+        state: !isRegistered ? 'NOT_REGISTERED' : !enabled ? 'DISABLED' : run.state,
+        lastCronAt: lastCron?.startedAt.toISOString() ?? null,
+        expectedAt: enabled ? run.expectedAt.toISOString() : null,
+      };
+    }));
+    const active = tasks.filter((task) => task.state !== 'DISABLED');
+    const state = active.some((task) => task.state === 'NOT_REGISTERED') ? 'NOT_REGISTERED'
+      : active.some((task) => task.state === 'MISSED') ? 'MISSED'
+        : active.some((task) => task.state === 'WAITING') ? 'WAITING' : 'RECORDED';
+    return {
+      state,
+      registeredCount: tasks.filter((task) => task.registered).length,
+      expectedCount: tasks.length,
+      startedAt: this.monitorStartedAt.toISOString(),
+      tasks,
+    };
   }
 
   @Patch('jobs/:id/auto-run')

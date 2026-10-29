@@ -4,6 +4,16 @@ export interface NotificationText {
 }
 
 const TELEGRAM_CONTENT_LIMIT = 4096;
+const MAX_CONTENT_LIMIT = 4000;
+
+export function fitMaxMessage(value: string): string {
+  if (value.length <= MAX_CONTENT_LIMIT) return value;
+  const lastLink = value.lastIndexOf('\n\n');
+  const suffix = lastLink >= 0 ? value.slice(lastLink) : '';
+  const prefix = lastLink >= 0 ? value.slice(0, lastLink) : value;
+  const available = MAX_CONTENT_LIMIT - suffix.length - 1;
+  return available > 0 ? `${prefix.slice(0, available).trimEnd()}…${suffix}` : `${value.slice(0, MAX_CONTENT_LIMIT - 1)}…`;
+}
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({

@@ -65,10 +65,7 @@ export class NotificationWebhooksController {
   @Post('max')
   async max(@Headers('x-max-bot-api-secret') secret: string | undefined, @Body() body: unknown) {
     if (!equalSecret(secret, this.config.get('MAX_WEBHOOK_SECRET'))) throw new ForbiddenException();
-    const update = body as { update_type?: string; payload?: string; user?: { user_id?: number }; chat_id?: number };
-    if (update?.update_type === 'bot_started' && update.payload && update.user?.user_id != null) {
-      await this.notifications.connect('MAX', update.payload, String(update.user.user_id));
-    }
+    await this.notifications.handleMaxUpdate(body);
     return { ok: true };
   }
 }

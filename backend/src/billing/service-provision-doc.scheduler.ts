@@ -112,7 +112,7 @@ export class ServiceProvisionDocScheduler implements OnApplicationBootstrap {
     });
   }
 
-  @Cron('0 0 1 * *', { timeZone: MOSCOW_TIME_ZONE })
+  @Cron('0 0 1 * *', { name: 'sync-service-provision-monthly', timeZone: MOSCOW_TIME_ZONE })
   async createCurrentMonth(): Promise<void> {
     await this.runLogged('service-provision-preparation', 'CREATE_CURRENT_MONTH', async () => ({
       period: moscowCalendarDate(new Date()).toISOString().slice(0, 7),
@@ -120,7 +120,7 @@ export class ServiceProvisionDocScheduler implements OnApplicationBootstrap {
     }));
   }
 
-  @Cron('0 3 * * *', { timeZone: MOSCOW_TIME_ZONE })
+  @Cron('0 3 * * *', { name: 'sync-service-provision-preparation', timeZone: MOSCOW_TIME_ZONE })
   async recalculateCurrentMonth(): Promise<void> {
     await this.runLogged('service-provision-preparation', 'DAILY_RECALCULATION', async () => ({
       period: moscowCalendarDate(new Date()).toISOString().slice(0, 7),
@@ -128,7 +128,7 @@ export class ServiceProvisionDocScheduler implements OnApplicationBootstrap {
     }));
   }
 
-  @Cron('55 23 * * *', { timeZone: MOSCOW_TIME_ZONE })
+  @Cron('55 23 * * *', { name: 'sync-service-provision-send', timeZone: MOSCOW_TIME_ZONE })
   async finalizeCurrentMonth(): Promise<void> {
     const today = moscowCalendarDate(new Date());
     if (isLastCalendarDay(today)) {

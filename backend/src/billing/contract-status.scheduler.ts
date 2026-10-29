@@ -34,7 +34,7 @@ export class ContractStatusScheduler {
     });
   }
 
-  @Cron('30 1 * * *', { timeZone: 'Europe/Moscow' })
+  @Cron('30 1 * * *', { name: 'sync-contract-status', timeZone: 'Europe/Moscow' })
   async transitionStatuses(): Promise<void> {
     const startedAt = Date.now();
     const log = await this.prisma.syncLog.create({

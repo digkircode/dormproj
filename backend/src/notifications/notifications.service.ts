@@ -5,7 +5,7 @@ import { Interval } from '@nestjs/schedule';
 import { Prisma, type NotificationChannel, type NotificationDelivery } from '../../generated/prisma/client.js';
 import type { Env } from '../config/env.schema';
 import { PrismaService } from '../prisma/prisma.service';
-import { announcementNotification, chatNotification, type NotificationText } from './notification-text';
+import { announcementNotification, chatNotification, fitMaxMessage, type NotificationText } from './notification-text';
 
 const digestDelay = 5 * 60_000;
 const maxDigestDelay = 15 * 60_000;
@@ -71,6 +71,19 @@ export class NotificationsService {
     const match = message?.text?.match(/^\/start\s+([A-Za-z0-9_-]{20,128})$/);
     if (match && message?.chat?.type === 'private' && message.chat.id != null) {
       await this.connect('TELEGRAM', match[1], String(message.chat.id));
+    }
+  }
+
+  async handleMaxUpdate(update: unknown): Promise<void> {
+    const event = update as { update_type?: string; payload?: string | null; user?: { user_id?: number } } | null;
+    const externalId = event?.user?.user_id;
+    if (typeof externalId !== 'number' || !Number.isSafeInteger(externalId) || externalId < 0) return;
+    if (event?.update_type === 'bot_started' && event.payload) {
+      await this.connect('MAX', event.payload, String(externalId));
+    } else if (event?.update_type === 'bot_stopped') {
+      await this.prisma.notificationLink.updateMany({
+        where: { channel: 'MAX', externalId: String(externalId) }, data: { enabled: false },
+      });
     }
   }
 
@@ -147,9 +160,9 @@ export class NotificationsService {
       url = `https://api.telegram.org/bot${this.config.get('TELEGRAM_BOT_TOKEN')}/sendMessage`;
       body = { chat_id: externalId, text: notification.telegramHtml, parse_mode: 'HTML', link_preview_options: { is_disabled: true } };
     } else {
-      url = `https://platform-api2.max.ru/messages?user_id=${encodeURIComponent(externalId)}`;
+      url = `https://platform-api2.max.ru/messages?user_id=${encodeURIComponent(externalId)}&disable_link_preview=true`;
       headers = { ...headers, Authorization: this.config.get('MAX_BOT_TOKEN') ?? '' };
-      body = { text: notification.plain };
+      body = { text: fitMaxMessage(notification.plain) };
     }
     const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(15_000) });
     const result = await response.json() as { ok?: boolean; result?: { message_id?: number }; message?: { body?: { mid?: string } }; description?: string };

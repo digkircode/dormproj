@@ -46,7 +46,7 @@ export class PenaltyScheduler {
     }
   }
 
-  @Cron('0 2 * * *', { timeZone: 'Europe/Moscow' })
+  @Cron('0 2 * * *', { name: 'sync-penalties', timeZone: 'Europe/Moscow' })
   async accruePenalties(): Promise<void> {
     await this.runLogged(async () => this.accruePenaltiesInternal());
   }

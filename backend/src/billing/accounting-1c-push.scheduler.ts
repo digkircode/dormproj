@@ -17,7 +17,7 @@ export class Accounting1cPushScheduler {
     @Inject(ACCOUNTING_1C_PROVIDER) private readonly provider: Accounting1cProvider,
   ) {}
 
-  @Cron('30 2 * * *', { timeZone: 'Europe/Moscow' })
+  @Cron('30 2 * * *', { name: 'sync-accounting-payment-push', timeZone: 'Europe/Moscow' })
   async pushPayments(): Promise<void> {
     try {
       if (!await isAccountingAutoRunEnabled(this.prisma, ACCOUNTING_PAYMENT_PUSH_SYNC_TYPE)) return;

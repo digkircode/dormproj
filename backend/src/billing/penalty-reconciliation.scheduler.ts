@@ -14,7 +14,7 @@ export class PenaltyReconciliationScheduler {
     private readonly penaltyRecalculate: PenaltyRecalculateService,
   ) {}
 
-  @Cron('30 0 * * *', { timeZone: 'Europe/Moscow' })
+  @Cron('30 0 * * *', { name: 'sync-penalty-reconciliation', timeZone: 'Europe/Moscow' })
   async reconcileHistoricalPenalties(): Promise<void> {
     const startedAt = Date.now();
     let log: { id: number };

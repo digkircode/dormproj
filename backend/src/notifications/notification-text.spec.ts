@@ -1,4 +1,4 @@
-import { announcementNotification, chatNotification } from './notification-text';
+import { announcementNotification, chatNotification, fitMaxMessage } from './notification-text';
 
 describe('notification text', () => {
   it('keeps the full announcement and escapes user content in Telegram HTML', () => {
@@ -24,5 +24,14 @@ describe('notification text', () => {
     expect(result.telegramHtml).toContain('📎 Вложения');
     expect(result.telegramHtml).toContain('>Открыть чат</a>');
     expect(result.plain).not.toMatch(/Фото|Видео/);
+  });
+
+  it('fits MAX messages and preserves the link to Dorm', () => {
+    const url = 'https://dorm.rosnou.ru/student/chat';
+    const message = announcementNotification('Важное', 'А'.repeat(4000), url, false);
+    const fitted = fitMaxMessage(message.plain);
+    expect(fitted.length).toBeLessThanOrEqual(4000);
+    expect(fitted).toContain(`Читать объявление: ${url}`);
+    expect(fitted).toContain('…');
   });
 });

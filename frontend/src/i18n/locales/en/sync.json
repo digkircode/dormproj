@@ -49,6 +49,22 @@
       "dailyAt": "Daily at {time} Moscow time",
       "preparationSchedule": "Daily at 03:00; new month on the 1st at 00:00 Moscow time",
       "sendSchedule": "Daily at 23:55 Moscow time: month-end send, otherwise retry",
+      "scheduler": {
+        "title": "Scheduler",
+        "registered": "Registered tasks: {registered} of {expected}. Runs are checked against CRON records after the scheduled time with a 2-hour grace period.",
+        "monthly": "Service documents: start of month",
+        "lastCron": "Last CRON",
+        "expected": "Expected",
+        "firstRun": "Waiting for first run",
+        "states": {
+          "REGISTERED": "Registered",
+          "NOT_REGISTERED": "Not registered",
+          "DISABLED": "Disabled",
+          "WAITING": "Waiting for run",
+          "RECORDED": "CRON recorded",
+          "MISSED": "Scheduled run missed"
+        }
+      },
       "groups": {
         "UNIVERSITY": "1C University",
         "PORTAL": "RosNOU portal",

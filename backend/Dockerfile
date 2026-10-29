@@ -19,6 +19,7 @@ COPY prisma ./prisma
 COPY prisma.config.ts ./prisma.config.ts
 COPY templates ./templates
 COPY scripts/uno-convert.py ./scripts/uno-convert.py
+COPY scripts/register-max-webhook.mjs ./scripts/register-max-webhook.mjs
 COPY i18n ./i18n
 
 EXPOSE 3000
