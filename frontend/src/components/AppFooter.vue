@@ -14,7 +14,6 @@ import type { AppLocale } from '@/i18n'
 import { LOCALE_STORAGE_KEY } from '@/i18n'
 import { currentUser } from '@/lib/auth-state'
 import { syncNotificationLocale } from '@/lib/notifications-api'
-import { apiUrl } from '@/lib/api-base'
 
 const localeOptions: { value: AppLocale; label: string }[] = [
   { value: 'ru', label: 'Русский' },
@@ -52,16 +51,57 @@ const socialLinks = [
 </script>
 
 <template>
-  <footer class="flex flex-col gap-4 border-t bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between md:px-6">
-    <div class="order-1 flex flex-wrap items-center justify-between gap-3 sm:order-2">
+  <footer class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-4 border-t bg-card px-4 py-3 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:px-6">
+    <div class="col-start-1 row-start-1 flex flex-col items-start gap-1">
       <a
-        :href="apiUrl('/public-info/privacy-policy')"
+        href="/documents/privacy-policy-rosnou.pdf"
         target="_blank"
         rel="noopener noreferrer"
         class="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {{ t('footer.personalDataPolicy') }}
       </a>
+      <span class="hidden text-xs text-muted-foreground md:inline">{{ t('footer.copyright') }}</span>
+    </div>
+
+    <div class="col-span-2 row-start-2 flex items-center justify-center gap-4 md:col-span-1 md:col-start-2 md:row-start-1 md:gap-3">
+      <a
+        v-for="social in socialLinks"
+        :key="social.label"
+        :href="social.href"
+        target="_blank"
+        rel="noopener noreferrer"
+        :aria-label="social.label"
+        class="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted md:size-7"
+        @mouseenter="($event.currentTarget as HTMLElement).style.color = social.hoverColor"
+        @mouseleave="($event.currentTarget as HTMLElement).style.color = ''"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path :d="social.path" /></svg>
+      </a>
+      <a
+        href="https://max.ru/u/f9LHodD0cOIPrWsuMRmAQ6SPlsqD9_Ls5690Zo8m0CNypIQdF_hxbIutBlA"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="MAX"
+        class="flex size-9 items-center justify-center rounded-full transition-opacity hover:opacity-75 md:size-7"
+      >
+        <img src="/max-logo.png" alt="" class="size-5" />
+      </a>
+      <a
+        href="https://rosnou.ru/"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="RosNOU"
+        class="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-[#2699D4] md:size-7"
+      >
+        <svg width="20" height="20" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M11.4862 28.1964H16.2772H24.4827C25.8043 28.1964 27.082 28.0088 28.2935 27.6668C34.4503 25.9349 38.911 20.0993 38.5365 13.3149C38.129 5.80254 31.7629 0 24.2514 0H1.44141V8.06398V8.97959L8.09385 17.5951H20.5176L13.8652 8.97959H24.3835C26.9388 8.97959 29.1746 10.8108 29.5491 13.337C30.0007 16.492 27.5666 19.2168 24.4937 19.2168H21.7732H9.34944H1.44141V22.9233V28.1964V40H11.4862V28.1964Z" fill="currentColor" />
+          <path d="M37.8206 40L29.9566 29.818H17.5328L25.3968 40H37.8206Z" fill="currentColor" />
+        </svg>
+      </a>
+    </div>
+
+    <div class="col-start-2 row-start-1 justify-self-end md:col-start-3">
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
           <Button variant="outline" size="sm" class="w-36 justify-start">
@@ -79,41 +119,6 @@ const socialLinks = [
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
-
-    <div class="order-2 flex items-center justify-center gap-4 sm:order-3 sm:gap-3">
-      <a
-        v-for="social in socialLinks"
-        :key="social.label"
-        :href="social.href"
-        target="_blank"
-        rel="noopener noreferrer"
-        :aria-label="social.label"
-        class="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted sm:size-7"
-        @mouseenter="($event.currentTarget as HTMLElement).style.color = social.hoverColor"
-        @mouseleave="($event.currentTarget as HTMLElement).style.color = ''"
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path :d="social.path" /></svg>
-      </a>
-      <a
-        href="https://max.ru/u/f9LHodD0cOIPrWsuMRmAQ6SPlsqD9_Ls5690Zo8m0CNypIQdF_hxbIutBlA"
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="MAX"
-        class="flex size-9 items-center justify-center rounded-full text-xs font-extrabold tracking-tighter text-muted-foreground transition-colors hover:bg-muted hover:text-[#6858D8] sm:size-7"
-      >MAX</a>
-      <a
-        href="https://rosnou.ru/"
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="RosNOU"
-        class="flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-[#2699D4] sm:size-7"
-      >
-        <svg width="20" height="20" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M11.4862 28.1964H16.2772H24.4827C25.8043 28.1964 27.082 28.0088 28.2935 27.6668C34.4503 25.9349 38.911 20.0993 38.5365 13.3149C38.129 5.80254 31.7629 0 24.2514 0H1.44141V8.06398V8.97959L8.09385 17.5951H20.5176L13.8652 8.97959H24.3835C26.9388 8.97959 29.1746 10.8108 29.5491 13.337C30.0007 16.492 27.5666 19.2168 24.4937 19.2168H21.7732H9.34944H1.44141V22.9233V28.1964V40H11.4862V28.1964Z" fill="currentColor" />
-          <path d="M37.8206 40L29.9566 29.818H17.5328L25.3968 40H37.8206Z" fill="currentColor" />
-        </svg>
-      </a>
-    </div>
-    <span class="order-3 text-left text-xs text-muted-foreground sm:order-1">{{ t('footer.copyright') }}</span>
+    <span class="col-span-2 row-start-3 text-left text-xs text-muted-foreground md:hidden">{{ t('footer.copyright') }}</span>
   </footer>
 </template>

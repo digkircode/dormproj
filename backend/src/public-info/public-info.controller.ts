@@ -1,5 +1,4 @@
-import { Controller, Get, Res, ServiceUnavailableException, UseGuards } from '@nestjs/common';
-import type { Response } from 'express';
+import { Controller, Get, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -8,8 +7,6 @@ const CAPACITY_DEFINITION_NAME = 'Количество мест';
 const OWN_UNIVERSITY_PRICE_NAME = 'Стоимость (из вуза)';
 const OTHER_UNIVERSITY_PRICE_NAME = 'Стоимость (не из вуза)';
 const GUEST_DEFINITION_NAME = 'Гостевая';
-const PRIVACY_POLICY_URL = 'https://rosnou.ru/download/file/sudpwzojh00cwk080k0wsccw/';
-let privacyPolicyCache: { data: Buffer; expiresAt: number } | null = null;
 
 interface CharacteristicValueRow {
   roomId: number;
@@ -35,27 +32,6 @@ function currentByRoom(rows: CharacteristicValueRow[], definitionName: string): 
 @UseGuards(AuthGuard)
 export class PublicInfoController {
   constructor(private readonly prisma: PrismaService) {}
-
-  @Get('privacy-policy')
-  async privacyPolicy(@Res() response: Response) {
-    if (!privacyPolicyCache || privacyPolicyCache.expiresAt <= Date.now()) {
-      try {
-        const source = await fetch(PRIVACY_POLICY_URL, { signal: AbortSignal.timeout(15000) });
-        if (!source.ok) throw new Error(`HTTP ${source.status}`);
-        const data = Buffer.from(await source.arrayBuffer());
-        if (data.length > 25 * 1024 * 1024 || data.subarray(0, 5).toString() !== '%PDF-') {
-          throw new Error('Unexpected document format');
-        }
-        privacyPolicyCache = { data, expiresAt: Date.now() + 60 * 60 * 1000 };
-      } catch {
-        throw new ServiceUnavailableException('Документ временно недоступен');
-      }
-    }
-    response.setHeader('Content-Type', 'application/pdf');
-    response.setHeader('Content-Disposition', 'inline; filename="rosnou-privacy-policy.pdf"');
-    response.setHeader('Cache-Control', 'private, max-age=3600');
-    response.send(privacyPolicyCache.data);
-  }
 
   @Get('hostel')
   async hostel() {
