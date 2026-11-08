@@ -550,7 +550,7 @@ async function confirmReversePayment() {
               </div>
               <div>
                 <p class="text-xs text-muted-foreground">{{ t('contracts.detail.roomCost') }}</p>
-                <p class="text-lg font-medium">{{ isDailyOnlyContract ? t('contracts.detail.dailyRateOnly') : formatMoney(roomCost) }}</p>
+                <p class="text-lg font-medium">{{ isDailyOnlyContract || contract.benefit !== 'NONE' ? '-' : formatMoney(roomCost) }}</p>
               </div>
             </div>
             <div class="flex items-center gap-3">

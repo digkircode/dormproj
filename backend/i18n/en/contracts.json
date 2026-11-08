@@ -1,4 +1,9 @@
 {
+  "benefit": {
+    "NONE": "None",
+    "PARTIALShort": "Partial",
+    "FREE": "Free"
+  },
   "status": {
     "ACTIVE": "Active",
     "EXPIRING": "Expiring",

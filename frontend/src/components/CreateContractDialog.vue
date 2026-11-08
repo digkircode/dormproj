@@ -224,8 +224,9 @@ async function pickIndividual(ind: Individual) {
   residenceReason.value = ''
   try {
     const detail = await fetchIndividualDetail(ind.fizicheskoyeLitsoUid)
-    if (selectedIndividual.value?.fizicheskoyeLitsoUid === ind.fizicheskoyeLitsoUid &&
-      dailyRateCategory.value === null && detail.students.length > 0) dailyRateCategory.value = 'OWN_UNIVERSITY'
+    if (selectedIndividual.value?.fizicheskoyeLitsoUid === ind.fizicheskoyeLitsoUid && dailyRateCategory.value === null) {
+      dailyRateCategory.value = detail.students.length > 0 ? 'OWN_UNIVERSITY' : 'OTHER_UNIVERSITY'
+    }
   } catch { }
 }
 

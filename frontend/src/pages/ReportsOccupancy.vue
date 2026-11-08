@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogScrollContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import ReportKpiTile from '@/components/ReportKpiTile.vue'
 import RoomCharacteristicsSkeleton from '@/components/RoomCharacteristicsSkeleton.vue'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -53,15 +53,21 @@ watch(asOf, (value) => {
   void load()
 })
 
-type OccupancyFilter = 'all' | 'free' | 'occupied' | 'freeFemale' | 'freeMale' | 'occupiedFemale' | 'occupiedMale'
-const occupancyFilter = ref<OccupancyFilter>('all')
+type OccupancyFilter = 'free' | 'occupied' | 'male' | 'female'
+const occupancyFilters = ref<OccupancyFilter[]>([])
 function roomMatchesFilter(room: OccupancyRoom): boolean {
-  if (occupancyFilter.value === 'all') return true
-  if (room.free === null) return false
-  const filter = occupancyFilter.value
-  const contingent = filter.endsWith('Female') ? 'Женская' : filter.endsWith('Male') ? 'Мужская' : null
-  if (contingent && room.contingent !== contingent) return false
-  return filter.startsWith('free') ? room.free > 0 : room.free === 0
+  const selected = occupancyFilters.value
+  if (!selected.length) return true
+  const occupancy = selected.filter((filter) => filter === 'free' || filter === 'occupied')
+  const gender = selected.filter((filter) => filter === 'male' || filter === 'female')
+  const matchesOccupancy = !occupancy.length || (room.free !== null && occupancy.some((filter) => filter === 'free' ? room.free! > 0 : room.free === 0))
+  const matchesGender = !gender.length || gender.some((filter) => filter === 'female' ? room.contingent === 'Женская' : room.contingent === 'Мужская')
+  return matchesOccupancy && matchesGender
+}
+function toggleOccupancyFilter(filter: OccupancyFilter, checked: boolean | 'indeterminate') {
+  occupancyFilters.value = checked === true
+    ? [...new Set([...occupancyFilters.value, filter])]
+    : occupancyFilters.value.filter((value) => value !== filter)
 }
 
 function formatMoney(value: number | null): string {
@@ -243,15 +249,10 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" class="w-56">
-              <DropdownMenuRadioGroup v-model="occupancyFilter">
-                <DropdownMenuRadioItem value="all">{{ t('reports.occupancy.filterAll') }}</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="free">{{ t('reports.occupancy.filterFree') }}</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="occupied">{{ t('reports.occupancy.filterOccupied') }}</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="freeFemale">{{ t('reports.occupancy.filterFreeFemale') }}</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="freeMale">{{ t('reports.occupancy.filterFreeMale') }}</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="occupiedFemale">{{ t('reports.occupancy.filterOccupiedFemale') }}</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="occupiedMale">{{ t('reports.occupancy.filterOccupiedMale') }}</DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
+              <DropdownMenuCheckboxItem :model-value="occupancyFilters.includes('free')" @update:model-value="(checked) => toggleOccupancyFilter('free', checked)">{{ t('reports.occupancy.filterFree') }}</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem :model-value="occupancyFilters.includes('occupied')" @update:model-value="(checked) => toggleOccupancyFilter('occupied', checked)">{{ t('reports.occupancy.filterOccupied') }}</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem :model-value="occupancyFilters.includes('male')" @update:model-value="(checked) => toggleOccupancyFilter('male', checked)">{{ t('reports.occupancy.filterMale') }}</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem :model-value="occupancyFilters.includes('female')" @update:model-value="(checked) => toggleOccupancyFilter('female', checked)">{{ t('reports.occupancy.filterFemale') }}</DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <span aria-hidden="true" class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100">{{ t('reports.occupancy.filterTooltip') }}</span>
@@ -286,11 +287,8 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
               <div class="h-2 overflow-hidden rounded-full bg-border">
                 <div class="h-full rounded-full transition-all" :class="barClass(room)" :style="{ width: `${occupancyRatio(room) * 100}%` }" />
               </div>
-              <span class="text-xs text-muted-foreground">({{ room.occupied }} / {{ room.capacity ?? '-' }})</span>
-              <span class="flex flex-col text-[11px] leading-4 text-muted-foreground">
-                <span>{{ t('reports.occupancy.roomArea', { value: room.area ?? '-' }) }}</span>
-                <span>{{ t('reports.occupancy.roomOwnPrice', { value: formatMoney(room.ownUniversityPrice) }) }}</span>
-                <span>{{ t('reports.occupancy.roomOtherPrice', { value: formatMoney(room.otherUniversityPrice) }) }}</span>
+              <span class="text-[11px] leading-4 text-muted-foreground">
+                {{ t('reports.occupancy.roomSummary', { occupied: room.occupied, capacity: room.capacity ?? '-', area: room.area ?? '-', ownPrice: formatMoney(room.ownUniversityPrice), otherPrice: formatMoney(room.otherUniversityPrice) }) }}
               </span>
             </button>
           </div>

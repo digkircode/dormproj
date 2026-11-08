@@ -296,7 +296,7 @@ export class ContractsController {
     ];
     if (field === 'benefit') return [
       { value: 'NONE', label: I18nContext.current()?.t('contracts.benefit.NONE') ?? 'Нет' },
-      { value: 'PARTIAL', label: I18nContext.current()?.t('contracts.benefit.PARTIAL') ?? 'Частичная оплата' },
+      { value: 'PARTIAL', label: I18nContext.current()?.t('contracts.benefit.PARTIALShort') ?? 'Частичная' },
       { value: 'FREE', label: I18nContext.current()?.t('contracts.benefit.FREE') ?? 'Бесплатно' },
     ];
     return Object.entries(STATUS_FACET_LABELS).map(([value, label]) => ({ value, label }));

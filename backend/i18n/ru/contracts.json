@@ -1,4 +1,9 @@
 {
+  "benefit": {
+    "NONE": "Нет",
+    "PARTIALShort": "Частичная",
+    "FREE": "Бесплатно"
+  },
   "status": {
     "ACTIVE": "Действует",
     "EXPIRING": "Истекает",
