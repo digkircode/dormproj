@@ -42,11 +42,12 @@ import { buildDocumentData } from './contract-document-data';
 import { convertDocxToPdf } from './docx-to-pdf';
 import { CONTRACT_STATUS_LABELS } from './contract-display-status';
 import { buildContractHomeSummary } from './contract-home-summary';
-import { ContractStatus } from '../../generated/prisma/client.js';
+import { ContractBenefit, ContractStatus } from '../../generated/prisma/client.js';
 import { zodErrorMessage } from '../i18n/zod-error-message';
 import { roomAvailability } from './room-capacity';
 import { conflictingRoomAssignment } from './room-conflict';
 import { ContractApprovalService } from './contract-approval.service';
+import { resolveContractMonthlyAmounts } from './contract-benefit';
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -57,7 +58,7 @@ function isSortableField(field: string): field is SortableField {
   return (SORTABLE_FIELDS as readonly string[]).includes(field);
 }
 
-const FILTERABLE_FIELDS = ['status', 'matCapital'] as const;
+const FILTERABLE_FIELDS = ['status', 'matCapital', 'benefit'] as const;
 type FilterableField = (typeof FILTERABLE_FIELDS)[number];
 function isFilterableField(field: string): field is FilterableField {
   return (FILTERABLE_FIELDS as readonly string[]).includes(field);
@@ -100,6 +101,7 @@ const createContractSchema = z
     utilitiesAmount: z.number().finite().nonnegative(),
     dailyRateCategory: z.enum(['OWN_UNIVERSITY', 'OTHER_UNIVERSITY']),
     dailyRateAmount: z.number().finite().nonnegative(),
+    benefit: z.enum(['NONE', 'PARTIAL', 'FREE']).default('NONE'),
     residenceReason: z.string().trim().min(1).nullish(),
     paymentDueDay: z.number().int().min(1).max(28).default(5),
     ...legalRepFields,
@@ -130,6 +132,7 @@ const AUDITED_CONTRACT_FIELDS = [
   'endDate',
   'actualEndDate',
   'status',
+  'benefit',
   'residenceReason',
   'legalRepName',
   'legalRepPhone',
@@ -214,6 +217,9 @@ export class ContractsController {
             } else if (field === 'matCapital' && stringValues.length === 1) {
               if (stringValues[0] === 'YES') filterClauses.push({ matCapitalAmount: { gt: 0 } });
               if (stringValues[0] === 'NO') filterClauses.push({ OR: [{ matCapitalAmount: null }, { matCapitalAmount: { lte: 0 } }] });
+            } else if (field === 'benefit') {
+              const benefits = stringValues.filter((value): value is ContractBenefit => (Object.values(ContractBenefit) as string[]).includes(value));
+              if (benefits.length > 0) filterClauses.push({ benefit: { in: benefits } });
             }
           }
         }
@@ -265,6 +271,7 @@ export class ContractsController {
         roomId: c.roomAssignments[0]?.room.id ?? null,
         accounting1cMatched: Boolean(c.accounting1cUid && c.resident.accounting1cContractorUid),
         matCapital: c.matCapitalAmount !== null && c.matCapitalAmount.greaterThan(0) ? 'YES' : 'NO',
+        benefit: c.benefit,
       })),
       total,
       page,
@@ -286,6 +293,11 @@ export class ContractsController {
     if (field === 'matCapital') return [
       { value: 'YES', label: 'Материнский капитал' },
       { value: 'NO', label: 'Без материнского капитала' },
+    ];
+    if (field === 'benefit') return [
+      { value: 'NONE', label: I18nContext.current()?.t('contracts.benefit.NONE') ?? 'Нет' },
+      { value: 'PARTIAL', label: I18nContext.current()?.t('contracts.benefit.PARTIAL') ?? 'Частичная оплата' },
+      { value: 'FREE', label: I18nContext.current()?.t('contracts.benefit.FREE') ?? 'Бесплатно' },
     ];
     return Object.entries(STATUS_FACET_LABELS).map(([value, label]) => ({ value, label }));
   }
@@ -497,20 +509,28 @@ export class ContractsController {
       throw new BadRequestException('contracts.errors.residenceReasonRequired');
     }
 
-    if (!isDailyOnlyRoom && (roomPriceCharacteristic === null || roomPriceCharacteristic.valueNumber === null)) {
+    if (data.benefit === 'NONE' && !isDailyOnlyRoom && (roomPriceCharacteristic === null || roomPriceCharacteristic.valueNumber === null)) {
       throw new BadRequestException({ message: 'contracts.errors.roomPriceNotConfigured', fieldErrors: { roomCost: 'contracts.errors.setRoomPrice' } });
     }
-    if (!isDailyOnlyRoom && (dormitoryInfo === null || dormitoryInfo.communalServicesCost === null)) {
+    const needsUtilities = data.benefit === 'PARTIAL' || (data.benefit === 'NONE' && !isDailyOnlyRoom);
+    if (needsUtilities && (dormitoryInfo === null || dormitoryInfo.communalServicesCost === null)) {
       throw new BadRequestException({ message: 'contracts.errors.communalServicesCostNotConfigured', fieldErrors: { roomCost: 'contracts.errors.setUtilitiesCost' } });
     }
     const roomCost = data.roomCost !== undefined
       ? new Prisma.Decimal(data.roomCost)
       : roomPriceCharacteristic?.valueNumber ?? new Prisma.Decimal(0);
-    const utilitiesAmount = isDailyOnlyRoom ? new Prisma.Decimal(0) : dormitoryInfo!.communalServicesCost!;
-    if (utilitiesAmount.greaterThan(roomCost)) {
+    const configuredUtilitiesAmount = data.benefit === 'NONE' && isDailyOnlyRoom
+      ? new Prisma.Decimal(0)
+      : dormitoryInfo?.communalServicesCost ?? new Prisma.Decimal(0);
+    if (data.benefit === 'NONE' && configuredUtilitiesAmount.greaterThan(roomCost)) {
       throw new BadRequestException({ message: 'contracts.errors.communalServicesCostExceedsRoomCost', fieldErrors: { roomCost: 'contracts.errors.roomCostBelowUtilities' } });
     }
-    const rentAmount = isDailyOnlyRoom ? new Prisma.Decimal(0) : roomCost.minus(utilitiesAmount);
+    const { rentAmount, utilitiesAmount } = resolveContractMonthlyAmounts({
+      benefit: data.benefit,
+      isDailyOnlyRoom,
+      roomCost,
+      utilitiesAmount: configuredUtilitiesAmount,
+    });
     const dailyRateAmount = data.dailyRateCategory === 'OWN_UNIVERSITY'
       ? dormitoryInfo?.dailyPaymentInternal
       : dormitoryInfo?.dailyPaymentOther;
@@ -548,6 +568,7 @@ export class ContractsController {
             startDate: data.startDate,
             endDate: data.endDate,
             residentSnapshot: residentSnapshot as unknown as Prisma.InputJsonValue,
+            benefit: data.benefit,
             residenceReason: data.dailyRateCategory === 'OTHER_UNIVERSITY' ? data.residenceReason : null,
             legalRepName: data.legalRepName ?? null,
             legalRepPhone: data.legalRepPhone ?? null,
@@ -600,7 +621,7 @@ export class ContractsController {
             coveredTo: data.matCapitalCoveredTo ?? null,
             deferredUntil: data.matCapitalDeferredUntil ?? null,
           },
-          dailyOnly: isDailyOnlyRoom,
+          dailyOnly: isDailyOnlyRoom && data.benefit === 'NONE',
         });
         if (generated.length > 0) {
           await tx.accrual.createMany({

@@ -36,6 +36,7 @@
       "colStatus": "Status",
       "colMapping": "Mapping",
       "colMatCapital": "Maternity capital",
+      "colBenefit": "Benefits",
       "totalLabel": "contracts",
       "openContract": "Open contract",
       "newContract": "New contract",
@@ -129,6 +130,13 @@
       "reverseDialogDescription": "Payment of {amount} from {date} will be marked as reversed and accruals recalculated. This action cannot be undone.",
       "confirmReverse": "Yes, reverse"
     },
+    "benefit": {
+      "NONE": "None",
+      "PARTIAL": "Partial payment",
+      "FREE": "Free",
+      "PARTIALShort": "Partial",
+      "FREEShort": "Free"
+    },
     "gender": {
       "male": "Male",
       "female": "Female"
@@ -149,6 +157,7 @@
       "costBreakdown": "Rent: {rent} ₽ · Utilities: {utilities} ₽",
       "dailyOnlyNote": "Daily payment - {rate} ₽/day, no monthly rate",
       "fieldResidenceReason": "Reason for residence",
+      "fieldBenefit": "Benefits",
       "residenceReasonPlaceholder": "Select a reason",
       "residenceReasonOwnUniversity": "Studying at RosNOU",
       "residenceReasonOther": "Other",

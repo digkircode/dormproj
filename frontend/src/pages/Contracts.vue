@@ -70,8 +70,9 @@ const columnLabels = computed<Record<string, string>>(() => ({
   status: t('contracts.list.colStatus'),
   accounting1cMatched: t('contracts.list.colMapping'),
   matCapital: t('contracts.list.colMatCapital'),
+  benefit: t('contracts.list.colBenefit'),
 }))
-const filterableFields = ['status', 'matCapital']
+const filterableFields = ['status', 'matCapital', 'benefit']
 const initialFilters = computed<Record<string, string[]>>(() => {
   const status = route.query.status
   const filters: Record<string, string[]> = {}

@@ -40,12 +40,20 @@ const BUCKET_LABELS: Record<ContractRegistryBucket, string> = new Proxy(BUCKET_L
 
 const CAPACITY_DEFINITION_NAME = 'Количество мест';
 const FLOOR_DEFINITION_NAME = 'Этаж';
+const CONTINGENT_DEFINITION_NAME = 'Контингент';
+const AREA_DEFINITION_NAME = 'Площадь';
+const OWN_PRICE_DEFINITION_NAME = 'Стоимость (из вуза)';
+const OTHER_PRICE_DEFINITION_NAME = 'Стоимость (не из вуза)';
 
 interface OccupancyRoomRow {
   id: number;
   room: string;
   floor: number | null;
   capacity: number | null;
+  contingent: string | null;
+  area: number | null;
+  ownUniversityPrice: number | null;
+  otherUniversityPrice: number | null;
   occupied: number;
   free: number | null;
   occupants: { contractId: number; contractNumber: string; residentFullName: string }[];
@@ -344,11 +352,16 @@ export class ReportsController {
   async occupancy(@Query('asOf') asOfParam?: string) {
     const asOf = resolveAsOf(asOfParam);
 
-    const [floorDef, capacityDef] = await Promise.all([
+    const [floorDef, capacityDef, contingentDef, areaDef, ownPriceDef, otherPriceDef] = await Promise.all([
       this.prisma.roomCharacteristicDefinition.findUnique({ where: { name: FLOOR_DEFINITION_NAME } }),
       this.prisma.roomCharacteristicDefinition.findUnique({ where: { name: CAPACITY_DEFINITION_NAME } }),
+      this.prisma.roomCharacteristicDefinition.findUnique({ where: { name: CONTINGENT_DEFINITION_NAME } }),
+      this.prisma.roomCharacteristicDefinition.findUnique({ where: { name: AREA_DEFINITION_NAME } }),
+      this.prisma.roomCharacteristicDefinition.findUnique({ where: { name: OWN_PRICE_DEFINITION_NAME } }),
+      this.prisma.roomCharacteristicDefinition.findUnique({ where: { name: OTHER_PRICE_DEFINITION_NAME } }),
     ]);
-    const defIds = [floorDef?.id, capacityDef?.id].filter((id): id is number => id != null);
+    const defIds = [floorDef?.id, capacityDef?.id, contingentDef?.id, areaDef?.id, ownPriceDef?.id, otherPriceDef?.id]
+      .filter((id): id is number => id != null);
 
     const rooms = await this.prisma.room.findMany({
       orderBy: { room: 'asc' },
@@ -364,12 +377,28 @@ export class ReportsController {
     const roomRows: OccupancyRoomRow[] = rooms.map((r) => {
       let floor: number | null = null;
       let capacity: number | null = null;
+      let contingent: string | null = null;
+      let area: number | null = null;
+      let ownUniversityPrice: number | null = null;
+      let otherUniversityPrice: number | null = null;
       for (const cv of r.characteristicValues) {
         if (floorDef && cv.definitionId === floorDef.id && floor === null) {
           floor = fromStoredValue('NUMBER', cv) as number | null;
         }
         if (capacityDef && cv.definitionId === capacityDef.id && capacity === null) {
           capacity = fromStoredValue('NUMBER', cv) as number | null;
+        }
+        if (contingentDef && cv.definitionId === contingentDef.id && contingent === null) {
+          contingent = fromStoredValue('TEXT', cv) as string | null;
+        }
+        if (areaDef && cv.definitionId === areaDef.id && area === null) {
+          area = fromStoredValue('NUMBER', cv) as number | null;
+        }
+        if (ownPriceDef && cv.definitionId === ownPriceDef.id && ownUniversityPrice === null) {
+          ownUniversityPrice = fromStoredValue('NUMBER', cv) as number | null;
+        }
+        if (otherPriceDef && cv.definitionId === otherPriceDef.id && otherUniversityPrice === null) {
+          otherUniversityPrice = fromStoredValue('NUMBER', cv) as number | null;
         }
       }
       const occupied = r.roomAssignments.length;
@@ -378,6 +407,10 @@ export class ReportsController {
         room: r.room,
         floor,
         capacity,
+        contingent,
+        area,
+        ownUniversityPrice,
+        otherUniversityPrice,
         occupied,
         free: capacity !== null ? Math.max(0, capacity - occupied) : null,
         occupants: r.roomAssignments.map((a) => ({

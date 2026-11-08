@@ -379,6 +379,12 @@ enum DailyRateCategory {
   OTHER_UNIVERSITY
 }
 
+enum ContractBenefit {
+  NONE
+  PARTIAL
+  FREE
+}
+
 model Contract {
   id                    Int            @id @default(autoincrement())
   number                String
@@ -389,6 +395,7 @@ model Contract {
   endDate               DateTime       @map("end_date")
   actualEndDate         DateTime?      @map("actual_end_date")
   status                ContractStatus @default(ACTIVE)
+  benefit               ContractBenefit @default(NONE)
 
   residenceReason String? @map("residence_reason")
 

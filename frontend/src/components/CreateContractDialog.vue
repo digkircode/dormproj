@@ -14,7 +14,7 @@ import DatePickerField from '@/components/DatePickerField.vue'
 import DateRangePickerField from '@/components/DateRangePickerField.vue'
 import SearchSelect from '@/components/SearchSelect.vue'
 import PhoneInput from '@/components/PhoneInput.vue'
-import { createContract, fetchLegalRepPrefill, type DailyRateCategory } from '@/lib/contracts-api'
+import { createContract, fetchLegalRepPrefill, type ContractBenefit, type DailyRateCategory } from '@/lib/contracts-api'
 import { fetchIndividuals, fetchIndividualDetail, type Individual } from '@/lib/individuals-api'
 import { fetchRoomsTree, fetchRoomDetail, type RoomTreeItem } from '@/lib/rooms-api'
 import { fetchDormitoryInfo } from '@/lib/dormitory-info-api'
@@ -93,6 +93,7 @@ function onRoomCostInput() {
 }
 const dailyRateCategory = ref<DailyRateCategory | null>(null)
 const dailyRateAmount = ref<number | undefined>(undefined)
+const benefit = ref<ContractBenefit>('NONE')
 const residenceReason = ref('')
 const paymentDueDay = ref(5)
 
@@ -297,6 +298,7 @@ async function open(prefillIndividual?: Individual) {
   isDailyOnlyRoom.value = false
   residenceReason.value = ''
   dailyRateCategory.value = null
+  benefit.value = 'NONE'
   legalRepName.value = ''
   legalRepPhone.value = ''
   legalRepGender.value = ''
@@ -360,25 +362,27 @@ function applyRoomPrice() {
     roomCost.value = costCharacteristic.value
     utilitiesAmount.value = dormInfo.value.communalServicesCost ?? undefined
     rentAmount.value = utilitiesAmount.value === undefined ? undefined : costCharacteristic.value - utilitiesAmount.value
-    return
+  } else {
+    const hasAnyPrice = roomCharacteristics.value.some(
+      (c) => c.name === 'Стоимость (из вуза)' || c.name === 'Стоимость (не из вуза)',
+    )
+    isDailyOnlyRoom.value = !hasAnyPrice
+    roomCost.value = hasAnyPrice ? undefined : 0
+    rentAmount.value = hasAnyPrice ? undefined : 0
+    utilitiesAmount.value = hasAnyPrice ? dormInfo.value.communalServicesCost ?? undefined : 0
   }
-  const hasAnyPrice = roomCharacteristics.value.some(
-    (c) => c.name === 'Стоимость (из вуза)' || c.name === 'Стоимость (не из вуза)',
-  )
-  if (hasAnyPrice) {
-    roomCost.value = undefined
-    rentAmount.value = undefined
+  if (benefit.value === 'PARTIAL') {
     utilitiesAmount.value = dormInfo.value.communalServicesCost ?? undefined
-  }
-  if (!hasAnyPrice) {
-    isDailyOnlyRoom.value = true
+    roomCost.value = utilitiesAmount.value
+    rentAmount.value = utilitiesAmount.value === undefined ? undefined : 0
+  } else if (benefit.value === 'FREE') {
     roomCost.value = 0
     rentAmount.value = 0
     utilitiesAmount.value = 0
   }
 }
 
-watch(dailyRateCategory, applyRoomPrice)
+watch([dailyRateCategory, benefit], applyRoomPrice)
 
 watch(roomId, async (id) => {
   if (id === null) {
@@ -443,6 +447,7 @@ async function submitCreate() {
       dailyRateCategory: dailyRateCategory.value,
       dailyRateAmount: dailyRateAmount.value,
       paymentDueDay: paymentDueDay.value,
+      benefit: benefit.value,
       residenceReason: dailyRateCategory.value === 'OTHER_UNIVERSITY' ? residenceReason.value.trim() || null : null,
       legalRepName: legalRepName.value.trim() || null,
       legalRepPhone: legalRepPhone.value.trim() || null,
@@ -520,24 +525,39 @@ async function submitCreate() {
                 <p v-if="fieldErrors.residentIndividualUid" class="text-xs text-destructive">{{ fieldError(fieldErrors.residentIndividualUid) }}</p>
             </div>
 
-            <div v-if="selectedIndividual" class="flex flex-col gap-2">
-              <Label>{{ t('contracts.createDialog.fieldResidenceReason') }}</Label>
-              <Select :model-value="dailyRateCategory ?? undefined" @update:model-value="(value) => (dailyRateCategory = value as DailyRateCategory)">
-                <SelectTrigger :class="fieldErrors.residenceReasonChoice ? 'border-red-500' : ''">
-                  <SelectValue :placeholder="t('contracts.createDialog.residenceReasonPlaceholder')" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="OWN_UNIVERSITY">{{ t('contracts.createDialog.residenceReasonOwnUniversity') }}</SelectItem>
-                  <SelectItem value="OTHER_UNIVERSITY">{{ t('contracts.createDialog.residenceReasonOther') }}</SelectItem>
-                </SelectContent>
-              </Select>
-              <p v-if="fieldErrors.residenceReasonChoice" class="text-xs text-destructive">{{ fieldError(fieldErrors.residenceReasonChoice) }}</p>
-              <Transition v-bind="REVEAL_TRANSITION">
-                <div v-if="dailyRateCategory === 'OTHER_UNIVERSITY'" class="flex flex-col gap-2">
-                  <Input v-model="residenceReason" :placeholder="t('contracts.createDialog.residenceReasonOtherPlaceholder')" :class="fieldErrors.residenceReason ? 'border-red-500' : ''" />
-                  <p v-if="fieldErrors.residenceReason" class="text-xs text-destructive">{{ fieldError(fieldErrors.residenceReason) }}</p>
-                </div>
-              </Transition>
+            <div v-if="selectedIndividual" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div class="flex flex-col gap-2">
+                <Label>{{ t('contracts.createDialog.fieldResidenceReason') }}</Label>
+                <Select :model-value="dailyRateCategory ?? undefined" @update:model-value="(value) => (dailyRateCategory = value as DailyRateCategory)">
+                  <SelectTrigger :class="fieldErrors.residenceReasonChoice ? 'border-red-500' : ''">
+                    <SelectValue :placeholder="t('contracts.createDialog.residenceReasonPlaceholder')" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="OWN_UNIVERSITY">{{ t('contracts.createDialog.residenceReasonOwnUniversity') }}</SelectItem>
+                    <SelectItem value="OTHER_UNIVERSITY">{{ t('contracts.createDialog.residenceReasonOther') }}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p v-if="fieldErrors.residenceReasonChoice" class="text-xs text-destructive">{{ fieldError(fieldErrors.residenceReasonChoice) }}</p>
+                <Transition v-bind="REVEAL_TRANSITION">
+                  <div v-if="dailyRateCategory === 'OTHER_UNIVERSITY'" class="flex flex-col gap-2">
+                    <Input v-model="residenceReason" :placeholder="t('contracts.createDialog.residenceReasonOtherPlaceholder')" :class="fieldErrors.residenceReason ? 'border-red-500' : ''" />
+                    <p v-if="fieldErrors.residenceReason" class="text-xs text-destructive">{{ fieldError(fieldErrors.residenceReason) }}</p>
+                  </div>
+                </Transition>
+              </div>
+              <div class="flex flex-col gap-2">
+                <Label>{{ t('contracts.createDialog.fieldBenefit') }}</Label>
+                <Select v-model="benefit">
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="NONE">{{ t('contracts.benefit.NONE') }}</SelectItem>
+                    <SelectItem value="PARTIAL">{{ t('contracts.benefit.PARTIAL') }}</SelectItem>
+                    <SelectItem value="FREE">{{ t('contracts.benefit.FREE') }}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -572,7 +592,7 @@ async function submitCreate() {
               {{ t('contracts.createDialog.validation.departureDayOccupied') }}
             </p>
             <p v-if="availabilityError" class="text-sm text-destructive">{{ availabilityError }}</p>
-            <div v-if="isDailyOnlyRoom" class="flex flex-col gap-2">
+            <div v-if="isDailyOnlyRoom && benefit === 'NONE'" class="flex flex-col gap-2">
               <Label>{{ t('contracts.createDialog.fieldCost') }}</Label>
               <p class="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
                 {{ t('contracts.createDialog.dailyOnlyNote', { rate: dailyRateAmount ?? '-' }) }}
@@ -584,7 +604,7 @@ async function submitCreate() {
                 <Input
                   v-model.number="roomCost"
                   type="number"
-
+                  :disabled="benefit !== 'NONE'"
                   @keydown="blockNonNumericKeys"
                   @input="onRoomCostInput"
                 :class="[NO_SPINNER_CLASS, fieldErrors.roomCost ? 'border-red-500' : '']" />

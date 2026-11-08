@@ -83,6 +83,10 @@ export interface OccupancyRoom {
   room: string
   floor: number | null
   capacity: number | null
+  contingent: string | null
+  area: number | null
+  ownUniversityPrice: number | null
+  otherUniversityPrice: number | null
   occupied: number
   free: number | null
   occupants: { contractId: number; contractNumber: string; residentFullName: string }[]

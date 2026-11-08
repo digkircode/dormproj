@@ -48,6 +48,7 @@ const FIELD_LABELS = computed<Record<string, string>>(() => ({
   actualEndDate: t('contracts.detail.actualEndDate'),
   status: t('audit.fieldStatus'),
   residenceReason: t('contracts.createDialog.fieldResidenceReason'),
+  benefit: t('contracts.createDialog.fieldBenefit'),
   legalRepName: t('contracts.createDialog.fieldFullName'),
   legalRepPhone: t('contracts.createDialog.fieldPhone'),
   legalRepGender: t('contracts.createDialog.fieldGender'),

@@ -36,6 +36,7 @@
       "colStatus": "Статус",
       "colMapping": "Сопоставление",
       "colMatCapital": "Материнский капитал",
+      "colBenefit": "Льготы",
       "totalLabel": "договоров",
       "openContract": "Открыть договор",
       "newContract": "Новый договор",
@@ -129,6 +130,13 @@
       "reverseDialogDescription": "Платёж {amount} от {date} будет отмечен как сторнированный, начисления пересчитаются заново. Действие необратимо.",
       "confirmReverse": "Да, сторнировать"
     },
+    "benefit": {
+      "NONE": "Нет",
+      "PARTIAL": "Частичная оплата",
+      "FREE": "Бесплатно",
+      "PARTIALShort": "Частичная",
+      "FREEShort": "Бесплатно"
+    },
     "gender": {
       "male": "Мужской",
       "female": "Женский"
@@ -149,6 +157,7 @@
       "costBreakdown": "Найм: {rent} ₽ · Коммунальные услуги: {utilities} ₽",
       "dailyOnlyNote": "Посуточная оплата - {rate} ₽/сутки, месячной ставки нет",
       "fieldResidenceReason": "Причина проживания",
+      "fieldBenefit": "Льготы",
       "residenceReasonPlaceholder": "Выберите причину",
       "residenceReasonOwnUniversity": "Обучение в РосНОУ",
       "residenceReasonOther": "Другая",

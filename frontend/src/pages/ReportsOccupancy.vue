@@ -53,11 +53,19 @@ watch(asOf, (value) => {
   void load()
 })
 
-const occupancyFilter = ref<'all' | 'free' | 'occupied'>('all')
+type OccupancyFilter = 'all' | 'free' | 'occupied' | 'freeFemale' | 'freeMale' | 'occupiedFemale' | 'occupiedMale'
+const occupancyFilter = ref<OccupancyFilter>('all')
 function roomMatchesFilter(room: OccupancyRoom): boolean {
   if (occupancyFilter.value === 'all') return true
   if (room.free === null) return false
-  return occupancyFilter.value === 'free' ? room.free > 0 : room.free === 0
+  const filter = occupancyFilter.value
+  const contingent = filter.endsWith('Female') ? 'Женская' : filter.endsWith('Male') ? 'Мужская' : null
+  if (contingent && room.contingent !== contingent) return false
+  return filter.startsWith('free') ? room.free > 0 : room.free === 0
+}
+
+function formatMoney(value: number | null): string {
+  return value === null ? '-' : `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(value)} ₽`
 }
 const filteredFloors = computed(() => {
   if (!report.value) return []
@@ -234,11 +242,15 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
                 <span class="sr-only">{{ t('reports.occupancy.filterTooltip') }}</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" class="w-48">
+            <DropdownMenuContent align="end" class="w-56">
               <DropdownMenuRadioGroup v-model="occupancyFilter">
                 <DropdownMenuRadioItem value="all">{{ t('reports.occupancy.filterAll') }}</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="free">{{ t('reports.occupancy.filterFree') }}</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="occupied">{{ t('reports.occupancy.filterOccupied') }}</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="freeFemale">{{ t('reports.occupancy.filterFreeFemale') }}</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="freeMale">{{ t('reports.occupancy.filterFreeMale') }}</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="occupiedFemale">{{ t('reports.occupancy.filterOccupiedFemale') }}</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="occupiedMale">{{ t('reports.occupancy.filterOccupiedMale') }}</DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -275,6 +287,11 @@ const roomsView = ref<'new' | 'old' | 'all'>('all')
                 <div class="h-full rounded-full transition-all" :class="barClass(room)" :style="{ width: `${occupancyRatio(room) * 100}%` }" />
               </div>
               <span class="text-xs text-muted-foreground">({{ room.occupied }} / {{ room.capacity ?? '-' }})</span>
+              <span class="flex flex-col text-[11px] leading-4 text-muted-foreground">
+                <span>{{ t('reports.occupancy.roomArea', { value: room.area ?? '-' }) }}</span>
+                <span>{{ t('reports.occupancy.roomOwnPrice', { value: formatMoney(room.ownUniversityPrice) }) }}</span>
+                <span>{{ t('reports.occupancy.roomOtherPrice', { value: formatMoney(room.otherUniversityPrice) }) }}</span>
+              </span>
             </button>
           </div>
         </div>

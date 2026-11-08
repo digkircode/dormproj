@@ -4,6 +4,7 @@ import { i18n } from '@/i18n'
 
 export type ContractStatus = 'ACTIVE' | 'EXPIRING' | 'OVERDUE' | 'COMPLETED' | 'TERMINATED'
 export type DailyRateCategory = 'OWN_UNIVERSITY' | 'OTHER_UNIVERSITY'
+export type ContractBenefit = 'NONE' | 'PARTIAL' | 'FREE'
 export type PaymentMethod = 'CASH' | 'CARD_ACQUIRING' | 'BANK_TRANSFER' | 'MAT_CAPITAL' | 'WEBSITE'
 
 export interface ContractListItem {
@@ -20,6 +21,7 @@ export interface ContractListItem {
   roomId: number | null
   accounting1cMatched: boolean
   matCapital: 'YES' | 'NO'
+  benefit: ContractBenefit
 }
 
 export type ContractsPage = ListPage<ContractListItem>
@@ -91,6 +93,7 @@ export interface ContractDetail {
   endDate: string
   actualEndDate: string | null
   status: ContractStatus
+  benefit: ContractBenefit
   createdAt: string
   residentFullName: string
   residentIndividualUid: string
@@ -235,6 +238,7 @@ export interface CreateContractInput {
   dailyRateCategory: DailyRateCategory
   dailyRateAmount: number
   paymentDueDay?: number
+  benefit?: ContractBenefit
   residenceReason?: string | null
   legalRepName?: string | null
   legalRepPhone?: string | null
